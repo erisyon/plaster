@@ -1,0 +1,281 @@
+From 996ad5a6e4d6603cecccf315ce6cdd9c2f5042e1 Mon Sep 17 00:00:00 2001
+From: Michael Ossareh <pm@ossareh.com>
+Date: Mon, 8 Jun 2020 17:12:39 -0500
+Subject: [PATCH] chore(pyflann): migrate to python3
+
+---
+ vendor/pyflann/__init__.py              |  6 +++---
+ vendor/pyflann/bindings/__init__.py     |  2 +-
+ vendor/pyflann/bindings/flann_ctypes.py |  8 ++++----
+ vendor/pyflann/index.py                 |  8 +++++---
+ vendor/pyflann/io/__init__.py           |  2 +-
+ vendor/pyflann/io/binary_dataset.py     |  2 +-
+ vendor/pyflann/io/dat_dataset.py        |  2 +-
+ vendor/pyflann/io/dataset.py            | 14 +++++++-------
+ vendor/pyflann/io/hdf5_dataset.py       | 10 +++++-----
+ vendor/pyflann/io/npy_dataset.py        |  2 +-
+ vendor/pyflann/util/weave_tools.py      |  6 +++---
+ 11 files changed, 32 insertions(+), 30 deletions(-)
+
+diff --git a/vendor/pyflann/__init__.py b/vendor/pyflann/__init__.py
+index f8ecad3..0d94956 100644
+--- a/vendor/pyflann/__init__.py
++++ b/vendor/pyflann/__init__.py
+@@ -24,9 +24,9 @@
+ #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ #THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-from index import *
+-from io.dataset import load, save
++from .index import *
++from .io.dataset import load, save
+ try:
+-    from io.hdf5_dataset import load_range
++    from .io.hdf5_dataset import load_range
+ except:
+     pass
+diff --git a/vendor/pyflann/bindings/__init__.py b/vendor/pyflann/bindings/__init__.py
+index 332f8fa..5e3ae2e 100644
+--- a/vendor/pyflann/bindings/__init__.py
++++ b/vendor/pyflann/bindings/__init__.py
+@@ -27,4 +27,4 @@
+ #from pyflann import *
+ #from pyflann_parameters import parameter_list, algorithm_names
+ #from pyflann_parameters import centers_init_names, log_level_names
+-from flann_ctypes import *
++from .flann_ctypes import *
+diff --git a/vendor/pyflann/bindings/flann_ctypes.py b/vendor/pyflann/bindings/flann_ctypes.py
+index 1c6c2b6..330994e 100644
+--- a/vendor/pyflann/bindings/flann_ctypes.py
++++ b/vendor/pyflann/bindings/flann_ctypes.py
+@@ -50,7 +50,7 @@ class CustomStructure(Structure):
+         self.update(self._defaults_)
+ 
+     def update(self, dict):
+-        for k, v in dict.iteritems():
++        for k, v in dict.items():
+             if k in self.__field_names:
+                 setattr(self, k, self.__translate(k, v))
+ 
+@@ -75,7 +75,7 @@ class CustomStructure(Structure):
+ 
+     def __translate_back(self, k, v):
+         if k in self._translation_:
+-            for tk, tv in self._translation_[k].iteritems():
++            for tk, tv in self._translation_[k].items():
+                 if tv == v:
+                     return tk
+         return v
+@@ -148,7 +148,7 @@ def load_flann_library():
+             try:
+                 flannlib = cdll[os.path.join(root_dir, libdir, libname)]
+                 return flannlib
+-            except Exception, e:
++            except Exception as e:
+                 pass
+         tmp = os.path.dirname(root_dir)
+         if tmp == root_dir:
+@@ -198,7 +198,7 @@ type_mappings = (('float', 'float32'),
+ 
+ def define_functions(str):
+     for type in type_mappings:
+-        exec str % {'C': type[0], 'numpy': type[1]}
++        exec(str % {'C': type[0], 'numpy': type[1]})
+ 
+ flann.build_index = {}
+ define_functions(r"""
+diff --git a/vendor/pyflann/index.py b/vendor/pyflann/index.py
+index f8209f2..8b6f64c 100644
+--- a/vendor/pyflann/index.py
++++ b/vendor/pyflann/index.py
+@@ -24,8 +24,8 @@
+ #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ #THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-from bindings.flann_ctypes import *
+-from io.dataset import *
++from .bindings.flann_ctypes import *
++from .io.dataset import *
+ import numpy.random as _rn
+ 
+ 
+@@ -252,7 +252,9 @@ class FLANN:
+         if self.__curindex_type != query.dtype.type:
+             raise FLANNException("Index and query must have the same type")
+ 
+-        npts, dim = self.__curindex_data.shape        
++        npts, dim = self.__curindex_data.shape
++        npts = kwargs.pop("max_nn", npts)  # ZBS added this
++
+         assert(query.shape[0]==dim)
+         
+         result = empty( npts, dtype=index_type)
+diff --git a/vendor/pyflann/io/__init__.py b/vendor/pyflann/io/__init__.py
+index de9de45..e24c494 100644
+--- a/vendor/pyflann/io/__init__.py
++++ b/vendor/pyflann/io/__init__.py
+@@ -24,4 +24,4 @@
+ #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ #THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-from dataset import *
+\ No newline at end of file
++from .dataset import *
+\ No newline at end of file
+diff --git a/vendor/pyflann/io/binary_dataset.py b/vendor/pyflann/io/binary_dataset.py
+index 915be44..17a9625 100644
+--- a/vendor/pyflann/io/binary_dataset.py
++++ b/vendor/pyflann/io/binary_dataset.py
+@@ -24,7 +24,7 @@
+ #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ #THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-from __future__ import with_statement
++
+ 
+ from pyflann.exceptions import FLANNException
+ import numpy
+diff --git a/vendor/pyflann/io/dat_dataset.py b/vendor/pyflann/io/dat_dataset.py
+index 8617436..5179b53 100644
+--- a/vendor/pyflann/io/dat_dataset.py
++++ b/vendor/pyflann/io/dat_dataset.py
+@@ -24,7 +24,7 @@
+ #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ #THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-from __future__ import with_statement
++
+ 
+ from pyflann.exceptions import FLANNException
+ import numpy
+diff --git a/vendor/pyflann/io/dataset.py b/vendor/pyflann/io/dataset.py
+index 0b95109..bcc36fa 100644
+--- a/vendor/pyflann/io/dataset.py
++++ b/vendor/pyflann/io/dataset.py
+@@ -24,13 +24,13 @@
+ #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ #THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-from __future__ import with_statement
++
+ 
+ from pyflann.exceptions import FLANNException
+-import binary_dataset
+-import dat_dataset
+-import npy_dataset
+-import hdf5_dataset
++from . import binary_dataset
++from . import dat_dataset
++from . import npy_dataset
++from . import hdf5_dataset
+ 
+ import os.path
+ from numpy import float32
+@@ -45,7 +45,7 @@ dataset_formats = {
+ 
+ def load(filename, rows = -1, cols = -1, dtype = float32, **kwargs):
+     
+-    for format in dataset_formats.values():
++    for format in list(dataset_formats.values()):
+         if format.check(filename):
+             return format.load(filename, rows, cols, dtype, **kwargs)
+     raise FLANNException("Error: Unknown dataset format")
+@@ -58,5 +58,5 @@ def save(dataset, filename, format = None, **kwargs):
+             format = extension[1:]
+         handler = dataset_formats[format]
+         handler.save(dataset, filename, **kwargs)
+-    except Exception,e:
++    except Exception as e:
+         raise FLANNException(e)
+diff --git a/vendor/pyflann/io/hdf5_dataset.py b/vendor/pyflann/io/hdf5_dataset.py
+index 43a41d8..2fc9e43 100644
+--- a/vendor/pyflann/io/hdf5_dataset.py
++++ b/vendor/pyflann/io/hdf5_dataset.py
+@@ -24,14 +24,14 @@
+ #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ #THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-from __future__ import with_statement
++
+ 
+ from pyflann.exceptions import FLANNException
+ import numpy
+ have_h5py = True
+ try:
+     import h5py
+-except Exception,e:
++except Exception as e:
+     have_h5py = False
+ 
+ if not have_h5py:
+@@ -64,7 +64,7 @@ else:
+             h5file = h5py.File(filename)
+             h5file.create_dataset(dataset_name, data=dataset)
+             h5file.close()
+-        except Exception,e:
++        except Exception as e:
+             h5file.close()
+             raise FLANNException(e)
+ 
+@@ -77,12 +77,12 @@ else:
+             else:
+                 dataset_name = 'dataset'
+             
+-            for node in h5file.keys():
++            for node in list(h5file.keys()):
+                 if node == dataset_name:
+                     data = numpy.array(h5file[node])
+             h5file.close()
+             return data
+-        except Exception,e:
++        except Exception as e:
+             h5file.close()
+             raise FLANNException(e)
+             
+diff --git a/vendor/pyflann/io/npy_dataset.py b/vendor/pyflann/io/npy_dataset.py
+index 9688984..58fb9c8 100644
+--- a/vendor/pyflann/io/npy_dataset.py
++++ b/vendor/pyflann/io/npy_dataset.py
+@@ -24,7 +24,7 @@
+ #(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ #THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-from __future__ import with_statement
++
+ 
+ from pyflann.exceptions import FLANNException
+ import numpy
+diff --git a/vendor/pyflann/util/weave_tools.py b/vendor/pyflann/util/weave_tools.py
+index 2d4c5a9..646eec8 100644
+--- a/vendor/pyflann/util/weave_tools.py
++++ b/vendor/pyflann/util/weave_tools.py
+@@ -121,7 +121,7 @@ class CModule:
+             defaults = [] if defaults==None else defaults
+             if len(args) != len(defaults):
+                 raise Exception("The %s function must have default values for all arguments"%name)
+-            arg_tuples = zip(args,defaults) + list(varargs)
++            arg_tuples = list(zip(args,defaults)) + list(varargs)
+             self.add_function(name,code,*arg_tuples)
+             return func
+         return decorate        
+@@ -138,7 +138,7 @@ class CModule:
+         defaults = [] if defaults==None else defaults
+         if len(args) != len(defaults):
+             raise Exception("The %s function must have default values for all arguments"%name)
+-        vardict = dict(zip(args,defaults))
++        vardict = dict(list(zip(args,defaults)))
+         self.extension.add_function(ext_tools.ext_function(name, code, args, local_dict = vardict))
+         return func
+         
+@@ -165,7 +165,7 @@ class CStruct:
+         format = join([ s for (s,_,_) in members],'')
+         self.__struct_dict = dict( (v for (_,v,_) in members) )
+         self.__translation_dict = dict( ( (k[0],v) for (_,k,v) in members if v != None))
+-        print self.__translation_dict
++        print(self.__translation_dict)
+         self.__struct = struct.Struct(format)
+         
+         
+-- 
+2.26.0
+

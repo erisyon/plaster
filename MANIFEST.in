@@ -1,0 +1,2 @@
+recursive-include plaster *.py *.ipynb
+recursive-include plaster/vendor *

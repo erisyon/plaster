@@ -1,0 +1,37 @@
+# For internal development, see ./internal/scripts/Pipfile
+
+[[source]]
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+arrow = "*"
+black = "==19.10b0"
+bokeh = "*"
+cython = "*"
+ipython = "*"
+jupyter = "*"
+munch = "*"
+nbstripout = "*"
+nptyping = "*"
+numpy = "*"
+opencv-python = "*"
+pandas = "*"
+plumbum = "*"
+psf = "*"
+pudb = "*"
+pyyaml = "*"
+requests = "*"
+retrying = "*"
+scikit-image = "*"
+scikit-learn = "*"
+twine = "*"
+wheel = "*"
+zbs-zest = "*"
+
+[requires]
+python_version = "3.8"
+
+[pipenv]
+allow_prereleases = true

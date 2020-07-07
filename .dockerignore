@@ -1,0 +1,6 @@
+dist/
+erisyon.plaster.egg-info/
+jobs_folder*
+tmp_folder*
+**/.*
+.*/*

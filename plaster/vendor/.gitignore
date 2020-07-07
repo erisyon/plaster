@@ -1,0 +1,2 @@
+!pyflann/lib
+!pyflann/**/*.so
