@@ -1,26 +1,31 @@
+from io import StringIO
+import pandas as pd
 import numpy as np
 from plaster.tools.log.log import debug, prof
-from plaster.run.sim_v2.sim_v2_params import SimV2Params
+from plaster.run.sim_v2.sim_v2_params import SimV2Params, ErrorModel
 from plaster.run.sim_v2.fast import sim_v2_fast
-from plaster.run.prep.prep_result import PrepResult
-from plaster.tools.utils import utils
 
 
 def zest_pyx_runs():
-    which = "1"
-
-    # TODO CONVERT to make this
-    prep_result = PrepResult.load_from_folder(
-        f"/Users/zack/jobs_folder/yoda_v2_classify_{which}/gluc_ph8_de_k_r_a88f/plaster_output/prep"
+    sim_params = SimV2Params.construct_from_aa_list(
+        ["L", "Q"], error_model=ErrorModel.from_defaults(n_channels=2)
     )
-    sim_params = utils.yaml_load_munch(
-        f"/Users/zack/jobs_folder/yoda_v2_classify_{which}/gluc_ph8_de_k_r_a88f/plaster_run.yaml"
-    )
-    sim_params = utils.block_search(sim_params, "sim.parameters")
-    sim_params = SimV2Params(include_dfs=True, **sim_params)
 
+    csv = """pep_i,aa,pep_offset_in_pro
+        0, ., 0
+        1, M, 0
+        1, L, 1
+        1, K, 2
+        1, P, 3
+        2, N, 15
+        2, C, 16
+        2, Q, 17
+        2, R, 18
+    """
+    pep_seq_df = pd.read_csv(StringIO(csv))
+
+    import pudb; pudb.set_trace()
     flus = []
-    pep_seq_df = prep_result.pepseqs()
     labelled_pep_df = pep_seq_df.join(
         sim_params.df.set_index("amino_acid"), on="aa", how="left"
     )
@@ -58,5 +63,6 @@ def zest_pyx_runs():
         rng_seed=None,
     )
     prof()
+    import pudb; pudb.set_trace()
     debug(dyetracks.shape)
     # TODO: Put asserts, it...
