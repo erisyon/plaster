@@ -1,4 +1,4 @@
-cdef extern from "plaster/run/sim_v2/sim_v2_fast.h":
+cdef extern from "csim_v2_fast.h":
     ctypedef unsigned char Uint8
     ctypedef unsigned long Uint64
     ctypedef unsigned long Size

@@ -1,21 +1,20 @@
 import numpy as np
 from plaster.tools.log.log import debug, prof
 from plaster.run.sim_v2.sim_v2_params import SimV2Params
-
-# from plaster.run.sim_v2 import csim_v2_fast
+from plaster.run.sim_v2.fast import sim_v2_fast
 from plaster.run.prep.prep_result import PrepResult
 from plaster.tools.utils import utils
 
 
-def _zest_pyx_runs():
-    which = "10"
+def zest_pyx_runs():
+    which = "1"
 
     # TODO CONVERT to make this
     prep_result = PrepResult.load_from_folder(
-        f"./jobs_folder/yoda_v2_classify_{which}/gluc_ph8_de_k_r_a88f/plaster_output/prep"
+        f"/Users/zack/jobs_folder/yoda_v2_classify_{which}/gluc_ph8_de_k_r_a88f/plaster_output/prep"
     )
     sim_params = utils.yaml_load_munch(
-        f"./jobs_folder/yoda_v2_classify_{which}/gluc_ph8_de_k_r_a88f/plaster_run.yaml"
+        f"/Users/zack/jobs_folder/yoda_v2_classify_{which}/gluc_ph8_de_k_r_a88f/plaster_run.yaml"
     )
     sim_params = utils.block_search(sim_params, "sim.parameters")
     sim_params = SimV2Params(include_dfs=True, **sim_params)
@@ -27,27 +26,27 @@ def _zest_pyx_runs():
     )
     for pep_i, group in labelled_pep_df.groupby("pep_i"):
         flu_float = group.ch_i.values
-        flu = np.nan_to_num(flu_float, nan=csim_v2_fast.NO_LABEL).astype(
-            csim_v2_fast.DyeType
+        flu = np.nan_to_num(flu_float, nan=sim_v2_fast.NO_LABEL).astype(
+            sim_v2_fast.DyeType
         )
         flus += [flu]
 
-    cycles = np.zeros((sim_params.n_cycles,), dtype=csim_v2_fast.CycleKindType)
+    cycles = np.zeros((sim_params.n_cycles,), dtype=sim_v2_fast.CycleKindType)
     i = 0
     for _ in range(sim_params.n_pres):
-        cycles[i] = csim_v2_fast.CYCLE_TYPE_PRE
+        cycles[i] = sim_v2_fast.CYCLE_TYPE_PRE
         i += 1
     for _ in range(sim_params.n_mocks):
-        cycles[i] = csim_v2_fast.CYCLE_TYPE_MOCK
+        cycles[i] = sim_v2_fast.CYCLE_TYPE_MOCK
         i += 1
     for _ in range(sim_params.n_edmans):
-        cycles[i] = csim_v2_fast.CYCLE_TYPE_EDMAN
+        cycles[i] = sim_v2_fast.CYCLE_TYPE_EDMAN
         i += 1
 
     # TODO: bleach each channel
     # TODO: Include the p_bright calculations yet
     prof()
-    dyetracks, dyepeps = csim_v2_fast.sim(
+    dyetracks, dyepeps = sim_v2_fast.sim(
         flus,
         sim_params.n_samples_train,
         sim_params.n_channels,

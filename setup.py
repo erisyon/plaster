@@ -1,10 +1,9 @@
-# python setup.py build_ext -i
+# python setup.py build_ext --inplace
+
 import numpy as np
 from setuptools import Extension, setup
 from Cython.Build import cythonize
 import pathlib
-import os.path
-import os
 from os import path
 
 # The directory containing this file
@@ -20,9 +19,15 @@ plaster_root = "."
 
 extensions = [
     Extension(
-        "sim_v2",
-        [f"{plaster_root}/plaster/run/sim_v2/csim_v2_fast.c"],
-        include_dirs=[f"{plaster_root}/plaster/run/sim_v2", np.get_include()],
+        name="plaster.run.sim_v2.fast.sim_v2_fast",
+        sources=[
+            f"{plaster_root}/plaster/run/sim_v2/fast/sim_v2_fast.pyx",
+            f"{plaster_root}/plaster/run/sim_v2/fast/csim_v2_fast.c",
+        ],
+        include_dirs=[
+            f"{plaster_root}/plaster/run/sim_v2/fast",
+            np.get_include(),
+        ],
         extra_compile_args=[
             "-Wno-unused-but-set-variable",
             "-Wno-unused-label",
