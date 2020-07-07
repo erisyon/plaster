@@ -96,14 +96,13 @@ test_plaster_docker_container() {
 	# Note: This is testing plaster build directly without docker_build.sh
 	docker build ${_DOCKER_CACHE} -t "plaster:e2e" .
 
+	# Set userid correctly in container so that files on host system aren't owned by root
 	_USER_ID=$(id -u)
 	_RUNTMP=/tmp/erisyon_e2e
 	mkdir -p $_RUNTMP
 	echo "root:*:0:0:root:/root:/bin/bash" > "${_RUNTMP}/passwd"
 	echo "${USER}:*:${_USER_ID}:0:${USER},,,:/root:/bin/bash" >> "${_RUNTMP}/passwd"
 	echo "root:*:0:${_USER_ID}" > "${_RUNTMP}/group"
-	# echo "docker:*:${_DOCKER_GROUP_ID}:${_USER_ID}" >> "${_RUNTMP}/group"
-	# echo "misc:*:101:${_USER_ID}" >> "${_RUNTMP}/group"
 
 	DOCKER_RUN="docker run -it \
 		--volume ${_RUNTMP}/passwd:/etc/passwd:ro \
