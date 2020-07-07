@@ -8,6 +8,11 @@ if [[ "${ERISYON_DOCKER_ENV}" == "1" ]]; then
 	exit 1
 fi
 
+if [[ ! -d "${ERISYON_JOBS_FOLDER}" ]]; then
+	echo "Error: \$ERISYON_JOBS_FOLDER must point to your jobs folder"
+	exit 1
+fi
+
 USE_DOCKER_CACHE=${USE_DOCKER_CACHE:-"1"}
 _DOCKER_CACHE=""
 if [[ "${USE_DOCKER_CACHE}" != "1" ]]; then
@@ -91,7 +96,23 @@ test_plaster_docker_container() {
 	# Note: This is testing plaster build directly without docker_build.sh
 	docker build ${_DOCKER_CACHE} -t "plaster:e2e" .
 
-	DOCKER_RUN="docker run -it --volume ${HOME}/jobs_folder:/jobs_folder:rw plaster:e2e"
+	_USER_ID=$(id -u)
+	_RUNTMP=/tmp/erisyon_e2e
+	mkdir -p $_RUNTMP
+	echo "root:*:0:0:root:/root:/bin/bash" > "${_RUNTMP}/passwd"
+	echo "${USER}:*:${_USER_ID}:0:${USER},,,:/root:/bin/bash" >> "${_RUNTMP}/passwd"
+	echo "root:*:0:${_USER_ID}" > "${_RUNTMP}/group"
+	# echo "docker:*:${_DOCKER_GROUP_ID}:${_USER_ID}" >> "${_RUNTMP}/group"
+	# echo "misc:*:101:${_USER_ID}" >> "${_RUNTMP}/group"
+
+	DOCKER_RUN="docker run -it \
+		--volume ${_RUNTMP}/passwd:/etc/passwd:ro \
+		--volume ${_RUNTMP}/group:/etc/group:ro \
+		--volume ${ERISYON_JOBS_FOLDER}:/jobs_folder:rw \
+		--user ${_USER_ID}:0 \
+		--group-add 0 \
+		plaster:e2e \
+	"
 
 	it_passes_tests() {
 		LIMIT_TESTS=""
@@ -100,7 +121,7 @@ test_plaster_docker_container() {
 	}
 
 	it_gens_and_runs() {
-		rm -rf ~/jobs_folder/__e2e_test
+		rm -rf $ERISYON_JOBS_FOLDER/__e2e_test
 		$DOCKER_RUN \
 			plas gen classify \
 			--job=/jobs_folder/__e2e_test \
@@ -128,9 +149,9 @@ test_plaster_docker_container() {
 
 	it_runs_jupyter() {
 		rm -f ./scripts/e2e_test_notebook.html
-		cp ./scripts/e2e_test_notebook.ipynb ~/jobs_folder/__e2e_test
+		cp ./scripts/e2e_test_notebook.ipynb $ERISYON_JOBS_FOLDER/__e2e_test
 		$DOCKER_RUN jupyter nbconvert --to html --execute /jobs_folder/__e2e_test/e2e_test_notebook.ipynb > /dev/null
-		grep -q -i "successfulrun" ~/jobs_folder/__e2e_test/e2e_test_notebook.html
+		grep -q -i "successfulrun" $ERISYON_JOBS_FOLDER/__e2e_test/e2e_test_notebook.html
 		_check_fail_test $? $LINENO
 		rm -f ./scripts/e2e_test_notebook.html
 	}
