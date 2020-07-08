@@ -33,6 +33,17 @@ def sim(
     n_threads=1,
     rng_seed=None,
 ):
+    """
+    Run the Virtual Fluoro Sequence Monte-Carlo simulator via Cython to
+    the C implemntation in csim_v2_fast.c.
+
+    Returns:
+        dyetracks: ndarray(shape=(n_uniq_dyetracks, n_channels * n_cycles))
+        dyepeps: ndarray(shape=(n_dyepep_rows, 3))
+            Where:
+                n_dyepep_rows is a unique row for each (dtr_i, pep_i)
+                3 columns are: dtr_i, pep_i, count
+    """
     cdef csim.Uint64 i, j, n_chcy
     cdef csim.Uint8 [::1] flu_view
     cdef csim.DTR dtr

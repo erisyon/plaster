@@ -104,6 +104,13 @@ void trace(const char *fmt, ...) {
 }
 
 
+#ifdef DEBUG
+    #define trace _trace
+#else
+    #define trace(...) ((void)0)
+#endif
+
+
 static Uint128 rng_state = 1;
 void rand64_seed(Uint64 seed) {
     rng_state = seed;
@@ -686,7 +693,7 @@ int main() {
     _context_generate_test_pepflus(&ctx);
 
     Size n_trials = 20;
-    Uint64 start = now();
+    //Uint64 start = now();
     for(Index i=0; i<n_trials; i++) {
         Size n_max_dtrs = 8 * ctx.n_peps * ctx.n_samples / 10;
         Size n_dtr_row_bytes = dtr_n_bytes(ctx.n_channels, ctx.n_cycles);
@@ -708,8 +715,8 @@ int main() {
         ctx.n_threads = 2;
         context_work_orders_start(&ctx);
     }
-    Uint64 stop = now();
-    trace("dtrs n_rows = %ld\n", ctx.dtrs.n_rows);
-    trace("%f sec per trial\n", (double)(stop-start) / ((double)n_trials * 1000.0*1000.0) );
+    //Uint64 stop = now();
+    //trace("dtrs n_rows = %ld\n", ctx.dtrs.n_rows);
+    //trace("%f sec per trial\n", (double)(stop-start) / ((double)n_trials * 1000.0*1000.0) );
     return 0;
 }
