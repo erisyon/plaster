@@ -3,16 +3,6 @@
 # This is the entrypoint for e2e tests which test environmental setup
 # and are therefore run _outside_ of the docker container.
 
-if [[ "${ERISYON_DOCKER_ENV}" == "1" ]]; then
-	echo "Error: E2E test should be run outside of the docker environment"
-	exit 1
-fi
-
-if [[ ! -d "${ERISYON_JOBS_FOLDER}" ]]; then
-	echo "Error: \$ERISYON_JOBS_FOLDER must point to your jobs folder"
-	exit 1
-fi
-
 USE_DOCKER_CACHE=${USE_DOCKER_CACHE:-"1"}
 _DOCKER_CACHE=""
 if [[ "${USE_DOCKER_CACHE}" != "1" ]]; then
@@ -37,7 +27,7 @@ BPurple='\033[1;35m'
 BCyan='\033[1;36m'
 BWhite='\033[1;37m'
 
-set -euo pipefail
+set -eo pipefail
 trap "exit 1" TERM
 export _TOP_PID=$$
 _error() {
@@ -85,6 +75,20 @@ _sleep() {
 }
 
 _check_plaster_root
+
+
+# checks
+# ------------------------------------------------------------------------------
+
+if [[ "${ERISYON_DOCKER_ENV}" == "1" ]]; then
+	echo "Error: E2E test should be run outside of the docker environment"
+	exit 1
+fi
+
+if [[ ! -d "${ERISYON_JOBS_FOLDER}" ]]; then
+	echo "Error: \$ERISYON_JOBS_FOLDER must point to your jobs folder"
+	exit 1
+fi
 
 
 # plaster container tests
