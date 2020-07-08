@@ -5,7 +5,7 @@ from plaster.run.sim_v2.sim_v2_worker import sim
 from plaster.tools.log.log import debug
 
 
-class SimV1Task(PipelineTask):
+class SimV2Task(PipelineTask):
     def start(self):
         sim_v2_params = SimV2Params(include_dfs=True, **self.config.parameters)
 

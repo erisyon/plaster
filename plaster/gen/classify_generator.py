@@ -3,7 +3,6 @@ from munch import Munch
 
 from plaster.gen.base_generator import BaseGenerator
 from plaster.gen import task_templates
-from plaster.run.sim.sim_params import SimParams
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
 from plaster.tools.log.log import debug, important
@@ -168,7 +167,7 @@ class ClassifyGenerator(BaseGenerator):
                     n_ptms_limit=self.n_ptms_limit,
                 )
 
-                sim_task = task_templates.sim(
+                sim_v1_task = task_templates.sim_v1(
                     list(aa_list),
                     err_set,
                     n_pres=self.n_pres,
@@ -177,7 +176,7 @@ class ClassifyGenerator(BaseGenerator):
                     n_samples_train=self.n_samples_train,
                     n_samples_test=self.n_samples_test,
                 )
-                sim_task.sim.parameters.random_seed = self.random_seed
+                sim_v1_task.sim_v1.parameters.random_seed = self.random_seed
                 # note: same seed is used to generate decoys
 
                 if not self.classify_skip_rf:
@@ -191,7 +190,7 @@ class ClassifyGenerator(BaseGenerator):
                 classify_rf_task = {}
                 if sigproc_task:
                     classify_rf_task = task_templates.classify_rf(
-                        sim_relative_path="../sim",
+                        sim_relative_path="../sim_v1",
                         train_relative_path=f"../{utils.get_root_key(train_rf_task)}",
                         sigproc_relative_path=f"../sigproc_v1",
                     )
@@ -212,7 +211,7 @@ class ClassifyGenerator(BaseGenerator):
                     run_name=run_name,
                     **e_block,
                     **prep_task,
-                    **sim_task,
+                    **sim_v1_task,
                     **train_rf_task,
                     **test_rf_task,
                     **test_nn_task,

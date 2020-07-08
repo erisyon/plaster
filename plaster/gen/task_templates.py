@@ -12,7 +12,7 @@ from munch import Munch
 from plaster.tools.utils import utils
 from plaster.tools.schema import check
 from plaster.tools.aaseq.aaseq import aa_list_to_str
-from plaster.run.sim.sim_params import SimParams
+from plaster.run.sim_v1.sim_v1_params import SimV1Params
 from plaster.run.error_model import ErrorModel
 from plaster.tools.log.log import debug
 
@@ -123,7 +123,7 @@ def prep(
     )
 
 
-def sim(aa_list, err_set, **sim_kws):
+def sim_v1(aa_list, err_set, **sim_kws):
     if isinstance(err_set, ErrorModel):
         error_model = err_set
     else:
@@ -135,11 +135,11 @@ def sim(aa_list, err_set, **sim_kws):
         n_pres + n_mocks >= 1
     ), "You must include at least 1 pre or mock cycle to capture the initial image"
     return Munch(
-        sim=Munch(
+        sim_v1=Munch(
             version="1.0",
             inputs=Munch(prep="../prep"),
             parameters=Munch(
-                **SimParams.construct_from_aa_list(
+                **SimV1Params.construct_from_aa_list(
                     aa_list, error_model=error_model, include_dfs=False, **sim_kws
                 )
             ),
@@ -151,7 +151,7 @@ def survey_nn():
     return Munch(
         survey_nn=Munch(
             version="1.0",
-            inputs=Munch(prep="../prep", sim="../sim"),
+            inputs=Munch(prep="../prep", sim="../sim_v1"),
             parameters=Munch(),
         )
     )
@@ -161,7 +161,7 @@ def train_rf():
     return Munch(
         train_rf=Munch(
             version="1.0",
-            inputs=Munch(sim="../sim"),
+            inputs=Munch(sim="../sim_v1"),
             parameters=Munch(
                 n_estimators=10,
                 min_samples_leaf=50,
@@ -177,7 +177,7 @@ def test_rf():
     return Munch(
         test_rf=Munch(
             version="1.0",
-            inputs=Munch(sim="../sim", train_rf="../train_rf", prep="../prep"),
+            inputs=Munch(sim="../sim_v1", train_rf="../train_rf", prep="../prep"),
             parameters=Munch(include_training_set=False, keep_all_class_scores=False),
         )
     )
@@ -187,7 +187,7 @@ def ptm_train_rf(ptm_labels, proteins_of_interest):
     return Munch(
         ptm_train_rf=Munch(
             version="1.0",
-            inputs=Munch(prep="../prep", sim="../sim", train_rf="../train_rf"),
+            inputs=Munch(prep="../prep", sim="../sim_v1", train_rf="../train_rf"),
             parameters=Munch(
                 proteins_of_interest=proteins_of_interest, ptm_labels=ptm_labels
             ),
@@ -201,7 +201,7 @@ def ptm_test_rf():
             version="1.0",
             inputs=Munch(
                 prep="../prep",
-                sim="../sim",
+                sim="../sim_v1",
                 train_rf="../train_rf",
                 ptm_train_rf="../ptm_train_rf",
             ),
@@ -228,7 +228,7 @@ def test_nn(**kws):
     return Munch(
         test_nn=Munch(
             version="1.0",
-            inputs=Munch(sim="../sim", prep="../prep"),
+            inputs=Munch(sim="../sim_v1", prep="../prep"),
             parameters=Munch(**kws),
         )
     )

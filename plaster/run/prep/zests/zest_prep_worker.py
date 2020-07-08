@@ -1,4 +1,3 @@
-from munch import Munch
 import numpy as np
 import pandas as pd
 import itertools
@@ -12,14 +11,8 @@ from plaster.run.prep.prep_worker import (
     _step_4_proteolysis,
     _do_ptm_permutations,
     _step_5_create_ptm_peptides,
-    prep,
     _error,
 )
-from plaster.run.prep.prep_params import PrepParams
-from plaster.run.prep.prep_result import PrepResult
-from plaster.run.sim.sim_params import SimParams
-from plaster.run.error_model import ErrorModel
-from plaster.tools.aaseq import proteolyze
 from plaster.tools.aaseq import aaseq
 from plaster.tools.log.log import debug
 

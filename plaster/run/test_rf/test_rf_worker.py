@@ -12,7 +12,7 @@ from plaster.tools.log.log import debug
 def test_rf(
     test_rf_params,
     prep_result,
-    sim_result,
+    sim_v1_result,
     train_rf_result,
     progress=None,
     pipeline=None,
@@ -24,9 +24,9 @@ def test_rf(
         pipeline.set_phase(0, n_phases)
 
     test_pred_pep_iz, test_scores, test_all_class_scores = classifier.classify(
-        sim_result.flat_test_radmat(), test_rf_params.keep_all_class_scores, progress
+        sim_v1_result.flat_test_radmat(), test_rf_params.keep_all_class_scores, progress
     )
-    test_true_pep_iz = sim_result.test_true_pep_iz()
+    test_true_pep_iz = sim_v1_result.test_true_pep_iz()
 
     # We do some PR calculation during the task so that this information is readily
     # available in results & notebooks don't need to recompute it (costly).
@@ -41,7 +41,7 @@ def test_rf(
         scores=test_scores,
         all_class_scores=test_all_class_scores,
         prep_result=prep_result,
-        sim_result=sim_result,
+        sim_v1_result=sim_v1_result,
     )
 
     if pipeline is not None:
@@ -64,10 +64,10 @@ def test_rf(
 
         real_pep_iz = prep_result.peps__no_decoys().pep_i.values
 
-        keep_rows = np.isin(sim_result.train_true_pep_iz, real_pep_iz)
+        keep_rows = np.isin(sim_v1_result.train_true_pep_iz, real_pep_iz)
 
-        train_true_pep_iz = sim_result.train_true_pep_iz[keep_rows]
-        train_radmat = sim_result.train_radmat[keep_rows]
+        train_true_pep_iz = sim_v1_result.train_true_pep_iz[keep_rows]
+        train_radmat = sim_v1_result.train_radmat[keep_rows]
 
         train_pred_pep_iz, train_scores, train_all_class_scores = classifier.classify(
             train_radmat, test_rf_params.keep_all_class_scores, progress
@@ -79,7 +79,7 @@ def test_rf(
             scores=train_scores,
             all_class_scores=train_all_class_scores,
             prep_result=prep_result,
-            sim_result=sim_result,
+            sim_v1_result=sim_v1_result,
         )
 
         if pipeline is not None:

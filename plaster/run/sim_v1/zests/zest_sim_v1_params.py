@@ -1,13 +1,13 @@
 from munch import Munch
 from zest import zest
-from plaster.run.sim.sim_params import SimParams
+from plaster.run.sim_v1.sim_v1_params import SimV1Params
 from plaster.run.error_model import ErrorModel
 
 
-def zest_sim_params():
+def zest_sim_v1_params():
     def it_copies():
         error_model = ErrorModel.from_defaults(n_channels=2)
-        src_params = SimParams.construct_from_aa_list(
+        src_params = SimV1Params.construct_from_aa_list(
             ["DE", "Y"], error_model=error_model
         )
         src_params._build_join_dfs()

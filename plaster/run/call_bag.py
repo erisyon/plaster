@@ -93,7 +93,7 @@ class CallBag:
     def __init__(
         self,
         prep_result=None,
-        sim_result=None,
+        sim_v1_result=None,
         all_class_scores=None,
         cached_pr=None,
         cached_pr_abund=None,
@@ -101,13 +101,13 @@ class CallBag:
         **kwargs,
     ):
         self._prep_result = prep_result
-        self._sim_result = sim_result
+        self._sim_v1_result = sim_v1_result
         self._all_class_scores = all_class_scores
         self._cached_pr = cached_pr
         self._cached_pr_abund = cached_pr_abund
         self.classifier_name = classifier_name
-        if sim_result is not None:
-            assert len(self._sim_result.train_recalls) == self._prep_result.n_peps
+        if sim_v1_result is not None:
+            assert len(self._sim_v1_result.train_recalls) == self._prep_result.n_peps
         self.df = pd.DataFrame(kwargs)
 
     def copy(self):
@@ -117,7 +117,7 @@ class CallBag:
         """
         return CallBag(
             prep_result=self._prep_result,
-            sim_result=self._sim_result,
+            sim_v1_result=self._sim_v1_result,
             true_pep_iz=np.copy(self.df.true_pep_iz.values),
             pred_pep_iz=np.copy(self.df.pred_pep_iz.values),
             scores=np.copy(self.df.scores.values),
@@ -129,7 +129,7 @@ class CallBag:
         """
         return CallBag(
             prep_result=self._prep_result,
-            sim_result=self._sim_result,
+            sim_v1_result=self._sim_v1_result,
             true_pep_iz=self.df.true_pep_iz[mask],
             pred_pep_iz=self.df.pred_pep_iz[mask],
             scores=self.df.scores[mask],
@@ -378,9 +378,9 @@ class CallBag:
 
         # EXTRACT training recalls from the subset of peps.
         # This will leave NANs for all those that are not in the subset.
-        if self._sim_result is not None:
-            filtered_pep_recalls = np.full_like(self._sim_result.train_recalls, np.nan)
-            filtered_pep_recalls[pep_iz_subset] = self._sim_result.train_recalls[
+        if self._sim_v1_result is not None:
+            filtered_pep_recalls = np.full_like(self._sim_v1_result.train_recalls, np.nan)
+            filtered_pep_recalls[pep_iz_subset] = self._sim_v1_result.train_recalls[
                 pep_iz_subset
             ]
         else:
@@ -523,9 +523,9 @@ class CallBag:
 
         # EXTRACT training recalls from the subset of peps.
         # This will leave NANs for all those that are not in the subset.
-        if self._sim_result is not None:
-            filtered_pep_recalls = np.full_like(self._sim_result.train_recalls, np.nan)
-            filtered_pep_recalls[pep_iz_subset] = self._sim_result.train_recalls[
+        if self._sim_v1_result is not None:
+            filtered_pep_recalls = np.full_like(self._sim_v1_result.train_recalls, np.nan)
+            filtered_pep_recalls[pep_iz_subset] = self._sim_v1_result.train_recalls[
                 pep_iz_subset
             ]
         else:
@@ -748,7 +748,7 @@ class CallBag:
 
         prsa = np.swapaxes(prsa, 0, 1)
 
-        train_recalls = self._sim_result.train_recalls
+        train_recalls = self._sim_v1_result.train_recalls
 
         pep_prsa_tuples = []
         for pep_i, pep_prsa in zip(pep_iz, prsa):
@@ -874,7 +874,7 @@ class CallBag:
     def false_rates_all_peps__flus(
         self, at_prec, n_false=4, protein_of_interest_only=True
     ):
-        flus = self._sim_result.flus()
+        flus = self._sim_v1_result.flus()
         pepstrs = self._prep_result.pepstrs()
         pros = self._prep_result.pros()
         peps = self._prep_result.peps()
@@ -1028,12 +1028,12 @@ class CallBag:
             ptms_to_rows=ptms_to_rows,
         )
         pepstrs = self._prep_result.pepstrs()
-        flus = self._sim_result.flus()
+        flus = self._sim_v1_result.flus()
         if "n_dyes_max_any_ch" not in flus.columns:
             # I've added this to sim but compute on demand if not in this run.
             # Remove after it's no longer needed for older runs. tfb 8 apr 2020
-            self._sim_result._generate_flu_info(self._prep_result)
-            flus = self._sim_result.flus()
+            self._sim_v1_result._generate_flu_info(self._prep_result)
+            flus = self._sim_v1_result.flus()
 
         flustrs = flus[["pep_i", "flustr", "flu_count", "n_dyes_max_any_ch"]]
 
