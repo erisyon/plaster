@@ -42,8 +42,8 @@ import math
 import pandas as pd
 import numpy as np
 from scipy.spatial.distance import cdist
-from plaster.run.sim.sim_result import (
-    SimResult,
+from plaster.run.sim_v1.sim_v1_result import (
+    SimV1Result,
     ArrayResult,
     DyeType,
     RadType,
@@ -617,7 +617,7 @@ def _run_sim(sim_params, pep_seqs_df, name, n_peps, n_samples, progress):
     return dyemat, radmat, recall, flus, flu_remainders
 
 
-def sim(sim_params, prep_result, progress=None, pipeline=None):
+def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
     """
     Map the simulation over the peptides in prep_result.
 
@@ -708,7 +708,7 @@ def sim(sim_params, prep_result, progress=None, pipeline=None):
             any_differences = np.any(np.diagonal(cdist(train_rows, test_rows)) != 0.0)
             check.affirm(any_differences, "Train and test sets are identical")
 
-    return SimResult(
+    return SimV1Result(
         params=sim_params,
         train_dyemat=train_dyemat,
         train_radmat=train_radmat,

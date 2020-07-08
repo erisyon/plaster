@@ -12,7 +12,7 @@ from munch import Munch
 from plaster.tools.utils import utils
 from plaster.tools.schema import check
 from plaster.tools.aaseq.aaseq import aa_list_to_str
-from plaster.run.sim.sim_params import SimParams
+from plaster.run.sim_v1.sim_v1_params import SimV1Params
 from plaster.run.error_model import ErrorModel
 from plaster.tools.log.log import debug
 

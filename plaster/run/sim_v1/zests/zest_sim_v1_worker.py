@@ -2,8 +2,8 @@ from plumbum import local
 import numpy as np
 import pandas as pd
 from zest import zest
-from plaster.run.sim import sim_worker
-from plaster.run.sim.sim_params import SimParams
+from plaster.run.sim_v1 import sim_v1_worker
+from plaster.run.sim_v1.sim_v1_params import SimV1Params
 from plaster.run.prep.prep_result import PrepResult
 from plaster.run.base_result import ArrayResult
 from plaster.run.error_model import ErrorModel
@@ -13,7 +13,7 @@ from plaster.tools.utils import tmp
 
 
 def _stub_sim_params(error_model, n_samples):
-    return SimParams.construct_from_aa_list(
+    return SimV1Params.construct_from_aa_list(
         ["A", "C"],
         error_model=error_model,
         n_samples_train=n_samples,
@@ -31,7 +31,7 @@ no_error_model = ErrorModel.no_errors(n_channels=2)
 
 
 def zest_step_1_create_flu():
-    sim_params = SimParams.construct_from_aa_list(
+    sim_params = SimV1Params.construct_from_aa_list(
         ("A", "C"), error_model=ErrorModel.no_errors(n_channels=2),
     )
 
@@ -40,17 +40,17 @@ def zest_step_1_create_flu():
     )
 
     def it_return_flu_and_p_bright():
-        flu, p_bright = sim_worker._step_1_create_flu_and_p_bright(
+        flu, p_bright = sim_v1_worker._step_1_create_flu_and_p_bright(
             pep_seq_df, sim_params
         )
         assert np.all(flu == [[1, 0, 0,], [0, 0, 1,],])
         assert np.all(p_bright == [[1, 0, 0,], [0, 0, 1,],])
 
     def it_extends_short_peptides():
-        sim_params = SimParams.construct_from_aa_list(
+        sim_params = SimV1Params.construct_from_aa_list(
             ("A", "C"), error_model=ErrorModel.no_errors(n_channels=2), n_edmans=6,
         )
-        flu, p_bright = sim_worker._step_1_create_flu_and_p_bright(
+        flu, p_bright = sim_v1_worker._step_1_create_flu_and_p_bright(
             pep_seq_df, sim_params
         )
         assert flu.shape == (2, 7)
@@ -65,10 +65,10 @@ def zest_step_1_create_flu():
         error_model.dyes[0].p_non_fluorescent = 0.5
         error_model.dyes[1].p_non_fluorescent = 0.4
 
-        sim_params = SimParams.construct_from_aa_list(
+        sim_params = SimV1Params.construct_from_aa_list(
             ("A", "C"), error_model=error_model, n_edmans=3
         )
-        flu, p_bright = sim_worker._step_1_create_flu_and_p_bright(
+        flu, p_bright = sim_v1_worker._step_1_create_flu_and_p_bright(
             pep_seq_df, sim_params
         )
         assert flu.shape == (2, 4)
@@ -81,7 +81,7 @@ def zest_step_1_create_flu():
         assert np.allclose(p_bright, expected)
 
     def it_labels_in_tail():
-        sim_params = SimParams.construct_from_aa_list(
+        sim_params = SimV1Params.construct_from_aa_list(
             ("A", "C"), error_model=ErrorModel.no_errors(n_channels=2), n_edmans=6,
         )
         pep_seq_df = pd.DataFrame(
@@ -95,7 +95,7 @@ def zest_step_1_create_flu():
             ],
             columns=PrepResult.pep_seqs_columns,
         )
-        flu, p_bright = sim_worker._step_1_create_flu_and_p_bright(
+        flu, p_bright = sim_v1_worker._step_1_create_flu_and_p_bright(
             pep_seq_df, sim_params
         )
         assert np.all(flu == [[0, 0, 0, 0, 1, 0, 0], [0, 0, 0, 0, 0, 1, 0],])
@@ -111,8 +111,8 @@ def zest_step_2_initialize_samples_including_dark_sampling():
     n_samples = 5
 
     def it_copies():
-        with zest.mock(sim_worker._rand3, returns=np.full((n_samples, 2, 3), 1.0)):
-            sim_worker._step_2_initialize_samples_including_dark_sampling(
+        with zest.mock(sim_v1_worker._rand3, returns=np.full((n_samples, 2, 3), 1.0)):
+            sim_v1_worker._step_2_initialize_samples_including_dark_sampling(
                 flu, p_bright, n_samples=n_samples
             )
             assert flu[0][0] == 1  # Check that the original flu was not modified.
@@ -120,8 +120,8 @@ def zest_step_2_initialize_samples_including_dark_sampling():
     def it_darkens():
         # Large random numbers mean it will go dark so a 0.9 will
         # darken the 0.5 but not the 1.0
-        with zest.mock(sim_worker._rand3, returns=np.full((n_samples, 2, 3), 0.9)):
-            flu_samples = sim_worker._step_2_initialize_samples_including_dark_sampling(
+        with zest.mock(sim_v1_worker._rand3, returns=np.full((n_samples, 2, 3), 0.9)):
+            flu_samples = sim_v1_worker._step_2_initialize_samples_including_dark_sampling(
                 flu, p_bright, n_samples=n_samples
             )
             assert flu_samples.shape == (n_samples, 2, 3)
@@ -130,8 +130,8 @@ def zest_step_2_initialize_samples_including_dark_sampling():
 
     def it_does_not_darken():
         # Similarly a low number will keep everything lit
-        with zest.mock(sim_worker._rand3, returns=np.full((n_samples, 2, 3), 0.1)):
-            flu_samples = sim_worker._step_2_initialize_samples_including_dark_sampling(
+        with zest.mock(sim_v1_worker._rand3, returns=np.full((n_samples, 2, 3), 0.1)):
+            flu_samples = sim_v1_worker._step_2_initialize_samples_including_dark_sampling(
                 flu, p_bright, n_samples=n_samples
             )
             assert flu_samples.shape == (n_samples, 2, 3)
@@ -147,14 +147,14 @@ def zest_step_3a_cycle_edman():
 
     def it_can_edman_fail():
         # Failure means Edman did not happen; p_edman_failure=1.0 and we no change
-        result = sim_worker._step_3a_cycle_edman(
+        result = sim_v1_worker._step_3a_cycle_edman(
             samples, is_mock=False, p_edman_failure=1.0
         )
         assert np_array_same(samples, result)
 
     def it_can_edman_degrade():
         # Degrade = Edman success; thus p_edman_failure=0.0
-        result = sim_worker._step_3a_cycle_edman(
+        result = sim_v1_worker._step_3a_cycle_edman(
             samples, is_mock=False, p_edman_failure=0.0
         )
         expected = npf([[[n, 1, 0], [n, 1, 0]], [[n, 1, 1], [n, 0, 1]],])
@@ -168,7 +168,7 @@ def zest_step_3a_cycle_edman():
 
     def it_degrades_at_first_non_nan():
         samples = npf([[[n, 1, 0], [n, 1, 0]], [[0, 1, 1], [0, 0, 1]],])
-        result = sim_worker._step_3a_cycle_edman(
+        result = sim_v1_worker._step_3a_cycle_edman(
             samples, is_mock=False, p_edman_failure=0.0
         )
         expected = npf([[[n, n, 0], [n, n, 0]], [[n, 1, 1], [n, 0, 1]],])
@@ -177,7 +177,7 @@ def zest_step_3a_cycle_edman():
     def it_can_mock():
         # A mock cycle is the same as a edman_failure no matter what (p_edman_failure=0.0)
         # and yet I should still see failure behavior
-        result = sim_worker._step_3a_cycle_edman(
+        result = sim_v1_worker._step_3a_cycle_edman(
             samples, is_mock=True, p_edman_failure=0.0
         )
         assert np_array_same(samples, result)
@@ -185,8 +185,8 @@ def zest_step_3a_cycle_edman():
     def it_can_degrade_one_sample_and_not_another():
         samples = npf([[[n, 1, 0], [n, 1, 0]], [[0, 1, 1], [0, 0, 1]],])
         n_samples = 2
-        with zest.mock(sim_worker._rand1, returns=np.full((n_samples,), [0.0, 1.0])):
-            result = sim_worker._step_3a_cycle_edman(
+        with zest.mock(sim_v1_worker._rand1, returns=np.full((n_samples,), [0.0, 1.0])):
+            result = sim_v1_worker._step_3a_cycle_edman(
                 samples, is_mock=False, p_edman_failure=0.5
             )
             expected = npf([[[n, 1, 0], [n, 1, 0]], [[n, 1, 1], [n, 0, 1]],])
@@ -200,7 +200,7 @@ def zest_step_3b_photobleach():
     samples = npf([[[1, 1, 0], [0, 1, 0]], [[n, 1, 1], [n, 0, 1]],])
 
     def it_bleaches_all():
-        result = sim_worker._step_3b_photobleach(
+        result = sim_v1_worker._step_3b_photobleach(
             samples, p_bleach_per_cycle_by_channel=[1.0, 1.0]
         )
         expected = npf([[[0, 0, 0], [0, 0, 0]], [[n, 0, 0], [n, 0, 0]],])
@@ -213,7 +213,7 @@ def zest_step_3b_photobleach():
         zest()
 
     def it_bleaches_channels_independently():
-        result = sim_worker._step_3b_photobleach(
+        result = sim_v1_worker._step_3b_photobleach(
             samples, p_bleach_per_cycle_by_channel=[1.0, 0.0]
         )
         expected = npf([[[0, 0, 0], [0, 1, 0]], [[n, 0, 0], [n, 0, 1]],])
@@ -227,7 +227,7 @@ def zest_step_3c_detach():
     samples = npf([[[1, 1, 0], [0, 1, 0]], [[n, 1, 1], [n, 0, 1]],])
 
     def it_detach():
-        result = sim_worker._step_3c_detach(samples, 1.0)
+        result = sim_v1_worker._step_3c_detach(samples, 1.0)
         expected = np.full_like(samples, n)
         assert np_array_same(expected, result)
 
@@ -238,7 +238,7 @@ def zest_step_3c_detach():
         zest()
 
     def it_fail_to_detach():
-        result = sim_worker._step_3c_detach(samples, 0.0)
+        result = sim_v1_worker._step_3c_detach(samples, 0.0)
         assert np_array_same(samples, result)
 
     zest()
@@ -257,7 +257,7 @@ def zest_step_3_evolve_cycles():
 
     def _before():
         nonlocal sim_params
-        sim_params = SimParams.construct_from_aa_list(
+        sim_params = SimV1Params.construct_from_aa_list(
             ["DE", "C"],
             error_model=ErrorModel.no_errors(n_channels=2, beta=7500.0),
             n_pres=0,
@@ -266,7 +266,7 @@ def zest_step_3_evolve_cycles():
         )
 
     def it_proceeds_with_no_error():
-        evolution = sim_worker._step_3_evolve_cycles(samples, sim_params)
+        evolution = sim_v1_worker._step_3_evolve_cycles(samples, sim_params)
 
         # fmt: off
         n = np.nan
@@ -293,7 +293,7 @@ def zest_step_3_evolve_cycles():
         sim_params.error_model.p_detach = 1.0
         sim_params._build_join_dfs()
 
-        evolution = sim_worker._step_3_evolve_cycles(samples, sim_params)
+        evolution = sim_v1_worker._step_3_evolve_cycles(samples, sim_params)
         expected = np.full_like(evolution, np.nan)
 
         assert np_array_same(evolution, expected)
@@ -348,7 +348,7 @@ def zest_step_4_make_dyemat():
             ],
         ])
 
-        dyemat = sim_worker._step_4_make_dyemat(evolution)
+        dyemat = sim_v1_worker._step_4_make_dyemat(evolution)
 
         # The axes are now rearranged so that there's
         # 4 samples, 2 channels, 5 cycles
@@ -386,7 +386,7 @@ def zest_step_4_make_dyemat():
             ],
         ])
 
-        dyemat = sim_worker._step_4_make_dyemat(evolution)
+        dyemat = sim_v1_worker._step_4_make_dyemat(evolution)
 
         expected = npf([
             [
@@ -413,7 +413,7 @@ def zest_step_5_make_radmat():
         ],
     ])
 
-    sim_params = SimParams.construct_from_aa_list(
+    sim_params = SimV1Params.construct_from_aa_list(
         ["DE", "C"],
         error_model=ErrorModel.no_errors(n_channels=2, beta=7500.0, sigma=0.16),
         n_pres=1,
@@ -421,7 +421,7 @@ def zest_step_5_make_radmat():
         n_edmans=1,
     )
 
-    radmat = sim_worker._step_5_make_radmat(dyemat, sim_params)
+    radmat = sim_v1_worker._step_5_make_radmat(dyemat, sim_params)
 
     def it_makes_radmat():
         assert np.all( radmat[0] > 4000.0 )
@@ -436,7 +436,7 @@ def zest_step_5_make_radmat():
 def zest_step_6_compact_flu():
     flu = npf([[0, 0, 1, 0, 0, 0, 1, 0], [1, 0, 0, 1, 0, 0, 1, 1],])
 
-    compact_flu, remainder_flu = sim_worker._step_6_compact_flu(
+    compact_flu, remainder_flu = sim_v1_worker._step_6_compact_flu(
         flu, n_edmans=4, n_channels=2
     )
 
@@ -487,7 +487,7 @@ def zest_do_pep_sim():
             dyemat, radmat, recall = _make_arrays(
                 "test1", n_peps=2, n_samples=n_samples
             )
-            sim_worker._do_pep_sim(
+            sim_v1_worker._do_pep_sim(
                 pep_seq_df[pep_seq_df.pep_i == 1],
                 sim_params,
                 n_samples=n_samples,
@@ -515,7 +515,7 @@ def zest_do_pep_sim():
             dyemat, radmat, recall = _make_arrays(
                 "test1", n_peps=2, n_samples=n_samples
             )
-            sim_worker._do_pep_sim(
+            sim_v1_worker._do_pep_sim(
                 pep_seq_df[pep_seq_df.pep_i == 1],
                 sim_params,
                 n_samples=n_samples,
@@ -542,7 +542,7 @@ def zest_do_pep_sim():
             dyemat, radmat, recall = _make_arrays(
                 "test1", n_peps=2, n_samples=n_samples
             )
-            sim_worker._do_pep_sim(
+            sim_v1_worker._do_pep_sim(
                 pep_seq_df[pep_seq_df.pep_i == 1],
                 sim_params,
                 n_samples=n_samples,
@@ -571,7 +571,7 @@ def zest_sim():
     def it_maintains_decoys_for_train():
         with tmp.tmp_folder(chdir=True):
             sim_params = _stub_sim_params(some_error_model, n_samples)
-            sim_result = sim_worker.sim(sim_params, prep_result)
+            sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
             assert sim_result.train_dyemat.shape == (
                 n_peptides,
                 n_samples,
@@ -582,7 +582,7 @@ def zest_sim():
     def it_removes_decoys_for_test():
         with tmp.tmp_folder(chdir=True):
             sim_params = _stub_sim_params(some_error_model, n_samples)
-            sim_result = sim_worker.sim(sim_params, prep_result)
+            sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
             assert sim_result.test_dyemat.shape == (
                 n_peptides,
                 n_samples,
@@ -597,7 +597,7 @@ def zest_sim():
         with tmp.tmp_folder(chdir=True):
             with zest.raises(in_message="are identical"):
                 sim_params = _stub_sim_params(no_error_model, n_samples)
-                sim_worker.sim(sim_params, prep_result)
+                sim_v1_worker.sim_v1(sim_params, prep_result)
 
     def it_drop_all_darks():
         with tmp.tmp_folder(chdir=True):
@@ -609,7 +609,7 @@ def zest_sim():
             )
             n_peptides = 3
             sim_params = _stub_sim_params(no_error_model, n_samples)
-            sim_result = sim_worker.sim(sim_params, prep_result)
+            sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
             assert sim_result.test_dyemat.shape == (
                 n_peptides,
                 n_samples,
@@ -637,7 +637,7 @@ def zest_sim():
                 pep_pro_iz=[0, 1, 2, 3],
             )
             sim_params = _stub_sim_params(some_error_model, n_samples)
-            sim_result = sim_worker.sim(sim_params, prep_result)
+            sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
             sim_result._generate_flu_info(prep_result)
 
             def it_computes_head_and_tail():
@@ -667,7 +667,7 @@ def zest_sim():
             sim_params.is_survey = True
             sim_params.n_samples_train = n_samples
             sim_params.n_samples_test = None
-            sim_result = sim_worker.sim(sim_params, prep_result)
+            sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
             assert sim_result.train_dyemat.shape == (
                 n_peptides,
                 n_samples,

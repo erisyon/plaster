@@ -9,7 +9,7 @@ from plaster.run.error_model import ErrorModel
 from plaster.tools.log.log import debug
 
 
-class SimParams(Params):
+class SimV1Params(Params):
     """
     Simulations parameters is and ErrorModel + parameters for sim
     """
@@ -63,9 +63,9 @@ class SimParams(Params):
         utils.safe_del(self, "channel_i_to_gain")
         utils.safe_del(self, "channel_i_to_vpd")
 
-        dst = utils.munch_deep_copy(self, klass_set={SimParams})
+        dst = utils.munch_deep_copy(self, klass_set={SimV1Params})
         dst.error_model = ErrorModel(**dst.error_model)
-        assert isinstance(dst, SimParams)
+        assert isinstance(dst, SimV1Params)
         return dst
 
     def __init__(self, include_dfs=True, **kwargs):

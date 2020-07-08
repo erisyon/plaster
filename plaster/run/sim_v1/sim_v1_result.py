@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from plaster.tools.utils import utils
 from plaster.run.base_result import BaseResult, ArrayResult
-from plaster.run.sim.sim_params import SimParams
+from plaster.run.sim_v1.sim_v1_params import SimV1Params
 
 
 DyeType = np.uint8
@@ -13,12 +13,12 @@ RecallType = np.float32
 ScoreType = np.float32
 
 
-class SimResult(BaseResult):
-    name = "sim"
-    filename = "sim.pkl"
+class SimV1Result(BaseResult):
+    name = "sim_v1"
+    filename = "sim_v1.pkl"
 
     required_props = dict(
-        params=SimParams,
+        params=SimV1Params,
         train_dyemat=ArrayResult,  # (n_peps, n_samples, n_channels, n_cycles):uint8
         train_radmat=ArrayResult,  # (n_peps, n_samples, n_channels, n_cycles):float32
         train_recalls=ArrayResult,  # (n_peps):float32

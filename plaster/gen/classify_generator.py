@@ -3,7 +3,6 @@ from munch import Munch
 
 from plaster.gen.base_generator import BaseGenerator
 from plaster.gen import task_templates
-from plaster.run.sim.sim_params import SimParams
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
 from plaster.tools.log.log import debug, important

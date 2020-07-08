@@ -4,8 +4,8 @@ from pandas.testing import assert_frame_equal
 import numpy as np
 from zest import zest
 from plaster.run.test_nn.test_nn_params import TestNNParams
-from plaster.run.sim.sim_result import (
-    SimResult,
+from plaster.run.sim_v1.sim_v1_result import (
+    SimV1Result,
     ArrayResult,
     DyeType,
     RadType,
@@ -13,7 +13,7 @@ from plaster.run.sim.sim_result import (
     IndexType,
     DyeWeightType,
 )
-from plaster.run.sim.sim_params import SimParams, ErrorModel
+from plaster.run.sim_v1.sim_v1_params import SimV1Params, ErrorModel
 from plaster.run.test_nn import nn
 from plaster.tools.utils import tmp
 from plaster.tools.log.log import debug, prof
@@ -382,7 +382,7 @@ def zest_nn():
     def it_sets_all_output_arrays():
         n_peps, n_samples, n_channels, n_cycles = (3, 2, 2, 3)
         nn_params = TestNNParams()
-        sim_params = SimParams.construct_from_aa_list(
+        sim_params = SimV1Params.construct_from_aa_list(
             ["A", "B"], error_model=ErrorModel.no_errors(n_channels)
         )
         sim_params.error_model.dyes[0].gain = 100.0
@@ -416,7 +416,7 @@ def zest_nn():
                 ]
             )
 
-            sim_result = SimResult(
+            sim_result = SimV1Result(
                 params=sim_params,
                 train_dyemat=train_dyemat.arr(),
                 # None of the following are used by nn

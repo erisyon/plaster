@@ -4,7 +4,7 @@ from plaster.run.base_result import ArrayResult
 from plaster.run.call_bag import CallBag
 from plaster.run.test_nn.test_nn_result import TestNNResult
 from plaster.run.test_nn.nn import nn
-from plaster.run.sim.sim_result import IndexType
+from plaster.run.sim_v1.sim_v1_result import IndexType
 from plaster.tools.utils import utils
 from plaster.tools.log.log import debug, prof
 

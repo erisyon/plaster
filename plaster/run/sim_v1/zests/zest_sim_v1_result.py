@@ -4,14 +4,14 @@ import numpy as np
 from plaster.run.error_model import ErrorModel
 from plaster.run.prep.prep_params import PrepParams
 from plaster.run.prep.prep_result import PrepResult
-from plaster.run.sim.sim_params import SimParams
-from plaster.run.sim.sim_result import SimResult, DyeType
+from plaster.run.sim_v1.sim_v1_params import SimV1Params
+from plaster.run.sim_v1.sim_v1_result import SimV1Result, DyeType
 from plaster.tools.utils.utils import npf, np_array_same
 
 
-def zest_sim_result():
+def zest_sim_v1_result():
     def _make_sim_params(aa_list, n_edmans, n_train_samples=4, n_test_samples=4):
-        params = SimParams.construct_from_aa_list(
+        params = SimV1Params.construct_from_aa_list(
             aa_list,
             error_model=ErrorModel.no_errors(n_channels=len(aa_list)),
             n_samples_train=n_train_samples,
@@ -85,7 +85,7 @@ def zest_sim_result():
             test_radmat = _make_test_radmat()
             assert test_radmat.shape == test_shape
 
-            sim_result = SimResult(
+            sim_result = SimV1Result(
                 params=sim_params,
                 train_dyemat=train_dyemat,
                 train_radmat=train_radmat,
@@ -168,7 +168,7 @@ def zest_sim_result():
                     dict(name="id_2", sequence="AXCABC"),
                 ]
             )
-            result = SimResult(params=sim_params)
+            result = SimV1Result(params=sim_params)
             result._generate_flu_info(prep_result)
 
         def it_gets_flus():

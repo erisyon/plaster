@@ -87,7 +87,7 @@ from munch import Munch
 import numpy as np
 import pandas as pd
 import pyflann
-from plaster.run.sim.sim_result import (
+from plaster.run.sim_v1.sim_v1_result import (
     ArrayResult,
     DyeType,
     RadType,

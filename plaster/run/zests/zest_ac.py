@@ -1,13 +1,8 @@
-from munch import Munch
 import numpy as np
 import pandas as pd
 from zest import zest
-from plaster.run.sim import sim_worker
-from plaster.run.sim.sim_params import SimParams
-from plaster.run.prep.prep_result import PrepResult
+from plaster.run.sim_v1.sim_v1_params import SimV1Params
 from plaster.run.error_model import ErrorModel
-from plaster.tools.log.log import debug
-from plaster.tools.utils.utils import npf, np_array_same
 from plaster.run.nn import (
     _step_1_create_unit_radmat,
     _step_3_create_inverse_variances,
@@ -17,6 +12,7 @@ from plaster.run.nn import (
     _step_5_mle_pred_dt_to_pep,
 )
 from plaster.tools.schema import check
+from plaster.tools.log.log import debug
 
 
 def _stub_sim_params(error_model, n_samples):

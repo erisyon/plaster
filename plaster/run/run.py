@@ -33,14 +33,16 @@ from plaster.run.sigproc_v1.sigproc_v1_task import SigprocV1Task
 from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Task
 from plaster.run.lnfit.lnfit_task import LNFitTask
 from plaster.run.lnfit.lnfit_result import LNFitResult
-from plaster.run.sim.sim_result import SimResult
+from plaster.run.sim_v1.sim_v1_result import SimV1Result
+from plaster.run.sim_v2.sim_v2_result import SimV2Result
+from plaster.run.sim_v1.sim_v1_task import SimV1Task
+from plaster.run.sim_v2.sim_v2_task import SimV2Task
 from plaster.run.test_rf.test_rf_result import TestRFResult
 from plaster.run.test_rf.test_rf_task import TestRFTask
 from plaster.run.train_rf.train_rf_result import TrainRFResult
 from plaster.run.train_rf.train_rf_task import TrainRFTask
 from plaster.run.classify_rf.classify_rf_task import ClassifyRFTask
 from plaster.run.prep.prep_task import PrepTask
-from plaster.run.sim.sim_task import SimTask
 from plaster.run.report.report_task import ReportTask
 from plaster.run.survey_nn.survey_nn_task import SurveyNNTask
 from plaster.run.survey_nn.survey_nn_result import SurveyNNResult
@@ -103,7 +105,8 @@ def task_list_from_config(config):
         sigproc_v2=SigprocV2Task,
         lnfit=LNFitTask,
         prep=PrepTask,
-        sim=SimTask,
+        sim_v1=SimV1Task,
+        sim_v2=SimV2Task,
         train_rf=TrainRFTask,
         test_rf=TestRFTask,
         classify_rf=ClassifyRFTask,
@@ -131,7 +134,8 @@ def task_list_from_config(config):
         SigprocV2Task,
         LNFitTask,
         PrepTask,
-        SimTask,
+        SimV1Task,
+        SimV2Task,
         SurveyNNTask,
         TrainRFTask,
         TestRFTask,
@@ -294,11 +298,12 @@ class RunResult:
         prep=PrepResult,
         sigproc_v1=SigprocV1Result,
         sigproc_v2=SigprocV2Result,
-        sim=SimResult,
+        sim_v1=SimV1Result,
+        sim_v2=SimV2Result,
         test_nn=TestNNResult,
         test_rf=TestRFResult,
         train_rf=TrainRFResult,
-        sim_nn=SimResult,  # Example of why it is needed to pull the klass from the run
+        sim_nn=SimV1Result,  # Example of why it is needed to pull the klass from the run
         survey_nn=SurveyNNResult,
     )
 

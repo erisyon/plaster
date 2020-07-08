@@ -37,7 +37,7 @@ Nomenclature
         The probability of an event
 """
 import numpy as np
-from plaster.run.sim_v2 import sim_v2_fast
+from plaster.run.sim_v2.fast import sim_v2_fast
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.run.base_result import ArrayResult
 
