@@ -432,7 +432,7 @@ class RunResult:
             scores=scores,
             all_class_scores=all_class_scores,
             prep_result=self.prep,
-            sim_result=self.sim,
+            sim_v1_result=self.sim_v1,
             cached_pr=cached_pr,
             cached_pr_abund=cached_pr_abund,
             classifier_name="rf",
@@ -472,7 +472,7 @@ class RunResult:
             pred_pep_iz=pred_pep_iz,
             scores=self.test_nn.test_scores,
             prep_result=self.prep,
-            sim_result=self.sim,
+            sim_v1_result=self.sim_v1,
             cached_pr=cached_pr,
             classifier_name="nn",
         )

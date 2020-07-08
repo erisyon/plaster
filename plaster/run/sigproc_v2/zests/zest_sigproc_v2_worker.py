@@ -649,7 +649,7 @@ def zest_composite_with_alignment_offsets_chcy_ims():
         for cy in range(2):
             for ch in range(2):
                 diff = np.sum(comp_im[ch, cy + 1, :, :] - comp_im[ch, cy, :, :])
-                assert utils.np_within(diff, 0.0, 12_000)
+                assert utils.np_within(diff, 0.0, 14_000)
 
     zest()
 

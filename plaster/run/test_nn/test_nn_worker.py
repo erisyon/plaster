@@ -9,24 +9,24 @@ from plaster.tools.utils import utils
 from plaster.tools.log.log import debug, prof
 
 
-def test_nn(test_nn_params, prep_result, sim_result, progress=None, pipeline=None):
-    n_channels, n_cycles = sim_result.params.n_channels_and_cycles
+def test_nn(test_nn_params, prep_result, sim_v1_result, progress=None, pipeline=None):
+    n_channels, n_cycles = sim_v1_result.params.n_channels_and_cycles
 
     n_phases = 6 if test_nn_params.include_training_set else 3
     if pipeline is not None:
         pipeline.set_phase(0, n_phases)
 
-    shape = sim_result.test_radmat.shape
+    shape = sim_v1_result.test_radmat.shape
     assert len(shape) == 4
-    test_radmat = sim_result.test_radmat.reshape(
+    test_radmat = sim_v1_result.test_radmat.reshape(
         (shape[0] * shape[1], shape[2], shape[3])
     )
-    test_dyemat = sim_result.test_dyemat.reshape(
+    test_dyemat = sim_v1_result.test_dyemat.reshape(
         (shape[0] * shape[1], shape[2], shape[3])
     )
     test_result = nn(
         test_nn_params,
-        sim_result,
+        sim_v1_result,
         radmat=test_radmat,
         true_dyemat=test_dyemat,
         progress=progress,
@@ -49,7 +49,7 @@ def test_nn(test_nn_params, prep_result, sim_result, progress=None, pipeline=Non
         pred_pep_iz=test_result.pred_pep_iz.arr(),
         scores=test_result.scores.arr(),
         prep_result=prep_result,
-        sim_result=sim_result,
+        sim_v1_result=sim_v1_result,
     )
 
     if pipeline is not None:
@@ -73,20 +73,20 @@ def test_nn(test_nn_params, prep_result, sim_result, progress=None, pipeline=Non
             pipeline.set_phase(3, n_phases)
 
         real_pep_iz = prep_result.peps__no_decoys().pep_i.values
-        keep_rows = np.isin(sim_result.train_true_pep_iz, real_pep_iz)
-        train_radmat = sim_result.train_radmat[keep_rows]
-        train_dyemat = sim_result.train_dyemat[keep_rows]
+        keep_rows = np.isin(sim_v1_result.train_true_pep_iz, real_pep_iz)
+        train_radmat = sim_v1_result.train_radmat[keep_rows]
+        train_dyemat = sim_v1_result.train_dyemat[keep_rows]
 
         assert train_radmat.shape == shape
 
         train_result = nn(
             test_nn_params.use_gmm,
-            sim_result,
+            sim_v1_result,
             radmat=train_radmat,
             true_dyemat=train_dyemat,
             progress=progress,
         )
-        train_result.true_pep_iz = sim_result.train_true_pep_iz
+        train_result.true_pep_iz = sim_v1_result.train_true_pep_iz
         train_result.true_pep_iz = ArrayResult(
             filename="train_true_pep_iz",
             shape=(shape[0] * shape[1],),
@@ -104,7 +104,7 @@ def test_nn(test_nn_params, prep_result, sim_result, progress=None, pipeline=Non
             pred_pep_iz=train_result.pred_pep_iz.arr(),
             scores=train_result.scores.arr(),
             prep_result=prep_result,
-            sim_result=sim_result,
+            sim_v1_result=sim_v1_result,
         )
 
         if pipeline is not None:
