@@ -1,10 +1,14 @@
 # python setup.py build_ext --inplace
 
 import os
-from setuptools import Extension, setup
-from Cython.Build import cythonize
+from setuptools import Extension, setup, dist
 import pathlib
-from os import path
+
+dist.Distribution().fetch_build_eggs(['Cython>=0.15.1', 'numpy>=1.10'])
+
+from Cython.Build import cythonize
+import numpy
+
 
 # The directory containing this file
 HERE = pathlib.Path(__file__).parent
@@ -14,19 +18,19 @@ README = (HERE / "README.md").read_text()
 
 exec(open("plaster/version.py").read())
 
-assert path.exists("./plaster_root")
-plaster_root = "."
+print("THE CWD IN PLASTER SETUP is: ", os.getcwd())
 
 extensions = [
     Extension(
         name="plaster.run.sim_v2.fast.sim_v2_fast",
         sources=[
-            f"{plaster_root}/plaster/run/sim_v2/fast/sim_v2_fast.pyx",
-            f"{plaster_root}/plaster/run/sim_v2/fast/csim_v2_fast.c",
+            "./plaster/run/sim_v2/fast/sim_v2_fast.pyx",
+            "./plaster/run/sim_v2/fast/csim_v2_fast.c",
         ],
         include_dirs=[
-            f"{plaster_root}/plaster/run/sim_v2/fast",
-            f"{os.environ['VIRTUAL_ENV']}/lib/python3.8/site-packages/numpy/core/include",
+            "./plaster/run/sim_v2/fast",
+            numpy.get_include(),
+            # f"{os.environ['VIRTUAL_ENV']}/lib/python3.8/site-packages/numpy/core/include",
             # In the cython tutorials it shows using np.get_include()
             # which requires a numpy import. To avoid this, I just copied
             # the path from that call to eliminate the numpy dependency
@@ -44,6 +48,11 @@ extensions = [
 
 setup(
     name="erisyon.plaster",
+    # setup_requires=[
+    #     # Setuptools 18.0 properly handles Cython extensions.
+    #     'setuptools>=18.0',
+    #     'cython',
+    # ],
     version=__version__,
     description="Erisyon's Fluoro-Sequencing Platform",
     long_description=README,
@@ -85,7 +94,7 @@ setup(
         "wheel",
         "zbs-zest",
     ],
-    entry_points={"console_scripts": ["plaster=plaster.plaster_main:main",]},
+    entry_points={"console_scripts": ["plas=plaster.main",]},
     python_requires=">=3.6",
     ext_modules=cythonize(extensions, language_level="3"),
 )
