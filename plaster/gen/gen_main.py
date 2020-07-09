@@ -601,6 +601,7 @@ class GenApp(cli.Application, GenFuncs):
         exception during construction).
         """
         cls.construct_fail = False
+
         if not argv or len(argv) < 2 or argv[1].startswith("--"):
             if argv is not None and argv[1] == "--readme":
                 # This is a crazy work-around to get the app instance
@@ -717,7 +718,7 @@ class GenApp(cli.Application, GenFuncs):
             )
             assert len(self.derived_vals.protein) == self.protein_random
 
-        for arg_name, arg_type, arg_help, arg_userdata in requirements:
+        for arg_name, arg_type, _, arg_userdata in requirements:
             if (
                 arg_name in self.derived_vals
                 and self.derived_vals.get(arg_name) is not None
