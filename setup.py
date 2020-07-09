@@ -1,6 +1,6 @@
 # python setup.py build_ext --inplace
 
-import numpy as np
+import os
 from setuptools import Extension, setup
 from Cython.Build import cythonize
 import pathlib
@@ -26,7 +26,10 @@ extensions = [
         ],
         include_dirs=[
             f"{plaster_root}/plaster/run/sim_v2/fast",
-            np.get_include(),
+            f"{os.environ['VIRTUAL_ENV']}/lib/python3.8/site-packages/numpy/core/include",
+            # In the cython tutorials it shows using np.get_include()
+            # which requires a numpy import. To avoid this, I just copied
+            # the path from that call to eliminate the numpy dependency
         ],
         extra_compile_args=[
             "-Wno-unused-but-set-variable",
