@@ -1,34 +1,35 @@
-from contextlib import contextmanager
-import warnings
+import fcntl
 import hashlib
-import munch
-import plumbum
-import math
 import inspect
-import string
-import random
-import readline
-import sys
-import numpy as np
-import re
+import json
+import math
 import os
 import pickle
-import time
-import struct
-import json
+import random
+import re
+import readline
 import resource
-import threading
-from plaster.tools.utils import tmp
-from functools import wraps
-from munch import Munch
-import textwrap
-import tty
-from plumbum import local
-import fcntl
+import string
+import struct
+import sys
 import termios
-from plaster.tools.schema import check
+import textwrap
+import threading
+import time
+import tty
+import warnings
+from contextlib import contextmanager
+from functools import wraps
+
+import munch
+import numpy as np
+import plumbum
 import yaml
+from munch import Munch
 from plaster.tools.log.log import debug, info
+from plaster.tools.schema import check
+from plaster.tools.utils import tmp
+from plumbum import local
 
 
 def terminal_size():
@@ -43,9 +44,9 @@ def terminal_size():
         return 80, 80
 
 
-def h_line(marker="-"):
-    count = (terminal_size()[0] - 1) // len(marker)
-    return marker * count
+def h_line(marker="-", label=""):
+    count = (terminal_size()[0] - 1) // len(marker) - len(label)
+    return label + marker * count
 
 
 def get_cursor_pos():

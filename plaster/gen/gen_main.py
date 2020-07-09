@@ -1,10 +1,36 @@
 #!/usr/bin/env python
 
-import uuid
-import time
+import re
+import sys
 import tempfile
-from plaster.tools.utils import tmp
+import time
+import uuid
+
+from munch import Munch
+from plaster.gen import helpers
+from plaster.gen.calib_nn_generator import CalibNNGenerator
+from plaster.gen.classify_generator import ClassifyGenerator
+from plaster.gen.errors import ValidationError
+from plaster.gen.ptm_generator import PTMGenerator
+from plaster.gen.sigproc_v1_generator import SigprocV1Generator
+from plaster.gen.sigproc_v2_calib_generator import SigprocV2CalibGenerator
+from plaster.gen.sigproc_v2_generator import SigprocV2Generator
+from plaster.gen.survey_generator import SurveyGenerator
+from plaster.run.run import RunExecutor
+from plaster.tools.aaseq.proteolyze import proteases as protease_dict
 from plaster.tools.assets import assets
+from plaster.tools.log.log import (
+    confirm_yn,
+    debug,
+    error,
+    important,
+    info,
+    input_request,
+)
+from plaster.tools.schema.schema import SchemaValidationFailed
+from plaster.tools.uniprot import uniprot
+from plaster.tools.utils import data, tmp, utils
+from plumbum import FG, cli, colors, local
 
 """
 
@@ -43,33 +69,6 @@ Notes
     dynamically inject switches into the Gen App before it is instanciated.
 
 """
-import sys
-import re
-from munch import Munch
-from plumbum import cli, local, colors, FG
-from plaster.tools.log.log import (
-    error,
-    important,
-    info,
-    confirm_yn,
-    input_request,
-    debug,
-)
-from plaster.tools.utils import utils
-from plaster.tools.utils import data
-from plaster.tools.aaseq.proteolyze import proteases as protease_dict
-from plaster.tools.uniprot import uniprot
-from plaster.gen import helpers
-from plaster.run.run import RunExecutor
-from plaster.tools.schema.schema import SchemaValidationFailed
-from plaster.gen.sigproc_v1_generator import SigprocV1Generator
-from plaster.gen.sigproc_v2_generator import SigprocV2Generator
-from plaster.gen.calib_nn_generator import CalibNNGenerator
-from plaster.gen.sigproc_v2_calib_generator import SigprocV2CalibGenerator
-from plaster.gen.classify_generator import ClassifyGenerator
-from plaster.gen.survey_generator import SurveyGenerator
-from plaster.gen.ptm_generator import PTMGenerator
-from plaster.gen.errors import ValidationError
 
 
 VERSION = "0.2"
@@ -602,6 +601,7 @@ class GenApp(cli.Application, GenFuncs):
         exception during construction).
         """
         cls.construct_fail = False
+
         if not argv or len(argv) < 2 or argv[1].startswith("--"):
             if argv is not None and argv[1] == "--readme":
                 # This is a crazy work-around to get the app instance
@@ -718,7 +718,7 @@ class GenApp(cli.Application, GenFuncs):
             )
             assert len(self.derived_vals.protein) == self.protein_random
 
-        for arg_name, arg_type, arg_help, arg_userdata in requirements:
+        for arg_name, arg_type, _, arg_userdata in requirements:
             if (
                 arg_name in self.derived_vals
                 and self.derived_vals.get(arg_name) is not None

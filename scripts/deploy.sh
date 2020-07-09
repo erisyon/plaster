@@ -18,6 +18,7 @@ echo "__version__ = \"${NEW_VERSION}\"" > ./plaster/version.py
 
 # Clean previous runs
 rm -rf ./erisyon.plaster.egg-info
+rm -rf ./dist/*
 
 pipenv run python setup.py sdist \
 	&& pipenv run twine check dist/* \
