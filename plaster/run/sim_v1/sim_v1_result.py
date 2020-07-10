@@ -1,9 +1,8 @@
-import pandas as pd
 import numpy as np
-from plaster.tools.utils import utils
-from plaster.run.base_result import BaseResult, ArrayResult
+import pandas as pd
+from plaster.run.base_result import ArrayResult, BaseResult
 from plaster.run.sim_v1.sim_v1_params import SimV1Params
-
+from plaster.tools.utils import utils
 
 DyeType = np.uint8
 DyeWeightType = np.float32
@@ -19,11 +18,13 @@ class SimV1Result(BaseResult):
 
     required_props = dict(
         params=SimV1Params,
+        train_true_pep_iz=np.ndarray,
         train_dyemat=ArrayResult,  # (n_peps, n_samples, n_channels, n_cycles):uint8
         train_radmat=ArrayResult,  # (n_peps, n_samples, n_channels, n_cycles):float32
         train_recalls=ArrayResult,  # (n_peps):float32
         train_flus=np.ndarray,
         train_flu_remainders=np.ndarray,
+        test_true_pep_iz=(type(None), np.ndarray),
         test_dyemat=(type(None), ArrayResult),
         test_radmat=(type(None), ArrayResult),
         test_flus=(type(None), np.ndarray),

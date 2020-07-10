@@ -37,22 +37,18 @@ Nomenclature
         The probability of an event
 """
 
-import time
 import math
-import pandas as pd
+import time
+
 import numpy as np
-from scipy.spatial.distance import cdist
-from plaster.run.sim_v1.sim_v1_result import (
-    SimV1Result,
-    ArrayResult,
-    DyeType,
-    RadType,
-    RecallType,
-)
+import pandas as pd
+from plaster.run.sim_v1.sim_v1_result import (ArrayResult, DyeType, RadType,
+                                              RecallType, SimV1Result)
+from plaster.tools.log.log import debug
+from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
-from plaster.tools.schema import check
-from plaster.tools.log.log import debug
+from scipy.spatial.distance import cdist
 
 
 def _rand1(n_samples):
@@ -452,20 +448,20 @@ def _do_pep_sim(
     """
     TFB Notes 20 April 2020
 
-    In a next pass, I want to allow for arbitrary numbers of cycles of different kinds in 
+    In a next pass, I want to allow for arbitrary numbers of cycles of different kinds in
     any order, with a proposed syntax of "P20M5E10" (means 20 pre cycles, 5 mocks, 10 edmans).
     "Cycles" is a name we currently give to objects which are containers for various operations.
     In the current scheme, "pre" cycles only contain the operation "take image", which in turn
     implies modeling artifacts of that operation (photo-bleaching).
 
-    In the current code, an order is assumed: Pres, then Mocks, then Edmans.  
+    In the current code, an order is assumed: Pres, then Mocks, then Edmans.
 
     In the next pass, no such order will be assumed.  If "Pre" remains the name given to
     the kind of cycle which contains only an image operation, then one could do a photobleach
     experiment with:  P100.   Or, one could take 20 images per edman with PEP20EP20EP20.
     (That's an initial Pre followed by an Edman, then 20 Pres, an Edman, etc)
 
-    The latter gets awkward if you wanted to do 15 edmans.  So maybe we need different types 
+    The latter gets awkward if you wanted to do 15 edmans.  So maybe we need different types
     of syntax for different use cases.  The string/count syntax is nice for many things, but
     maybe also nice is a "--n_images_per_edman" for the 15edman with 20 images each use case,
     or more generally --n_images_per_cycle.
@@ -474,15 +470,15 @@ def _do_pep_sim(
 
     Because this is not clear to me, I want to start more simply and correct the problems
     I see with the current code.  To that end, I will ensure that
-    
+
     _step_3_evolve_cycles:
         1.  We always have at least 1 pre or mock to obtain an initial image
         2.  Photo-bleaching is modeled as occurring *after* an image is taken
-        
+
     _step_6_compact_flu:
         3.  The non-remainder portion of the compact flu must only be n_edmans long,
             and those 'indices' represented must be aligned with the edman cycles.
-            
+
     _generate_flu_info: (part of SimResult)
         4. Same as (3) for the resulting fluinfo in the Result.
     """
@@ -614,7 +610,9 @@ def _run_sim(sim_params, pep_seqs_df, name, n_peps, n_samples, progress):
     flus = np.array(utils.listi(flus__remainders, 0))
     flu_remainders = np.array(utils.listi(flus__remainders, 1))
 
-    return dyemat, radmat, recall, flus, flu_remainders
+    true_pep_iz =  np.repeat(np.arange(n_peps), n_samples)
+
+    return dyemat, radmat, recall, flus, flu_remainders, true_pep_iz
 
 
 def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
@@ -646,6 +644,7 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
         train_recalls,
         train_flus,
         train_flu_remainders,
+        train_true_pep_iz,
     ) = _run_sim(
         sim_params,
         pep_seqs_with_decoys,
@@ -661,6 +660,7 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
         test_recalls = None
         test_flus = None
         test_flu_remainders = None
+        test_true_pep_iz = None
     else:
         # CREATE a *test-set* for real-only peptides
         if pipeline:
@@ -672,6 +672,7 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
             test_recalls,
             test_flus,
             test_flu_remainders,
+            test_true_pep_iz,
         ) = _run_sim(
             sim_params,
             prep_result.pepseqs__no_decoys(),
@@ -708,13 +709,25 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
             any_differences = np.any(np.diagonal(cdist(train_rows, test_rows)) != 0.0)
             check.affirm(any_differences, "Train and test sets are identical")
 
+    if train_dyemat is not None:
+        train_dyemat.reshape((train_dyemat.shape[0] * train_dyemat.shape[1], *train_dyemat.shape[2:]))
+    if train_radmat is not None:
+        train_radmat.reshape((train_radmat.shape[0] * train_radmat.shape[1], *train_radmat.shape[2:]))
+    if test_dyemat is not None:
+        test_dyemat.reshape((test_dyemat.shape[0] * test_dyemat.shape[1], *test_dyemat.shape[2:]))
+    if test_radmat is not None:
+        test_radmat.reshape((test_radmat.shape[0] * test_radmat.shape[1], *test_radmat.shape[2:]))
+
     return SimV1Result(
         params=sim_params,
+        train_true_pep_iz=train_true_pep_iz,
         train_dyemat=train_dyemat,
         train_radmat=train_radmat,
         train_recalls=train_recalls,
         train_flus=train_flus,
         train_flu_remainders=train_flu_remainders,
+
+        test_true_pep_iz=test_true_pep_iz,
         test_dyemat=test_dyemat,
         test_radmat=test_radmat,
         test_recalls=test_recalls,

@@ -1,10 +1,9 @@
 from munch import Munch
-
-from plaster.gen.base_generator import BaseGenerator
 from plaster.gen import task_templates
+from plaster.gen.base_generator import BaseGenerator
+from plaster.tools.log.log import debug, important
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
-from plaster.tools.log.log import debug, important
 
 
 class SurveyGenerator(BaseGenerator):
@@ -74,7 +73,7 @@ class SurveyGenerator(BaseGenerator):
                 n_ptms_limit=self.n_ptms_limit,
             )
 
-            sim_task = task_templates.sim(
+            sim_task = task_templates.sim_v1(
                 list(aa_list),
                 err_set,
                 n_pres=self.n_pres,
@@ -84,7 +83,7 @@ class SurveyGenerator(BaseGenerator):
                 n_samples_test=1,
                 is_survey=True,
             )
-            sim_task.sim.parameters.random_seed = self.random_seed
+            sim_task.sim_v1.parameters.random_seed = self.random_seed
             # note: same seed is used to generate decoys
 
             survey_task = task_templates.survey_nn()
