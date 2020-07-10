@@ -52,14 +52,16 @@ uniprot = "128.175.245.202"
 
 
 @utils.cache()
+def _get(url_path):
+    return http_method(f"https://{uniprot}{url_path}", n_retries=5, allow_unverified=True)
+
+
 def get_ac_fasta(ac):
     """
     Returns a List(tuple(header, seq)) of the resulting sequences, usually the list len == 1
     """
-    return http_method(f"https://{uniprot}/uniprot/{ac}.fasta", n_retries=5)
+    return _get("/uniprot/{ac}.fasta")
 
 
-@utils.cache()
 def get_proteome(proteome_id):
-    url = f"https://{uniprot}/uniprot/?include=false&format=fasta&force=true&query=proteome:{proteome_id}"
-    return http_method(url)
+    return _get("/uniprot/?include=false&format=fasta&force=true&query=proteome:{proteome_id}")

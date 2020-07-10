@@ -1,8 +1,10 @@
-import json
 import http.client
-from retrying import retry as _retry
+import json
+import ssl
 from urllib.parse import urlsplit
+
 from plaster.tools.log.log import error
+from retrying import retry as _retry
 
 
 class HTTPNonSuccessStatus(ValueError):
@@ -11,7 +13,7 @@ class HTTPNonSuccessStatus(ValueError):
         self.url = url
 
 
-def http_method(url, method="GET", body="", headers={}, n_retries=0, **kwargs):
+def http_method(url, method="GET", body="", headers={}, n_retries=0, allow_unverified=False, **kwargs):
     """
     Simple url caller, avoids request library.
 
@@ -27,10 +29,14 @@ def http_method(url, method="GET", body="", headers={}, n_retries=0, **kwargs):
 
     urlp = urlsplit(url)
 
+    context = None
+    if allow_unverified:
+        context = ssl._create_unverified_context()
+
     if urlp.scheme == "http":
         conn = http.client.HTTPConnection(urlp.netloc, **kwargs)
     elif urlp.scheme == "https":
-        conn = http.client.HTTPSConnection(urlp.netloc, **kwargs)
+        conn = http.client.HTTPSConnection(urlp.netloc, context=context, **kwargs)
     else:
         raise TypeError("Unknown protocol")
 
