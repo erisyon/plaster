@@ -1,0 +1,5 @@
+# used this way black works in CI and in dev
+# refer to https://github.com/psf/black#configuration-format
+[tool.black]
+include = '\.pyi?$'
+exclude = "/vendor/"

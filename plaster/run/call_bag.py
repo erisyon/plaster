@@ -379,7 +379,9 @@ class CallBag:
         # EXTRACT training recalls from the subset of peps.
         # This will leave NANs for all those that are not in the subset.
         if self._sim_v1_result is not None:
-            filtered_pep_recalls = np.full_like(self._sim_v1_result.train_recalls, np.nan)
+            filtered_pep_recalls = np.full_like(
+                self._sim_v1_result.train_recalls, np.nan
+            )
             filtered_pep_recalls[pep_iz_subset] = self._sim_v1_result.train_recalls[
                 pep_iz_subset
             ]
@@ -524,7 +526,9 @@ class CallBag:
         # EXTRACT training recalls from the subset of peps.
         # This will leave NANs for all those that are not in the subset.
         if self._sim_v1_result is not None:
-            filtered_pep_recalls = np.full_like(self._sim_v1_result.train_recalls, np.nan)
+            filtered_pep_recalls = np.full_like(
+                self._sim_v1_result.train_recalls, np.nan
+            )
             filtered_pep_recalls[pep_iz_subset] = self._sim_v1_result.train_recalls[
                 pep_iz_subset
             ]
