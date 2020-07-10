@@ -60,8 +60,8 @@ def get_ac_fasta(ac):
     """
     Returns a List(tuple(header, seq)) of the resulting sequences, usually the list len == 1
     """
-    return _get("/uniprot/{ac}.fasta")
+    return _get(f"/uniprot/{ac}.fasta")
 
 
 def get_proteome(proteome_id):
-    return _get("/uniprot/?include=false&format=fasta&force=true&query=proteome:{proteome_id}")
+    return _get(f"/uniprot/?include=false&format=fasta&force=true&query=proteome:{proteome_id}")

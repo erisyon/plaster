@@ -32,6 +32,9 @@ def http_method(url, method="GET", body="", headers={}, n_retries=0, allow_unver
     context = None
     if allow_unverified:
         context = ssl._create_unverified_context()
+        #context = ssl.create_default_context()
+        #context.options &= ~ssl.OP_NO_SSLv3
+        #context = None
 
     if urlp.scheme == "http":
         conn = http.client.HTTPConnection(urlp.netloc, **kwargs)
