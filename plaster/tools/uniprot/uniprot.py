@@ -45,15 +45,21 @@ def fasta_split(fasta_str):
     return groups
 
 
+# Uniprot has a problem with their DNS and the easiest way around it for
+# now is to hardcodfe their IP address.
+# uniprot = "www.uniprot.org"
+uniprot = "128.175.245.202"
+
+
 @utils.cache()
 def get_ac_fasta(ac):
     """
     Returns a List(tuple(header, seq)) of the resulting sequences, usually the list len == 1
     """
-    return http_method(f"https://www.uniprot.org/uniprot/{ac}.fasta", n_retries=5)
+    return http_method(f"https://{uniprot}/uniprot/{ac}.fasta", n_retries=5)
 
 
 @utils.cache()
 def get_proteome(proteome_id):
-    url = f"https://www.uniprot.org/uniprot/?include=false&format=fasta&force=true&query=proteome:{proteome_id}"
+    url = f"https://{uniprot}/uniprot/?include=false&format=fasta&force=true&query=proteome:{proteome_id}"
     return http_method(url)
