@@ -1,11 +1,12 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 from plaster.run.survey_nn.survey_nn_result import SurveyNNResult
-from scipy.spatial.distance import cdist
 from plaster.tools.aaseq.aaseq import aa_str_to_list
+from plaster.tools.schema import check
+from scipy.spatial.distance import cdist
 
 
-def euc_dist(sim_result):
+def _euc_dist(sim_result):
     """
     Computes euclidean distance between all dye-tracks produced by a simulation.
     Returns three parallel arrays:
@@ -19,25 +20,24 @@ def euc_dist(sim_result):
     this protein-of-interest filter is applied during the reports.
     """
 
-    d = cdist(sim_result.train_dyemat, sim_result.train_dyemat)
+    check.array_t(sim_result.train_dyemat, ndim=3)
+    shape = sim_result.train_dyemat.shape
+    dyemat = sim_result.train_dyemat.reshape((shape[0], shape[1] * shape[2]))
+    d = cdist(dyemat, dyemat)
     np.fill_diagonal(d, np.nan)
     nn_dist_args = np.nanargmin(d, axis=1)
 
     # the dim of train_dyemat above does not include "dark" peptides,
     # so we'll need to factor that in to create a table for all peps.
     n_peps = len(sim_result.train_recalls)
-    dark_pep_mask = sim_result.train_recalls == 0.0
+    # dark_pep_mask = sim_result.train_recalls == 0.0
 
     # we'll store nearest neighbor pep_i and distance
     neighbor_pep_i = np.full([n_peps,], -1)
     neighbor_dist = np.full([n_peps,], -1)
 
-    # use ~dark mask to set values for all non-dark peptides, which corresponds
-    # to the number of entries in things like sim_result.train_dyemat which have
-    # had dark peptides removed.
-    #
-    neighbor_pep_i[~dark_pep_mask] = sim_result.train_true_pep_iz[nn_dist_args]
-    neighbor_dist[~dark_pep_mask] = d[np.arange(d.shape[0]), nn_dist_args]
+    neighbor_pep_i = sim_result.train_true_pep_iz[nn_dist_args]
+    neighbor_dist = d[np.arange(d.shape[0]), nn_dist_args]
 
     return range(n_peps), neighbor_pep_i, neighbor_dist
 
@@ -57,7 +57,7 @@ def survey_nn(survey_nn_params, prep_result, sim_result, progress=None, pipeline
     """
 
     # get simple euclidean nearest-neighbor info & store in Dataframe
-    pep_iz, nn_pep_iz, nn_dist = euc_dist(sim_result)
+    pep_iz, nn_pep_iz, nn_dist = _euc_dist(sim_result)
     df = pd.DataFrame()
     df["pep_i"] = pep_iz
     df["nn_pep_i"] = nn_pep_iz
