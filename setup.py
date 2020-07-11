@@ -1,13 +1,14 @@
 # python setup.py build_ext --inplace
 
 import os
-from setuptools import Extension, setup, dist
 import pathlib
+
+import numpy
+from Cython.Build import cythonize
+from setuptools import Extension, dist, setup
 
 dist.Distribution().fetch_build_eggs(['Cython>=0.15.1', 'numpy>=1.10'])
 
-from Cython.Build import cythonize
-import numpy
 
 
 # The directory containing this file
@@ -17,8 +18,6 @@ HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text()
 
 exec(open("plaster/version.py").read())
-
-print("THE CWD IN PLASTER SETUP is: ", os.getcwd())
 
 extensions = [
     Extension(
@@ -30,10 +29,6 @@ extensions = [
         include_dirs=[
             "./plaster/run/sim_v2/fast",
             numpy.get_include(),
-            # f"{os.environ['VIRTUAL_ENV']}/lib/python3.8/site-packages/numpy/core/include",
-            # In the cython tutorials it shows using np.get_include()
-            # which requires a numpy import. To avoid this, I just copied
-            # the path from that call to eliminate the numpy dependency
         ],
         extra_compile_args=[
             "-Wno-unused-but-set-variable",
@@ -42,17 +37,31 @@ extensions = [
             "-pthread",
             "-DNDEBUG",
         ],
-    )
+    ),
+    Extension(
+        name="plaster.run.test_nn_v2.fast.test_nn_v2_fast",
+        sources=[
+            "./plaster/run/test_nn_v2/fast/test_nn_v2_fast.pyx",
+            "./plaster/run/test_nn_v2/fast/ctest_nn_v2_fast.c",
+        ],
+        include_dirs=[
+            "./plaster/run/test_nn_v2/fast",
+            "/flann/src/cpp/flann/",
+            numpy.get_include(),
+        ],
+        # extra_compile_args=[
+        #     "-Wno-unused-but-set-variable",
+        #     "-Wno-unused-label",
+        #     "-Wno-cpp",
+        #     "-pthread",
+        #     "-DNDEBUG",
+        # ],
+    ),
 ]
 
 
 setup(
     name="erisyon.plaster",
-    # setup_requires=[
-    #     # Setuptools 18.0 properly handles Cython extensions.
-    #     'setuptools>=18.0',
-    #     'cython',
-    # ],
     version=__version__,
     description="Erisyon's Fluoro-Sequencing Platform",
     long_description=README,
