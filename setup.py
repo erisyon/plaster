@@ -34,17 +34,17 @@ extensions = [
             "-Wno-unused-label",
             "-Wno-cpp",
             "-pthread",
-            "-DNDEBUG",
+            # "-DNDEBUG",
         ],
     ),
     Extension(
-        name="plaster.run.test_nn_v2.fast.test_nn_v2_fast",
+        name="plaster.run.nn_v2.fast.nn_v2_fast",
         sources=[
-            "./plaster/run/test_nn_v2/fast/test_nn_v2_fast.pyx",
-            "./plaster/run/test_nn_v2/fast/ctest_nn_v2_fast.c",
+            "./plaster/run/nn_v2/fast/nn_v2_fast.pyx",
+            "./plaster/run/nn_v2/fast/c_nn_v2_fast.c",
         ],
         include_dirs=[
-            "./plaster/run/test_nn_v2/fast",
+            "./plaster/run/nn_v2/fast",
             "/flann/src/cpp/flann/",
             numpy.get_include(),
         ],
@@ -52,7 +52,7 @@ extensions = [
         library_dirs=["/flann/lib"],
         extra_compile_args=[
             "-DNPY_NO_DEPRECATED_API",
-            "-DNDEBUG",
+            # "-DNDEBUG",
         ],
     ),
 ]
