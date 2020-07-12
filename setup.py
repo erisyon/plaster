@@ -10,7 +10,6 @@ from setuptools import Extension, dist, setup
 dist.Distribution().fetch_build_eggs(['Cython>=0.15.1', 'numpy>=1.10'])
 
 
-
 # The directory containing this file
 HERE = pathlib.Path(__file__).parent
 
@@ -49,13 +48,12 @@ extensions = [
             "/flann/src/cpp/flann/",
             numpy.get_include(),
         ],
-        # extra_compile_args=[
-        #     "-Wno-unused-but-set-variable",
-        #     "-Wno-unused-label",
-        #     "-Wno-cpp",
-        #     "-pthread",
-        #     "-DNDEBUG",
-        # ],
+        libraries=["flann"],
+        library_dirs=["/flann/lib"],
+        extra_compile_args=[
+            "-DNPY_NO_DEPRECATED_API",
+            "-DNDEBUG",
+        ],
     ),
 ]
 
