@@ -37,6 +37,7 @@ typedef struct {
 
 
 typedef struct {
+    // Set by the .pyx file
     Size n_cols;
     Size radmat_n_rows;
     RadType *radmat;
@@ -46,17 +47,19 @@ typedef struct {
     Size train_dyepeps_n_rows;
     DyePepRec *train_dyepeps;
 
+    CallRec *output_callrecs;
+
+    // Internal to the .c file; freed by context_free()
     struct FLANNParameters flann_params;
     flann_index_t flann_index_id;
-
     RadType *dyetracks_as_radtype;
     RadType *dyetrack_weights;
-} NNContext;
+} Context;
 
-
-void context_work_orders_start(NNContext *ctx);
-void context_free(NNContext *ctx);
+void context_start(Context *ctx);
+void context_free(Context *ctx);
 int test_flann();
 
 
 #endif
+`

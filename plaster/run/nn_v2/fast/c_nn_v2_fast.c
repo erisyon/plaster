@@ -30,7 +30,14 @@ void ensure(int expr, const char *fmt, ...) {
 #endif
 
 
-typedef Float32 RadType;
+int sanity_check() {
+    if(sizeof(Float32) != 4) {
+        printf("Failed sanity check: sizeof Float32\n");
+        return 1;
+    }
+
+    return 0;
+}
 
 
 float dist_inv_square(RadType *radrow, RadType *dyerow, Size n_cols) {
@@ -64,7 +71,7 @@ void score_weighted_inv_square(
 }
 
 
-void context_classify_radrows(NNContext *ctx, Size n_rows, RadType *radrows, CallRec *output_calls) {
+void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, CallRec *output_calls) {
     // FIND neighbor targets via ANN
     const int n_cols = ctx->n_cols;
     const int n_neighbors = ctx->n_neighbors;
@@ -104,7 +111,7 @@ void context_classify_radrows(NNContext *ctx, Size n_rows, RadType *radrows, Cal
         Score highest_score = (Score)0;
         Index highest_score_i = 0;
         for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
-            if(output_scores[nn_i] > highest_score) {
+            if (output_scores[nn_i] > highest_score) {
                 highest_score = output_scores[nn_i];
                 highest_score_i = nn_i;
             }
@@ -118,7 +125,9 @@ void context_classify_radrows(NNContext *ctx, Size n_rows, RadType *radrows, Cal
 }
 
 
-void context_work_orders_start(NNContext *ctx) {
+void context_start(Context *ctx) {
+    ensure(sanity_check() == 0, "Sanity checks failed")
+
     ctx->dyetracks_as_floats = (void *)0;
     ctx->flann_index_id = 0;
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
@@ -136,6 +145,7 @@ void context_work_orders_start(NNContext *ctx) {
         src++;
     }
 
+    // SUM dyepep counts to get weights
     ctx->dyetrack_weights = (RadType *)calloc(ctx->train_dyetracks_n_rows, sizeof(RadType));
     for(Index i=0; i<ctx->train_dyepeps_n_rows; i++) {
         // TODO: This potentially loses precision since dyetrack_weights is a float32 and count is 64
@@ -156,14 +166,14 @@ void context_work_orders_start(NNContext *ctx) {
     // TODO: Create inverse variances?
 
     // TODO: Thread this into batches
-    Radrow *radrow = ctx->radmat;
-    context_classify_radrows(ctx, radrow);
+    context_classify_radrows(ctx, ctx->radmat_n_rows, ctx->radmat, ctx->output_callrecs);
 }
 
-void context_free(NNContext *ctx) {
-    if(ctx->dyetracks_as_floats) {
-        free(ctx->dyetracks_as_floats);
-        ctx->dyetracks_as_floats = (void *)0;
+
+void context_free(Context *ctx) {
+    if(ctx->dyetracks_as_radtype) {
+        free(ctx->dyetracks_as_radtype);
+        ctx->dyetracks_as_radtype = (void *)0;
     }
     if(ctx->flann_index_id) {
         flann_free_index_float(ctx->flann_index_id, &ctx->flann_params);
@@ -171,17 +181,6 @@ void context_free(NNContext *ctx) {
     }
 }
 
-
-
-int sanity_check() {
-    printf("SANITY......................................\n");
-    if(sizeof(Float32) != 4) {
-        printf("Failed sanity check: sizeof Float32\n");
-        return 1;
-    }
-
-    return 0;
-}
 
 int test_flann() {
 
