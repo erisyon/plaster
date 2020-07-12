@@ -20,6 +20,8 @@ typedef Uint8 DyeType;
 typedef Float32 RadType;
 typedef Float32 Score;
 
+#define N_MAX_NEIGHBORS (8)
+
 
 typedef struct {
     Size dtr_i;
@@ -47,7 +49,8 @@ typedef struct {
     struct FLANNParameters flann_params;
     flann_index_t flann_index_id;
 
-    Float32 *dyetracks_as_floats;
+    RadType *dyetracks_as_radtype;
+    RadType *dyetrack_weights;
 } NNContext;
 
 

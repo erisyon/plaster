@@ -30,13 +30,49 @@ void ensure(int expr, const char *fmt, ...) {
 #endif
 
 
+typedef Float32 RadType;
+
+
+float dist_inv_square(RadType *radrow, RadType *dyerow, Size n_cols) {
+    RadType *rad = radrow;
+    RadType *dye = dyerow;
+    RadType sq_dist = (RadType)0;
+    for (Index i=0; i<n_cols; i++) {
+        RadType delta = *rad - *dye;
+        sq_dist += delta * delta;
+    }
+    return (RadType)1 / sq_dist;
+}
+
+
+void score_weighted_inv_square(
+    int n_neighbors,
+    int *neighbor_iz,  // array((n_neighbors,), type=int): indices to dyetrack
+    float *neighbor_dists,  // array((n_neighbors,), type=float): distances computed by FLANN
+    RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
+    RadType *dyetracks,  // arrays((n_dyetracks, n_cols), type=RadType): All dyetracks
+    RadType *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
+    Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
+) {
+    // scoring funcs take neighors and distances and return scores for each
+    for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
+        Index neighbor_i = neighbor_iz[nn_i];
+        RadType neighbor_dist = neighbor_dists[nn_i];
+        RadType neighbor_weight = dyetrack_weights[neightbor_i];
+        output_scores[nn_i] = (Score)(neighbor_weight / (neighbor_dist * neighbor_dist));
+    }
+}
+
+
 void context_classify_radrows(NNContext *ctx, Size n_rows, RadType *radrows, CallRec *output_calls) {
     // FIND neighbor targets via ANN
+    const int n_cols = ctx->n_cols;
     const int n_neighbors = ctx->n_neighbors;
+    ensure(n_neighbors < N_MAX_NEIGHBORS, "n_neighbors exceeds N_MAX_NEIGHBORS");
     int *neighbor_iz = (int*)alloca(n_rows * n_neighbors * sizeof(int));
     float *neighbor_dists = (float*)alloca(n_rows * n_neighbors, sizeof(float));
 
-    flann_find_nearest_neighbors_index_float
+    flann_find_nearest_neighbors_index_float(
         ctx->flann_index_id,
         radrows,
         n_rows,
@@ -46,15 +82,39 @@ void context_classify_radrows(NNContext *ctx, Size n_rows, RadType *radrows, Cal
         &ctx->flann_params
     );
 
-    // TODO: Filter low count targets
+    for (Index row_i=0; row_i<n_rows; row_i++) {
+        RadType *radrow = &radrows[row_i];
 
-    // Compute distances
+        int *row_neighbor_iz = &neighbor_iz[row_i * n_neighbors];
+        float *row_neighbor_dists = &neighbor_dists[row_i * n_neighbors];
 
-    // Sort, and pick winner
+        Score output_scores[N_MAX_NEIGHBORS];
+        score_weighted_inv_square(
+            n_neighbors,
+            row_neighbor_iz,
+            row_neighbor_dists,
+            radrow,
+            ctx->dyetracks_as_radtype,
+            ctx->dyetrack_weights,
+            output_scores
+        );
 
-    // Set output
-    output_call->dt_i = ?;
-    output_call->score = ?;
+        // PICK winner
+        Score score_sum = (Score)0;
+        Score highest_score = (Score)0;
+        Index highest_score_i = 0;
+        for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
+            if(output_scores[nn_i] > highest_score) {
+                highest_score = output_scores[nn_i];
+                highest_score_i = nn_i;
+            }
+            score_sum += output_scores[nn_i];
+        }
+
+        // Set output
+        output_calls[row_i].dt_i = row_neighbor_iz[highest_score_i];
+        output_calls[row_i].score = highest_score;
+    }
 }
 
 
@@ -63,21 +123,30 @@ void context_work_orders_start(NNContext *ctx) {
     ctx->flann_index_id = 0;
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
 
+    // TODO: Filter low count targets
+
     // TYPECAST the dyetracks to floats
-    ctx->dyetracks_as_floats = (Float32 *)calloc(ctx->train_dyetracks_n_rows * ctx->n_cols, sizeof(Float32))
+    ctx->dyetracks_as_radtype = (RadType *)calloc(ctx->train_dyetracks_n_rows * ctx->n_cols, sizeof(RadType))
     DyeType *src = ctx->train_dyetracks;
-    Float32 *dst = ctx->dyetracks_as_floats;
+    RadType *dst = ctx->dyetracks_as_radtype;
     Size n = ctx->train_dyetracks_n_rows * ctx->n_cols;
     for(Index i=0; i<n; i++) {
-        *dst = (Float32)*src;
+        *dst = (RadType)*src;
         dst++;
         src++;
+    }
+
+    ctx->dyetrack_weights = (RadType *)calloc(ctx->train_dyetracks_n_rows, sizeof(RadType));
+    for(Index i=0; i<ctx->train_dyepeps_n_rows; i++) {
+        // TODO: This potentially loses precision since dyetrack_weights is a float32 and count is 64
+        DyePepRec *dyepeprec = &ctx->train_dyepeps[i];
+        ctx->dyetrack_weights[dyepeprec->dtr_i] += (RadType)dyepeprec->count;
     }
 
     // CREATE the ANN index
     float speedup = 0.0f;
     ctx->flann_index_id = flann_build_index_float(
-        ctx->dyetracks_as_floats,
+        ctx->dyetracks_as_radtype,
         ctx->train_dyetracks_n_rows,
         ctx->n_cols,
         &speedup,
@@ -88,10 +157,7 @@ void context_work_orders_start(NNContext *ctx) {
 
     // TODO: Thread this into batches
     Radrow *radrow = ctx->radmat;
-    for (Index i=0; i<radmat_n_rows; i++, radrow += ctx->n_cols) {
-        context_classify_radrows(ctx, radrow);
-    }
-
+    context_classify_radrows(ctx, radrow);
 }
 
 void context_free(NNContext *ctx) {
