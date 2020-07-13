@@ -27,18 +27,18 @@ Tasks:
     * Multi-line messages get sub-labels with clear boundaries
 """
 
+import inspect
 import json
 import os
-import sys
-import arrow
-import traceback
-import inspect
 import re
+import sys
+import threading
 import time
+import traceback
+
+import arrow
 import numpy as np
 import pandas as pd
-import threading
-
 
 INFO = 1
 ERROR = 2
@@ -82,10 +82,13 @@ def _arg_type_str(arg):
     return s
 
 
-def _emit_line(line):
+def _emit_line(line, strip=True, newline=True):
     """Mock-point"""
-    line = line.strip()
-    sys.stderr.write(line + "\n")
+    if strip:
+        line = line.strip()
+    sys.stderr.write(line)
+    if newline:
+        sys.stderr.write("\n")
     sys.stderr.flush()
 
 
@@ -142,21 +145,21 @@ def _make_exception(e, msg=""):
     return lines
 
 
-def _interactive_emit_line(level, color, msg):
+def _interactive_emit_line(level, color, msg, **kwargs):
     """Only add prefix if in headless mode"""
     prefix = ""
     if is_headless():
         prefix = _make_prefix(level, -4)
 
     if no_colors or color is None:
-        _emit_line(prefix + msg)
+        _emit_line(prefix + msg, **kwargs)
     else:
-        _emit_line(prefix + color + msg + reset)
+        _emit_line(prefix + color + msg + reset, **kwargs)
 
 
-def info(msg):
+def info(msg, **kwargs):
     """Use this even in interactive mode because it doesn't add prefix unless headless."""
-    _interactive_emit_line(INFO, None, msg)
+    _interactive_emit_line(INFO, None, msg, **kwargs)
 
 
 def important(msg):
@@ -387,7 +390,7 @@ def input_request(message, default_when_headless):
     # Do not use the input(message) here because it doesn't wrap properly
     # in some cases (happened when I was using escape codes, but I didn't
     # bother to figure out why.)... Just print() works fine.
-    info(message)
+    info(message, strip=False, newline=False)
     return _input()
 
 
@@ -398,7 +401,7 @@ def confirm_yn(message, default_when_headless):
     """
     resp = None
     while resp not in ("y", "n"):
-        resp = input_request(message + "(y/n) ", default_when_headless)
+        resp = input_request(message + "(y/n): ", default_when_headless)
         resp = resp.lower()[0]
     return resp == "y"
 
