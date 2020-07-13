@@ -28,7 +28,11 @@ def zest_pyx_runs():
     pep_seq_df = pd.read_csv(StringIO(csv))
 
     labelled_pep_df = pd.merge(
-        left=pep_seq_df, right=sim_params.df, left_on="aa", right_on="amino_acid", how="left"
+        left=pep_seq_df,
+        right=sim_params.df,
+        left_on="aa",
+        right_on="amino_acid",
+        how="left",
     )
 
     flus = []
