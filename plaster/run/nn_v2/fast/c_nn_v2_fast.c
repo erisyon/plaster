@@ -62,22 +62,25 @@ void score_weighted_inv_square(
     Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
 ) {
     // scoring funcs take neighors and distances and return scores for each
-    for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
+    for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_i = neighbor_iz[nn_i];
         RadType neighbor_dist = neighbor_dists[nn_i];
-        RadType neighbor_weight = dyetrack_weights[neightbor_i];
+        RadType neighbor_weight = dyetrack_weights[neighbor_i];
         output_scores[nn_i] = (Score)(neighbor_weight / (neighbor_dist * neighbor_dist));
     }
 }
 
 
-void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, CallRec *output_calls) {
+void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index32 *output_pred_iz, Score *output_scores) {
+    // radrows, output_pred_iz, and output_scores are seprated so
+    // that they can be passed in in batches.
+
     // FIND neighbor targets via ANN
-    const int n_cols = ctx->n_cols;
-    const int n_neighbors = ctx->n_neighbors;
+    const Size n_cols = ctx->n_cols;
+    const Size n_neighbors = ctx->n_neighbors;
     ensure(n_neighbors < N_MAX_NEIGHBORS, "n_neighbors exceeds N_MAX_NEIGHBORS");
     int *neighbor_iz = (int*)alloca(n_rows * n_neighbors * sizeof(int));
-    float *neighbor_dists = (float*)alloca(n_rows * n_neighbors, sizeof(float));
+    float *neighbor_dists = (float*)alloca(n_rows * n_neighbors * sizeof(float));
 
     flann_find_nearest_neighbors_index_float(
         ctx->flann_index_id,
@@ -90,8 +93,7 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, CallR
     );
 
     for (Index row_i=0; row_i<n_rows; row_i++) {
-        RadType *radrow = &radrows[row_i];
-
+        RadType *radrow = &radrows[row_i * n_cols];
         int *row_neighbor_iz = &neighbor_iz[row_i * n_neighbors];
         float *row_neighbor_dists = &neighbor_dists[row_i * n_neighbors];
 
@@ -119,23 +121,23 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, CallR
         }
 
         // Set output
-        output_calls[row_i].dt_i = row_neighbor_iz[highest_score_i];
-        output_calls[row_i].score = highest_score;
+        output_pred_iz[row_i] = row_neighbor_iz[highest_score_i];
+        output_scores[row_i] = highest_score;
     }
 }
 
 
 void context_start(Context *ctx) {
-    ensure(sanity_check() == 0, "Sanity checks failed")
+    ensure(sanity_check() == 0, "Sanity checks failed");
 
-    ctx->dyetracks_as_floats = (void *)0;
+    ctx->dyetracks_as_radtype = (void *)0;
     ctx->flann_index_id = 0;
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
 
     // TODO: Filter low count targets
 
     // TYPECAST the dyetracks to floats
-    ctx->dyetracks_as_radtype = (RadType *)calloc(ctx->train_dyetracks_n_rows * ctx->n_cols, sizeof(RadType))
+    ctx->dyetracks_as_radtype = (RadType *)calloc(ctx->train_dyetracks_n_rows * ctx->n_cols, sizeof(RadType));
     DyeType *src = ctx->train_dyetracks;
     RadType *dst = ctx->dyetracks_as_radtype;
     Size n = ctx->train_dyetracks_n_rows * ctx->n_cols;
@@ -166,7 +168,7 @@ void context_start(Context *ctx) {
     // TODO: Create inverse variances?
 
     // TODO: Thread this into batches
-    context_classify_radrows(ctx, ctx->radmat_n_rows, ctx->radmat, ctx->output_callrecs);
+    context_classify_radrows(ctx, ctx->radmat_n_rows, ctx->radmat, ctx->output_pred_iz, ctx->output_scores);
 }
 
 

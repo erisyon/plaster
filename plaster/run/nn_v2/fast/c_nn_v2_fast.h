@@ -7,6 +7,7 @@
 #include "flann.h"
 
 typedef __uint8_t Uint8;
+typedef __uint32_t Uint32;
 typedef __uint64_t Uint64;
 typedef __uint128_t Uint128;
 typedef __int64_t Sint64;
@@ -15,7 +16,9 @@ typedef float Float32;
 
 
 typedef Uint64 Size;
+typedef Uint32 Size32;
 typedef Uint64 Index;
+typedef Uint32 Index32;
 typedef Uint8 DyeType;
 typedef Float32 RadType;
 typedef Float32 Score;
@@ -31,13 +34,8 @@ typedef struct {
 
 
 typedef struct {
-    Index dt_i;
-    Score score;
-} CallRec;
-
-
-typedef struct {
     // Set by the .pyx file
+    Size n_neighbors;
     Size n_cols;
     Size radmat_n_rows;
     RadType *radmat;
@@ -47,7 +45,8 @@ typedef struct {
     Size train_dyepeps_n_rows;
     DyePepRec *train_dyepeps;
 
-    CallRec *output_callrecs;
+    Index32 *output_pred_iz;
+    Score *output_scores;
 
     // Internal to the .c file; freed by context_free()
     struct FLANNParameters flann_params;
@@ -60,6 +59,4 @@ void context_start(Context *ctx);
 void context_free(Context *ctx);
 int test_flann();
 
-
 #endif
-`

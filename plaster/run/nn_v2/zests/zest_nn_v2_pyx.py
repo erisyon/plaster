@@ -1,7 +1,7 @@
 import pandas as pd
 from munch import Munch
 from plaster.run.nn_v2.fast import nn_v2_fast
-from plaster.run.nn_v2.nn_v2_fast import nn
+from plaster.run.nn_v2.fast.nn_v2_fast import nn
 from plaster.run.nn_v2.nn_v2_params import NNV2Params
 from plaster.run.prep.prep_params import PrepParams
 from plaster.run.prep.prep_result import PrepResult
@@ -9,9 +9,6 @@ from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.tools.log.log import debug, prof
 from zest import zest
 
-
-def zest_nn_v2_pyx_runs():
-    nn_v2_fast.test_nn()
 
 def zest_nn():
     nn_v2_params = NNV2Params()
