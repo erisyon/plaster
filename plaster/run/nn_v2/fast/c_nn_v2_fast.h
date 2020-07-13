@@ -31,7 +31,7 @@ typedef struct {
 
 
 typedef struct {
-    Size dt_i;
+    Index dt_i;
     Score score;
 } CallRec;
 

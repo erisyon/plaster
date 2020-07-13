@@ -5,6 +5,15 @@ cdef extern from "c_nn_v2_fast.h":
     ctypedef float RadType
     ctypedef float Score
 
+    ctypedef struct CallRec:
+        Size dt_i
+        Score score
+
+    ctypedef struct DyePepRec:
+        Size dtr_i
+        Size pep_i
+        Size count
+
     ctypedef struct Context:
         Size n_cols
         Size radmat_n_rows
