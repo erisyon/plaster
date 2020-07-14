@@ -33,4 +33,6 @@ def zest_fast_nn():
         [2.1, 0.9, 1.1, 1.0,   1.1, 0.0, 0.1, 0.0],  # from dye track 1
     ], dtype=np.float32)
 
-    nn_v2_fast.fast_nn(test_radmat, train_dyemat, train_dyepeps, n_neighbors=8)
+    pred_iz, scores = nn_v2_fast.fast_nn(test_radmat, train_dyemat, train_dyepeps, n_neighbors=2)
+
+    debug(pred_iz, scores)

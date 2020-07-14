@@ -57,7 +57,7 @@ void score_weighted_inv_square(
     int *neighbor_iz,  // array((n_neighbors,), type=int): indices to dyetrack
     float *neighbor_dists,  // array((n_neighbors,), type=float): distances computed by FLANN
     RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
-    RadType *dyetracks,  // arrays((n_dyetracks, n_cols), type=RadType): All dyetracks
+    RadType *dyemat,  // arrays((n_dyetracks, n_cols), type=RadType): All dyetracks
     WeightType *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
     Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
 ) {
@@ -66,7 +66,11 @@ void score_weighted_inv_square(
         Index neighbor_i = neighbor_iz[nn_i];
         RadType neighbor_dist = neighbor_dists[nn_i];
         WeightType neighbor_weight = dyetrack_weights[neighbor_i];
-        output_scores[nn_i] = (Score)(neighbor_weight / (neighbor_dist * neighbor_dist));
+
+        output_scores[nn_i] = (Score)(
+            neighbor_weight / (0.1 + (neighbor_dist * neighbor_dist))
+            // Add a small bias to avoid divide by zero
+        );
     }
 }
 
@@ -78,10 +82,14 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
     // FIND neighbor targets via ANN
     const Size n_cols = ctx->n_cols;
     const Size n_neighbors = ctx->n_neighbors;
-    ensure(n_neighbors < N_MAX_NEIGHBORS, "n_neighbors exceeds N_MAX_NEIGHBORS");
+    ensure(n_neighbors <= N_MAX_NEIGHBORS, "n_neighbors exceeds N_MAX_NEIGHBORS");
+
     int *neighbor_iz = (int*)alloca(n_rows * n_neighbors * sizeof(int));
     float *neighbor_dists = (float*)alloca(n_rows * n_neighbors * sizeof(float));
+    memset(neighbor_iz, 0, n_rows * n_neighbors * sizeof(int));
+    memset(neighbor_dists, 0, n_rows * n_neighbors * sizeof(float));
 
+    // FETCH a batch of neighbors from FLANN in one call.
     flann_find_nearest_neighbors_index_float(
         ctx->flann_index_id,
         radrows,
@@ -129,6 +137,10 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
 
 void context_start(Context *ctx) {
     ensure(sanity_check() == 0, "Sanity checks failed");
+    ensure(
+        ctx->n_neighbors <= ctx->train_dyemat_n_rows,
+        "FLANN does not support requesting more neihbors than there are data points"
+    );
 
     // CLEAR internally controlled elements
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
@@ -149,7 +161,7 @@ void context_start(Context *ctx) {
     // TODO: Create inverse variances?
 
     // TODO: Thread this into batches
-    // context_classify_radrows(ctx, ctx->test_radmat_n_rows, ctx->test_radmat, ctx->output_pred_iz, ctx->output_scores);
+    context_classify_radrows(ctx, ctx->test_radmat_n_rows, ctx->test_radmat, ctx->output_pred_iz, ctx->output_scores);
 }
 
 
