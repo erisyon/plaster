@@ -22,6 +22,7 @@ typedef Uint32 Index32;
 typedef Uint8 DyeType;
 typedef Float32 RadType;
 typedef Float32 Score;
+typedef Float32 WeightType;
 
 #define N_MAX_NEIGHBORS (8)
 
@@ -34,25 +35,23 @@ typedef struct {
 
 
 typedef struct {
-    // Set by the .pyx file
+    // The following are set by the .pyx file
     Size n_neighbors;
     Size n_cols;
-    Size radmat_n_rows;
-    RadType *radmat;
 
-    Size train_dyetracks_n_rows;
-    DyeType *train_dyetracks;
-    Size train_dyepeps_n_rows;
-    DyePepRec *train_dyepeps;
+    Size test_radmat_n_rows;
+    RadType *test_radmat;
+
+    Size train_dyemat_n_rows;
+    RadType *train_dyemat;
+    WeightType *train_dyetrack_weights;
 
     Index32 *output_pred_iz;
     Score *output_scores;
 
-    // Internal to the .c file; freed by context_free()
+    // The following are internal to the .c file; freed by context_free()
     struct FLANNParameters flann_params;
     flann_index_t flann_index_id;
-    RadType *dyetracks_as_radtype;
-    RadType *dyetrack_weights;
 } Context;
 
 void context_start(Context *ctx);

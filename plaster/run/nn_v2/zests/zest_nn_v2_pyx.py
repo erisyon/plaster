@@ -13,50 +13,24 @@ from plaster.tools.utils import utils
 from zest import zest
 
 
-def zest_nn_1():
-    import pudb; pudb.set_trace()
-    nn_v2_params = NNV2Params()
+def zest_fast_nn():
 
-    prep_params = PrepParams(proteins=[
-        Munch(name="pep1", sequence="ABCDE")
-    ])
+    train_dyemat = np.array([
+        [0, 0, 0, 0,   0, 0, 0, 0],
+        [2, 1, 1, 1,   1, 0, 0, 0],
+        [1, 1, 0, 0,   2, 1, 0, 0],
+    ], dtype=np.uint8)
 
-    pros = pd.DataFrame(dict(
-        pro_i=[1],
-        pro_id=["pep1"],
-        pro_ptm_locs = [None],
-        pro_report = [None],
-    ))
+    train_dyepeps = np.array([
+        [0, 0, 10],  # Dye track 0 comes from pep 0 10 times
+        [1, 1, 10],  # Dye track 1 comes from pep 1 10 times
+        [1, 2, 5],  # Dye track 1 comes from pep 2 5 times
+        [2, 2, 5],  # Dye track 2 comes from pep 2 5 times
+    ], dtype=np.uint32)
 
-    pro_seqs = pd.DataFrame(dict(
-        aa=["A", "B", "C", "D", "E"],
-        pro_i=[1, 1, 1, 1, 1],
-        pro_name=["pep1", "pep1", "pep1", "pep1", "pep1"],
-        pro_ptm_locs=[None, None, None, None, None],
-        pro_report=[None, None, None, None, None],
-    ))
+    test_radmat = np.array([
+        [1.1, 0.9, 0.0, 0.0,   1.9, 1.1, 0.0, 0.1],  # from dye track 2
+        [2.1, 0.9, 1.1, 1.0,   1.1, 0.0, 0.1, 0.0],  # from dye track 1
+    ], dtype=np.float32)
 
-    prep_result = PrepResult(
-        params=prep_params,
-        _pros=pros,
-        _pro_seqs=pro_seqs,
-        _peps=pros,
-        _pep_seqs=pro_seqs,
-    )
-
-    # TODO
-    # sim_v2_result = SimV2Result(
-    #     params=sim_v2_params,
-    #     train_flus=train_flus,
-    #     train_dyemat=train_dyemat,
-    #     train_dyepeps_df=train_dyepeps_df,
-    #     train_radmat=train_radmat,
-    #     train_radmat_true_pep_iz=train_radmat_true_pep_iz,
-    #     test_flus=test_flus,
-    #     test_dyemat=test_dyemat,
-    #     test_dyepeps_df=test_dyepeps_df,
-    #     test_radmat=test_radmat,
-    #     test_radmat_true_pep_iz=test_radmat_true_pep_iz,
-    # )
-
-    nn_v2_fast.nn(nn_v2_params, prep_result, None)
+    nn_v2_fast.fast_nn(test_radmat, train_dyemat, train_dyepeps, n_neighbors=8)

@@ -58,14 +58,14 @@ void score_weighted_inv_square(
     float *neighbor_dists,  // array((n_neighbors,), type=float): distances computed by FLANN
     RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
     RadType *dyetracks,  // arrays((n_dyetracks, n_cols), type=RadType): All dyetracks
-    RadType *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
+    WeightType *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
     Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
 ) {
     // scoring funcs take neighors and distances and return scores for each
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_i = neighbor_iz[nn_i];
         RadType neighbor_dist = neighbor_dists[nn_i];
-        RadType neighbor_weight = dyetrack_weights[neighbor_i];
+        WeightType neighbor_weight = dyetrack_weights[neighbor_i];
         output_scores[nn_i] = (Score)(neighbor_weight / (neighbor_dist * neighbor_dist));
     }
 }
@@ -103,8 +103,8 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
             row_neighbor_iz,
             row_neighbor_dists,
             radrow,
-            ctx->dyetracks_as_radtype,
-            ctx->dyetrack_weights,
+            ctx->train_dyemat,
+            ctx->train_dyetrack_weights,
             output_scores
         );
 
@@ -130,36 +130,17 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
 void context_start(Context *ctx) {
     ensure(sanity_check() == 0, "Sanity checks failed");
 
-    ctx->dyetracks_as_radtype = (void *)0;
-    ctx->flann_index_id = 0;
+    // CLEAR internally controlled elements
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
+    ctx->flann_index_id = 0;
 
-    // TODO: Filter low count targets
-
-    // TYPECAST the dyetracks to floats
-    ctx->dyetracks_as_radtype = (RadType *)calloc(ctx->train_dyetracks_n_rows * ctx->n_cols, sizeof(RadType));
-    DyeType *src = ctx->train_dyetracks;
-    RadType *dst = ctx->dyetracks_as_radtype;
-    Size n = ctx->train_dyetracks_n_rows * ctx->n_cols;
-    for(Index i=0; i<n; i++) {
-        *dst = (RadType)*src;
-        dst++;
-        src++;
-    }
-
-    // SUM dyepep counts to get weights
-    ctx->dyetrack_weights = (RadType *)calloc(ctx->train_dyetracks_n_rows, sizeof(RadType));
-    for(Index i=0; i<ctx->train_dyepeps_n_rows; i++) {
-        // TODO: This potentially loses precision since dyetrack_weights is a float32 and count is 64
-        DyePepRec *dyepeprec = &ctx->train_dyepeps[i];
-        ctx->dyetrack_weights[dyepeprec->dtr_i] += (RadType)dyepeprec->count;
-    }
+    // TODO: Filter low count targets?
 
     // CREATE the ANN index
     float speedup = 0.0f;
     ctx->flann_index_id = flann_build_index_float(
-        ctx->dyetracks_as_radtype,
-        ctx->train_dyetracks_n_rows,
+        ctx->train_dyemat,
+        ctx->train_dyemat_n_rows,
         ctx->n_cols,
         &speedup,
         &ctx->flann_params
@@ -168,15 +149,11 @@ void context_start(Context *ctx) {
     // TODO: Create inverse variances?
 
     // TODO: Thread this into batches
-    context_classify_radrows(ctx, ctx->radmat_n_rows, ctx->radmat, ctx->output_pred_iz, ctx->output_scores);
+    context_classify_radrows(ctx, ctx->test_radmat_n_rows, ctx->test_radmat, ctx->output_pred_iz, ctx->output_scores);
 }
 
 
 void context_free(Context *ctx) {
-    if(ctx->dyetracks_as_radtype) {
-        free(ctx->dyetracks_as_radtype);
-        ctx->dyetracks_as_radtype = (void *)0;
-    }
     if(ctx->flann_index_id) {
         flann_free_index_float(ctx->flann_index_id, &ctx->flann_params);
         ctx->flann_index_id = 0;
@@ -184,6 +161,7 @@ void context_free(Context *ctx) {
 }
 
 
+/*
 int test_flann() {
 
     // TO TEST:
@@ -255,3 +233,4 @@ int test_flann() {
 
     return 0;
 }
+*/
