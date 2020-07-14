@@ -149,7 +149,7 @@ void context_start(Context *ctx) {
     // TODO: Create inverse variances?
 
     // TODO: Thread this into batches
-    context_classify_radrows(ctx, ctx->test_radmat_n_rows, ctx->test_radmat, ctx->output_pred_iz, ctx->output_scores);
+    // context_classify_radrows(ctx, ctx->test_radmat_n_rows, ctx->test_radmat, ctx->output_pred_iz, ctx->output_scores);
 }
 
 

@@ -37,7 +37,6 @@ def fast_nn(test_radmat, train_dyemat, train_dyepeps, n_neighbors):
     cdef c_nn.RadType [:, ::1] test_radmat_view
     cdef c_nn.DyeType [:, ::1] train_dyemat_view
     cdef c_nn.Index32 [:, ::1] train_dyepeps_view
-
     cdef c_nn.Index32 [::1] output_pred_iz_view
     cdef c_nn.Score [::1] output_scores_view
 
@@ -58,7 +57,6 @@ def fast_nn(test_radmat, train_dyemat, train_dyepeps, n_neighbors):
     # CREATE cython views
     test_radmat_view = test_radmat
     train_dyemat_view = train_dyemat
-    train_dyepeps_view = train_dyepeps
     output_pred_iz_view = output_pred_iz
     output_scores_view = output_scores
 
@@ -85,23 +83,30 @@ def fast_nn(test_radmat, train_dyemat, train_dyepeps, n_neighbors):
 
     # SUM dyepep counts to get weights. Sum to Uint64 then downcast to Float32 to maintain precision
     cdef c_nn.Uint64 *dyetrack_weights_uint64 = <c_nn.Uint64 *>calloc(ctx.train_dyemat_n_rows, sizeof(c_nn.Uint64))
-    cdef c_nn.WeightType *dyetrack_weights = <c_nn.WeightType *>calloc(ctx.train_dyemat_n_rows, sizeof(c_nn.WeightType))
-    cdef c_nn.Size dyepep_n_rows
-    cdef c_nn.Index *src_dyepep
+    cdef c_nn.WeightType *dyetrack_weights_float = <c_nn.WeightType *>calloc(ctx.train_dyemat_n_rows, sizeof(c_nn.WeightType))
+
+    cdef c_nn.Size dyepep_n_rows = train_dyepeps.shape[0]
+    train_dyepeps_view = train_dyepeps
+
+    cdef c_nn.Index dt_i
     try:
-        dyepep_n_rows = train_dyepeps.shape[0]
-        src_dyepeps = <c_nn.Index *>&train_dyepeps_view[0, 0]
-        for i in range(0, dyepep_n_rows*3, 3):
-            dyetrack_weights_uint64[src_dyepeps[i]] += 1
-
-        # DOWNCAST to Float32
-        ctx.train_dyetrack_weights = dyetrack_weights
+        # COUNT weights as ints
         for i in range(dyepep_n_rows):
-            ctx.train_dyetrack_weights[i] = <c_nn.WeightType>dyetrack_weights_uint64[i]
+            dt_i = train_dyepeps_view[i, 0]
+            assert 0 <= dt_i < ctx.train_dyemat_n_rows
+            dyetrack_weights_uint64[dt_i] += train_dyepeps_view[i, 2]
 
+        # # DOWNCAST to Float32
+        for i in range(ctx.train_dyemat_n_rows):
+            dyetrack_weights_float[i] = <c_nn.WeightType>dyetrack_weights_uint64[i]
+
+        ctx.train_dyetrack_weights = dyetrack_weights_float
+
+        # Handoff to the C code...
         c_nn.context_start(&ctx)
+
     finally:
         free(dyetrack_weights_uint64)
-        free(dyetrack_weights)
+        free(dyetrack_weights_float)
 
     return output_pred_iz, output_scores
