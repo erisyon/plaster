@@ -1,3 +1,7 @@
+"""
+isort:skip_file
+"""
+
 from zest import zest
 from io import StringIO
 import pandas as pd

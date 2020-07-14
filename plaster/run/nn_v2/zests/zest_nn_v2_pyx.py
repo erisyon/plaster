@@ -1,16 +1,20 @@
+from io import StringIO
+
+import numpy as np
 import pandas as pd
 from munch import Munch
 from plaster.run.nn_v2.fast import nn_v2_fast
-from plaster.run.nn_v2.fast.nn_v2_fast import nn
 from plaster.run.nn_v2.nn_v2_params import NNV2Params
 from plaster.run.prep.prep_params import PrepParams
 from plaster.run.prep.prep_result import PrepResult
-from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.tools.log.log import debug, prof
+from plaster.tools.schema import check
+from plaster.tools.utils import utils
 from zest import zest
 
 
-def zest_nn():
+def zest_nn_1():
+    import pudb; pudb.set_trace()
     nn_v2_params = NNV2Params()
 
     prep_params = PrepParams(proteins=[
@@ -37,7 +41,7 @@ def zest_nn():
         _pros=pros,
         _pro_seqs=pro_seqs,
         _peps=pros,
-        _pep_seqs=_,
+        _pep_seqs=pro_seqs,
     )
 
     # TODO
@@ -55,4 +59,4 @@ def zest_nn():
     #     test_radmat_true_pep_iz=test_radmat_true_pep_iz,
     # )
 
-    nn(nn_v2_params, prep_result, None)
+    nn_v2_fast.nn(nn_v2_params, prep_result, None)

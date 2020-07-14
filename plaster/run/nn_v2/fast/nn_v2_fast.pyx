@@ -6,6 +6,7 @@ from cython.view cimport array as cvarray
 from libc.stdlib cimport calloc, free
 
 
+
 # Local helpers
 def _assert_array_contiguous(arr, dtype):
     assert isinstance(arr, np.ndarray) and arr.dtype == dtype and arr.flags["C_CONTIGUOUS"]
