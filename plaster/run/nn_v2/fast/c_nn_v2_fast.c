@@ -105,7 +105,7 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
         int *row_neighbor_iz = &neighbor_iz[row_i * n_neighbors];
         float *row_neighbor_dists = &neighbor_dists[row_i * n_neighbors];
 
-        Score output_scores[N_MAX_NEIGHBORS];
+        Score neighbor_scores[N_MAX_NEIGHBORS];
         score_weighted_inv_square(
             n_neighbors,
             row_neighbor_iz,
@@ -113,7 +113,7 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
             radrow,
             ctx->train_dyemat,
             ctx->train_dyetrack_weights,
-            output_scores
+            neighbor_scores
         );
 
         // PICK winner
@@ -121,11 +121,11 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
         Score highest_score = (Score)0;
         Index highest_score_i = 0;
         for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
-            if (output_scores[nn_i] > highest_score) {
-                highest_score = output_scores[nn_i];
+            if (neighbor_scores[nn_i] > highest_score) {
+                highest_score = neighbor_scores[nn_i];
                 highest_score_i = nn_i;
             }
-            score_sum += output_scores[nn_i];
+            score_sum += neighbor_scores[nn_i];
         }
 
         // Set output
