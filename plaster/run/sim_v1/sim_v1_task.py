@@ -11,6 +11,8 @@ class SimV1Task(PipelineTask):
 
         prep_result = PrepResult.load_from_folder(self.inputs.prep)
 
-        sim_result = sim_v1(sim_params, prep_result, progress=self.progress, pipeline=self)
+        sim_result = sim_v1(
+            sim_params, prep_result, progress=self.progress, pipeline=self
+        )
         sim_result._generate_flu_info(prep_result)
         sim_result.save()

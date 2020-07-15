@@ -1,8 +1,8 @@
 from plaster.tools.pipeline.pipeline import PipelineTask
 from plaster.run.sim_v1.sim_v1_result import SimV1Result
 from plaster.run.prep.prep_result import PrepResult
-from plaster.run.test_nn.nn_v1_params import NNV1Params
-from plaster.run.test_nn.nn_v1_worker import nn_v1
+from plaster.run.nn_v1.nn_v1_params import NNV1Params
+from plaster.run.nn_v1.nn_v1_worker import nn_v1
 
 # from plaster.tools.log.log import prof
 

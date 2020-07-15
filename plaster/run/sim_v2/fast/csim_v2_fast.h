@@ -6,6 +6,7 @@
 typedef __uint8_t Uint8;
 typedef __uint64_t Uint64;
 typedef __uint128_t Uint128;
+typedef __int128_t Sint128;
 typedef __int64_t Sint64;
 
 
@@ -94,5 +95,6 @@ void context_work_orders_start(Context *ctx);
 Index context_dtr_get_count(Context *ctx, Index dtr_i);
 DyeType *context_dtr_dyetrack(Context *ctx, Index dtr_i);
 DyePepRec *context_dyepep(Context *ctx, Index dyepep_i);
+void context_dump(Context *ctx);
 
 #endif

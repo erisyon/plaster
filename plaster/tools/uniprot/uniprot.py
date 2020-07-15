@@ -53,7 +53,9 @@ uniprot = "128.175.245.202"
 
 @utils.cache()
 def _get(url_path):
-    return http_method(f"https://{uniprot}{url_path}", n_retries=5, allow_unverified=True)
+    return http_method(
+        f"https://{uniprot}{url_path}", n_retries=5, allow_unverified=True
+    )
 
 
 def get_ac_fasta(ac):
@@ -64,4 +66,6 @@ def get_ac_fasta(ac):
 
 
 def get_proteome(proteome_id):
-    return _get(f"/uniprot/?include=false&format=fasta&force=true&query=proteome:{proteome_id}")
+    return _get(
+        f"/uniprot/?include=false&format=fasta&force=true&query=proteome:{proteome_id}"
+    )

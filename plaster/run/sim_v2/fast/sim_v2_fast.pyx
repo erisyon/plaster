@@ -109,7 +109,7 @@ def sim(
         csim.context_work_orders_start(&ctx)
 
         # The results are in ctx.dtrs and ctx.dyepeps
-        # So no allocate the numpy arrays that will be returned
+        # So now allocate the numpy arrays that will be returned
         # to the caller and copy into those arrays from the
         # much larger arrays that were used during the context_work_orders_start()
         n_chcy = ctx.n_channels * ctx.n_cycles

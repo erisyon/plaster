@@ -62,12 +62,12 @@ def _dyemat_sim(sim_v2_params, flus, n_samples):
 
     Outputs:
         dyemat: ndarray(n_uniq_dyetracks, n_channels, n_cycle)
-        dyepep_df: Dataframe(dye_i, pep_i, count)
+        dyepep: ndarray(dye_i, pep_i, count)
     """
 
     # TODO: bleach each channel
     # TODO: Include the p_bright calculations
-    dyemat, dyepeps_df = sim_v2.sim(
+    dyemat, dyepeps = sim_v2_fast.sim(
         flus,
         n_samples,
         sim_v2_params.n_channels,
@@ -75,11 +75,11 @@ def _dyemat_sim(sim_v2_params, flus, n_samples):
         sim_v2_params.error_model.dyes[0].p_bleach_per_cycle,
         sim_v2_params.error_model.p_detach,
         sim_v2_params.error_model.p_edman_failure,
-        n_threads=1,
+        n_threads=1,  # TODO, tune
         rng_seed=sim_v2_params.random_seed,
     )
 
-    return dyemat, dyepeps_df
+    return dyemat, dyepeps
 
 
 def _radmat_sim(sim_v2_params, n_samples, dyemat, dyepeps_df):
@@ -87,31 +87,27 @@ def _radmat_sim(sim_v2_params, n_samples, dyemat, dyepeps_df):
 
 
 def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
-    (
-        train_flus,
-        train_dyemat,
-        train_dyepeps_df,
-        train_radmat,
-        train_radmat_true_pep_iz,
-        test_flus,
-        test_dyemat,
-        test_dyepeps_df,
-        test_radmat,
-        test_radmat_true_pep_iz,
-    ) = [None] * 10
+    train_flus = None
+    train_dyemat = None
+    train_dyepeps = None
+    train_radmat = None
+    train_radmat_true_pep_iz = None
+    test_flus = None
+    test_dyemat = None
+    test_dyepeps = None
 
     # Training data
     #   * always includes decoys
     #   * may include radiometry
     # -----------------------------------------------------------------------
     train_flus = _gen_flus(sim_v2_params, prep_result.pepseqs())
-    train_dyemat, train_dyepeps_df = _dyemat_sim(
+    train_dyemat, train_dyepeps = _dyemat_sim(
         sim_v2_params, train_flus, sim_v2_params.n_samples_train
     )
 
     if sim_v2_params.train_includes_radmat:
         train_radmat, train_radmat_true_pep_iz = _radmat_sim(
-            train_dyemat, train_dyepeps_df
+            train_dyemat, train_dyepeps
         )
 
     # Test data
@@ -122,26 +118,24 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
     # -----------------------------------------------------------------------
     if not sim_v2_params.is_survey:
         test_flus = _gen_flus(sim_v2_params, prep_result.pepseqs__no_decoys())
-        test_dyemat, test_dyepeps_df = _dyemat_sim(
+        test_dyemat, test_dyepeps = _dyemat_sim(
             sim_v2_params, test_flus, sim_v2_params.n_samples_test
         )
-        test_radmat, test_radmat_true_pep_iz = _radmat_sim(test_dyemat, test_dyepeps_df)
+        # test_radmat, test_radmat_true_pep_iz = _radmat_sim(test_dyemat, test_dyepeps)
 
         if not sim_v2_params.test_includes_dyemat:
             test_dyemat, test_dyepeps_df = None, None
 
     return SimV2Result(
         params=sim_v2_params,
-        train_flus=train_flus,
         train_dyemat=train_dyemat,
-        train_dyepeps_df=train_dyepeps_df,
-        train_radmat=train_radmat,
-        train_radmat_true_pep_iz=train_radmat_true_pep_iz,
-        test_flus=test_flus,
-        test_dyemat=test_dyemat,
-        test_dyepeps_df=test_dyepeps_df,
-        test_radmat=test_radmat,
-        test_radmat_true_pep_iz=test_radmat_true_pep_iz,
+        train_recalls=None,  # TODO
+        train_flus=train_flus,
+        train_flu_remainders=None,  # TODO
+        train_dyepeps=train_dyepeps,
+        test_radmat=None,  # TODO
+        test_dyemat=None,  # TODO
+        test_radmat_true_pep_iz=None,  # TODO
     )
 
 

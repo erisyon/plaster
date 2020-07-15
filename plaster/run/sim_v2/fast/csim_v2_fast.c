@@ -1,3 +1,4 @@
+#include "math.h"
 #include "stdint.h"
 #include "alloca.h"
 #include "stdio.h"
@@ -6,6 +7,7 @@
 #include "memory.h"
 #include "pthread.h"
 #include "unistd.h"
+#include "inttypes.h"
 #include "csim_v2_fast.h"
 
 /*
@@ -80,6 +82,7 @@ void ensure(int expr, const char *fmt, ...) {
     va_start(args, fmt);
     if(!expr) {
         vfprintf(stderr, fmt, args);
+        fprintf(stderr, "\n");
         fflush(stderr);
         exit(1);
     }
@@ -127,8 +130,11 @@ int rand64(Uint64 p_i) {
 
 Uint64 prob_to_p_i(double p) {
     // Convert p (double 0-1) into a 64 bit integer
-    ensure(0.0 <= p && p < 1.0, "p out of range");
-    return (Uint64)(p * (double)UINT64_MAX);
+    ensure(0.0 <= p && p <= 1.0, "probability out of range");
+    long double w = floorl( (long double)p * (long double)(UINT64_MAX) );
+    Uint64 ret = (Uint64)w;
+    // printf("ret=%" PRIu64 "\n", ret);
+    return ret;
 }
 
 
@@ -185,6 +191,16 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
 
     if(n_channels * n_cycles >= n_hashkey_factors) {
         return 9;
+    }
+
+    if(prob_to_p_i(0.0) != (Uint64)0) {
+        printf("Failed sanity check: prob_to_p_i(0.0)\n");
+        return 10;
+    }
+
+    if(prob_to_p_i(1.0) != (Uint64)UINT64_MAX) {
+        printf("Failed sanity check: prob_to_p_i(1.0) %ld %ld\n", prob_to_p_i(1.0), (Uint64)UINT64_MAX);
+        return 11;
     }
 
     return 0;
@@ -622,11 +638,29 @@ void *context_work_orders_worker(void *_ctx) {
 
 
 void context_work_orders_start(Context *ctx) {
+    context_dump(ctx);
+
     // Initialize mutex and start the worker thread(s).
     ensure(setup_and_sanity_check(ctx->n_channels, ctx->n_cycles) == 0, "Sanity checks failed");
     rand64_seed(ctx->rng_seed);
 
     ctx->next_pep_i = 0;
+
+    // Add a nul-row
+    Size n_dyetrack_bytes = dtr_n_bytes(ctx->n_channels, ctx->n_cycles);
+    DTR *nul_rec = (DTR *)alloca(n_dyetrack_bytes);
+    memset(nul_rec, 0, n_dyetrack_bytes);
+    HashKey dtr_hashkey = dtr_get_hashkey(nul_rec, ctx->n_channels, ctx->n_cycles);
+    HashRec *dtr_hash_rec = hash_get(ctx->dtr_hash, dtr_hashkey);
+    ensure(dtr_hash_rec->key == 0, "dtr hash should not have found nul row");
+
+    Table *dtrs = &ctx->dtrs;
+    Index nul_i = table_add(dtrs, nul_rec, (void*)0);
+    DTR *nul_dtr = table_get_row(dtrs, nul_i, DTR);
+    dtr_hash_rec->key = dtr_hashkey;
+    nul_dtr->count++;
+    nul_dtr->dtr_i = nul_i;
+    dtr_hash_rec->val = nul_dtr;
 
     pthread_t ids[256];
     ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
@@ -668,6 +702,22 @@ DyePepRec *context_dyepep(Context *ctx, Index dyepep_i) {
     return table_get_row(&ctx->dyepeps, dyepep_i, DyePepRec);
 }
 
+
+void context_dump(Context *ctx) {
+    printf("Context:\n");
+    printf("  n_peps=%" PRIu64 "\n", ctx->n_peps);
+    printf("  n_cycles=%" PRIu64 "\n", ctx->n_cycles);
+    printf("  n_samples=%" PRIu64 "\n", ctx->n_samples);
+    printf("  n_channels=%" PRIu64 "\n", ctx->n_channels);
+        // printf("ret=%" PRIu64 "\n", ret);
+
+    printf("  pi_bleach=%" PRIu64 "\n", ctx->pi_bleach);
+    printf("  pi_detach=%" PRIu64 "\n", ctx->pi_detach);
+    printf("  pi_edman_success=%" PRIu64 "\n", ctx->pi_edman_success);
+    printf("  n_threads=%" PRIu64 "\n", ctx->n_threads);
+    printf("  rng_seed=%" PRIu64 "\n", ctx->rng_seed);
+    // Some are left out
+}
 
 int main() {
     // Tests (not run by production code, see fast_sim.pyx)

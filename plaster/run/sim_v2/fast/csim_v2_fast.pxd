@@ -67,3 +67,4 @@ cdef extern from "csim_v2_fast.h":
     DyeType *context_dtr_dyetrack(Context *ctx, Index dtr_i)
     DyePepRec *context_dyepep(Context *ctx, Index dyepep_i)
     void rand64_seed(Uint64 seed)
+    void context_dump(Context *ctx)

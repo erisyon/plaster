@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from plaster.run.base_result import BaseResult, ArrayResult
-from plaster.run.test_nn.nn_v1_params import NNV1Params
+from plaster.run.nn_v1.nn_v1_params import NNV1Params
 
 
 class NNV1Result(BaseResult):

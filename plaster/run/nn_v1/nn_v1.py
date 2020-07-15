@@ -95,7 +95,7 @@ from plaster.run.sim_v1.sim_v1_result import (
     IndexType,
     ScoreType,
 )
-from plaster.run.test_nn.nn_v1_params import NNV1Params
+from plaster.run.nn_v1.nn_v1_params import NNV1Params
 from plaster.tools.utils import utils
 from plaster.tools.schema import check
 from plaster.tools.zap import zap

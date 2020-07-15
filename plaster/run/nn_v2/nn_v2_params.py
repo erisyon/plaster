@@ -5,10 +5,7 @@ from plaster.tools.schema.schema import Schema as s
 
 class NNV2Params(Params):
     defaults = Munch(
-        include_training_set=False,
-        n_neighbors=8,
-        dt_score_bias=0.1,
-        rare_penalty=0.8,
+        include_training_set=False, n_neighbors=8, dt_score_bias=0.1, rare_penalty=0.8,
     )
 
     schema = s(

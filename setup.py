@@ -7,7 +7,7 @@ import numpy
 from Cython.Build import cythonize
 from setuptools import Extension, dist, setup
 
-dist.Distribution().fetch_build_eggs(['Cython>=0.15.1', 'numpy>=1.10'])
+dist.Distribution().fetch_build_eggs(["Cython>=0.15.1", "numpy>=1.10"])
 
 
 # The directory containing this file
@@ -25,10 +25,7 @@ extensions = [
             "./plaster/run/sim_v2/fast/sim_v2_fast.pyx",
             "./plaster/run/sim_v2/fast/csim_v2_fast.c",
         ],
-        include_dirs=[
-            "./plaster/run/sim_v2/fast",
-            numpy.get_include(),
-        ],
+        include_dirs=["./plaster/run/sim_v2/fast", numpy.get_include(),],
         extra_compile_args=[
             "-Wno-unused-but-set-variable",
             "-Wno-unused-label",

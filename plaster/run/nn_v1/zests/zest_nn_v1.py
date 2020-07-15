@@ -3,7 +3,7 @@ import pyflann
 from pandas.testing import assert_frame_equal
 import numpy as np
 from zest import zest
-from plaster.run.test_nn.nn_v1_params import NNV1Params
+from plaster.run.nn_v1.nn_v1_params import NNV1Params
 from plaster.run.sim_v1.sim_v1_result import (
     SimV1Result,
     ArrayResult,
@@ -14,7 +14,7 @@ from plaster.run.sim_v1.sim_v1_result import (
     DyeWeightType,
 )
 from plaster.run.sim_v1.sim_v1_params import SimV1Params, ErrorModel
-from plaster.run.test_nn import nn_v1
+from plaster.run.nn_v1 import nn_v1
 from plaster.tools.utils import tmp
 from plaster.tools.log.log import debug, prof
 
@@ -117,7 +117,9 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
     def it_raises_if_no_null_row():
         dyemat, output_dt_mat = _make_dyemat()
         with zest.raises(ValueError, in_args="No null row"):
-            nn_v1._step_1_create_neighbors_lookup_singleprocess(dyemat[1:], output_dt_mat)
+            nn_v1._step_1_create_neighbors_lookup_singleprocess(
+                dyemat[1:], output_dt_mat
+            )
 
     @zest.skip("T", "TODO")
     def it_uniqifies_over_blocks():

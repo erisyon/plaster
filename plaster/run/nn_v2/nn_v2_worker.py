@@ -1,9 +1,12 @@
-# from plaster.run.nn_v2.fast import nn_v2_fast
-# from plaster.run.nn_v2.nn_v2_result import NNV2Result
+from plaster.run.nn_v2.fast import nn_v2_fast
 
 
-def nn_worker(nn_v2_params, prep_result, sim_v2_result):
-    pass
-    # nn_v2_fast.nn(nn_v2_params, prep_result, sim_v2_result)
+def nn_worker(nn_v2_params, sim_v2_result):
 
-    # return NNV2Result(params=nn_v2_params,)
+    train_dyemat = sim_v2_result.train_dyemat
+    shape = train_dyemat.shape
+    train_dyemat = train_dyemat.reshape((shape[0] * shape[1], shape[2] * shape[3]))
+
+    pred_iz, scores = nn_v2_fast.fast_nn(
+        test_radmat, train_dyemat, train_dyepeps, n_neighbors=2
+    )

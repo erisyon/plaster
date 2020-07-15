@@ -2,8 +2,8 @@ import numpy as np
 from plaster.tools.schema import check
 from plaster.run.base_result import ArrayResult
 from plaster.run.call_bag import CallBag
-from plaster.run.test_nn.nn_v1_result import NNV1Result
-from plaster.run.test_nn.nn_v1 import nn
+from plaster.run.nn_v1.nn_v1_result import NNV1Result
+from plaster.run.nn_v1.nn_v1 import nn
 from plaster.run.sim_v1.sim_v1_result import IndexType
 from plaster.tools.utils import utils
 from plaster.tools.log.log import debug, prof

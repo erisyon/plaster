@@ -46,8 +46,8 @@ from plaster.run.prep.prep_task import PrepTask
 from plaster.run.report.report_task import ReportTask
 from plaster.run.survey_nn.survey_nn_task import SurveyNNTask
 from plaster.run.survey_nn.survey_nn_result import SurveyNNResult
-from plaster.run.test_nn.nn_v1_task import NNV1Task
-from plaster.run.test_nn.nn_v1_result import NNV1Result
+from plaster.run.nn_v1.nn_v1_task import NNV1Task
+from plaster.run.nn_v1.nn_v1_result import NNV1Result
 
 
 def find_run_folders(default=None, must_include_plaster_output=True):
