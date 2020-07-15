@@ -44,19 +44,36 @@ from plaster.run.base_result import ArrayResult
 
 def _gen_flus(sim_v2_params, pep_seq_df):
     flus = []
+    pi_brights = []
+
     labelled_pep_df = pep_seq_df.join(
         sim_v2_params.df.set_index("amino_acid"), on="aa", how="left"
     )
+
+    # p_bright = is the product of (1.0 - ) all the ways the dye can fail to be visible.
+    labelled_pep_df["p_bright"] = (
+        (1.0 - labelled_pep_df.p_failure_to_attach_to_dye)
+        * (1.0 - labelled_pep_df.p_failure_to_bind_amino_acid)
+        * (1.0 - labelled_pep_df.p_non_fluorescent)
+    )
+
     for pep_i, group in labelled_pep_df.groupby("pep_i"):
         flu_float = group.ch_i.values
         flu = np.nan_to_num(flu_float, nan=sim_v2_fast.NO_LABEL).astype(
             sim_v2_fast.DyeType
         )
         flus += [flu]
-    return flus
+
+        p_bright = np.nan_to_num(group.p_bright.values)
+        pi_bright = np.zeros((len(flu),), dtype=sim_v2_fast.PIType)
+        for i, p in enumerate(p_bright):
+            pi_bright[i] = sim_v2_fast.prob_to_p_i(p)
+        pi_brights += [pi_bright]
+
+    return flus, pi_brights
 
 
-def _dyemat_sim(sim_v2_params, flus, n_samples):
+def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples):
     """
     Run via the C fast_sim module a dyemat sim.
 
@@ -66,9 +83,9 @@ def _dyemat_sim(sim_v2_params, flus, n_samples):
     """
 
     # TODO: bleach each channel
-    # TODO: Include the p_bright calculations
     dyemat, dyepeps = sim_v2_fast.sim(
         flus,
+        pi_brights,
         n_samples,
         sim_v2_params.n_channels,
         sim_v2_params.cycles_array(),
@@ -100,9 +117,9 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
     #   * always includes decoys
     #   * may include radiometry
     # -----------------------------------------------------------------------
-    train_flus = _gen_flus(sim_v2_params, prep_result.pepseqs())
+    train_flus, train_pi_brights = _gen_flus(sim_v2_params, prep_result.pepseqs())
     train_dyemat, train_dyepeps = _dyemat_sim(
-        sim_v2_params, train_flus, sim_v2_params.n_samples_train
+        sim_v2_params, train_flus, train_pi_brights, sim_v2_params.n_samples_train
     )
 
     if sim_v2_params.train_includes_radmat:
@@ -117,9 +134,9 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
     #   * skipped if is_survey
     # -----------------------------------------------------------------------
     if not sim_v2_params.is_survey:
-        test_flus = _gen_flus(sim_v2_params, prep_result.pepseqs__no_decoys())
+        test_flus, test_pi_brights = _gen_flus(sim_v2_params, prep_result.pepseqs__no_decoys())
         test_dyemat, test_dyepeps = _dyemat_sim(
-            sim_v2_params, test_flus, sim_v2_params.n_samples_test
+            sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test
         )
         # test_radmat, test_radmat_true_pep_iz = _radmat_sim(test_dyemat, test_dyepeps)
 

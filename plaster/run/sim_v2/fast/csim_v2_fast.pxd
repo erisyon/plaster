@@ -6,6 +6,7 @@ cdef extern from "csim_v2_fast.h":
     ctypedef unsigned long HashKey
     ctypedef unsigned char DyeType
     ctypedef unsigned char CycleKindType
+    ctypedef unsigned long PIType
 
     Uint64 UINT64_MAX
     Uint64 N_MAX_CHANNELS
@@ -53,6 +54,7 @@ cdef extern from "csim_v2_fast.h":
         Table dyepeps
         Hash dyepep_hash
         DyeType **flus
+        PIType **pi_brights
         Size *n_aas
         Size n_threads
         Uint64 rng_seed

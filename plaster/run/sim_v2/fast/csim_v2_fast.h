@@ -15,6 +15,7 @@ typedef Uint64 Index;
 typedef Uint64 HashKey;
 typedef Uint8 DyeType;
 typedef Uint8 CycleKindType;
+typedef Uint64 PIType;
 
 
 #define N_MAX_CHANNELS ((DyeType)(8))
@@ -76,6 +77,7 @@ typedef struct {
     Table dyepeps;
     Hash dyepep_hash;
     DyeType **flus;
+    PIType **pi_brights;
     Size *n_aas;
     Index next_pep_i;
     Size n_threads;

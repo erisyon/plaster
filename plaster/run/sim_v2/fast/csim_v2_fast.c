@@ -446,7 +446,7 @@ void dyepep_dump_all(Table *dyepeps) {
 //=========================================================================================
 
 void context_sim_flu(Context *ctx, Index pep_i) {
-    // Runs the Monte-Carlo simutation of one peptide flu over n_samples
+    // Runs the Monte-Carlo simulation of one peptide flu over n_samples
     // See algorithm described at top of file.
 
     // Make local copies of inner-loop variables
@@ -455,6 +455,7 @@ void context_sim_flu(Context *ctx, Index pep_i) {
     Size n_samples = ctx->n_samples;
     Size n_channels = ctx->n_channels;
     DyeType *flu = ctx->flus[pep_i];
+    PIType *pi_bright = ctx->pi_brights[pep_i];
     Size n_aas = ctx->n_aas[pep_i];
     CycleKindType *cycles = ctx->cycles;
     Uint64 pi_bleach = ctx->pi_bleach;
@@ -475,25 +476,47 @@ void context_sim_flu(Context *ctx, Index pep_i) {
     DTR *working_dtr = (DTR *)alloca(n_dyetrack_bytes);
     memset(working_dtr, 0, n_dyetrack_bytes);
 
-    Index sample_i;
-    for(sample_i=0; sample_i<n_samples; sample_i++) {
+    DTR *nul_dtr = (DTR *)alloca(n_dyetrack_bytes);
+    memset(nul_dtr, 0, n_dyetrack_bytes);
+
+    Size n_dark_samples = 0;
+    Size n_non_dark_samples = 0;
+    while(n_non_dark_samples < n_samples) {
+        if(n_dark_samples > 10 * n_samples) {
+            // Emergency exit. The recall is so low that we need to
+            // just give up and declare that it can't be measured.
+            // TODO
+        }
 
         // GENERATE the working_dyetrack sample (Monte Carlo)
         //-------------------------------------------------------
         memcpy(working_flu, flu, n_working_flu_bytes);
         dtr_clear(working_dtr, n_channels, n_cycles);
 
+        // MODEL dark-dyes (dyes dark before the first image)
+        // These darks are the product of various dye factors which
+        // are passed into this module already converted into PI form
+        // (probability in 0 - max_unit64) by the pi_bright arrays
+        for(Index aa_i=0; aa_i<n_aas; aa_i++) {
+            if( ! rand64(pi_bright[aa_i])) {
+                working_flu[aa_i] = NO_LABEL;
+            }
+        }
+
         Index head_i = 0;
         for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
-            // EDMAN
+            // EDMAN...
+            // Edman degrdation chews off the N-terminal amino-acid.
+            // If successful this advances the "head_i" which is where we're summing from.
             if(cycles[cy_i] == CYCLE_TYPE_EDMAN) {
                 if(rand64(pi_edman_success)) {
                     head_i ++;
                 }
             }
 
-            // DETACH
-            // TODO: Explain
+            // DETACH...
+            // Detachment is when a peptide comes loose from the surface.
+            // This means that all subsequent measurements go dark.
             if(rand64(pi_detach)) {
                 for(Index aa_i=head_i; aa_i<n_aas; aa_i++) {
                     working_flu[aa_i] = NO_LABEL;
@@ -501,8 +524,12 @@ void context_sim_flu(Context *ctx, Index pep_i) {
                 break;
             }
 
-            // IMAGE (sum up all active dyes in each channel)
-            // TODO: Document the ch_sums is large enough to hold the "NO_LABEL"
+            // IMAGE (sum up all active dyes in each channel)...
+            // To make this avoid any branching logic, the ch_sums[]
+            // is allocated to with N_MAX_CHANNELS which includes the "NO_LABEL"
+            // which is defined to be N_MAX_CHANNELS-1. Thus the sums
+            // will also count the number of unlabelled positions, but
+            // we can just ignore that extra "NO LABEL" channel.
             memset(ch_sums, 0, sizeof(ch_sums));
             for(Index aa_i=head_i; aa_i<n_aas; aa_i++) {
                 ch_sums[working_flu[aa_i]] ++;
@@ -527,6 +554,10 @@ void context_sim_flu(Context *ctx, Index pep_i) {
         // At this point we have the flu sampled into working_dtr
         // Now we look it up in the hash tables.
         //-------------------------------------------------------
+
+        if(memcmp() == 0) {
+        }
+
         HashKey dtr_hashkey = dtr_get_hashkey(working_dtr, n_channels, n_cycles);
         HashRec *dtr_hash_rec = hash_get(dtr_hash, dtr_hashkey);
         DTR *dtr;
