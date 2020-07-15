@@ -573,8 +573,7 @@ def zest_sim():
             sim_params = _stub_sim_params(some_error_model, n_samples)
             sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
             assert sim_result.train_dyemat.shape == (
-                n_peptides,
-                n_samples,
+                n_peptides * n_samples,
                 n_channels,
                 n_cycles,
             )
@@ -584,8 +583,7 @@ def zest_sim():
             sim_params = _stub_sim_params(some_error_model, n_samples)
             sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
             assert sim_result.test_dyemat.shape == (
-                n_peptides,
-                n_samples,
+                n_peptides * n_samples,
                 n_channels,
                 n_cycles,
             )
@@ -611,8 +609,7 @@ def zest_sim():
             sim_params = _stub_sim_params(no_error_model, n_samples)
             sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
             assert sim_result.test_dyemat.shape == (
-                n_peptides,
-                n_samples,
+                n_peptides * n_samples,
                 n_channels,
                 n_cycles,
             )
@@ -620,8 +617,7 @@ def zest_sim():
             assert np.all(sim_result.test_dyemat[:] == 0)  # All dark
 
             assert sim_result.train_dyemat.shape == (
-                n_peptides,
-                n_samples,
+                n_peptides * n_samples,
                 n_channels,
                 n_cycles,
             )
@@ -669,8 +665,7 @@ def zest_sim():
             sim_params.n_samples_test = None
             sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
             assert sim_result.train_dyemat.shape == (
-                n_peptides,
-                n_samples,
+                n_peptides * n_samples,
                 n_channels,
                 n_cycles,
             )

@@ -147,7 +147,7 @@ def sim_v1(aa_list, err_set, **sim_kws):
     )
 
 
-def survey_nn():
+def survey_nn_v1():
     return Munch(
         survey_nn=Munch(
             version="1.0",
@@ -224,7 +224,7 @@ def classify_rf(train_relative_path, sigproc_relative_path, sim_relative_path):
     )
 
 
-def test_nn(**kws):
+def nn_v1(**kws):
     return Munch(
         test_nn=Munch(
             version="1.0",
@@ -234,7 +234,7 @@ def test_nn(**kws):
     )
 
 
-def calib_nn(
+def calib_nn_v1(
     mode, n_pres, n_mocks, n_edmans, dye_names, scope_name, channels,
 ):
     return Munch(
