@@ -1,10 +1,69 @@
 import numpy as np
-from zest import zest
-from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
+from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.log.log import debug
+from zest import zest
+
+
+def zest_sigproc_v2_calibration():
+    def it_estimates_uniform_background_correctly():
+        divs = 5
+        tgt_mean = 200
+        tgt_std = 15
+        with synth.Synth(overwrite=True) as s:
+            (
+                synth.PeaksModelGaussianCircular(n_peaks=100)
+                .locs_randomize()
+                .amps_constant(val=10000)
+            )
+            synth.CameraModel(bias=tgt_mean, std=tgt_std)
+            im = s.render_chcy()[0, 0]
+        bg_mean, bg_std = worker.background_estimate(im, divs)
+        assert abs(tgt_mean - np.mean(bg_mean)) < 1
+        assert abs(tgt_std - np.mean(bg_std)) < 1
+        return True
+
+    def it_subtracts_uniform_bg_mean_correctly():
+        divs = 5
+        tgt_mean = 100
+        tgt_std = 10
+        with synth.Synth(overwrite=True) as s:
+            (
+                synth.PeaksModelGaussianCircular(n_peaks=100)
+                .locs_randomize()
+                .amps_constant(val=10000)
+            )
+            synth.CameraModel(bias=tgt_mean, std=tgt_std)
+            im = s.render_chcy()[0, 0]
+        bg_mean, bg_std = worker.background_estimate(im, divs)
+        im_sub = worker.background_subtraction(im, bg_mean)
+        new_mean, new_std = worker.background_estimate(im_sub, divs)
+        assert abs(np.mean(new_mean)) < (1 / tgt_std)
+        return True
+
+    def it_adds_regional_bg_mean_to_calib_correctly():
+        divs = 5
+        tgt_mean = 100
+        tgt_std = 10
+        calib = Calibration()
+        with synth.Synth(overwrite=True) as s:
+            (
+                synth.PeaksModelGaussianCircular(n_peaks=100)
+                .locs_randomize()
+                .amps_constant(val=10000)
+            )
+            synth.CameraModel(bias=tgt_mean, std=tgt_std)
+            ims = s.render_flchcy()
+        calib = worker.add_regional_bg_mean_to_calib(ims, 1, 0, 1, divs, calib)
+        bg_mean = np.mean(calib["regional_bg_mean.instrument_channel[0]"])
+        assert abs(tgt_mean - bg_mean) < 1
+        bg_std = np.mean(calib["regional_bg_std.instrument_channel[0]"])
+        assert abs(tgt_std - bg_std) < 0.1
+        return True
+
+    zest()
 
 
 # @zest.skip("n", "Not ready")
@@ -91,3 +150,18 @@ from plaster.tools.log.log import debug
 #     #     zest()
 #
 #     zest()
+""" regional_bg_mean.instrument_channel[{ch}]
+regional_illumination_balance.instrument_channel[{ch}]
+  like bg_mean but fg, somewhat correlated to bg
+regional_psf_zstack.instrument_channel[{sigproc_params.output_channel_to_input_channel(out_ch_i)}
+  when z position is optimum (ie in focus), psf looks like 2d gaussian
+  in center of image, will even be a circular 2d gaussian
+  even when perfectly focused, sometimes in corners will be rotated ellipse rather than circular
+  given that z is not always right at focal point, may not even be gaussian
+    ...because there are some interference patterns when you are out of focal planes, so you get dark/light bands
+  we're going to have photographs at several z's, one of which is in optimal z (we hope)
+  in calibration data, what looks like chemical cycles are actually different z slices
+
+regional_bg_std.instrument_channel[{in_ch_i}]
+  std dev of bg within a single region
+"""
