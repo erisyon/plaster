@@ -3,7 +3,7 @@ import pyflann
 from pandas.testing import assert_frame_equal
 import numpy as np
 from zest import zest
-from plaster.run.test_nn.test_nn_params import TestNNParams
+from plaster.run.test_nn.nn_v1_params import NNV1Params
 from plaster.run.sim_v1.sim_v1_result import (
     SimV1Result,
     ArrayResult,
@@ -14,12 +14,12 @@ from plaster.run.sim_v1.sim_v1_result import (
     DyeWeightType,
 )
 from plaster.run.sim_v1.sim_v1_params import SimV1Params, ErrorModel
-from plaster.run.test_nn import nn
+from plaster.run.test_nn import nn_v1
 from plaster.tools.utils import tmp
 from plaster.tools.log.log import debug, prof
 
 
-def zest_nn_step_1_create_neighbors_lookup():
+def zest_nn_v1_step_1_create_neighbors_lookup():
     def _make_dyemat():
         n_peps = 3
         n_samples = 7
@@ -66,7 +66,7 @@ def zest_nn_step_1_create_neighbors_lookup():
             dye_to_best_pep_df,
             flann,
             n_dts,
-        ) = nn._step_1_create_neighbors_lookup_singleprocess(dyemat, output_dt_mat)
+        ) = nn_v1._step_1_create_neighbors_lookup_singleprocess(dyemat, output_dt_mat)
 
         def it_uniqifies_dyemat():
             assert n_dts == 4
@@ -117,7 +117,7 @@ def zest_nn_step_1_create_neighbors_lookup():
     def it_raises_if_no_null_row():
         dyemat, output_dt_mat = _make_dyemat()
         with zest.raises(ValueError, in_args="No null row"):
-            nn._step_1_create_neighbors_lookup_singleprocess(dyemat[1:], output_dt_mat)
+            nn_v1._step_1_create_neighbors_lookup_singleprocess(dyemat[1:], output_dt_mat)
 
     @zest.skip("T", "TODO")
     def it_uniqifies_over_blocks():
@@ -126,7 +126,7 @@ def zest_nn_step_1_create_neighbors_lookup():
     zest()
 
 
-def zest_nn_step_1_create_neighbors_lookup_multiprocess():
+def zest_nn_v1_step_1_create_neighbors_lookup_multiprocess():
     def it_gets_same_result_as_single_threaded():
         # n_peps, n_samples, n_channels, n_cycles = (50, 1000, 2, 15)
         n_peps, n_samples, n_channels, n_cycles = (20, 100, 2, 15)
@@ -160,7 +160,7 @@ def zest_nn_step_1_create_neighbors_lookup_multiprocess():
                 dye_to_best_pep_df_st,
                 flann_st,
                 n_dts_st,
-            ) = nn._step_1_create_neighbors_lookup_singleprocess(
+            ) = nn_v1._step_1_create_neighbors_lookup_singleprocess(
                 dyemat, output_dt_mat_st
             )
             # prof("st")
@@ -172,7 +172,7 @@ def zest_nn_step_1_create_neighbors_lookup_multiprocess():
                 dye_to_best_pep_df_mt,
                 flann_mt,
                 n_dts_mt,
-            ) = nn._step_1_create_neighbors_lookup_multiprocess(
+            ) = nn_v1._step_1_create_neighbors_lookup_multiprocess(
                 dyemat, output_dt_mat_mt
             )
             # prof("mt")
@@ -186,13 +186,13 @@ def zest_nn_step_1_create_neighbors_lookup_multiprocess():
     zest()
 
 
-def zest_nn_step_2_create_inverse_variances():
+def zest_nn_v1_step_2_create_inverse_variances():
     def it_scales_by_the_std():
         dt_mat = np.array(
             [[[0, 0, 0], [0, 0, 0]], [[2, 1, 0], [1, 1, 0]], [[1, 1, 0], [1, 0, 0]],]
         )
         channel_i_to_vpd = np.array([1.0, 4.0])  # 4 because it is a perfect square
-        inv_var = nn._step_2_create_inverse_variances(dt_mat, channel_i_to_vpd)
+        inv_var = nn_v1._step_2_create_inverse_variances(dt_mat, channel_i_to_vpd)
         assert np.all(
             # 0 becomes 0.5 * sqrt(1) == 0.5. 1.0 / 0.5**2
             # Channel 0:
@@ -213,7 +213,7 @@ def zest_nn_step_2_create_inverse_variances():
     zest()
 
 
-def zest_do_nn():
+def zest_do_nn_v1():
     (
         nn_params,
         radmat,
@@ -236,7 +236,7 @@ def zest_do_nn():
         nonlocal channel_i_to_gain_inv, dye_to_best_pep_df, dt_scores, scores
         nonlocal pred_pep_iz, pred_dt_iz, true_dt_iz, true_dyemat
 
-        nn_params = TestNNParams()
+        nn_params = NNV1Params()
 
         dt_mat = np.array(
             [
@@ -272,11 +272,11 @@ def zest_do_nn():
         radmat = radmat * channel_i_to_gain[None, :, None]
         channel_i_to_gain_inv = 1.0 / channel_i_to_gain
 
-        dt_inv_var_mat = nn._step_2_create_inverse_variances(
+        dt_inv_var_mat = nn_v1._step_2_create_inverse_variances(
             dt_mat, np.array(channel_i_to_vpd)
         )
 
-        flann = nn._create_flann(dt_mat)
+        flann = nn_v1._create_flann(dt_mat)
 
         dye_to_best_pep_df = pd.DataFrame(
             dict(dye_i=[0, 1, 2], pep_i=[0, 2, 1], score=[1.0, 0.5, 1.0],)
@@ -285,9 +285,9 @@ def zest_do_nn():
         n_rows = radmat.shape[0]
         with tmp.tmp_folder(chdir=True):
             dt_scores = ArrayResult(
-                "dt_scores", nn.ScoreType, (n_rows,), mode="w+"
+                "dt_scores", nn_v1.ScoreType, (n_rows,), mode="w+"
             ).arr()
-            scores = ArrayResult("scores", nn.ScoreType, (n_rows,), mode="w+").arr()
+            scores = ArrayResult("scores", nn_v1.ScoreType, (n_rows,), mode="w+").arr()
             pred_pep_iz = ArrayResult(
                 "pred_pep_iz", IndexType, (n_rows,), mode="w+"
             ).arr()
@@ -299,7 +299,7 @@ def zest_do_nn():
             ).arr()
 
     def _run(i):
-        nn._do_nn(
+        nn_v1._do_nn(
             i,
             nn_params,
             radmat,
@@ -378,10 +378,10 @@ def zest_do_nn():
     zest()
 
 
-def zest_nn():
+def zest_nn_v1():
     def it_sets_all_output_arrays():
         n_peps, n_samples, n_channels, n_cycles = (3, 2, 2, 3)
-        nn_params = TestNNParams()
+        nn_params = NNV1Params()
         sim_params = SimV1Params.construct_from_aa_list(
             ["A", "B"], error_model=ErrorModel.no_errors(n_channels)
         )
@@ -460,7 +460,7 @@ def zest_nn():
             test_radmat[:, 0, :] *= sim_params.error_model.dyes[0].gain
             test_radmat[:, 1, :] *= sim_params.error_model.dyes[1].gain
 
-            nn_result = nn.nn(nn_params, sim_result, test_radmat.arr())
+            nn_result = nn_v1.nn(nn_params, sim_result, test_radmat.arr())
 
             assert np.all(
                 nn_result.dt_mat.arr()

@@ -34,5 +34,7 @@ def zest_fast_nn():
     ], dtype=np.float32)
 
     pred_iz, scores = nn_v2_fast.fast_nn(test_radmat, train_dyemat, train_dyepeps, n_neighbors=2)
+    assert pred_iz.tolist() == [2, 1]
 
-    debug(pred_iz, scores)
+    # TODO: Assert on scores?
+    # debug(pred_iz, scores)

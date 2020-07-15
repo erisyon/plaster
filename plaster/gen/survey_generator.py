@@ -86,7 +86,7 @@ class SurveyGenerator(BaseGenerator):
             sim_task.sim_v1.parameters.random_seed = self.random_seed
             # note: same seed is used to generate decoys
 
-            survey_task = task_templates.survey_nn()
+            survey_task = task_templates.survey_nn_v1()
 
             e_block = self.erisyon_block(aa_list, protease, err_set)
 

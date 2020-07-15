@@ -95,7 +95,7 @@ from plaster.run.sim_v1.sim_v1_result import (
     IndexType,
     ScoreType,
 )
-from plaster.run.test_nn.test_nn_params import TestNNParams
+from plaster.run.test_nn.nn_v1_params import NNV1Params
 from plaster.tools.utils import utils
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
@@ -139,7 +139,7 @@ def _get_neighbor_iz(flann, radrow, n_neighbors, radius, default=0):
 
 def _do_nn(
     i: int,  # Row index to analyze
-    nn_params: TestNNParams,
+    nn_params: NNV1Params,
     radmat,  # Classify the [i] row of this (NOT normalized!)
     dt_mat,  # Targets
     dt_inv_var_mat,  # Inv variance of each target

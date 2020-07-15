@@ -10,7 +10,7 @@ from plaster.gen.sigproc_v1_generator import SigprocV1Generator
 modes = ("gain", "vpe")
 
 
-class CalibNNGenerator(SigprocV1Generator):
+class CalibNNV1Generator(SigprocV1Generator):
     """
     Import calibration runs
     """
@@ -45,8 +45,7 @@ class CalibNNGenerator(SigprocV1Generator):
             raise ValueError(f"Unknown calib mode {self.mode}")
 
         sigproc_task = sigproc_tasks[0]
-        calib_task = task_templates.calib_nn(
-            sigproc_relative_path=f"../sigproc_v1",
+        calib_task = task_templates.calib_nn_v1(
             mode=self.mode,
             n_pres=self.n_pres,
             n_mocks=self.n_mocks,
@@ -58,7 +57,7 @@ class CalibNNGenerator(SigprocV1Generator):
 
         run = Munch(run_name=f"calib_{self.mode}", **sigproc_task, **calib_task,)
 
-        self.report_section_run_object(run, to_load=["sim", "calib"])
+        self.report_section_run_object(run)
         calib_template = "calib_nn_template.ipynb"
         self.report_section_from_template(calib_template)
 

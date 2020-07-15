@@ -1,15 +1,15 @@
 import pandas as pd
 import numpy as np
 from plaster.run.base_result import BaseResult, ArrayResult
-from plaster.run.test_nn.test_nn_params import TestNNParams
+from plaster.run.test_nn.nn_v1_params import NNV1Params
 
 
-class TestNNResult(BaseResult):
-    name = "test_nn"
-    filename = "test_nn.pkl"
+class NNV1Result(BaseResult):
+    name = "nn_v1"
+    filename = "nn_v1.pkl"
 
     required_props = dict(
-        params=TestNNParams,
+        params=NNV1Params,
         test_true_pep_iz=ArrayResult,
         test_dt_mat=ArrayResult,
         test_dyetracks_df=pd.DataFrame,
@@ -39,8 +39,8 @@ class TestNNResult(BaseResult):
     def __repr__(self):
         try:
             return (
-                f"TestNNResult with average score {np.mean(self.test_scores)} "
+                f"NNV1Result with average score {np.mean(self.test_scores)} "
                 f"({'includes' if self.includes_train_results else 'does not include'} train results)"
             )
         except:
-            return "TestNNResult"
+            return "NNV1Result"

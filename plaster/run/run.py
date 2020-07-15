@@ -46,8 +46,8 @@ from plaster.run.prep.prep_task import PrepTask
 from plaster.run.report.report_task import ReportTask
 from plaster.run.survey_nn.survey_nn_task import SurveyNNTask
 from plaster.run.survey_nn.survey_nn_result import SurveyNNResult
-from plaster.run.test_nn.test_nn_task import TestNNTask
-from plaster.run.test_nn.test_nn_result import TestNNResult
+from plaster.run.test_nn.nn_v1_task import NNV1Task
+from plaster.run.test_nn.nn_v1_result import NNV1Result
 
 
 def find_run_folders(default=None, must_include_plaster_output=True):
@@ -111,7 +111,7 @@ def task_list_from_config(config):
         test_rf=TestRFTask,
         classify_rf=ClassifyRFTask,
         survey_nn=SurveyNNTask,
-        test_nn=TestNNTask,
+        test_nn=NNV1Task,
         report=ReportTask,
     )
 
@@ -140,7 +140,7 @@ def task_list_from_config(config):
         TrainRFTask,
         TestRFTask,
         ClassifyRFTask,
-        TestNNTask,
+        NNV1Task,
         ReportTask,
     ]
 
@@ -300,7 +300,7 @@ class RunResult:
         sigproc_v2=SigprocV2Result,
         sim_v1=SimV1Result,
         sim_v2=SimV2Result,
-        test_nn=TestNNResult,
+        test_nn=NNV1Result,
         test_rf=TestRFResult,
         train_rf=TrainRFResult,
         sim_nn=SimV1Result,  # Example of why it is needed to pull the klass from the run
