@@ -530,34 +530,44 @@ def background_subtraction(im, reg_bg_mean):
     return diff_im
 
 
-def add_regional_bg_mean_to_calib(flchcy_ims, n_fields, ch_i, n_z_slices, divs, calib):
+def add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_z_slices, divs, calib):
     """
     Arguments:
         flchcy_ims: frame, channel, cycles ims to be analyzed
-        n_fields
+        ch_i: channel index we are adding calib stats for
+        n_z_slices: nbr of z slices, in index we normally use for cycle
+        divs: divisions (in two dims) of image for regional stats
+        calib: Calibration object we are adding stats to
 
     Returns:
         calib object with background means and stds added for the given ch_i
     """
-    flcy_calib_means = []
-    flcy_calib_stds = []
+    n_fields = flchcy_ims.shape[0]
+    regional_stats = np.zeros(
+        (n_fields, divs, divs, 2)
+    )  # each region has a mean (0) and std (1)
     for fl_i in range(0, n_fields):
-        flcy_calib_means.append([])
-        flcy_calib_stds.append([])
-        for cy_i in range(0, n_z_slices):
-            flcy_calib_means[fl_i].append([])
-            flcy_calib_stds[fl_i].append([])
-            im = flchcy_ims[fl_i][ch_i][cy_i]
-            check.array_t(im, ndim=2)
-            stats = _regional_bg_fg_stats(im, divs=divs)
-            reg_bg_mean = stats[:, :, 0]
-            reg_bg_std = stats[:, :, 1]
-            check.array_t(reg_bg_mean, shape=(divs, divs))
-            check.array_t(reg_bg_std, shape=(divs, divs))
-            flcy_calib_means[fl_i][cy_i].append(reg_bg_mean)
-            flcy_calib_stds[fl_i][cy_i].append(reg_bg_std)
-    calib.add({f"regional_bg_mean.instrument_channel[{ch_i}]": flcy_calib_means})
-    calib.add({f"regional_bg_std.instrument_channel[{ch_i}]": flcy_calib_stds})
+        for z_i in range(0, n_z_slices):
+            im = flchcy_ims[fl_i][ch_i][z_i]
+            reg_bg_mean, reg_bg_std = background_estimate(im, divs)
+            regional_stats[fl_i, :, :, 0] = reg_bg_mean
+            regional_stats[fl_i, :, :, 1] = reg_bg_std
+    summary_regional_stats = np.mean(regional_stats, axis=0)
+    calib.add(
+        {
+            f"regional_bg_mean.instrument_channel[{ch_i}]": summary_regional_stats[
+                :, :, 0
+            ].tolist()
+        }
+    )
+    calib.add(
+        {
+            f"regional_bg_std.instrument_channel[{ch_i}]": summary_regional_stats[
+                :, :, 1
+            ].tolist()
+        }
+    )
+
     return calib
 
 
@@ -592,7 +602,7 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
         # Masks out the foreground and uses remaining pixels to estimate
         # regional background mean and std.
         # --------------------------------------------------------------
-        calib = add_regional_bg_mean_to_calib(
+        calib = add_regional_bg_stats_to_calib(
             flchcy_ims, n_fields, n_channels, n_z_slices, divs, calib
         )
 
@@ -727,7 +737,8 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
         snr = np.nan_to_num(sig / noi)
 
         # step 2) operations on the locations, filter out peaks which are
-        # too close to each other.
+        # too close to each other.  Tile is to get the locs repeated so that
+        # dims match for later mask
         locs = np.tile(fl_loc, (1, n_cycles)).reshape((-1, 2))
 
         snr_mask = snr > 10  # 10 is an empirically determined number for snr

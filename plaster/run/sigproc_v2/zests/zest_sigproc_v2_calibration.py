@@ -4,6 +4,7 @@ from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.log.log import debug
+from plaster.tools.utils.utils import np_within
 from zest import zest
 
 
@@ -21,8 +22,8 @@ def zest_sigproc_v2_calibration():
             synth.CameraModel(bias=tgt_mean, std=tgt_std)
             im = s.render_chcy()[0, 0]
         bg_mean, bg_std = worker.background_estimate(im, divs)
-        assert abs(tgt_mean - np.mean(bg_mean)) < 1
-        assert abs(tgt_std - np.mean(bg_std)) < 1
+        assert np_within(np.mean(bg_mean), tgt_mean, 1)
+        assert np_within(np.mean(bg_std), tgt_std, 1)
         return True
 
     def it_subtracts_uniform_bg_mean_correctly():
@@ -40,10 +41,11 @@ def zest_sigproc_v2_calibration():
         bg_mean, bg_std = worker.background_estimate(im, divs)
         im_sub = worker.background_subtraction(im, bg_mean)
         new_mean, new_std = worker.background_estimate(im_sub, divs)
-        assert abs(np.mean(new_mean)) < (1 / tgt_std)
+        assert np_within(np.mean(new_mean), 0, (1 / tgt_std))
+        # assert abs(np.mean(new_mean)) < (1 / tgt_std)
         return True
 
-    def it_adds_regional_bg_mean_to_calib_correctly():
+    def it_adds_regional_bg_stats_to_calib_correctly():
         divs = 5
         tgt_mean = 100
         tgt_std = 10
@@ -56,11 +58,15 @@ def zest_sigproc_v2_calibration():
             )
             synth.CameraModel(bias=tgt_mean, std=tgt_std)
             ims = s.render_flchcy()
-        calib = worker.add_regional_bg_mean_to_calib(ims, 1, 0, 1, divs, calib)
-        bg_mean = np.mean(calib["regional_bg_mean.instrument_channel[0]"])
-        assert abs(tgt_mean - bg_mean) < 1
-        bg_std = np.mean(calib["regional_bg_std.instrument_channel[0]"])
-        assert abs(tgt_std - bg_std) < 0.1
+        calib = worker.add_regional_bg_stats_to_calib(ims, 0, 1, divs, calib)
+        bg_mean = calib["regional_bg_mean.instrument_channel[0]"]
+        for fl_i in range(0, len(bg_mean)):
+            for z_i in range(0, len(bg_mean[fl_i])):
+                assert np_within(bg_mean[fl_i][z_i], tgt_mean, 1)
+        bg_std = calib["regional_bg_std.instrument_channel[0]"]
+        for fl_i in range(0, len(bg_std)):
+            for z_i in range(0, len(bg_std[fl_i])):
+                assert np_within(bg_std[fl_i][z_i], tgt_std, 1)
         return True
 
     zest()
