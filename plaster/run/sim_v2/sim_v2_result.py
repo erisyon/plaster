@@ -20,7 +20,7 @@ class SimV2Result(BaseResult):
     required_props = dict(
         params=SimV1Params,
         train_dyemat=ArrayResult,  # (n_peps, n_samples, n_channels, n_cycles):uint8
-        train_recalls=ArrayResult,  # (n_peps):float32
+        train_pep_recalls=np.ndarray,
         train_flus=np.ndarray,
         train_flu_remainders=np.ndarray,
         train_dyepeps=np.ndarray,  # (dt_iz, pep_i, count)

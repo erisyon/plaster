@@ -83,7 +83,7 @@ def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples):
     """
 
     # TODO: bleach each channel
-    dyemat, dyepeps = sim_v2_fast.sim(
+    dyemat, dyepeps, pep_recalls = sim_v2_fast.sim(
         flus,
         pi_brights,
         n_samples,
@@ -96,7 +96,7 @@ def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples):
         rng_seed=sim_v2_params.random_seed,
     )
 
-    return dyemat, dyepeps
+    return dyemat, dyepeps, pep_recalls
 
 
 def _radmat_sim(sim_v2_params, n_samples, dyemat, dyepeps_df):
@@ -107,18 +107,20 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
     train_flus = None
     train_dyemat = None
     train_dyepeps = None
+    train_pep_recalls = None
     train_radmat = None
     train_radmat_true_pep_iz = None
     test_flus = None
     test_dyemat = None
     test_dyepeps = None
+    test_pep_recalls = None
 
     # Training data
     #   * always includes decoys
     #   * may include radiometry
     # -----------------------------------------------------------------------
     train_flus, train_pi_brights = _gen_flus(sim_v2_params, prep_result.pepseqs())
-    train_dyemat, train_dyepeps = _dyemat_sim(
+    train_dyemat, train_dyepeps, train_pep_recalls = _dyemat_sim(
         sim_v2_params, train_flus, train_pi_brights, sim_v2_params.n_samples_train
     )
 
@@ -135,7 +137,7 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
     # -----------------------------------------------------------------------
     if not sim_v2_params.is_survey:
         test_flus, test_pi_brights = _gen_flus(sim_v2_params, prep_result.pepseqs__no_decoys())
-        test_dyemat, test_dyepeps = _dyemat_sim(
+        test_dyemat, test_dyepeps, test_pep_recalls = _dyemat_sim(
             sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test
         )
         # test_radmat, test_radmat_true_pep_iz = _radmat_sim(test_dyemat, test_dyepeps)
@@ -146,74 +148,10 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
     return SimV2Result(
         params=sim_v2_params,
         train_dyemat=train_dyemat,
-        train_recalls=None,  # TODO
+        train_pep_recalls=train_pep_recalls,
         train_flus=train_flus,
-        train_flu_remainders=None,  # TODO
         train_dyepeps=train_dyepeps,
         test_radmat=None,  # TODO
         test_dyemat=None,  # TODO
         test_radmat_true_pep_iz=None,  # TODO
     )
-
-
-"""
-
-
-
-    if sim_v2_params.is_survey:
-        test_dyemat = None
-        test_radmat = None
-        test_recalls = None
-        test_flus = None
-        test_flu_remainders = None
-    else:
-        # CREATE a *test-set* for real-only peptides
-        if pipeline:
-            pipeline.set_phase(1, 2)
-
-        (
-            test_dyemat,
-            test_radmat,
-            test_recalls,
-            test_flus,
-            test_flu_remainders,
-        ) = _run_sim(
-            sim_v2_params,
-            prep_result.pepseqs__no_decoys(),
-            name="test",
-            n_peps=n_peps,
-            n_samples=sim_v2_params.n_samples_test,
-            progress=progress,
-        )
-
-        # CHECK that the train and test are not identical in SOME non_zero_row
-        # If they are, there was some sort of RNG seed errors which might happen
-        # for example if sub-processes failed to re-init their RNG seeds.
-        # Test this by looking at pep_i==1
-        non_zero_rows = np.any(train_radmat[1] > 0, axis=(1, 2))
-        non_zero_row_args = np.argwhere(non_zero_rows)[0:100]
-        train_rows = train_radmat[1, non_zero_row_args].reshape(
-            (
-                non_zero_row_args.shape[0],
-                non_zero_row_args.shape[1]
-                * train_radmat.shape[2]
-                * train_radmat.shape[3],
-            )
-        )
-        test_rows = test_radmat[1, non_zero_row_args].reshape(
-            (
-                non_zero_row_args.shape[0],
-                non_zero_row_args.shape[1]
-                * test_radmat.shape[2]
-                * test_radmat.shape[3],
-            )
-        )
-
-        if (
-                train_rows.shape[0] > 0
-                and not sim_v2_params.allow_train_test_to_be_identical
-        ):
-            any_differences = np.any(np.diagonal(cdist(train_rows, test_rows)) != 0.0)
-            check.affirm(any_differences, "Train and test sets are identical")
-
-"""

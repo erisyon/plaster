@@ -8,6 +8,7 @@ typedef __uint64_t Uint64;
 typedef __uint128_t Uint128;
 typedef __int128_t Sint128;
 typedef __int64_t Sint64;
+typedef double Float64;
 
 
 typedef Uint64 Size;
@@ -16,6 +17,7 @@ typedef Uint64 HashKey;
 typedef Uint8 DyeType;
 typedef Uint8 CycleKindType;
 typedef Uint64 PIType;
+typedef Float64 RecallType;
 
 
 #define N_MAX_CHANNELS ((DyeType)(8))
@@ -79,6 +81,7 @@ typedef struct {
     DyeType **flus;
     PIType **pi_brights;
     Size *n_aas;
+    RecallType *pep_recalls;
     Index next_pep_i;
     Size n_threads;
     Uint64 rng_seed;

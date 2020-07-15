@@ -122,16 +122,24 @@ def zest_sim_v2_worker():
         sim_v2_result = _sim(dict(p_non_fluorescent=0.99))
         assert not np.any(sim_v2_result.train_dyepeps[1:, 0] == 0)
 
-    def it_returns_train_recalls():
-        sim_v2_result = _sim()
-        raise NotImplementedError
+    def it_returns_recalls():
+        sim_v2_result = _sim(dict(p_non_fluorescent=0.50))
+        assert sim_v2_result.train_pep_recalls.shape[0] == 3  # 3 peps
+        assert sim_v2_result.train_pep_recalls[0] == 0.0  # The nul record should have no recall
+        assert np.all(sim_v2_result.train_pep_recalls[1:] < 0.85)  # The exact number is hard to say, but it should be < 1
 
-    # def it_returns_train_flus():
-    #     raise NotImplementedError
-    #
-    # def it_returns_train_flu_remainders():
-    #     raise NotImplementedError
-    #
+    def it_emergency_escapes():
+        sim_v2_result = _sim(dict(p_non_fluorescent=1.0))
+        # When nothing is fluorescent, everything should have zero recall
+        assert np.all(sim_v2_result.train_pep_recalls == 0.0)
+
+    def it_returns_train_flus():
+        sim_v2_result = _sim(dict())
+        flus = sim_v2_result.train_flus
+        assert utils.np_array_same(flus[0], np.array([7], dtype=np.uint8))
+        assert utils.np_array_same(flus[1], np.array([0, 1, 7], dtype=np.uint8))
+        assert utils.np_array_same(flus[2], np.array([0, 0], dtype=np.uint8))
+
     # def it_returns_test_radmat():
     #     raise NotImplementedError
     #
@@ -141,11 +149,8 @@ def zest_sim_v2_worker():
     # def it_returns_test_radmat_true_pep_iz():
     #     raise NotImplementedError
 
-
-# it_gives_up_on_hard_peptides_and_returns_none
-#
-# def it_maintains_decoys_for_train():
-# def it_removes_decoys_for_test():
-# def it_raises_if_train_and_test_identical():
+    # def it_maintains_decoys_for_train():
+    # def it_removes_decoys_for_test():
+    # def it_raises_if_train_and_test_identical():
 
     zest()

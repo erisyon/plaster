@@ -1,5 +1,5 @@
 import time
-cimport csim_v2_fast as csim
+cimport c_sim_v2_fast as csim
 import numpy as np
 cimport numpy as np
 from cython.view cimport array as cvarray
@@ -16,6 +16,7 @@ DyeType = np.uint8
 CycleKindType = np.uint8
 Size = np.uint64
 PIType = np.uint64
+RecallType = np.float64
 NO_LABEL = csim.NO_LABEL
 CYCLE_TYPE_PRE = csim.CYCLE_TYPE_PRE
 CYCLE_TYPE_MOCK = csim.CYCLE_TYPE_MOCK
@@ -53,6 +54,7 @@ def sim(
     cdef csim.Uint64 i, j, n_chcy
     cdef csim.Uint8 [::1] flu_view
     cdef csim.Uint64 [::1] pi_bright_view
+    cdef csim.RecallType [::1] pep_recalls_view
     cdef csim.DTR dtr
     cdef csim.Index dtr_count
     cdef csim.DyeType *dyetrack
@@ -104,6 +106,10 @@ def sim(
         ctx.pi_brights = pi_brights
         ctx.n_aas = n_aas
 
+        pep_recalls = np.zeros((ctx.n_peps), dtype=RecallType)
+        pep_recalls_view = pep_recalls
+        ctx.pep_recalls = &pep_recalls_view[0]
+
         # See sim.c for table and hash definitions
         ctx.dtrs = csim.table_init(dtrs_buf, n_max_dtrs * n_dtr_row_bytes, n_dtr_row_bytes)
         ctx.dyepeps = csim.table_init(dyepeps_buf, n_max_dyepeps * sizeof(csim.DyePepRec), sizeof(csim.DyePepRec))
@@ -148,7 +154,7 @@ def sim(
             dyepeps_view[i, 1] = dyepeprec.pep_i
             dyepeps_view[i, 2] = dyepeprec.count
 
-        return dyetracks, dyepeps
+        return dyetracks, dyepeps, pep_recalls
 
     finally:
         free(dtrs_buf)
@@ -157,3 +163,4 @@ def sim(
         free(dyepep_hash_buffer)
         free(flus)
         free(n_aas)
+

@@ -1,4 +1,4 @@
-cdef extern from "csim_v2_fast.h":
+cdef extern from "c_sim_v2_fast.h":
     ctypedef unsigned char Uint8
     ctypedef unsigned long Uint64
     ctypedef unsigned long Size
@@ -7,6 +7,7 @@ cdef extern from "csim_v2_fast.h":
     ctypedef unsigned char DyeType
     ctypedef unsigned char CycleKindType
     ctypedef unsigned long PIType
+    ctypedef double RecallType
 
     Uint64 UINT64_MAX
     Uint64 N_MAX_CHANNELS
@@ -56,6 +57,7 @@ cdef extern from "csim_v2_fast.h":
         DyeType **flus
         PIType **pi_brights
         Size *n_aas
+        RecallType *pep_recalls
         Size n_threads
         Uint64 rng_seed
 

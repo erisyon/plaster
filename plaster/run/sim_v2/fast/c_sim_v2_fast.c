@@ -8,11 +8,11 @@
 #include "pthread.h"
 #include "unistd.h"
 #include "inttypes.h"
-#include "csim_v2_fast.h"
+#include "c_sim_v2_fast.h"
 
 /*
 This is the "sim" phase of plaster implemented in C.
-It is meant to be called by Cython fast_sim.pyx
+It is meant to be called by Cython sim_v2_fast.pyx
 
 Inputs (see typedef Context in sim.h):
     * A list of "flus" which are Uint8 arrays (n_channels, n_cycles)
@@ -201,6 +201,11 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
     if(prob_to_p_i(1.0) != (Uint64)UINT64_MAX) {
         printf("Failed sanity check: prob_to_p_i(1.0) %ld %ld\n", prob_to_p_i(1.0), (Uint64)UINT64_MAX);
         return 11;
+    }
+
+    if(sizeof(Float64) != 8) {
+        printf("Failed sanity check: Float64\n");
+        return 12;
     }
 
     return 0;
@@ -485,7 +490,9 @@ void context_sim_flu(Context *ctx, Index pep_i) {
         if(n_dark_samples > 10 * n_samples) {
             // Emergency exit. The recall is so low that we need to
             // just give up and declare that it can't be measured.
-            // TODO
+            n_dark_samples = 0;
+            n_non_dark_samples = 0;
+            break;
         }
 
         // GENERATE the working_dyetrack sample (Monte Carlo)
@@ -555,8 +562,13 @@ void context_sim_flu(Context *ctx, Index pep_i) {
         // Now we look it up in the hash tables.
         //-------------------------------------------------------
 
-        if(memcmp() == 0) {
+        if(memcmp(working_dtr, nul_dtr, n_dyetrack_bytes) == 0) {
+            // The row was empty, note this and continue to try another sample
+            n_dark_samples++;
+            continue;
         }
+
+        n_non_dark_samples++;
 
         HashKey dtr_hashkey = dtr_get_hashkey(working_dtr, n_channels, n_cycles);
         HashRec *dtr_hash_rec = hash_get(dtr_hash, dtr_hashkey);
@@ -606,6 +618,13 @@ void context_sim_flu(Context *ctx, Index pep_i) {
             table_validate_only_in_debug(dyepeps, dpr, "dyepep hash inc");
             dpr->count++;
         }
+    }
+
+    if(n_dark_samples + n_non_dark_samples > 0) {
+        ctx->pep_recalls[pep_i] = (double)n_non_dark_samples / (double)(n_dark_samples + n_non_dark_samples);
+    }
+    else {
+        ctx->pep_recalls[pep_i] = (double)0.0;
     }
 }
 
@@ -669,7 +688,7 @@ void *context_work_orders_worker(void *_ctx) {
 
 
 void context_work_orders_start(Context *ctx) {
-    context_dump(ctx);
+    // context_dump(ctx);
 
     // Initialize mutex and start the worker thread(s).
     ensure(setup_and_sanity_check(ctx->n_channels, ctx->n_cycles) == 0, "Sanity checks failed");

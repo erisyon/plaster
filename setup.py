@@ -23,7 +23,7 @@ extensions = [
         name="plaster.run.sim_v2.fast.sim_v2_fast",
         sources=[
             "./plaster/run/sim_v2/fast/sim_v2_fast.pyx",
-            "./plaster/run/sim_v2/fast/csim_v2_fast.c",
+            "./plaster/run/sim_v2/fast/c_sim_v2_fast.c",
         ],
         include_dirs=["./plaster/run/sim_v2/fast", numpy.get_include(),],
         extra_compile_args=[
