@@ -1,22 +1,22 @@
-import pandas as pd
-import pyflann
-from pandas.testing import assert_frame_equal
 import numpy as np
-from zest import zest
-from plaster.run.test_nn.test_nn_params import TestNNParams
+import pandas as pd
+from pandas.testing import assert_frame_equal
+from plaster.run.sim_v1.sim_v1_params import ErrorModel, SimV1Params
 from plaster.run.sim_v1.sim_v1_result import (
-    SimV1Result,
     ArrayResult,
     DyeType,
+    DyeWeightType,
+    IndexType,
     RadType,
     RecallType,
-    IndexType,
-    DyeWeightType,
+    SimV1Result,
 )
-from plaster.run.sim_v1.sim_v1_params import SimV1Params, ErrorModel
 from plaster.run.test_nn import nn
-from plaster.tools.utils import tmp
+from plaster.run.test_nn.test_nn_params import TestNNParams
 from plaster.tools.log.log import debug, prof
+from plaster.tools.utils import tmp
+from plaster.vendor import pyflann
+from zest import zest
 
 
 def zest_nn_step_1_create_neighbors_lookup():

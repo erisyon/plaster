@@ -81,27 +81,27 @@ The NN classifier works by the following method:
 
 """
 import random
-from plumbum import local
 import time
-from munch import Munch
+
 import numpy as np
 import pandas as pd
-import pyflann
+from munch import Munch
 from plaster.run.sim_v1.sim_v1_result import (
     ArrayResult,
     DyeType,
+    IndexType,
     RadType,
     RecallType,
-    IndexType,
     ScoreType,
 )
 from plaster.run.test_nn.test_nn_params import TestNNParams
-from plaster.tools.utils import utils
-from plaster.tools.schema import check
-from plaster.tools.zap import zap
-from plaster.tools.utils import data
-from scipy.spatial import distance
 from plaster.tools.log.log import debug, prof
+from plaster.tools.schema import check
+from plaster.tools.utils import data, utils
+from plaster.tools.zap import zap
+from plaster.vendor import pyflann
+from plumbum import local
+from scipy.spatial import distance
 
 
 def _create_flann(dt_mat):
