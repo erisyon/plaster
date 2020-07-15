@@ -59,14 +59,14 @@ def zest_sigproc_v2_calibration():
             synth.CameraModel(bias=tgt_mean, std=tgt_std)
             ims = s.render_flchcy()
         calib = worker.add_regional_bg_stats_to_calib(ims, 0, 1, divs, calib)
-        bg_mean = calib["regional_bg_mean.instrument_channel[0]"]
-        for fl_i in range(0, len(bg_mean)):
-            for z_i in range(0, len(bg_mean[fl_i])):
-                assert np_within(bg_mean[fl_i][z_i], tgt_mean, 1)
-        bg_std = calib["regional_bg_std.instrument_channel[0]"]
-        for fl_i in range(0, len(bg_std)):
-            for z_i in range(0, len(bg_std[fl_i])):
-                assert np_within(bg_std[fl_i][z_i], tgt_std, 1)
+        bg_mean = np.array(calib["regional_bg_mean.instrument_channel[0]"])
+        assert len(bg_mean.shape) == 2
+        assert (bg_mean > tgt_mean - 1).all()
+        assert (bg_mean < tgt_mean + 1).all()
+        bg_std = np.array(calib["regional_bg_std.instrument_channel[0]"])
+        assert len(bg_std.shape) == 2
+        assert (bg_std > tgt_std - 1).all()
+        assert (bg_std < tgt_std + 1).all()
         return True
 
     zest()
