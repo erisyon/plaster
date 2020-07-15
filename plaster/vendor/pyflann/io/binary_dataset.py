@@ -26,7 +26,7 @@
 
 
 
-from pyflann.exceptions import FLANNException
+from plaster.vendor.pyflann.exceptions import FLANNException
 import numpy
 import os.path
 

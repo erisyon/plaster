@@ -49,3 +49,4 @@ git commit --no-gpg-sign --amend -m "vendor pyflann" vendor/pyflann
 
 # apply patches
 git am --no-gpg-sign vendor/patches/0001-pyflann.patch
+git am --no-gpg-sign vendor/patches/0002-flannexc.patch
