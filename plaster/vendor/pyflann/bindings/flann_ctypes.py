@@ -29,7 +29,7 @@ from ctypes import *
 from numpy import float32, float64, uint8, int32, matrix, array, empty, reshape, require
 from numpy.ctypeslib import load_library, ndpointer
 import os
-from pyflann.exceptions import FLANNException
+from plaster.vendor.pyflann.exceptions import FLANNException
 import sys
 
 STRING = c_char_p
