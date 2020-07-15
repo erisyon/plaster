@@ -1,8 +1,10 @@
+import re
+
 from munch import Munch
 from plaster.gen.base_generator import BaseGenerator
+from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
-from plaster.tools.calibration.calibration import Calibration
 from plumbum import local
 
 
@@ -50,7 +52,12 @@ class SigprocV1Generator(BaseGenerator):
                     sigproc_source = local.path(v.inputs.src_dir).name
                     break
 
+            symbol_pat = re.compile(r"[^a-z0-9_]")
+            sigproc_source = re.sub(symbol_pat, "_", sigproc_source.lower())
+            assert utils.is_symbol(sigproc_source)
+
             run_name = f"sigproc_v1_{sigproc_i}_{sigproc_source}"
+
             if self.force_run_name is not None:
                 run_name = self.force_run_name
 
