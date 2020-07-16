@@ -26,7 +26,7 @@ def test_rf(
     test_pred_pep_iz, test_scores, test_all_class_scores = classifier.classify(
         sim_v1_result.flat_test_radmat(), test_rf_params.keep_all_class_scores, progress
     )
-    test_true_pep_iz = sim_v1_result.test_true_pep_iz()
+    test_true_pep_iz = sim_v1_result.test_true_pep_iz
 
     # We do some PR calculation during the task so that this information is readily
     # available in results & notebooks don't need to recompute it (costly).

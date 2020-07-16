@@ -27,20 +27,20 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
         with tmp.tmp_folder(chdir=True):
             dyemat = ArrayResult(
                 "dyemat",
-                shape=(n_peps, n_samples, n_channels, n_cycles),
+                shape=(n_peps * n_samples, n_channels, n_cycles),
                 dtype=DyeType,
                 mode="w+",
             ).arr()
-            dyemat[1, 0:5] = np.array([[2, 2, 1, 1, 0], [2, 1, 0, 0, 0],])
-            dyemat[1, 5:7] = np.array([[1, 1, 1, 1, 0], [1, 1, 0, 0, 0],])
-            dyemat[2, 0:1] = np.array(
+            dyemat[0:5] = np.array([[2, 2, 1, 1, 0], [2, 1, 0, 0, 0],])
+            dyemat[5:n_samples+1] = np.array([[1, 1, 1, 1, 0], [1, 1, 0, 0, 0],])
+            dyemat[n_samples:n_samples+1] = np.array(
                 [
                     # Same as dyemat[1][0:5]
                     [2, 2, 1, 1, 0],
                     [2, 1, 0, 0, 0],
                 ]
             )
-            dyemat[2, 1:7] = np.array(
+            dyemat[n_samples+1:n_samples+7] = np.array(
                 [
                     # Unique
                     [3, 3, 2, 2, 0],
@@ -55,17 +55,20 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
                 dtype=DyeType,
                 mode="w+",
             ).arr()
-            return dyemat, output_dt_mat
+
+            true_pep_iz = np.array([0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2])
+
+            return dyemat, output_dt_mat, true_pep_iz
 
     def it_creates_lookup():
-        dyemat, output_dt_mat = _make_dyemat()
+        dyemat, output_dt_mat, true_pep_iz = _make_dyemat()
         (
             dyetracks_df,
             dt_pep_sources_df,
             dye_to_best_pep_df,
             flann,
             n_dts,
-        ) = nn_v1._step_1_create_neighbors_lookup_singleprocess(dyemat, output_dt_mat)
+        ) = nn_v1._step_1_create_neighbors_lookup_singleprocess(true_pep_iz, dyemat, output_dt_mat)
 
         def it_uniqifies_dyemat():
             assert n_dts == 4
@@ -94,6 +97,7 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
             assert isinstance(flann, pyflann.index.FLANN)
 
         def it_computes_best_pep_df():
+            import pudb; pudb.set_trace()
             assert (
                 dye_to_best_pep_df.loc[0].pep_i == 0
                 and dye_to_best_pep_df.loc[0].score == 1.0
@@ -114,10 +118,12 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
         zest()
 
     def it_raises_if_no_null_row():
-        dyemat, output_dt_mat = _make_dyemat()
+        dyemat, output_dt_mat, true_pep_iz = _make_dyemat()
         with zest.raises(ValueError, in_args="No null row"):
             nn_v1._step_1_create_neighbors_lookup_singleprocess(
-                dyemat[1:], output_dt_mat
+                true_pep_iz,
+                dyemat[1:],
+                output_dt_mat
             )
 
     @zest.skip("T", "TODO")
@@ -393,29 +399,28 @@ def zest_nn_v1():
         with tmp.tmp_folder(chdir=True):
             train_dyemat = ArrayResult(
                 "train_dyemat",
-                shape=(n_peps, n_samples, n_channels, n_cycles),
+                shape=(n_peps * n_samples, n_channels, n_cycles),
                 dtype=DyeType,
                 mode="w+",
             )
             train_dyemat[:] = np.array(
                 [
-                    [  # Pep 0
-                        [[0, 0, 0], [0, 0, 0],],  # Sample 0
-                        [[0, 0, 0], [0, 0, 0],],  # Sample 1
-                    ],
-                    [  # Pep 1
-                        [[2, 2, 1], [1, 0, 0],],  # Sample 0
-                        [[2, 2, 1], [1, 0, 0],],  # Sample 1
-                    ],
-                    [  # Pep 2
-                        [[2, 2, 2], [2, 1, 0],],  # Sample 0
-                        [  # Sample 1
-                            [2, 2, 1],
-                            [1, 0, 0],  # Same same sample 0 & 1 of pep 1
-                        ],
+                    # Pep 0
+                    [[0, 0, 0], [0, 0, 0],],  # Sample 0
+                    [[0, 0, 0], [0, 0, 0],],  # Sample 1
+                    # Pep 1
+                    [[2, 2, 1], [1, 0, 0],],  # Sample 0
+                    [[2, 2, 1], [1, 0, 0],],  # Sample 1
+                    # Pep 2
+                    [[2, 2, 2], [2, 1, 0],],  # Sample 0
+                    [  # Sample 1
+                        [2, 2, 1],
+                        [1, 0, 0],  # Same same sample 0 & 1 of pep 1
                     ],
                 ]
             )
+
+            train_true_pep_iz = np.array([0, 0, 1, 1, 2, 2])
 
             sim_result = SimV1Result(
                 params=sim_params,
@@ -433,6 +438,7 @@ def zest_nn_v1():
                 train_flu_remainders=ArrayResult(
                     "train_flu_remainders", shape=(1,), dtype=DyeType, mode="w+"
                 ).arr(),
+                train_true_pep_iz=train_true_pep_iz,
             )
 
             test_radmat = ArrayResult(

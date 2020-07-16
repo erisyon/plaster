@@ -7,9 +7,8 @@ from plaster.run.sigproc_v2 import synth
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.utils import utils
-from plaster.run.sigproc_v2.psf_sample import psf_sample
-from plaster.tools.log.log import debug
 from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Params
+from plaster.tools.log.log import debug
 
 
 def zest_kernel():
@@ -428,7 +427,7 @@ def zest_psf_normalize():
 def zest_calibrate_bg_and_psf_im():
     def it_gets_bg_mean_and_std():
         im = np.random.normal(loc=100, scale=10, size=(256, 256))
-        locs, reg_bg_mean, reg_bg_std, reg_psfs = worker._calibrate_bg_and_psf_im(
+        reg_bg_mean, reg_bg_std = worker.background_estimate(
             im, divs=5
         )
         assert np.all(100.0 - reg_bg_mean < 4.0 ** 2)

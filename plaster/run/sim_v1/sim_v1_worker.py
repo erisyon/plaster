@@ -484,7 +484,7 @@ def _do_pep_sim(
         3.  The non-remainder portion of the compact flu must only be n_edmans long,
             and those 'indices' represented must be aligned with the edman cycles.
 
-    _generate_flu_info: (part of SimResult)
+    _generate_flu_info: (part of SimV1Result)
         4. Same as (3) for the resulting fluinfo in the Result.
     """
 

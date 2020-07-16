@@ -16,14 +16,11 @@ def nn_v1(nn_v1_params, prep_result, sim_v1_result, progress=None, pipeline=None
     if pipeline is not None:
         pipeline.set_phase(0, n_phases)
 
-    shape = sim_v1_result.test_radmat.shape
-    assert len(shape) == 4
-    test_radmat = sim_v1_result.test_radmat.reshape(
-        (shape[0] * shape[1], shape[2], shape[3])
-    )
-    test_dyemat = sim_v1_result.test_dyemat.reshape(
-        (shape[0] * shape[1], shape[2], shape[3])
-    )
+    check.array_t(sim_v1_result.test_radmat, ndim=3)
+    check.array_t(sim_v1_result.test_dyemat, ndim=3)
+    n_rows = sim_v1_result.test_radmat.shape[0]
+    test_radmat = sim_v1_result.test_radmat
+    test_dyemat = sim_v1_result.test_dyemat
     test_result = nn(
         nn_v1_params,
         sim_v1_result,
@@ -34,13 +31,13 @@ def nn_v1(nn_v1_params, prep_result, sim_v1_result, progress=None, pipeline=None
 
     test_result.true_pep_iz = ArrayResult(
         filename="test_true_pep_iz",
-        shape=(shape[0] * shape[1],),
+        shape=(n_rows,),
         dtype=IndexType,
         mode="w+",
     )
-    test_result.true_pep_iz[:] = np.repeat(
-        np.arange(shape[0]).astype(IndexType), shape[1]
-    )
+    # test_result.true_pep_iz[:] = np.repeat(
+    #     np.arange(shape[0]).astype(IndexType), shape[1]
+    # )
     check.t(test_result.true_pep_iz, ArrayResult)
     check.t(test_result.pred_pep_iz, ArrayResult)
 
