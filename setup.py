@@ -1,8 +1,6 @@
 # python setup.py build_ext --inplace
 
-import os
 import pathlib
-
 from setuptools import Extension, dist, find_packages, setup
 
 dist.Distribution().fetch_build_eggs(["Cython>=0.15.1", "numpy>=1.10"])
@@ -20,41 +18,45 @@ README = (HERE / "README.md").read_text()
 
 exec(open("plaster/version.py").read())
 
-print("THE CWD IN PLASTER SETUP is: ", os.getcwd())
-
 extensions = [
     Extension(
         name="plaster.run.sim_v2.fast.sim_v2_fast",
         sources=[
             "./plaster/run/sim_v2/fast/sim_v2_fast.pyx",
-            "./plaster/run/sim_v2/fast/csim_v2_fast.c",
+            "./plaster/run/sim_v2/fast/c_sim_v2_fast.c",
         ],
-        include_dirs=[
-            "./plaster/run/sim_v2/fast",
-            numpy.get_include(),
-            # f"{os.environ['VIRTUAL_ENV']}/lib/python3.8/site-packages/numpy/core/include",
-            # In the cython tutorials it shows using np.get_include()
-            # which requires a numpy import. To avoid this, I just copied
-            # the path from that call to eliminate the numpy dependency
-        ],
+        include_dirs=["./plaster/run/sim_v2/fast", numpy.get_include(),],
         extra_compile_args=[
             "-Wno-unused-but-set-variable",
             "-Wno-unused-label",
             "-Wno-cpp",
             "-pthread",
-            "-DNDEBUG",
+            # "-DNDEBUG",
         ],
-    )
+    ),
+    Extension(
+        name="plaster.run.nn_v2.fast.nn_v2_fast",
+        sources=[
+            "./plaster/run/nn_v2/fast/nn_v2_fast.pyx",
+            "./plaster/run/nn_v2/fast/c_nn_v2_fast.c",
+        ],
+        include_dirs=[
+            "./plaster/run/nn_v2/fast",
+            "/flann/src/cpp/flann/",
+            numpy.get_include(),
+        ],
+        libraries=["flann"],
+        library_dirs=["/flann/lib"],
+        extra_compile_args=[
+            "-DNPY_NO_DEPRECATED_API",
+            # "-DNDEBUG",
+        ],
+    ),
 ]
 
 
 setup(
     name="erisyon.plaster",
-    # setup_requires=[
-    #     # Setuptools 18.0 properly handles Cython extensions.
-    #     'setuptools>=18.0',
-    #     'cython',
-    # ],
     version=__version__,
     description="Erisyon's Fluoro-Sequencing Platform",
     long_description=README,

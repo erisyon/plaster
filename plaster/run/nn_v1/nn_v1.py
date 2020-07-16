@@ -80,9 +80,7 @@ The NN classifier works by the following method:
 
 
 """
-import random
 import time
-
 import numpy as np
 import pandas as pd
 from munch import Munch
@@ -91,16 +89,13 @@ from plaster.run.sim_v1.sim_v1_result import (
     DyeType,
     IndexType,
     RadType,
-    RecallType,
     ScoreType,
 )
-from plaster.run.test_nn.test_nn_params import TestNNParams
-from plaster.tools.log.log import debug, prof
+from plaster.run.nn_v1.nn_v1_params import NNV1Params
 from plaster.tools.schema import check
 from plaster.tools.utils import data, utils
 from plaster.tools.zap import zap
 from plaster.vendor import pyflann
-from plumbum import local
 from scipy.spatial import distance
 
 
@@ -139,7 +134,7 @@ def _get_neighbor_iz(flann, radrow, n_neighbors, radius, default=0):
 
 def _do_nn(
     i: int,  # Row index to analyze
-    nn_params: TestNNParams,
+    nn_params: NNV1Params,
     radmat,  # Classify the [i] row of this (NOT normalized!)
     dt_mat,  # Targets
     dt_inv_var_mat,  # Inv variance of each target
@@ -536,114 +531,7 @@ def _do_batch_unique(rng, dyemat):
     return np.unique(dyemat[rng], return_inverse=True, return_counts=True, axis=0)
 
 
-def _step_1_create_neighbors_lookup_multiprocess(dyemat, output_dt_mat):
-    """
-    The dyemat may have many duplicate rows, each from some number of peps.
-
-    These duplicate rows are consolidated so that each coordinate in dyemat space
-    is given a unique "dye_i".
-
-    The unique (sorted) dyetracks are written to output_dt_mat which is expected
-    to be large enough to hold them.
-
-    In thie multiprocess version I use all the cores to break the set
-    into seprate unqies and then compbine them. This tends to be
-    at least twice as fast.
-
-    Returns:
-        dyetracks_df: DF(dye_i, weight).
-            Where weight is the sum of all rows that pointed to this dyetrack
-        dt_pep_sources_df: DF(dye_i, pep_i, n_rows)
-            Records how many times each peptide generated dye_i where count > 0.
-        flann: A fast Approximate Nearest Neighbors lookup using PYFLANN.
-        n_dts: Number of actual unique dts
-    """
-    check.array_t(dyemat, ndim=4)  # (n_peps, n_samples, n_channels, n_cycles): uint8
-
-    # A multithreaded version of uniqueification
-    # The idea is to divide the list into blocks, unique them
-    # then unique this much smaller set.
-    # This is tricky because we have to keep track of the
-    # counts and inverse.
-
-    n_peps, n_samples, n_channels, n_cycles = dyemat.shape
-    true_pep_iz = np.repeat(np.arange(n_peps), n_samples)
-    n_rows = n_peps * n_samples
-    n_cols = n_channels * n_cycles
-    flat_dyemat = dyemat.reshape((n_rows, n_cols))
-
-    n_batches = _cpu_count()
-    batch_size = max(1, (n_rows // n_batches) + 1)
-    batch_slices = []
-    for batch_i in range(n_batches):
-        start = batch_i * batch_size
-        stop = min((batch_i + 1) * batch_size, n_rows)
-        if stop > start:
-            batch_slices += [slice(start, stop)]
-
-    # prof()
-    result_batches = zap.work_orders(
-        [
-            Munch(fn=_do_batch_unique, rng=batch_slice, dyemat=flat_dyemat)
-            for batch_slice in batch_slices
-        ],
-        _process_mode=True,
-        _trap_exceptions=False,
-    )
-    # prof()
-
-    # At this point results has a unique results from each batch
-    # and now we need to merge them.
-    # First we concatenate them all into a new array
-    cat_dts = np.concatenate([batch[0] for batch in result_batches])
-    # prof()
-
-    # Stack all the true_dt_iz (which comes from the inverse of unique)
-    # but then each of these has to be incremented to index into the
-    # concatenated stack
-    i = 0
-    cat_true_dt_iz = []
-    for batch in result_batches:
-        true_dt_iz = batch[1]
-        cat_true_dt_iz += [true_dt_iz + i]
-        i += batch[0].shape[0]
-    cat_true_dt_iz = np.concatenate(cat_true_dt_iz)
-    # prof()
-
-    # Stack all the counts
-    cat_dt_counts = np.concatenate([batch[2] for batch in result_batches])
-    # prof()
-
-    # Unique on the batches
-    dt_mat, true_dt_iz, dt_counts = np.unique(
-        cat_dts, return_inverse=True, return_counts=True, axis=0
-    )
-    # prof()
-
-    dt_counts = np.array(
-        [
-            cat_dt_counts[np.argwhere(true_dt_iz == i)].sum()
-            for i in range(dt_mat.shape[0])
-        ]
-    )
-    # prof()
-
-    true_dt_iz = true_dt_iz[cat_true_dt_iz]
-
-    # prof()
-    n_dts = dt_mat.shape[0]
-    output_dt_mat[0:n_dts] = dt_mat.reshape((n_dts, n_channels, n_cycles))
-
-    # prof()
-
-    flann = _create_flann(dt_mat)
-    dyetracks_df, dt_pep_sources_df, dye_to_best_pep_df = _setup_pep_source_dfs(
-        true_dt_iz, true_pep_iz, dt_counts
-    )
-    return dyetracks_df, dt_pep_sources_df, dye_to_best_pep_df, flann, n_dts
-
-
-def _step_1_create_neighbors_lookup_singleprocess(dyemat, output_dt_mat):
+def _step_1_create_neighbors_lookup_singleprocess(true_pep_iz, dyemat, output_dt_mat):
     """
     The dyemat may have many duplicate rows, each from some number of peps.
 
@@ -661,24 +549,19 @@ def _step_1_create_neighbors_lookup_singleprocess(dyemat, output_dt_mat):
         flann: A fast Approximate Nearest Neighbors lookup using PYFLANN.
         n_dts: Number of actual unique dts
     """
-    check.array_t(dyemat, ndim=4)  # (n_peps, n_samples, n_channels, n_cycles): uint8
+    check.array_t(dyemat, ndim=3)  # (n_peps * n_samples, n_channels, n_cycles): uint8
 
-    n_peps, n_samples, n_channels, n_cycles = dyemat.shape
-    true_pep_iz = np.repeat(np.arange(n_peps), n_samples)
+    n_rows, n_channels, n_cycles = dyemat.shape
 
     # Example usage of unique
     # b = np.array([1, 4, 3, 2, 1, 2])
     # p = np.unique(b, return_inverse=True, return_counts=True, )
     # p == (array([1, 2, 3, 4]), array([0, 3, 2, 1, 0, 1]), array([2, 2, 1, 1]))
-    _dyemat = dyemat.reshape(
-        (dyemat.shape[0] * dyemat.shape[1], dyemat.shape[2] * dyemat.shape[3])
-    )
     dt_mat, true_dt_iz, dt_counts = np.unique(
-        _dyemat, return_inverse=True, return_counts=True, axis=0
+        dyemat, return_inverse=True, return_counts=True, axis=0
     )
 
-    dt_mat = dt_mat.reshape((dt_mat.shape[0], n_channels, n_cycles))
-    n_dts, n_channels, n_cycles = dt_mat.shape
+    n_dts = dt_mat.shape[0]
     output_dt_mat[0:n_dts] = dt_mat
 
     # Check that the nul row exists and it the first element
@@ -759,7 +642,7 @@ def nn(nn_params, sim_result, radmat, true_dyemat=None, progress=None):
 
     Arguments:
         nn_params: TestNNParams
-        sim_result: SimResult -- Uses the train_* values
+        sim_result: SimV1Result -- Uses the train_* values
         radmat: The radmat to classify.
         true_dyemat: Optional for debugging -- the dyemat of the radmat
             ie. the dyerow that corresponds to each radrow.
@@ -783,17 +666,13 @@ def nn(nn_params, sim_result, radmat, true_dyemat=None, progress=None):
     # The max size is the (extremely unlikely) value of
     # n_peps * n_samples
     check.array_t(radmat, ndim=3, dtype=RadType)
-    check.array_t(sim_result.train_dyemat, ndim=4)
+    check.array_t(sim_result.train_dyemat, ndim=3, dtype=DyeType)
     shape = sim_result.train_dyemat.shape
-    n_dts_max = shape[0] * shape[1]
-    n_channels, n_cycles = shape[2:]
+    n_dts_max = shape[0]
+    n_channels, n_cycles = shape[1:]
     dt_mat = ArrayResult(
         "dt_mat", DyeType, shape=(n_dts_max, n_channels, n_cycles), mode="w+"
     )
-    # prof()
-
-    _step_1_create_neighbors_lookup = _step_1_create_neighbors_lookup_multiprocess
-    # _step_1_create_neighbors_lookup = _step_1_create_neighbors_lookup_singleprocess
 
     (
         dyetracks_df,
@@ -801,10 +680,9 @@ def nn(nn_params, sim_result, radmat, true_dyemat=None, progress=None):
         dye_to_best_pep_df,
         flann,
         n_dts,
-    ) = _step_1_create_neighbors_lookup(
-        sim_result.train_dyemat, output_dt_mat=dt_mat.arr(),
+    ) = _step_1_create_neighbors_lookup_singleprocess(
+        sim_result.train_true_pep_iz, sim_result.train_dyemat, output_dt_mat=dt_mat.arr(),
     )
-    # prof("create neighbors")
 
     # dyetracks_df: (dye_i, weight)
     # dt_pep_sources_df: (dye_i, pep_i, n_rows)

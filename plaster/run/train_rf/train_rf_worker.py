@@ -33,7 +33,7 @@ def _subsample(n_subsample, X, y):
 
 def train_rf(train_rf_params, sim_result, progress=None):
     X = sim_result.flat_train_radmat()
-    y = sim_result.train_true_pep_iz()
+    y = sim_result.train_true_pep_iz
 
     if train_rf_params.n_subsample is not None:
         X, y = _subsample(train_rf_params.n_subsample, X, y)

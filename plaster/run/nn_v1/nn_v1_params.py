@@ -2,7 +2,7 @@ from munch import Munch
 from plaster.tools.schema.schema import Schema as s, Params
 
 
-class TestNNParams(Params):
+class NNV1Params(Params):
     defaults = Munch(
         include_training_set=False,
         n_neighbors=8,

@@ -36,11 +36,11 @@ class SimV1Result(BaseResult):
     def __repr__(self):
         try:
             return (
-                f"SimResult with {self.train_dyemat.shape[0]} training rows "
+                f"SimV1Result with {self.train_dyemat.shape[0]} training rows "
                 f"and {self.test_dyemat.shape[0]} testing rows; with {self.train_dyemat.shape[1]} features"
             )
         except Exception:
-            return "SimResult"
+            return "SimV1Result"
 
     def _generate_flu_info(self, prep_results):
         """
@@ -119,19 +119,19 @@ class SimV1Result(BaseResult):
 
     def flat_train_radmat(self):
         shape = self.train_dyemat.shape
-        return self.train_radmat.reshape((shape[0] * shape[1], shape[2] * shape[3]))
+        return self.train_radmat.reshape((shape[0], shape[1] * shape[2]))
 
     def flat_test_radmat(self):
-        shape = self.test_dyemat.shape
-        return self.test_radmat.reshape((shape[0] * shape[1], shape[2] * shape[3]))
+        shape = self.test_radmat.shape
+        return self.test_radmat.reshape((shape[0], shape[1] * shape[2]))
 
-    def train_true_pep_iz(self):
-        shape = self.train_dyemat.shape
-        return np.repeat(np.arange(shape[0]).astype(IndexType), shape[1])
-
-    def test_true_pep_iz(self):
-        shape = self.test_dyemat.shape
-        return np.repeat(np.arange(shape[0]).astype(IndexType), shape[1])
+    # def train_true_pep_iz(self):
+    #     shape = self.train_dyemat.shape
+    #     return np.repeat(np.arange(shape[0]).astype(IndexType), shape[1])
+    #
+    # def test_true_pep_iz(self):
+    #     shape = self.test_dyemat.shape
+    #     return np.repeat(np.arange(shape[0]).astype(IndexType), shape[1])
 
     # def unflat(self, mat_name):
     #     """
