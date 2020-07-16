@@ -1,18 +1,18 @@
-from plumbum import local
-from collections import defaultdict
-import numpy as np
-import re
-import json
-import itertools
 import hashlib
+import itertools
+import json
+import re
+from collections import defaultdict
+
+import numpy as np
 from munch import Munch
-from plaster.tools.utils import utils
-from plaster.tools.schema.schema import Schema as s
-from plaster.tools.schema import check
-from plaster.gen import task_templates
-from plaster.gen import helpers
+from plaster.gen import helpers, task_templates
 from plaster.tools.log.log import debug
+from plaster.tools.schema import check
+from plaster.tools.schema.schema import Schema as s
 from plaster.tools.schema.schema import SchemaValidationFailed
+from plaster.tools.utils import utils
+from plumbum import local
 
 
 class BaseGenerator(Munch):
@@ -491,7 +491,7 @@ class BaseGenerator(Munch):
 
     def report_section_job_object(self):
         self._report_sections += [
-            ("code", [f'job = JobResult("{self.job}")'],),
+            ("code", [f'job = JobResult(".")'],),
         ]
 
     def report_section_user_config(self):
