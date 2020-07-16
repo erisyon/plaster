@@ -32,38 +32,26 @@ def zest_sim_v1_result():
         result = None
 
         def _make_train_radmat():
-            return npf(
-                [
-                    [
-                        [[3.0, 2.0, 1.0], [1.0, 0.0, 1.0]],
-                        [[4.0, 2.0, 1.0], [1.0, 1.0, 0.0]],
-                        [[5.0, 2.0, 1.0], [1.0, 1.0, 1.0]],
-                        [[6.0, 3.0, 0.9], [1.0, 0.0, 1.0]],
-                    ],
-                    [
-                        [[0.3, 0.2, 0.1], [0.3, 0.2, 0.1]],
-                        [[0.4, 0.2, 0.1], [0.3, 0.2, 0.1]],
-                        [[0.5, 0.2, 0.1], [0.3, 0.2, 0.1]],
-                        [[0.6, 0.3, 2.9], [0.3, 0.2, 0.1]],
-                    ],
-                ],
-            )
+            return npf([
+                [[3.0, 2.0, 1.0], [1.0, 0.0, 1.0]],
+                [[4.0, 2.0, 1.0], [1.0, 1.0, 0.0]],
+                [[5.0, 2.0, 1.0], [1.0, 1.0, 1.0]],
+                [[6.0, 3.0, 0.9], [1.0, 0.0, 1.0]],
+                [[0.3, 0.2, 0.1], [0.3, 0.2, 0.1]],
+                [[0.4, 0.2, 0.1], [0.3, 0.2, 0.1]],
+                [[0.5, 0.2, 0.1], [0.3, 0.2, 0.1]],
+                [[0.6, 0.3, 2.9], [0.3, 0.2, 0.1]],
+            ])
 
         def _make_test_radmat():
-            return npf(
-                [
-                    [
-                        [[4.0, 2.0, 1.0], [1.0, 1.0, 0.0]],
-                        [[5.0, 2.0, 1.0], [1.0, 1.0, 1.0]],
-                        [[6.0, 3.0, 0.9], [1.0, 0.0, 1.0]],
-                    ],
-                    [
-                        [[0.4, 0.2, 0.1], [0.3, 0.2, 0.1]],
-                        [[0.5, 0.2, 0.1], [0.3, 0.2, 0.1]],
-                        [[0.6, 0.3, 2.9], [0.3, 0.2, 0.1]],
-                    ],
-                ],
-            )
+            return npf([
+                [[4.0, 2.0, 1.0], [1.0, 1.0, 0.0]],
+                [[5.0, 2.0, 1.0], [1.0, 1.0, 1.0]],
+                [[6.0, 3.0, 0.9], [1.0, 0.0, 1.0]],
+                [[0.4, 0.2, 0.1], [0.3, 0.2, 0.1]],
+                [[0.5, 0.2, 0.1], [0.3, 0.2, 0.1]],
+                [[0.6, 0.3, 2.9], [0.3, 0.2, 0.1]],
+            ])
 
         def _make_sim_result():
             sim_params = _make_sim_params(
@@ -74,8 +62,8 @@ def zest_sim_v1_result():
             )
             assert sim_params.n_channels == n_channels
 
-            train_shape = (n_peps, n_train_samples, n_channels, n_cycles)
-            test_shape = (n_peps, n_test_samples, n_channels, n_cycles)
+            train_shape = (n_peps * n_train_samples, n_channels, n_cycles)
+            test_shape = (n_peps * n_test_samples, n_channels, n_cycles)
 
             train_dyemat = np.zeros(shape=train_shape, dtype=np.uint8)
             train_radmat = _make_train_radmat()
@@ -89,8 +77,10 @@ def zest_sim_v1_result():
                 params=sim_params,
                 train_dyemat=train_dyemat,
                 train_radmat=train_radmat,
+                train_true_pep_iz=np.array([0, 0, 0, 0, 1, 1, 1, 1]),
                 test_dyemat=test_dyemat,
                 test_radmat=test_radmat,
+                test_true_pep_iz =np.array([0, 0, 0, 1, 1, 1]),
             )
             return sim_result
 
@@ -136,13 +126,13 @@ def zest_sim_v1_result():
             )
             assert np_array_same(flat_test_radmat, expected)
 
-        def train_true_pep_iz():
-            pep_iz = result.train_true_pep_iz()
+        def it_gets_train_true_pep_iz():
+            pep_iz = result.train_true_pep_iz
             assert len(pep_iz) == n_peps * n_train_samples
             assert pep_iz.tolist() == [0, 0, 0, 0, 1, 1, 1, 1]
 
-        def test_true_pep_iz():
-            pep_iz = result.test_true_pep_iz()
+        def it_gets_test_true_pep_iz():
+            pep_iz = result.test_true_pep_iz
             assert len(pep_iz) == n_peps * n_test_samples
             assert pep_iz.tolist() == [0, 0, 0, 1, 1, 1]
 

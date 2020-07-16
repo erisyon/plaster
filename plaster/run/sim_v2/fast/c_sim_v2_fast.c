@@ -1,3 +1,4 @@
+#include "math.h"
 #include "stdint.h"
 #include "alloca.h"
 #include "stdio.h"
@@ -6,11 +7,12 @@
 #include "memory.h"
 #include "pthread.h"
 #include "unistd.h"
-#include "csim_v2_fast.h"
+#include "inttypes.h"
+#include "c_sim_v2_fast.h"
 
 /*
 This is the "sim" phase of plaster implemented in C.
-It is meant to be called by Cython fast_sim.pyx
+It is meant to be called by Cython sim_v2_fast.pyx
 
 Inputs (see typedef Context in sim.h):
     * A list of "flus" which are Uint8 arrays (n_channels, n_cycles)
@@ -80,6 +82,7 @@ void ensure(int expr, const char *fmt, ...) {
     va_start(args, fmt);
     if(!expr) {
         vfprintf(stderr, fmt, args);
+        fprintf(stderr, "\n");
         fflush(stderr);
         exit(1);
     }
@@ -127,8 +130,11 @@ int rand64(Uint64 p_i) {
 
 Uint64 prob_to_p_i(double p) {
     // Convert p (double 0-1) into a 64 bit integer
-    ensure(0.0 <= p && p < 1.0, "p out of range");
-    return (Uint64)(p * (double)UINT64_MAX);
+    ensure(0.0 <= p && p <= 1.0, "probability out of range");
+    long double w = floorl( (long double)p * (long double)(UINT64_MAX) );
+    Uint64 ret = (Uint64)w;
+    // printf("ret=%" PRIu64 "\n", ret);
+    return ret;
 }
 
 
@@ -185,6 +191,21 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
 
     if(n_channels * n_cycles >= n_hashkey_factors) {
         return 9;
+    }
+
+    if(prob_to_p_i(0.0) != (Uint64)0) {
+        printf("Failed sanity check: prob_to_p_i(0.0)\n");
+        return 10;
+    }
+
+    if(prob_to_p_i(1.0) != (Uint64)UINT64_MAX) {
+        printf("Failed sanity check: prob_to_p_i(1.0) %ld %ld\n", prob_to_p_i(1.0), (Uint64)UINT64_MAX);
+        return 11;
+    }
+
+    if(sizeof(Float64) != 8) {
+        printf("Failed sanity check: Float64\n");
+        return 12;
     }
 
     return 0;
@@ -430,7 +451,7 @@ void dyepep_dump_all(Table *dyepeps) {
 //=========================================================================================
 
 void context_sim_flu(Context *ctx, Index pep_i) {
-    // Runs the Monte-Carlo simutation of one peptide flu over n_samples
+    // Runs the Monte-Carlo simulation of one peptide flu over n_samples
     // See algorithm described at top of file.
 
     // Make local copies of inner-loop variables
@@ -439,6 +460,7 @@ void context_sim_flu(Context *ctx, Index pep_i) {
     Size n_samples = ctx->n_samples;
     Size n_channels = ctx->n_channels;
     DyeType *flu = ctx->flus[pep_i];
+    PIType *pi_bright = ctx->pi_brights[pep_i];
     Size n_aas = ctx->n_aas[pep_i];
     CycleKindType *cycles = ctx->cycles;
     Uint64 pi_bleach = ctx->pi_bleach;
@@ -459,25 +481,49 @@ void context_sim_flu(Context *ctx, Index pep_i) {
     DTR *working_dtr = (DTR *)alloca(n_dyetrack_bytes);
     memset(working_dtr, 0, n_dyetrack_bytes);
 
-    Index sample_i;
-    for(sample_i=0; sample_i<n_samples; sample_i++) {
+    DTR *nul_dtr = (DTR *)alloca(n_dyetrack_bytes);
+    memset(nul_dtr, 0, n_dyetrack_bytes);
+
+    Size n_dark_samples = 0;
+    Size n_non_dark_samples = 0;
+    while(n_non_dark_samples < n_samples) {
+        if(n_dark_samples > 10 * n_samples) {
+            // Emergency exit. The recall is so low that we need to
+            // just give up and declare that it can't be measured.
+            n_dark_samples = 0;
+            n_non_dark_samples = 0;
+            break;
+        }
 
         // GENERATE the working_dyetrack sample (Monte Carlo)
         //-------------------------------------------------------
         memcpy(working_flu, flu, n_working_flu_bytes);
         dtr_clear(working_dtr, n_channels, n_cycles);
 
+        // MODEL dark-dyes (dyes dark before the first image)
+        // These darks are the product of various dye factors which
+        // are passed into this module already converted into PI form
+        // (probability in 0 - max_unit64) by the pi_bright arrays
+        for(Index aa_i=0; aa_i<n_aas; aa_i++) {
+            if( ! rand64(pi_bright[aa_i])) {
+                working_flu[aa_i] = NO_LABEL;
+            }
+        }
+
         Index head_i = 0;
         for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
-            // EDMAN
+            // EDMAN...
+            // Edman degrdation chews off the N-terminal amino-acid.
+            // If successful this advances the "head_i" which is where we're summing from.
             if(cycles[cy_i] == CYCLE_TYPE_EDMAN) {
                 if(rand64(pi_edman_success)) {
                     head_i ++;
                 }
             }
 
-            // DETACH
-            // TODO: Explain
+            // DETACH...
+            // Detachment is when a peptide comes loose from the surface.
+            // This means that all subsequent measurements go dark.
             if(rand64(pi_detach)) {
                 for(Index aa_i=head_i; aa_i<n_aas; aa_i++) {
                     working_flu[aa_i] = NO_LABEL;
@@ -485,8 +531,12 @@ void context_sim_flu(Context *ctx, Index pep_i) {
                 break;
             }
 
-            // IMAGE (sum up all active dyes in each channel)
-            // TODO: Document the ch_sums is large enough to hold the "NO_LABEL"
+            // IMAGE (sum up all active dyes in each channel)...
+            // To make this avoid any branching logic, the ch_sums[]
+            // is allocated to with N_MAX_CHANNELS which includes the "NO_LABEL"
+            // which is defined to be N_MAX_CHANNELS-1. Thus the sums
+            // will also count the number of unlabelled positions, but
+            // we can just ignore that extra "NO LABEL" channel.
             memset(ch_sums, 0, sizeof(ch_sums));
             for(Index aa_i=head_i; aa_i<n_aas; aa_i++) {
                 ch_sums[working_flu[aa_i]] ++;
@@ -511,6 +561,15 @@ void context_sim_flu(Context *ctx, Index pep_i) {
         // At this point we have the flu sampled into working_dtr
         // Now we look it up in the hash tables.
         //-------------------------------------------------------
+
+        if(memcmp(working_dtr, nul_dtr, n_dyetrack_bytes) == 0) {
+            // The row was empty, note this and continue to try another sample
+            n_dark_samples++;
+            continue;
+        }
+
+        n_non_dark_samples++;
+
         HashKey dtr_hashkey = dtr_get_hashkey(working_dtr, n_channels, n_cycles);
         HashRec *dtr_hash_rec = hash_get(dtr_hash, dtr_hashkey);
         DTR *dtr;
@@ -559,6 +618,13 @@ void context_sim_flu(Context *ctx, Index pep_i) {
             table_validate_only_in_debug(dyepeps, dpr, "dyepep hash inc");
             dpr->count++;
         }
+    }
+
+    if(n_dark_samples + n_non_dark_samples > 0) {
+        ctx->pep_recalls[pep_i] = (double)n_non_dark_samples / (double)(n_dark_samples + n_non_dark_samples);
+    }
+    else {
+        ctx->pep_recalls[pep_i] = (double)0.0;
     }
 }
 
@@ -622,11 +688,29 @@ void *context_work_orders_worker(void *_ctx) {
 
 
 void context_work_orders_start(Context *ctx) {
+    // context_dump(ctx);
+
     // Initialize mutex and start the worker thread(s).
     ensure(setup_and_sanity_check(ctx->n_channels, ctx->n_cycles) == 0, "Sanity checks failed");
     rand64_seed(ctx->rng_seed);
 
     ctx->next_pep_i = 0;
+
+    // Add a nul-row
+    Size n_dyetrack_bytes = dtr_n_bytes(ctx->n_channels, ctx->n_cycles);
+    DTR *nul_rec = (DTR *)alloca(n_dyetrack_bytes);
+    memset(nul_rec, 0, n_dyetrack_bytes);
+    HashKey dtr_hashkey = dtr_get_hashkey(nul_rec, ctx->n_channels, ctx->n_cycles);
+    HashRec *dtr_hash_rec = hash_get(ctx->dtr_hash, dtr_hashkey);
+    ensure(dtr_hash_rec->key == 0, "dtr hash should not have found nul row");
+
+    Table *dtrs = &ctx->dtrs;
+    Index nul_i = table_add(dtrs, nul_rec, (void*)0);
+    DTR *nul_dtr = table_get_row(dtrs, nul_i, DTR);
+    dtr_hash_rec->key = dtr_hashkey;
+    nul_dtr->count++;
+    nul_dtr->dtr_i = nul_i;
+    dtr_hash_rec->val = nul_dtr;
 
     pthread_t ids[256];
     ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
@@ -669,6 +753,24 @@ DyePepRec *context_dyepep(Context *ctx, Index dyepep_i) {
 }
 
 
+void context_dump(Context *ctx) {
+    printf("Context:\n");
+    printf("  n_peps=%" PRIu64 "\n", ctx->n_peps);
+    printf("  n_cycles=%" PRIu64 "\n", ctx->n_cycles);
+    printf("  n_samples=%" PRIu64 "\n", ctx->n_samples);
+    printf("  n_channels=%" PRIu64 "\n", ctx->n_channels);
+        // printf("ret=%" PRIu64 "\n", ret);
+
+    printf("  pi_bleach=%" PRIu64 "\n", ctx->pi_bleach);
+    printf("  pi_detach=%" PRIu64 "\n", ctx->pi_detach);
+    printf("  pi_edman_success=%" PRIu64 "\n", ctx->pi_edman_success);
+    printf("  n_threads=%" PRIu64 "\n", ctx->n_threads);
+    printf("  rng_seed=%" PRIu64 "\n", ctx->rng_seed);
+    // Some are left out
+}
+
+
+/*
 int main() {
     // Tests (not run by production code, see fast_sim.pyx)
     // Setup context
@@ -720,3 +822,4 @@ int main() {
     //trace("%f sec per trial\n", (double)(stop-start) / ((double)n_trials * 1000.0*1000.0) );
     return 0;
 }
+*/

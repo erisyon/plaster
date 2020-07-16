@@ -481,7 +481,7 @@ class JobResult:
             # peps to include in the returned df.
 
             df = self.all_dfs(
-                lambda r: r.survey_nn.max_nn_dist_peps(prep=r.prep, filters=filters)
+                lambda r: r.survey_nn_v1.max_nn_dist_peps(prep=r.prep, filters=filters)
             )
 
             df = _filter_runs(df)
@@ -527,7 +527,7 @@ class JobResult:
             # peptides with unique fluorosequences.  In this case we'll return
             # stats for each run (one row per run) sorted by coverage.
             stats = self.all_lists(
-                lambda r: r.survey_nn.nn_stats(r.prep, filters=filters)
+                lambda r: r.survey_nn_v1.nn_stats(r.prep, filters=filters)
             )
             run_info = [(i, r.run_name) for i, r in enumerate(self.runs)]
             df = pd.DataFrame(

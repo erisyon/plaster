@@ -184,7 +184,7 @@ class ClassifyGenerator(BaseGenerator):
                     test_rf_task = task_templates.test_rf()
 
                 if not self.classify_skip_nn:
-                    test_nn_task = task_templates.test_nn()
+                    test_nn_task = task_templates.nn_v1()
 
                 # TODO: classify with NN or RF or both
                 classify_rf_task = {}

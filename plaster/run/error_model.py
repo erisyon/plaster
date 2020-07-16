@@ -86,14 +86,16 @@ class ErrorModel(Params):
         sigma = kwargs.pop("sigma", 0.0)
         gain = kwargs.pop("gain", 10.0)
         vpd = kwargs.pop("vpd", 0.1)
+        p_bleach = kwargs.pop("p_bleach", 0.0)
+        p_non_fluorescent = kwargs.pop("p_non_fluorescent", 0.0)
         return cls(
             p_edman_failure=0.0,
             p_detach=0.0,
             dyes=[
                 Munch(
                     dye_name=f"dye_{ch}",
-                    p_bleach_per_cycle=0.0,
-                    p_non_fluorescent=0.0,
+                    p_bleach_per_cycle=p_bleach,
+                    p_non_fluorescent=p_non_fluorescent,
                     sigma=sigma,
                     beta=beta,
                     gain=gain,

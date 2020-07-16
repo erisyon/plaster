@@ -2,30 +2,27 @@ import numpy as np
 from plaster.tools.schema import check
 from plaster.run.base_result import ArrayResult
 from plaster.run.call_bag import CallBag
-from plaster.run.test_nn.test_nn_result import TestNNResult
-from plaster.run.test_nn.nn import nn
+from plaster.run.nn_v1.nn_v1_result import NNV1Result
+from plaster.run.nn_v1.nn_v1 import nn
 from plaster.run.sim_v1.sim_v1_result import IndexType
 from plaster.tools.utils import utils
 from plaster.tools.log.log import debug, prof
 
 
-def test_nn(test_nn_params, prep_result, sim_v1_result, progress=None, pipeline=None):
+def nn_v1(nn_v1_params, prep_result, sim_v1_result, progress=None, pipeline=None):
     n_channels, n_cycles = sim_v1_result.params.n_channels_and_cycles
 
-    n_phases = 6 if test_nn_params.include_training_set else 3
+    n_phases = 6 if nn_v1_params.include_training_set else 3
     if pipeline is not None:
         pipeline.set_phase(0, n_phases)
 
-    shape = sim_v1_result.test_radmat.shape
-    assert len(shape) == 4
-    test_radmat = sim_v1_result.test_radmat.reshape(
-        (shape[0] * shape[1], shape[2], shape[3])
-    )
-    test_dyemat = sim_v1_result.test_dyemat.reshape(
-        (shape[0] * shape[1], shape[2], shape[3])
-    )
+    check.array_t(sim_v1_result.test_radmat, ndim=3)
+    check.array_t(sim_v1_result.test_dyemat, ndim=3)
+    n_rows = sim_v1_result.test_radmat.shape[0]
+    test_radmat = sim_v1_result.test_radmat
+    test_dyemat = sim_v1_result.test_dyemat
     test_result = nn(
-        test_nn_params,
+        nn_v1_params,
         sim_v1_result,
         radmat=test_radmat,
         true_dyemat=test_dyemat,
@@ -34,13 +31,13 @@ def test_nn(test_nn_params, prep_result, sim_v1_result, progress=None, pipeline=
 
     test_result.true_pep_iz = ArrayResult(
         filename="test_true_pep_iz",
-        shape=(shape[0] * shape[1],),
+        shape=(n_rows,),
         dtype=IndexType,
         mode="w+",
     )
-    test_result.true_pep_iz[:] = np.repeat(
-        np.arange(shape[0]).astype(IndexType), shape[1]
-    )
+    # test_result.true_pep_iz[:] = np.repeat(
+    #     np.arange(shape[0]).astype(IndexType), shape[1]
+    # )
     check.t(test_result.true_pep_iz, ArrayResult)
     check.t(test_result.pred_pep_iz, ArrayResult)
 
@@ -66,7 +63,7 @@ def test_nn(test_nn_params, prep_result, sim_v1_result, progress=None, pipeline=
         progress=progress
     )
 
-    if test_nn_params.include_training_set:
+    if nn_v1_params.include_training_set:
         # Permit testing for over-fitting by classifying on the train data
 
         if pipeline is not None:
@@ -80,7 +77,7 @@ def test_nn(test_nn_params, prep_result, sim_v1_result, progress=None, pipeline=
         assert train_radmat.shape == shape
 
         train_result = nn(
-            test_nn_params.use_gmm,
+            nn_v1_params.use_gmm,
             sim_v1_result,
             radmat=train_radmat,
             true_dyemat=train_dyemat,
@@ -125,8 +122,8 @@ def test_nn(test_nn_params, prep_result, sim_v1_result, progress=None, pipeline=
     def rename(d, prefix):
         return {f"{prefix}{k}": v for k, v in d.items()}
 
-    return TestNNResult(
-        params=test_nn_params,
+    return NNV1Result(
+        params=nn_v1_params,
         **rename(test_result, "test_"),
         **rename(train_result, "train_"),
     )

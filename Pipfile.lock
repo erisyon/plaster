@@ -1063,10 +1063,10 @@
         },
         "zbs-zest": {
             "hashes": [
-                "sha256:9119eadccd6fe43ffcb7f9a3cd22e6966d7482777f331be8b458f0cd8fd5a4f0"
+                "sha256:60017c5191be67840aafdf70cd0d7c14b35e70bfdf7373ad3c87208362ac74b4"
             ],
             "index": "pypi",
-            "version": "==1.0.9"
+            "version": "==1.0.13"
         }
     },
     "develop": {}

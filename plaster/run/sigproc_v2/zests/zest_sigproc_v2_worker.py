@@ -7,9 +7,8 @@ from plaster.run.sigproc_v2 import synth
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.utils import utils
-from plaster.run.sigproc_v2.psf_sample import psf_sample
-from plaster.tools.log.log import debug
 from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Params
+from plaster.tools.log.log import debug
 
 
 def zest_kernel():
@@ -207,11 +206,11 @@ def zest_peak_find():
 
     def it_finds_peaks_as_density_increases():
         _expected = [
-            [100, 88, 10],
-            [125, 117, 10],
-            [150, 134, 20],
-            [175, 151, 25],
-            [200, 172, 25],
+            [100, 92, 9],  # n_spots to generate, n expected to find, within bounds
+            [125, 113, 10],
+            [150, 135, 15],
+            [175, 146, 20],
+            [200, 175, 25],
         ]
         for expected, n_peaks in zip(_expected, np.linspace(100, 200, 5).astype(int)):
             with synth.Synth(overwrite=True, dim=(256, 256)) as s:
@@ -224,9 +223,14 @@ def zest_peak_find():
                 synth.CameraModel(bias=bg_mean, std=11)
                 im = s.render_chcy()[0, 0]
                 im = im - bg_mean
+
             locs = worker._peak_find(im)
             assert expected[0] == n_peaks
-            assert utils.np_within(expected[1], locs.shape[0], expected[2])
+            if not utils.np_within(locs.shape[0], expected[1], expected[2]):
+                raise AssertionError(
+                    f"density increase did not find expected peaks. "
+                    f"Found: {locs.shape[0]}, Expected {expected[1]} +/- {expected[2]}"
+                )
 
     zest()
 
@@ -423,7 +427,7 @@ def zest_psf_normalize():
 def zest_calibrate_bg_and_psf_im():
     def it_gets_bg_mean_and_std():
         im = np.random.normal(loc=100, scale=10, size=(256, 256))
-        locs, reg_bg_mean, reg_bg_std, reg_psfs = worker._calibrate_bg_and_psf_im(
+        reg_bg_mean, reg_bg_std = worker.background_estimate(
             im, divs=5
         )
         assert np.all(100.0 - reg_bg_mean < 4.0 ** 2)

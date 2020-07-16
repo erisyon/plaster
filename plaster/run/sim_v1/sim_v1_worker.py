@@ -42,8 +42,13 @@ import time
 
 import numpy as np
 import pandas as pd
-from plaster.run.sim_v1.sim_v1_result import (ArrayResult, DyeType, RadType,
-                                              RecallType, SimV1Result)
+from plaster.run.sim_v1.sim_v1_result import (
+    ArrayResult,
+    DyeType,
+    RadType,
+    RecallType,
+    SimV1Result,
+)
 from plaster.tools.log.log import debug
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
@@ -479,7 +484,7 @@ def _do_pep_sim(
         3.  The non-remainder portion of the compact flu must only be n_edmans long,
             and those 'indices' represented must be aligned with the edman cycles.
 
-    _generate_flu_info: (part of SimResult)
+    _generate_flu_info: (part of SimV1Result)
         4. Same as (3) for the resulting fluinfo in the Result.
     """
 
@@ -610,7 +615,7 @@ def _run_sim(sim_params, pep_seqs_df, name, n_peps, n_samples, progress):
     flus = np.array(utils.listi(flus__remainders, 0))
     flu_remainders = np.array(utils.listi(flus__remainders, 1))
 
-    true_pep_iz =  np.repeat(np.arange(n_peps), n_samples)
+    true_pep_iz = np.repeat(np.arange(n_peps), n_samples)
 
     return dyemat, radmat, recall, flus, flu_remainders, true_pep_iz
 
@@ -710,13 +715,21 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
             check.affirm(any_differences, "Train and test sets are identical")
 
     if train_dyemat is not None:
-        train_dyemat.reshape((train_dyemat.shape[0] * train_dyemat.shape[1], *train_dyemat.shape[2:]))
+        train_dyemat.reshape(
+            (train_dyemat.shape[0] * train_dyemat.shape[1], *train_dyemat.shape[2:])
+        )
     if train_radmat is not None:
-        train_radmat.reshape((train_radmat.shape[0] * train_radmat.shape[1], *train_radmat.shape[2:]))
+        train_radmat.reshape(
+            (train_radmat.shape[0] * train_radmat.shape[1], *train_radmat.shape[2:])
+        )
     if test_dyemat is not None:
-        test_dyemat.reshape((test_dyemat.shape[0] * test_dyemat.shape[1], *test_dyemat.shape[2:]))
+        test_dyemat.reshape(
+            (test_dyemat.shape[0] * test_dyemat.shape[1], *test_dyemat.shape[2:])
+        )
     if test_radmat is not None:
-        test_radmat.reshape((test_radmat.shape[0] * test_radmat.shape[1], *test_radmat.shape[2:]))
+        test_radmat.reshape(
+            (test_radmat.shape[0] * test_radmat.shape[1], *test_radmat.shape[2:])
+        )
 
     return SimV1Result(
         params=sim_params,
@@ -726,7 +739,6 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
         train_recalls=train_recalls,
         train_flus=train_flus,
         train_flu_remainders=train_flu_remainders,
-
         test_true_pep_iz=test_true_pep_iz,
         test_dyemat=test_dyemat,
         test_radmat=test_radmat,
