@@ -603,7 +603,7 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
         # regional background mean and std.
         # --------------------------------------------------------------
         calib = add_regional_bg_stats_to_calib(
-            flchcy_ims, n_fields, n_channels, n_z_slices, divs, calib
+            flchcy_ims, ch_i, n_z_slices, divs, calib
         )
 
         # FIXME: this is just dummy data for now, need to replace with real deal
