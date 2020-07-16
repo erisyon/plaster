@@ -769,6 +769,8 @@ void context_dump(Context *ctx) {
     // Some are left out
 }
 
+
+/*
 int main() {
     // Tests (not run by production code, see fast_sim.pyx)
     // Setup context
@@ -820,3 +822,4 @@ int main() {
     //trace("%f sec per trial\n", (double)(stop-start) / ((double)n_trials * 1000.0*1000.0) );
     return 0;
 }
+*/

@@ -77,7 +77,7 @@ def zest_sim_v2_worker():
     )
 
     def _sim(err_kwargs=None):
-        error_model = ErrorModel.no_errors(n_channels=2, **err_kwargs)
+        error_model = ErrorModel.no_errors(n_channels=2, **(err_kwargs or {}))
 
         sim_v2_params = SimV2Params.construct_from_aa_list(
             ["A", "B"], error_model=error_model, n_edmans=4
@@ -106,7 +106,6 @@ def zest_sim_v2_worker():
         assert utils.np_array_same(
             sim_v2_result.train_dyepeps,
             np.array([
-                [0, 0, 5000],
                 [1, 1, 5000],
                 [2, 2, 5000]
             ], dtype=np.uint64)

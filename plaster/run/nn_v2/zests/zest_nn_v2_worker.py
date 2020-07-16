@@ -36,8 +36,8 @@ def zest_nn_v2_worker():
         _pep_seqs=pro_seqs,
     )
 
-    sim_v2_params = None  # TODO
-    sim_v2_result = sim_v2_worker.sim(sim_v2_params, prep_result)
+    # sim_v2_params = None  # TODO
+    # sim_v2_result = sim_v2_worker.sim(sim_v2_params, prep_result)
 
     # TODO
     # sim_v2_result = SimV2Result(

@@ -72,7 +72,7 @@ def zest_pyx_runs():
     )
 
     check.array_t(dyetracks, dtype=np.uint8, shape=(5, 4))
-    check.array_t(dyepeps, dtype=np.uint64, shape=(7, 3))
+    check.array_t(dyepeps, dtype=np.uint64, shape=(4, 3))
 
     def it_reserves_row_zero():
         assert utils.np_array_same(dyetracks[0], [0, 0, 0, 0])
@@ -80,11 +80,11 @@ def zest_pyx_runs():
     def it_has_no_row_all_zero_other_than_first():
         assert np.all(np.sum(dyetracks[1:], axis=1) > 0)
 
-    def it_has_all_peps():
-        assert np.sort(np.unique(dyepeps[:, 1])).tolist() == [0, 1, 2]
+    def it_has_all_peps_in_dyepeps_except_nul():
+        assert np.sort(np.unique(dyepeps[:, 1])).tolist() == [1, 2]
 
-    def it_has_all_counts_on_the_nul_record():
-        assert dyepeps[0, 2] == sim_params.n_samples_train
+    def it_has_no_counts_on_the_nul_record():
+        assert not np.any(dyepeps[:, 0] == 0)
 
     def it_has_all_counts_reasonable():
         assert np.all(dyepeps[:, 2] > 100)
