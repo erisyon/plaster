@@ -42,7 +42,6 @@ def zest_sigproc_v2_calibration():
         im_sub = worker.background_subtraction(im, bg_mean)
         new_mean, new_std = worker.background_estimate(im_sub, divs)
         assert np_within(np.mean(new_mean), 0, (1 / tgt_std))
-        # assert abs(np.mean(new_mean)) < (1 / tgt_std)
         return True
 
     def it_adds_regional_bg_stats_to_calib_correctly():
@@ -67,6 +66,107 @@ def zest_sigproc_v2_calibration():
         assert len(bg_std.shape) == 2
         assert (bg_std > tgt_std - 1).all()
         assert (bg_std < tgt_std + 1).all()
+        return True
+
+    def it_estimates_nonuniform_bg_mean_correctly():
+        divs = 5
+        tgt_mean = 200
+        tgt_std = 15
+        # make an image...
+        with synth.Synth(overwrite=True) as s:
+            (
+                synth.PeaksModelGaussianCircular(n_peaks=100)
+                .locs_randomize()
+                .amps_constant(val=10000)
+            )
+            synth.CameraModel(bias=tgt_mean, std=tgt_std)
+            im = s.render_chcy()[0, 0]
+        # make the outside border half as light, width of one div
+        border = int(im.shape[0] / divs)
+        for x in range(0, im.shape[0]):
+            for y in range(0, im.shape[1]):
+                dist_to_edge = min(x, im.shape[0] - x, y, im.shape[1] - y)
+                if dist_to_edge < border:
+                    im[x][y] *= 0.5
+        # find mean and std, check that it got nonuniformity of means
+        bg_mean, bg_std = worker.background_estimate(im, divs)
+        for x in range(0, divs):
+            for y in range(0, divs):
+                if x in [0, divs - 1] or y in [0, divs - 1]:
+                    assert np_within((tgt_mean * 0.5), bg_mean[x][y], tgt_std / 2)
+                    assert np_within(tgt_std * 0.5, bg_std[x][y], tgt_std / 4)
+                else:
+                    assert np_within(tgt_mean, bg_mean[x][y], tgt_std)
+                    assert np_within(tgt_std, bg_std[x][y], tgt_std / 2)
+        return True
+
+    def it_estimates_nonuniform_bg_std_correctly():
+        divs = 5
+        tgt_mean = 100
+        tgt_std1 = 10
+        with synth.Synth(overwrite=True) as s:
+            (
+                synth.PeaksModelGaussianCircular(n_peaks=100)
+                .locs_randomize()
+                .amps_constant(val=10000)
+            )
+            synth.CameraModel(bias=tgt_mean, std=tgt_std1)
+            im1 = s.render_chcy()[0][0]
+        # create second image with larger std, to use for border region
+        tgt_std2 = 30
+        with synth.Synth(overwrite=True) as s:
+            (
+                synth.PeaksModelGaussianCircular(n_peaks=100)
+                .locs_randomize()
+                .amps_constant(val=10000)
+            )
+            synth.CameraModel(bias=tgt_mean, std=tgt_std2)
+            im2 = s.render_chcy()[0][0]
+        # merge the two images into one with a nonuniform std
+        im3 = im1.copy()
+        border = int(im3.shape[0] / divs)
+        for x in range(0, im3.shape[0]):
+            for y in range(0, im3.shape[1]):
+                dist_to_edge = min(x, im3.shape[0] - x, y, im3.shape[1] - y)
+                if dist_to_edge < border:
+                    im3[x][y] = im2[x][y]
+        # find mean and std, check that it detected nonuniformity of stds
+        bg_mean, bg_std = worker.background_estimate(im3, divs)
+        for x in range(0, divs):
+            for y in range(0, divs):
+                if x in [0, divs - 1] or y in [0, divs - 1]:
+                    assert np_within(bg_std[x][y], tgt_std2, tgt_std2 / 2)
+                    assert np_within(bg_mean[x][y], tgt_mean, tgt_std2)
+                else:
+                    assert np_within(bg_std[x][y], tgt_std1, tgt_std1 / 2)
+                    assert np_within(bg_mean[x][y], tgt_mean, tgt_std1)
+        return True
+
+    def it_subtracts_nonuniform_bg_mean_correctly():
+        divs = 15
+        border_ratio = 5
+        tgt_mean = 100
+        tgt_std = 10
+        with synth.Synth(overwrite=True) as s:
+            (
+                synth.PeaksModelGaussianCircular(n_peaks=100)
+                .locs_randomize()
+                .amps_constant(val=10000)
+            )
+            synth.CameraModel(bias=tgt_mean, std=tgt_std)
+            im = s.render_chcy()[0, 0]
+        # make the outside 1/border_ratio thickness darker,
+        # down to 1/2 at very edge
+        border = int(im.shape[0] / border_ratio)
+        for x in range(0, im.shape[0]):
+            for y in range(0, im.shape[1]):
+                dist_to_edge = min(x, im.shape[0] - x, y, im.shape[1] - y)
+                if dist_to_edge < border:
+                    im[x][y] *= 0.5 + (dist_to_edge / (2 * border))
+        bg_mean, bg_std = worker.background_estimate(im, divs)
+        im_sub = worker.background_subtraction(im, bg_mean)
+        new_mean, new_std = worker.background_estimate(im_sub, divs)
+        assert np_within(np.mean(new_mean), 0, tgt_std)
         return True
 
     zest()

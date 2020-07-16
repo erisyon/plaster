@@ -1,14 +1,17 @@
 import numpy as np
-from zest import zest
-from plaster.tools.schema.check import CheckAffirmError
-from plaster.tools.image.coord import ROI
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.sigproc_v2 import synth
+from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Params
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
-from plaster.tools.utils import utils
-from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Params
+from plaster.tools.image.coord import ROI
+
+# from plaster.run.sigproc_v2.psf_sample import psf_sample
 from plaster.tools.log.log import debug
+from plaster.tools.schema.check import CheckAffirmError
+from plaster.tools.utils import utils
+from zest import zest
+
 
 
 def zest_kernel():
@@ -443,7 +446,7 @@ I've written the calibration so that the channels are numbered
 and there is no remapping.
 
 But the original form of this allowed a remapping "atto=1" where
-atto is an output channel and 1 is the input. 
+atto is an output channel and 1 is the input.
 
 In reality, each device will have channel numbers that have specific filters
 and there will not be any remapping.
