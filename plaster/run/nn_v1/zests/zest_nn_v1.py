@@ -14,54 +14,61 @@ from plaster.run.sim_v1.sim_v1_result import (
 from plaster.run.sim_v1.sim_v1_params import SimV1Params, ErrorModel
 from plaster.run.nn_v1 import nn_v1
 from plaster.tools.utils import tmp
+from plaster.tools.log.log import debug
 from plaster.vendor import pyflann
 from zest import zest
 
 
 def zest_nn_v1_step_1_create_neighbors_lookup():
     def _make_dyemat():
-        n_peps = 3
-        n_samples = 7
         n_channels = 2
         n_cycles = 5
         with tmp.tmp_folder(chdir=True):
             dyemat = ArrayResult(
                 "dyemat",
-                shape=(n_peps * n_samples, n_channels, n_cycles),
-                dtype=DyeType,
-                mode="w+",
-            ).arr()
-            dyemat[0:5] = np.array([[2, 2, 1, 1, 0], [2, 1, 0, 0, 0],])
-            dyemat[5:n_samples+1] = np.array([[1, 1, 1, 1, 0], [1, 1, 0, 0, 0],])
-            dyemat[n_samples:n_samples+1] = np.array(
-                [
-                    # Same as dyemat[1][0:5]
-                    [2, 2, 1, 1, 0],
-                    [2, 1, 0, 0, 0],
-                ]
-            )
-            dyemat[n_samples+1:n_samples+7] = np.array(
-                [
-                    # Unique
-                    [3, 3, 2, 2, 0],
-                    [2, 1, 0, 0, 0],
-                ]
-            )
-            # output_dt_mat is big enough to hold every possible dyetrack but would
-            # be truncated after this call.
-            output_dt_mat = ArrayResult(
-                "dt_mat",
-                shape=(n_peps * n_samples, n_channels, n_cycles),
+                shape=(15, n_channels, n_cycles),
                 dtype=DyeType,
                 mode="w+",
             ).arr()
 
-            true_pep_iz = np.array([0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2])
+            # fmt: off
+            dyemat = np.array([
+                [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0]],  # d0, p0
+
+                [[2, 2, 1, 1, 0], [2, 1, 0, 0, 0]],  # d2, p1
+                [[2, 2, 1, 1, 0], [2, 1, 0, 0, 0]],  # d2, p1
+                [[2, 2, 1, 1, 0], [2, 1, 0, 0, 0]],  # d2, p1
+                [[2, 2, 1, 1, 0], [2, 1, 0, 0, 0]],  # d2, p1
+                [[2, 2, 1, 1, 0], [2, 1, 0, 0, 0]],  # d2, p1
+                [[1, 1, 1, 1, 0], [1, 1, 0, 0, 0]],  # d1, p1
+                [[1, 1, 1, 1, 0], [1, 1, 0, 0, 0]],  # d1, p1
+
+                [[1, 1, 1, 1, 0], [1, 1, 0, 0, 0]],  # d1, p2
+                [[2, 2, 1, 1, 0], [2, 1, 0, 0, 0]],  # d2, p2
+                [[3, 3, 2, 2, 0], [2, 1, 0, 0, 0]],  # d3, p2
+                [[3, 3, 2, 2, 0], [2, 1, 0, 0, 0]],  # d3, p2
+                [[3, 3, 2, 2, 0], [2, 1, 0, 0, 0]],  # d3, p2
+                [[3, 3, 2, 2, 0], [2, 1, 0, 0, 0]],  # d3, p2
+                [[3, 3, 2, 2, 0], [2, 1, 0, 0, 0]],  # d3, p2
+            ])
+            # fmt: on
+
+            # output_dt_mat is big enough to hold every possible dyetrack but would
+            # be truncated after this call.
+            output_dt_mat = ArrayResult(
+                "dt_mat",
+                shape=(15, n_channels, n_cycles),
+                dtype=DyeType,
+                mode="w+",
+            ).arr()
+
+            true_pep_iz = np.array([0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2])
 
             return dyemat, output_dt_mat, true_pep_iz
 
     def it_creates_lookup():
         dyemat, output_dt_mat, true_pep_iz = _make_dyemat()
+
         (
             dyetracks_df,
             dt_pep_sources_df,
@@ -85,26 +92,25 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
         def it_returns_dyetracks_df():
             # TODO: Rename dye_i to dt_i
             assert dyetracks_df.dye_i.values.tolist() == [0, 1, 2, 3]
-            assert dyetracks_df.weight.values.tolist() == [7, 2, 6, 6]
+            assert dyetracks_df.weight.values.tolist() == [1, 3, 6, 5]
 
         def it_returns_sources_df():
             # TODO: Reanme dye_i t dt_i
-            assert dt_pep_sources_df.dye_i.values.tolist() == [0, 1, 2, 2, 3]
-            assert dt_pep_sources_df.pep_i.values.tolist() == [0, 1, 1, 2, 2]
-            assert dt_pep_sources_df.n_rows.values.tolist() == [7, 2, 5, 1, 6]
+            assert dt_pep_sources_df.dye_i.values.tolist() == [0, 1, 1, 2, 2, 3]
+            assert dt_pep_sources_df.pep_i.values.tolist() == [0, 1, 2, 1, 2, 2]
+            assert dt_pep_sources_df.n_rows.values.tolist() == [1, 2, 1, 5, 1, 5]
 
         def it_returns_flann():
             assert isinstance(flann, pyflann.index.FLANN)
 
         def it_computes_best_pep_df():
-            import pudb; pudb.set_trace()
             assert (
                 dye_to_best_pep_df.loc[0].pep_i == 0
                 and dye_to_best_pep_df.loc[0].score == 1.0
             )
             assert (
                 dye_to_best_pep_df.loc[1].pep_i == 1
-                and dye_to_best_pep_df.loc[1].score == 1.0
+                and dye_to_best_pep_df.loc[1].score == 2.0 / 3.0
             )
             assert (
                 dye_to_best_pep_df.loc[2].pep_i == 1
@@ -129,66 +135,6 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
     @zest.skip("T", "TODO")
     def it_uniqifies_over_blocks():
         raise NotImplementedError
-
-    zest()
-
-
-def zest_nn_v1_step_1_create_neighbors_lookup_multiprocess():
-    def it_gets_same_result_as_single_threaded():
-        # n_peps, n_samples, n_channels, n_cycles = (50, 1000, 2, 15)
-        n_peps, n_samples, n_channels, n_cycles = (20, 100, 2, 15)
-        bin_vecs = np.random.randint(
-            0, 2, size=(n_peps, n_samples, n_channels, n_cycles)
-        )
-        dyemat = np.cumsum(bin_vecs, axis=3)[:, :, :, ::-1]
-        dyemat[0, 0] = np.zeros((n_channels, n_cycles), dtype=DyeType)
-        dyemat = np.repeat(dyemat, 80, 0)
-        np.random.shuffle(dyemat)
-
-        with tmp.tmp_folder(chdir=True):
-            output_dt_mat_st = ArrayResult(
-                "dt_mat_st",
-                shape=(n_peps * n_samples, n_channels, n_cycles),
-                dtype=DyeType,
-                mode="w+",
-            ).arr()
-
-            output_dt_mat_mt = ArrayResult(
-                "dt_mat_mt",
-                shape=(n_peps * n_samples, n_channels, n_cycles),
-                dtype=DyeType,
-                mode="w+",
-            ).arr()
-
-            # prof()
-            (
-                dyetracks_df_st,
-                dt_pep_sources_df_st,
-                dye_to_best_pep_df_st,
-                flann_st,
-                n_dts_st,
-            ) = nn_v1._step_1_create_neighbors_lookup_singleprocess(
-                dyemat, output_dt_mat_st
-            )
-            # prof("st")
-
-            # prof()
-            (
-                dyetracks_df_mt,
-                dt_pep_sources_df_mt,
-                dye_to_best_pep_df_mt,
-                flann_mt,
-                n_dts_mt,
-            ) = nn_v1._step_1_create_neighbors_lookup_multiprocess(
-                dyemat, output_dt_mat_mt
-            )
-            # prof("mt")
-
-            assert_frame_equal(dyetracks_df_st, dyetracks_df_mt)
-            assert_frame_equal(dt_pep_sources_df_st, dt_pep_sources_df_st)
-            assert_frame_equal(dye_to_best_pep_df_st, dye_to_best_pep_df_st)
-            assert n_dts_st == n_dts_mt
-            assert np.all(output_dt_mat_st == output_dt_mat_mt)
 
     zest()
 

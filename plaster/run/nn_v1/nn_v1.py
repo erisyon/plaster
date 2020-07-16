@@ -561,8 +561,7 @@ def _step_1_create_neighbors_lookup_singleprocess(true_pep_iz, dyemat, output_dt
         dyemat, return_inverse=True, return_counts=True, axis=0
     )
 
-    dt_mat = dt_mat.reshape((dt_mat.shape[0], n_channels, n_cycles))
-    n_dts, n_channels, n_cycles = dt_mat.shape
+    n_dts = dt_mat.shape[0]
     output_dt_mat[0:n_dts] = dt_mat
 
     # Check that the nul row exists and it the first element
