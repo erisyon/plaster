@@ -97,21 +97,21 @@ TASKS:
 """
 
 from enum import IntEnum
-import numpy as np
+
 import cv2
+import numpy as np
 import pandas as pd
 from munch import Munch
+from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
+from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
+from plaster.tools.calibration.calibration import Calibration
+from plaster.tools.image import imops
+from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.image.imops import sub_pixel_center
+from plaster.tools.log.log import debug, info
+from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
-from plaster.tools.image import imops
-from plaster.tools.image.coord import XY, YX, WH, HW, ROI
-from plaster.tools.schema import check
-from plaster.tools.calibration.calibration import Calibration
-from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
-from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
-from plaster.tools.log.log import debug, info
-
 
 # Helpers
 # -------------------------------------------------------------------------------
@@ -441,9 +441,9 @@ def _psf_normalize(psfs):
 # -------------------------------------------------------------------------------
 
 
-def _calibrate_bg_and_psf_im(im, divs=5, keep_dist=8, peak_mea=11, locs=None):
+def _calibrate_psf_im(im, divs=5, keep_dist=8, peak_mea=11, locs=None):
     """
-    Run background & PSF calibration for one image.
+    Run PSF calibration for one image.
 
     These are typically combined from many fields and for each channel
     to get a complete calibration.
@@ -452,29 +452,19 @@ def _calibrate_bg_and_psf_im(im, divs=5, keep_dist=8, peak_mea=11, locs=None):
     by using the most in-focus frame for the locations
 
     Arguments:
-        im: One image
+        im: One image, already background subtracted
         divs: Spatial divisions
-        keep_dist: Pixel distancer under which is considered a collision
+        keep_dist: Pixel distance under which is considered a collision
         peak_mea: n pixel width and height to hold the peak image
         locs: If None it will use the peak finder; otherwise these
-              locs are being passed in and are expected to coorespond
+              locs are being passed in and are expected to correspond
               to the peak locs found in a previous step.
 
     Returns:
         locs (location of accepted peaks)
-        regional_bg_mean
-        regional_bg_std
         regional_psf_zstack
     """
     check.array_t(im, ndim=2)
-    stats = _regional_bg_fg_stats(im, divs=divs)
-    reg_bg_mean = stats[:, :, 0]
-    reg_bg_std = stats[:, :, 1]
-    check.array_t(reg_bg_mean, shape=(divs, divs))
-    check.array_t(reg_bg_std, shape=(divs, divs))
-
-    bg_im = imops.interp(reg_bg_mean, im.shape[-2:])
-    im = im - bg_im
 
     if locs is None:
         locs = _peak_find(im)
@@ -522,7 +512,63 @@ def _calibrate_bg_and_psf_im(im, divs=5, keep_dist=8, peak_mea=11, locs=None):
         global_accepted_iz = local_loc_i_to_global_loc_i[local_accepted_iz]
         accepted[global_accepted_iz] = 1
 
-    return locs[accepted > 0], reg_bg_mean, reg_bg_std, reg_psfs
+    return locs[accepted > 0], reg_psfs
+
+
+def background_estimate(im, divs):
+    stats = _regional_bg_fg_stats(im, divs=divs)
+    reg_bg_mean = stats[:, :, 0]
+    reg_bg_std = stats[:, :, 1]
+    check.array_t(reg_bg_mean, shape=(divs, divs))
+    check.array_t(reg_bg_std, shape=(divs, divs))
+    return reg_bg_mean, reg_bg_std
+
+
+def background_subtraction(im, reg_bg_mean):
+    bg_im = imops.interp(reg_bg_mean, im.shape[-2:])
+    diff_im = im - bg_im
+    return diff_im
+
+
+def add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_z_slices, divs, calib):
+    """
+    Arguments:
+        flchcy_ims: frame, channel, cycles ims to be analyzed
+        ch_i: channel index we are adding calib stats for
+        n_z_slices: nbr of z slices, in index we normally use for cycle
+        divs: divisions (in two dims) of image for regional stats
+        calib: Calibration object we are adding stats to
+
+    Returns:
+        calib object with background means and stds added for the given ch_i
+    """
+    n_fields = flchcy_ims.shape[0]
+    regional_stats = np.zeros(
+        (n_fields, divs, divs, 2)
+    )  # each region has a mean (0) and std (1)
+    for fl_i in range(0, n_fields):
+        for z_i in range(0, n_z_slices):
+            im = flchcy_ims[fl_i][ch_i][z_i]
+            reg_bg_mean, reg_bg_std = background_estimate(im, divs)
+            regional_stats[fl_i, :, :, 0] = reg_bg_mean
+            regional_stats[fl_i, :, :, 1] = reg_bg_std
+    summary_regional_stats = np.mean(regional_stats, axis=0)
+    calib.add(
+        {
+            f"regional_bg_mean.instrument_channel[{ch_i}]": summary_regional_stats[
+                :, :, 0
+            ].tolist()
+        }
+    )
+    calib.add(
+        {
+            f"regional_bg_std.instrument_channel[{ch_i}]": summary_regional_stats[
+                :, :, 1
+            ].tolist()
+        }
+    )
+
+    return calib
 
 
 def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
@@ -537,6 +583,7 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
     """
 
     n_fields, n_channels, n_cycles = flchcy_ims.shape[0:3]
+    im_dim = flchcy_ims.shape[-2:]
     n_z_slices = n_cycles  # This is just an alias to remind me that cycle=z-slice here.
 
     peak_mea = 11
@@ -555,35 +602,36 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
         # Masks out the foreground and uses remaining pixels to estimate
         # regional background mean and std.
         # --------------------------------------------------------------
+        calib = add_regional_bg_stats_to_calib(
+            flchcy_ims, n_fields, n_channels, n_z_slices, divs, calib
+        )
 
-        flcy_calibs = [
-            _calibrate_bg_and_psf_im(flchcy_ims[fl_i, ch_i, cy_i])
-            for fl_i in range(n_fields)
-            for cy_i in range(n_cycles)
-        ]
-
+        # FIXME: this is just dummy data for now, need to replace with real deal
         calib.add(
             {
-                f"regional_bg_mean.instrument_channel[{ch_i}]": np.mean(
-                    [
-                        np.array(
-                            flcy_calibs[f"regional_bg_mean.instrument_channel[{ch_i}]"]
-                        )
-                        for c in flcy_calibs
-                    ]
+                f"regional_psf_zstack.instrument_channel[{ch_i}]": (
+                    np.zeros((n_z_slices, divs, divs, *peak_dim))
                 )
+                for c in flcy_calibs
             }
         )
 
-        # reg_psfs = np.sum([
-        #     np.array(c[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
-        #     for c in flcy_calibs
-        # ], axis=(2, 3))
-        #
+        # reg_psfs = np.sum(
+        #     [
+        #         np.array(c[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
+        #         for c in flcy_calibs
+        #     ],
+        #     axis=(2, 3),
+        # )
+
         # denominator = np.sum(z_and_region_to_psf, axis=(2, 3))[:, :, None, None]
-        # calib.add({
-        #     f"regional_psf_zstack.instrument_channel[{ch_i}]": reg_psfs /
-        # })
+        # calib.add(
+        #     {
+        #         f"regional_psf_zstack.instrument_channel[{ch_i}]": (
+        #             reg_psfs / denominator
+        #         ).tolist()
+        #     }
+        # )
         #
         # z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
         #
@@ -635,7 +683,11 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
         #         f"regional_psf_zstack.instrument_channel[{ch_i}]": z_and_region_to_psf.tolist()
         #     }
         # )
-
+        # 1) background estimate
+        # 2) subtract background using estimate
+        # 3) psf estimate (volume normalized so already independent of foreground brightness, but needs background subtraction)
+        # 4) radiometry using psf estimate
+        # 5) regional balancing using the radiometry
         # FOREGROUND
         # Runs the standard sigproc_field analysis (without balancing)
         # to get the regional radmats for regional histogram balancing.
@@ -651,7 +703,9 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
                 ).tolist()
             }
         )
-
+        # A single field is not good enough to have reasonable statistics,
+        # for estimating the foreground radiometry, therefore we accumulate
+        # over many fields.
         sigproc_params = SigprocV2Params(
             calibration=calib,
             instrument_subject_id=None,
@@ -671,51 +725,77 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
         fl_radmat = np.concatenate(fl_radmats)
         fl_loc = np.concatenate(fl_locs)
 
+        # We now have many field radmats and peak locations, but we now
+        # have to filter the peaks because some of them may actually be the
+        # result of >1 molecule, and will therefore be extra bright, which
+        # will throw off the calculation of regional foreground illumination
         # BALANCE
+        # step 1) get signal component of radmat for all fields, this channel,
+        # all peaks, 0th element is signal as opposed to 1st element is noise
         sig = np.nan_to_num(fl_radmat[:, ch_i, :, 0].flatten())
         noi = fl_radmat[:, ch_i, :, 1].flatten()
         snr = np.nan_to_num(sig / noi)
 
+        # step 2) operations on the locations, filter out peaks which are
+        # too close to each other.  Tile is to get the locs repeated so that
+        # dims match for later mask
         locs = np.tile(fl_loc, (1, n_cycles)).reshape((-1, 2))
 
-        snr_mask = snr > 10
+        snr_mask = snr > 10  # 10 is an empirically determined number for snr
         sig = sig[snr_mask]
         locs = locs[snr_mask]
 
-        top = np.max((locs[:, 0], locs[:, 1]))
-        y = utils.ispace(0, top, divs + 1)
-        x = utils.ispace(0, top, divs + 1)
+        # FIXME: we want a calibration that applies to the entire field, but
+        # due to registration errors between cycles, a region around the edge
+        # will not have any acceptable locs.
+        # step 3)
+        # top = np.max((locs[:, 0], locs[:, 1])) #<-- replace with actual dim of image
+        y = utils.ispace(0, im_dim[0], divs + 1)
+        x = utils.ispace(0, im_dim[1], divs + 1)
 
+        # mask of all the peaks that fall within a region
+        # is this in original coord system, or original minus unusable edge areas?
+        # make sure this is the full x,y
         def regional_locs_mask(yi, xi):
             """Create a mask for locs inside of a region"""
             mask = (y[yi] <= locs[:, 0]) & (locs[:, 0] < y[yi + 1])
             mask &= (x[xi] <= locs[:, 1]) & (locs[:, 1] < x[xi + 1])
             return mask
 
+        # find peaks that are within each region, with not only snr > mask, but
+        # also brightness greater than 2 units, and within the square we are looking,
+        # and calculate their median (instead of mean so we are resistant to spots
+        # where we have more than one molecule)
         medians = np.zeros((divs, divs))
         for yi in range(len(y) - 1):
             for xi in range(len(x) - 1):
                 loc_mask = regional_locs_mask(yi, xi)
-                bright_mask = sig > 2.0
+                bright_mask = (
+                    sig > 2.0
+                )  # <- empirically determined usable value of 2.0 (may need tuning)
                 _sig = sig[loc_mask & bright_mask]
                 medians[yi, xi] = np.median(_sig)
 
-        center = np.max(medians)
-        balance = np.zeros((divs, divs))
-        for yi in range(len(y) - 1):
-            for xi in range(len(x) - 1):
-                loc_mask = regional_locs_mask(yi, xi)
-                bright_mask = sig > 2.0
-                _sig = sig[loc_mask & bright_mask]
+        max_regional_fg_est = np.max(medians)
+        # balance = np.zeros((divs, divs))
+        # for yi in range(len(y) - 1):
+        #     for xi in range(len(x) - 1):
+        #         loc_mask = regional_locs_mask(yi, xi)
+        #         bright_mask = sig > 2.0
+        #         _sig = sig[loc_mask & bright_mask]
 
+        # balance is a floating point value eventually used to scale dark regions
+        # up to the same brightness as the brightest region.  Typically the center
+        # will be the brightest, and max_region_fg_est will reflect that region,
+        # and the corner regions will have balance value > 1.
         for yi in range(len(y) - 1):
             for xi in range(len(x) - 1):
                 loc_mask = regional_locs_mask(yi, xi)
                 bright_mask = sig > 2.0
                 _sig = sig[loc_mask & bright_mask]
                 median = np.median(_sig)
-                balance[yi, xi] = center / median
-                _sig *= balance[yi, xi]
+                balance[yi, xi] = max_regional_fg_est / median
+                # _sig *= balance[yi, xi]
 
         calib.add(
             {

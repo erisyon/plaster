@@ -26,7 +26,7 @@
 
 
 
-from pyflann.exceptions import FLANNException
+from plaster.vendor.pyflann.exceptions import FLANNException
 from . import binary_dataset
 from . import dat_dataset
 from . import npy_dataset

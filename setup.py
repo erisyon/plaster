@@ -1,14 +1,14 @@
 # python setup.py build_ext --inplace
 
-import os
 import pathlib
-
-import numpy
-from Cython.Build import cythonize
-from setuptools import Extension, dist, setup
+from setuptools import Extension, dist, find_packages, setup
 
 dist.Distribution().fetch_build_eggs(["Cython>=0.15.1", "numpy>=1.10"])
 
+# these two imports must be below the line above; which ensures they're available
+# for use during installation
+from Cython.Build import cythonize  # isort:skip
+import numpy  # isort:skip
 
 # The directory containing this file
 HERE = pathlib.Path(__file__).parent
@@ -87,7 +87,8 @@ setup(
         "opencv-python",
         "pandas",
         "plumbum",
-        "psf",
+        # see the comment in plaster/plaster/run/sigproc_v2/synth.py for why this is commented out
+        # "psf",
         "pudb",
         "pyyaml",
         "requests",
@@ -96,9 +97,8 @@ setup(
         "scikit-learn",
         "twine",
         "wheel",
-        "zbs-zest",
+        "zbs.zest",
     ],
-    entry_points={"console_scripts": ["plas=plaster.main",]},
     python_requires=">=3.6",
     ext_modules=cythonize(extensions, language_level="3"),
 )

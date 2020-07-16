@@ -1,10 +1,12 @@
-from plumbum import local
 import numpy as np
-from plaster.tools.utils import utils
 from plaster.tools.image import imops
-from plaster.tools.image.coord import XY, YX, WH, HW, ROI
+from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
-from plaster.run.sigproc_v2.psf_sample import psf_sample
+from plaster.tools.utils import utils
+from plumbum import local
+
+# see comment below, above "PeaksModelPSF" regarding why this is commented out
+# from plaster.run.sigproc_v2.psf_sample import psf_sample
 
 
 class Synth:
@@ -236,36 +238,42 @@ class PeaksModelGaussianAstigmatism(PeaksModelGaussian):
             self.covs[loc_i, :, :] = cov
 
 
-class PeaksModelPSF(PeaksModel):
-    def __init__(self, n_z_slices=8, depth_in_microns=0.4, r_in_microns=28.0, **kws):
-        """
-        Generates a set of psf images for each z slice called self.z_to_psf
-        The self.z_iz keeps track of which z slice each peak is assigned to.
-        """
-        super().__init__(**kws)
-        self.n_z_slices = n_z_slices
-        self.z_iz = np.zeros((self.n_peaks,), dtype=int)
-        self.z_to_psf = psf_sample(
-            n_z_slices=64, depth_in_microns=depth_in_microns, r_in_microns=r_in_microns
-        )
+# Commenting this out to avoid an issue with the PSF package interacting with numpy
+# it should be brought back when that issue is better understood. To duplicate the issue
+# do:
+#  - docker run --rm -it -v $(pwd):/erisyon/plaster jupyter/scipy-notebook:latest bash
+#  - cd /erisyon/plaster && python setup.py install
+#
+# class PeaksModelPSF(PeaksModel):
+#     def __init__(self, n_z_slices=8, depth_in_microns=0.4, r_in_microns=28.0, **kws):
+#         """
+#         Generates a set of psf images for each z slice called self.z_to_psf
+#         The self.z_iz keeps track of which z slice each peak is assigned to.
+#         """
+#         super().__init__(**kws)
+#         self.n_z_slices = n_z_slices
+#         self.z_iz = np.zeros((self.n_peaks,), dtype=int)
+#         self.z_to_psf = psf_sample(
+#             n_z_slices=64, depth_in_microns=depth_in_microns, r_in_microns=r_in_microns
+#         )
 
-    def z_randomize(self):
-        # Unrealisitically pull from any PSF z depth
-        self.z_iz = np.random.randint(0, self.n_z_slices, self.n_peaks)
-        return self
+#     def z_randomize(self):
+#         # Unrealisitically pull from any PSF z depth
+#         self.z_iz = np.random.randint(0, self.n_z_slices, self.n_peaks)
+#         return self
 
-    def z_set_all(self, z_i):
-        self.z_iz = (z_i * np.ones((self.n_peaks,))).astype(int)
-        return self
+#     def z_set_all(self, z_i):
+#         self.z_iz = (z_i * np.ones((self.n_peaks,))).astype(int)
+#         return self
 
-    def render(self, im, cy_i):
-        super().render(im, cy_i)
-        for loc, amp, z_i in zip(self.locs, self.amps, self.z_iz):
-            frac_part, int_part = np.modf(loc)
-            shifted_peak_im = imops.sub_pixel_shift(self.z_to_psf[z_i], frac_part)
-            imops.accum_inplace(
-                im, amp * shifted_peak_im, loc=YX(*int_part), center=True
-            )
+#     def render(self, im, cy_i):
+#         super().render(im, cy_i)
+#         for loc, amp, z_i in zip(self.locs, self.amps, self.z_iz):
+#             frac_part, int_part = np.modf(loc)
+#             shifted_peak_im = imops.sub_pixel_shift(self.z_to_psf[z_i], frac_part)
+#             imops.accum_inplace(
+#                 im, amp * shifted_peak_im, loc=YX(*int_part), center=True
+#             )
 
 
 class IlluminationQuadraticFalloffModel(BaseSynthModel):

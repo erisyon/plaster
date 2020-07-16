@@ -81,15 +81,16 @@ The NN classifier works by the following method:
 
 
 """
-from munch import Munch
+import random
+
 import numpy as np
 import pandas as pd
-import pyflann
-import random
-from plaster.tools.utils import utils
-from plaster.tools.schema import check
-from plaster.tools.zap import zap
+from munch import Munch
 from plaster.tools.log.log import debug
+from plaster.tools.schema import check
+from plaster.tools.utils import utils
+from plaster.tools.zap import zap
+from plaster.vendor import pyflann
 from scipy.spatial import distance
 
 
@@ -260,9 +261,9 @@ def _do_nn_and_gmm(
             1.  We have n_rows (number of neighbors) and n_cols (number of feature dimensions)
 
             2.  We have pre-computed (x-mu) and call it "delta"
-                This is a (n_rows, n_cols) matrix 
+                This is a (n_rows, n_cols) matrix
 
-            3.  We don't actually have Sigma, rather we have 
+            3.  We don't actually have Sigma, rather we have
                 the "inverse variance" which we call: "neigh_dt_inv_var"
                 and which we store in vector form!
                 Therefore:
@@ -287,9 +288,9 @@ def _do_nn_and_gmm(
 
             7.  Because the whole equation converts to vector form
                 all of the row operations on each neighbor can
-                be done simultaneously.    
+                be done simultaneously.
 
-            8.  The  (2.0 * np.pi)**(-k / 2.0) is omitted as it will get 
+            8.  The  (2.0 * np.pi)**(-k / 2.0) is omitted as it will get
                 factored out when scores are computed.
 
             Therefore:
