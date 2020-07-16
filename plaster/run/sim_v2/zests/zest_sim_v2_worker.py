@@ -1,13 +1,13 @@
 from munch import Munch
 import pandas as pd
 import numpy as np
-from plaster.tools.log.log import debug, prof
 from plaster.run.prep.prep_params import PrepParams
 from plaster.run.prep.prep_result import PrepResult
-from plaster.run.sim_v2.sim_v2_params import SimV2Params, ErrorModel
+from plaster.run.sim_v2.sim_v2_params import SimV2Params, ErrorModel, RadType
 from plaster.run.sim_v2 import sim_v2_worker
 from plaster.tools.utils import utils
 from zest import zest
+from plaster.tools.log.log import debug, prof
 
 
 def zest_gen_flus():
@@ -37,6 +37,48 @@ def zest_gen_flus():
         assert utils.np_array_same(pi_brights[0], np.array([0], dtype=np.uint64))
         assert utils.np_array_same(pi_brights[1], np.array([half_uint64_max, half_uint64_max, 0], dtype=np.uint64))
         assert utils.np_array_same(pi_brights[2], np.array([half_uint64_max, half_uint64_max], dtype=np.uint64))
+
+    zest()
+
+
+def zest_radmat_sim():
+    ch_params_with_noise = [
+        Munch(beta=7500.0, sigma=0.16),
+        Munch(beta=7500.0, sigma=0.16),
+    ]
+
+    ch_params_no_noise = [
+        Munch(beta=1.0, sigma=0.0),
+        Munch(beta=1.0, sigma=0.0),
+    ]
+
+    dyemat = np.array([
+        [[0, 0, 0], [0, 0, 0]],
+        [[1, 1, 0], [1, 0, 0]],
+        [[2, 2, 1], [2, 1, 0]],
+    ])
+
+    dyepeps = np.array([
+        [0, 0, 0],
+        [1, 1, 10],
+        [1, 2, 5],
+        [2, 2, 5],
+    ])
+
+    def it_returns_reasonable_radiometry():
+        radiometry, true_pep_iz = sim_v2_worker._radmat_sim(dyemat, dyepeps, ch_params_with_noise)
+        assert np.all(radiometry[radiometry > 0.0] > 1000.0)
+
+    def it_returns_correct_radiometry_with_no_noise():
+        # By using no noise, we can just compare that radiometry gave back the dyemat
+        # but with each peptide repeated
+        radiometry, true_pep_iz = sim_v2_worker._radmat_sim(dyemat, dyepeps, ch_params_no_noise)
+        assert utils.np_array_same(radiometry[0:15], dyemat[1, :].astype(RadType))
+        assert utils.np_array_same(radiometry[15:20], dyemat[2, :].astype(RadType))
+        assert true_pep_iz[0:20].tolist() == [
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        ]
 
     zest()
 
@@ -139,9 +181,9 @@ def zest_sim_v2_worker():
         assert utils.np_array_same(flus[1], np.array([0, 1, 7], dtype=np.uint8))
         assert utils.np_array_same(flus[2], np.array([0, 0], dtype=np.uint8))
 
-    # def it_returns_test_radmat():
-    #     raise NotImplementedError
-    #
+    def it_returns_test_radmat():
+        raise NotImplementedError
+
     # def it_returns_test_dyemat():
     #     raise NotImplementedError
     #

@@ -9,6 +9,14 @@ from plaster.run.error_model import ErrorModel
 from plaster.tools.log.log import debug
 
 
+DyeType = np.uint8
+DyeWeightType = np.float32
+RadType = np.float32
+IndexType = np.uint32
+RecallType = np.float32
+ScoreType = np.float32
+
+
 class SimV2Params(Params):
     """
     Simulations parameters is and ErrorModel + parameters for sim

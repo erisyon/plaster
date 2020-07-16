@@ -2,15 +2,7 @@ import pandas as pd
 import numpy as np
 from plaster.tools.utils import utils
 from plaster.run.base_result import BaseResult, ArrayResult
-from plaster.run.sim_v1.sim_v1_params import SimV1Params
-
-
-DyeType = np.uint8
-DyeWeightType = np.float32
-RadType = np.float32
-IndexType = np.uint32
-RecallType = np.float32
-ScoreType = np.float32
+from plaster.run.sim_v2.sim_v2_params import SimV2Params
 
 
 class SimV2Result(BaseResult):
@@ -18,7 +10,7 @@ class SimV2Result(BaseResult):
     filename = "sim_v2.pkl"
 
     required_props = dict(
-        params=SimV1Params,
+        params=SimV2Params,
         train_dyemat=ArrayResult,  # (n_peps, n_samples, n_channels, n_cycles):uint8
         train_pep_recalls=np.ndarray,
         train_flus=np.ndarray,
@@ -117,12 +109,16 @@ class SimV2Result(BaseResult):
         )
 
     def flat_train_radmat(self):
-        shape = self.train_dyemat.shape
+        shape = self.train_radmat.shape
         return self.train_radmat.reshape((shape[0] * shape[1], shape[2] * shape[3]))
 
     def flat_test_radmat(self):
-        shape = self.test_dyemat.shape
+        shape = self.test_radmat.shape
         return self.test_radmat.reshape((shape[0] * shape[1], shape[2] * shape[3]))
+
+    def flat_train_dyemat(self):
+        shape = self.train_dyemat.shape
+        return self.train_dyemat.reshape((shape[0] * shape[1], shape[2] * shape[3]))
 
     def train_true_pep_iz(self):
         shape = self.train_dyemat.shape

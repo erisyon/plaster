@@ -1,12 +1,18 @@
+from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.nn_v2.fast import nn_v2_fast
 
 
-def nn_worker(nn_v2_params, sim_v2_result):
+def nn_v2_worker(nn_v2_params, sim_v2_result):
+    import pudb; pudb.set_trace()
 
-    train_dyemat = sim_v2_result.train_dyemat
-    shape = train_dyemat.shape
-    train_dyemat = train_dyemat.reshape((shape[0] * shape[1], shape[2] * shape[3]))
+    test_pred_pep_iz, test_scores = nn_v2_fast.fast_nn(
+        sim_v2_result.flat_test_radmat(),
+        sim_v2_result.flat_train_dyemat(),
+        sim_v2_result.train_dyepeps,
+        n_neighbors=nn_v2_params.n_neighbors
+    )
 
-    pred_iz, scores = nn_v2_fast.fast_nn(
-        test_radmat, train_dyemat, train_dyepeps, n_neighbors=2
+    return NNV2Result(
+        test_pred_pep_iz=test_pred_pep_iz,
+        test_scores = test_scores,
     )
