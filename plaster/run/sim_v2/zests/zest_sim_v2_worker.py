@@ -182,7 +182,10 @@ def zest_sim_v2_worker():
         assert utils.np_array_same(flus[2], np.array([0, 0], dtype=np.uint8))
 
     def it_returns_test_radmat():
-        raise NotImplementedError
+        sim_v2_result = _sim(dict())
+        test_radmat = sim_v2_result.test_radmat
+        import pudb; pudb.set_trace()
+        assert test_radmat
 
     # def it_returns_test_dyemat():
     #     raise NotImplementedError

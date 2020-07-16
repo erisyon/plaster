@@ -41,7 +41,7 @@ import numpy as np
 from plaster.run.sim_v2.fast import sim_v2_fast
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.run.sim_v2 import sim_v2_params
-from plaster.run.base_result import ArrayResult
+from plaster.tools.log.log import debug
 
 
 def _rand_lognormals(logs, sigma):
@@ -121,7 +121,7 @@ def _radmat_sim(dyemat, dyepeps, ch_params):
     But also, this just needs to be moved into C.
     """
 
-    n_peps = np.max(dyepeps[:, 1]) + 1
+    n_peps = int(np.max(dyepeps[:, 1]) + 1)
     n_channels, n_cycles = dyemat.shape[-2:]
 
     n_samples_total = np.sum(dyepeps[:, 2])
@@ -153,11 +153,11 @@ def _radmat_sim(dyemat, dyepeps, ch_params):
                     # So we're scaling the dyes by beta and taking the log
                     ch_radiometry = _rand_lognormals(log_ch_beta + logs, ch_sigma)
 
-                    radiometry[sample_i:sample_i+count, ch, :] = np.nan_to_num(ch_radiometry)
+                    radiometry[sample_i:int(sample_i+count), ch, :] = np.nan_to_num(ch_radiometry)
 
-                true_pep_iz[sample_i:sample_i+count] = pep_i
+                true_pep_iz[sample_i:int(sample_i+count)] = pep_i
 
-            sample_i += count
+            sample_i = int(sample_i + count)
 
     assert sample_i == n_samples_total
 
@@ -202,7 +202,7 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
         test_dyemat, test_dyepeps, test_pep_recalls = _dyemat_sim(
             sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test
         )
-        test_radmat = _radmat_sim(test_dyemat, sim_v2_params.by_channel)
+        test_radmat = _radmat_sim(test_dyemat.reshape((test_dyemat.shape[0], sim_v2_params.n_channels, sim_v2_params.n_cycles)), test_dyepeps, sim_v2_params.by_channel)
 
         if not sim_v2_params.test_includes_dyemat:
             test_dyemat, test_dyepeps_df = None, None
