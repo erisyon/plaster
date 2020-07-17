@@ -125,4 +125,6 @@ def zest_check_args():
 
             myfunc(1, 2)
 
+            zest()
+
     zest()
