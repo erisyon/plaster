@@ -13,7 +13,6 @@ from plaster.tools.utils import utils
 from zest import zest
 
 
-
 def zest_kernel():
     def it_has_zero_mean():
         kern = worker._kernel()
@@ -430,9 +429,7 @@ def zest_psf_normalize():
 def zest_calibrate_bg_and_psf_im():
     def it_gets_bg_mean_and_std():
         im = np.random.normal(loc=100, scale=10, size=(256, 256))
-        reg_bg_mean, reg_bg_std = worker.background_estimate(
-            im, divs=5
-        )
+        reg_bg_mean, reg_bg_std = worker.background_estimate(im, divs=5)
         assert np.all(100.0 - reg_bg_mean < 4.0 ** 2)
         assert np.all(10.0 - reg_bg_std < 1.0 ** 2)
 

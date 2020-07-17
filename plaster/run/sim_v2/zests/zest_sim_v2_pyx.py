@@ -43,7 +43,9 @@ def zest_pyx_runs():
             sim_v2_fast.DyeType
         )
         flus += [flu]
-        pep_pi_brights += [np.full((len(flu_float)), 0xFFFFFFFFFFFFFFFF, dtype=np.uint64)]
+        pep_pi_brights += [
+            np.full((len(flu_float)), 0xFFFFFFFFFFFFFFFF, dtype=np.uint64)
+        ]
 
     cycles = np.zeros((sim_params.n_cycles,), dtype=sim_v2_fast.CycleKindType)
     i = 0

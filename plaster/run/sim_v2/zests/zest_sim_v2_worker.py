@@ -19,9 +19,9 @@ def zest_gen_flus():
 
     pep_seqs = pd.DataFrame(
         dict(
-            pep_i=[0, 1, 1,  1, 2, 2],
-            aa=[".", "A", "B",  "C", "A", "A"],
-            pep_offset_in_pro=[0, 0, 1,  2, 3, 4],
+            pep_i=[0, 1, 1, 1, 2, 2],
+            aa=[".", "A", "B", "C", "A", "A"],
+            pep_offset_in_pro=[0, 0, 1, 2, 3, 4],
         )
     )
 
@@ -35,8 +35,13 @@ def zest_gen_flus():
     def it_returns_p_bright():
         half_uint64_max = 9223372036854775807
         assert utils.np_array_same(pi_brights[0], np.array([0], dtype=np.uint64))
-        assert utils.np_array_same(pi_brights[1], np.array([half_uint64_max, half_uint64_max, 0], dtype=np.uint64))
-        assert utils.np_array_same(pi_brights[2], np.array([half_uint64_max, half_uint64_max], dtype=np.uint64))
+        assert utils.np_array_same(
+            pi_brights[1],
+            np.array([half_uint64_max, half_uint64_max, 0], dtype=np.uint64),
+        )
+        assert utils.np_array_same(
+            pi_brights[2], np.array([half_uint64_max, half_uint64_max], dtype=np.uint64)
+        )
 
     zest()
 
@@ -52,32 +57,47 @@ def zest_radmat_sim():
         Munch(beta=1.0, sigma=0.0),
     ]
 
-    dyemat = np.array([
-        [[0, 0, 0], [0, 0, 0]],
-        [[1, 1, 0], [1, 0, 0]],
-        [[2, 2, 1], [2, 1, 0]],
-    ])
+    dyemat = np.array(
+        [[[0, 0, 0], [0, 0, 0]], [[1, 1, 0], [1, 0, 0]], [[2, 2, 1], [2, 1, 0]],]
+    )
 
-    dyepeps = np.array([
-        [0, 0, 0],
-        [1, 1, 10],
-        [1, 2, 5],
-        [2, 2, 5],
-    ])
+    dyepeps = np.array([[0, 0, 0], [1, 1, 10], [1, 2, 5], [2, 2, 5],])
 
     def it_returns_reasonable_radiometry():
-        radiometry, true_pep_iz = sim_v2_worker._radmat_sim(dyemat, dyepeps, ch_params_with_noise)
+        radiometry, true_pep_iz = sim_v2_worker._radmat_sim(
+            dyemat, dyepeps, ch_params_with_noise
+        )
         assert np.all(radiometry[radiometry > 0.0] > 1000.0)
 
     def it_returns_correct_radiometry_with_no_noise():
         # By using no noise, we can just compare that radiometry gave back the dyemat
         # but with each peptide repeated
-        radiometry, true_pep_iz = sim_v2_worker._radmat_sim(dyemat, dyepeps, ch_params_no_noise)
+        radiometry, true_pep_iz = sim_v2_worker._radmat_sim(
+            dyemat, dyepeps, ch_params_no_noise
+        )
         assert utils.np_array_same(radiometry[0:15], dyemat[1, :].astype(RadType))
         assert utils.np_array_same(radiometry[15:20], dyemat[2, :].astype(RadType))
         assert true_pep_iz[0:20].tolist() == [
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
         ]
 
     zest()
@@ -96,7 +116,9 @@ def zest_sim_v2_worker():
         )
     )
 
-    pro_seqs = pd.DataFrame(dict(pro_i=[0, 1, 1, 1, 1, 1], aa=[".", "A", "B", "C", "A", "A"],))
+    pro_seqs = pd.DataFrame(
+        dict(pro_i=[0, 1, 1, 1, 1, 1], aa=[".", "A", "B", "C", "A", "A"],)
+    )
 
     peps = pd.DataFrame(
         dict(pep_i=[0, 1, 2], pep_start=[0, 0, 3], pep_stop=[1, 3, 5], pro_i=[0, 1, 1],)
@@ -104,9 +126,9 @@ def zest_sim_v2_worker():
 
     pep_seqs = pd.DataFrame(
         dict(
-            pep_i=[0, 1, 1,  1, 2, 2],
-            aa=[".", "A", "B",  "C", "A", "A"],
-            pep_offset_in_pro=[0, 0, 1,  2, 3, 4],
+            pep_i=[0, 1, 1, 1, 2, 2],
+            aa=[".", "A", "B", "C", "A", "A"],
+            pep_offset_in_pro=[0, 0, 1, 2, 3, 4],
         )
     )
 
@@ -125,71 +147,92 @@ def zest_sim_v2_worker():
             ["A", "B"], error_model=error_model, n_edmans=4
         )
 
-        return sim_v2_worker.sim(sim_v2_params, prep_result)
+        return sim_v2_worker.sim(sim_v2_params, prep_result), sim_v2_params
 
     def it_returns_train_dyemat():
         # Because it has no errors, there's only a perfect dyemats
-        sim_v2_result = _sim()
+        sim_v2_result, sim_v2_params = _sim()
         assert sim_v2_result.train_dyemat.shape == (3, 5 * 2)  # 5 cycles, 2 channels
         assert utils.np_array_same(
             sim_v2_result.train_dyemat[1:, :],
-            np.array([
-                [1, 0, 0, 0, 0, 1, 1, 0, 0, 0],
-                [2, 1, 0, 0, 0, 0, 0, 0, 0, 0]
-            ], dtype=np.uint8)
+            np.array(
+                [[1, 0, 0, 0, 0, 1, 1, 0, 0, 0], [2, 1, 0, 0, 0, 0, 0, 0, 0, 0]],
+                dtype=np.uint8,
+            ),
         )
 
     def it_returns_train_dyemat_with_a_zero_row():
-        sim_v2_result = _sim()
+        sim_v2_result, sim_v2_params = _sim()
         assert np.all(sim_v2_result.train_dyemat[0, :] == 0)
 
     def it_returns_train_dyepeps():
-        sim_v2_result = _sim()
+        sim_v2_result, sim_v2_params = _sim()
         assert utils.np_array_same(
             sim_v2_result.train_dyepeps,
-            np.array([
-                [1, 1, 5000],
-                [2, 2, 5000]
-            ], dtype=np.uint64)
+            np.array([[1, 1, 5000], [2, 2, 5000]], dtype=np.uint64),
         )
 
     def it_handles_non_fluorescent():
-        sim_v2_result = _sim(dict(p_non_fluorescent=0.5))
+        sim_v2_result, sim_v2_params = _sim(dict(p_non_fluorescent=0.5))
         # Check that every dyepep other than the nul-row
         # should have counts (col=2) a lot less than 5000.
         assert np.all(sim_v2_result.train_dyepeps[1:, 2] < 2000)
 
     def it_returns_no_all_dark_samples():
-        sim_v2_result = _sim(dict(p_non_fluorescent=0.99))
+        sim_v2_result, sim_v2_params = _sim(dict(p_non_fluorescent=0.99))
         assert not np.any(sim_v2_result.train_dyepeps[1:, 0] == 0)
 
     def it_returns_recalls():
-        sim_v2_result = _sim(dict(p_non_fluorescent=0.50))
+        sim_v2_result, sim_v2_params = _sim(dict(p_non_fluorescent=0.50))
         assert sim_v2_result.train_pep_recalls.shape[0] == 3  # 3 peps
-        assert sim_v2_result.train_pep_recalls[0] == 0.0  # The nul record should have no recall
-        assert np.all(sim_v2_result.train_pep_recalls[1:] < 0.85)  # The exact number is hard to say, but it should be < 1
+        assert (
+            sim_v2_result.train_pep_recalls[0] == 0.0
+        )  # The nul record should have no recall
+        assert np.all(
+            sim_v2_result.train_pep_recalls[1:] < 0.85
+        )  # The exact number is hard to say, but it should be < 1
 
     def it_emergency_escapes():
-        sim_v2_result = _sim(dict(p_non_fluorescent=1.0))
+        sim_v2_result, sim_v2_params = _sim(dict(p_non_fluorescent=0.99))
         # When nothing is fluorescent, everything should have zero recall
         assert np.all(sim_v2_result.train_pep_recalls == 0.0)
 
+    def it_handles_empty_dyepeps():
+        sim_v2_result, sim_v2_params = _sim(dict(p_non_fluorescent=1.0))
+        assert np.all(sim_v2_result.train_pep_recalls == 0.0)
+
     def it_returns_train_flus():
-        sim_v2_result = _sim(dict())
+        sim_v2_result, sim_v2_params = _sim(dict())
         flus = sim_v2_result.train_flus
         assert utils.np_array_same(flus[0], np.array([7], dtype=np.uint8))
         assert utils.np_array_same(flus[1], np.array([0, 1, 7], dtype=np.uint8))
         assert utils.np_array_same(flus[2], np.array([0, 0], dtype=np.uint8))
 
-    def it_returns_test_radmat():
-        sim_v2_result = _sim(dict())
-        test_radmat = sim_v2_result.test_radmat
-        import pudb; pudb.set_trace()
-        assert test_radmat
-
-    # def it_returns_test_dyemat():
-    #     raise NotImplementedError
+    # def it_returns_test_fields():
+    #     sim_v2_result, sim_v2_params = _sim(dict())
     #
+    #     def it_returns_test_radmat():
+    #         test_radmat = sim_v2_result.test_radmat
+    #         n_real_peps = 2
+    #         assert test_radmat.shape == (
+    #             sim_v2_params.n_samples_test * n_real_peps,
+    #             sim_v2_params.n_channels,
+    #             sim_v2_params.n_cycles,
+    #         )
+    #
+    #     def it_returns_test_dyemat():
+    #         # HERHE!
+    #         # import pudb; pudb.set_trace()
+    #         test_dyemat = sim_v2_result.test_dyemat
+    #         n_real_peps = 2
+    #         assert test_dyemat.shape == (
+    #             sim_v2_params.n_samples_test * n_real_peps,
+    #             sim_v2_params.n_channels,
+    #             sim_v2_params.n_cycles,
+    #         )
+    #
+    #     zest()
+
     # def it_returns_test_radmat_true_pep_iz():
     #     raise NotImplementedError
 
