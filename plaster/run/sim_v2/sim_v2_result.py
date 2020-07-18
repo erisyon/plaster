@@ -110,15 +110,16 @@ class SimV2Result(BaseResult):
 
     def flat_train_radmat(self):
         shape = self.train_radmat.shape
-        return self.train_radmat.reshape((shape[0] * shape[1], shape[2] * shape[3]))
+        return self.train_radmat.reshape((shape[0], shape[1] * shape[2]))
 
     def flat_test_radmat(self):
         shape = self.test_radmat.shape
-        return self.test_radmat.reshape((shape[0] * shape[1], shape[2] * shape[3]))
+        return self.test_radmat.reshape((shape[0], shape[1] * shape[2]))
 
     def flat_train_dyemat(self):
+        import pudb; pudb.set_trace()
         shape = self.train_dyemat.shape
-        return self.train_dyemat.reshape((shape[0] * shape[1], shape[2] * shape[3]))
+        return self.train_dyemat.reshape((shape[0], shape[1] * shape[2]))
 
     def train_true_pep_iz(self):
         shape = self.train_dyemat.shape

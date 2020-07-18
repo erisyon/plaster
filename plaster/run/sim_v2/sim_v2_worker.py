@@ -121,12 +121,18 @@ def _radmat_sim(dyemat, dyepeps, ch_params):
     But also, this just needs to be moved into C.
     """
 
-    n_peps = int(np.max(dyepeps[:, 1]) + 1)
+    if dyepeps.shape[0] == 0:
+        n_peps = 0
+    else:
+        n_peps = int(np.max(dyepeps[:, 1]) + 1)
+
     n_channels, n_cycles = dyemat.shape[-2:]
 
     n_samples_total = np.sum(dyepeps[:, 2])
 
-    radiometry = np.zeros((n_samples_total, n_channels, n_cycles), dtype=sim_v2_params.RadType)
+    radiometry = np.zeros(
+        (n_samples_total, n_channels, n_cycles), dtype=sim_v2_params.RadType
+    )
     true_pep_iz = np.zeros((n_samples_total), dtype=int)
 
     sample_i = 0
@@ -153,9 +159,11 @@ def _radmat_sim(dyemat, dyepeps, ch_params):
                     # So we're scaling the dyes by beta and taking the log
                     ch_radiometry = _rand_lognormals(log_ch_beta + logs, ch_sigma)
 
-                    radiometry[sample_i:int(sample_i+count), ch, :] = np.nan_to_num(ch_radiometry)
+                    radiometry[sample_i : int(sample_i + count), ch, :] = np.nan_to_num(
+                        ch_radiometry
+                    )
 
-                true_pep_iz[sample_i:int(sample_i+count)] = pep_i
+                true_pep_iz[sample_i : int(sample_i + count)] = pep_i
 
             sample_i = int(sample_i + count)
 
@@ -198,11 +206,19 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
     #   * skipped if is_survey
     # -----------------------------------------------------------------------
     if not sim_v2_params.is_survey:
-        test_flus, test_pi_brights = _gen_flus(sim_v2_params, prep_result.pepseqs__no_decoys())
+        test_flus, test_pi_brights = _gen_flus(
+            sim_v2_params, prep_result.pepseqs__no_decoys()
+        )
         test_dyemat, test_dyepeps, test_pep_recalls = _dyemat_sim(
             sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test
         )
-        test_radmat = _radmat_sim(test_dyemat.reshape((test_dyemat.shape[0], sim_v2_params.n_channels, sim_v2_params.n_cycles)), test_dyepeps, sim_v2_params.by_channel)
+        test_radmat, test_true_pep_iz = _radmat_sim(
+            test_dyemat.reshape(
+                (test_dyemat.shape[0], sim_v2_params.n_channels, sim_v2_params.n_cycles)
+            ),
+            test_dyepeps,
+            sim_v2_params.by_channel,
+        )
 
         if not sim_v2_params.test_includes_dyemat:
             test_dyemat, test_dyepeps_df = None, None
@@ -213,8 +229,7 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
         train_pep_recalls=train_pep_recalls,
         train_flus=train_flus,
         train_dyepeps=train_dyepeps,
-
-        test_radmat=test_radmat,
         test_dyemat=test_dyemat,
-        test_true_pep_iz=None,  # TODO
+        test_radmat=test_radmat,
+        test_true_pep_iz=test_true_pep_iz,
     )

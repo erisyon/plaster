@@ -25,10 +25,7 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
         n_cycles = 5
         with tmp.tmp_folder(chdir=True):
             dyemat = ArrayResult(
-                "dyemat",
-                shape=(15, n_channels, n_cycles),
-                dtype=DyeType,
-                mode="w+",
+                "dyemat", shape=(15, n_channels, n_cycles), dtype=DyeType, mode="w+",
             ).arr()
 
             # fmt: off
@@ -56,10 +53,7 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
             # output_dt_mat is big enough to hold every possible dyetrack but would
             # be truncated after this call.
             output_dt_mat = ArrayResult(
-                "dt_mat",
-                shape=(15, n_channels, n_cycles),
-                dtype=DyeType,
-                mode="w+",
+                "dt_mat", shape=(15, n_channels, n_cycles), dtype=DyeType, mode="w+",
             ).arr()
 
             true_pep_iz = np.array([0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2])
@@ -75,7 +69,9 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
             dye_to_best_pep_df,
             flann,
             n_dts,
-        ) = nn_v1._step_1_create_neighbors_lookup_singleprocess(true_pep_iz, dyemat, output_dt_mat)
+        ) = nn_v1._step_1_create_neighbors_lookup_singleprocess(
+            true_pep_iz, dyemat, output_dt_mat
+        )
 
         def it_uniqifies_dyemat():
             assert n_dts == 4
@@ -127,9 +123,7 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
         dyemat, output_dt_mat, true_pep_iz = _make_dyemat()
         with zest.raises(ValueError, in_args="No null row"):
             nn_v1._step_1_create_neighbors_lookup_singleprocess(
-                true_pep_iz,
-                dyemat[1:],
-                output_dt_mat
+                true_pep_iz, dyemat[1:], output_dt_mat
             )
 
     @zest.skip("T", "TODO")
@@ -449,3 +443,5 @@ def zest_nn_v1():
             assert nn_result.dt_scores.shape == (3,)
 
     zest()
+
+

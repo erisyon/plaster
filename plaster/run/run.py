@@ -111,7 +111,7 @@ def task_list_from_config(config):
         test_rf=TestRFTask,
         classify_rf=ClassifyRFTask,
         survey_nn=SurveyNNTask,
-        test_nn=NNV1Task,
+        nn_v1=NNV1Task,
         report=ReportTask,
     )
 
@@ -300,7 +300,7 @@ class RunResult:
         sigproc_v2=SigprocV2Result,
         sim_v1=SimV1Result,
         sim_v2=SimV2Result,
-        test_nn=NNV1Result,
+        nn_v1=NNV1Result,
         test_rf=TestRFResult,
         train_rf=TrainRFResult,
         sim_nn=SimV1Result,  # Example of why it is needed to pull the klass from the run
@@ -382,10 +382,10 @@ class RunResult:
         # Add to these if there are others available, or change the order to
         # determine which is used by default if more than one is available in
         # a RunResult.
-        supported_classifiers_by_preference = ["rf", "nn"]
+        supported_classifiers_by_preference = ["test_rf", "nn_v1"]
         available_classifiers_by_preference = []
         for c in supported_classifiers_by_preference:
-            if self.has_result(f"test_{c}"):
+            if self.has_result(c):
                 available_classifiers_by_preference += [c]
         return available_classifiers_by_preference
 
@@ -398,7 +398,7 @@ class RunResult:
         """
         if classifier is None:
             classifier = self.get_available_classifiers()[0]
-        return self[f"test_{classifier.lower()}_call_bag"](
+        return self[f"{classifier}_call_bag"](
             use_train_data=use_train_data
         )
 
@@ -435,7 +435,7 @@ class RunResult:
             sim_v1_result=self.sim_v1,
             cached_pr=cached_pr,
             cached_pr_abund=cached_pr_abund,
-            classifier_name="rf",
+            classifier_name="test_rf",
         )
 
     def classify_rf_call_bag(self):
@@ -449,28 +449,28 @@ class RunResult:
             classifier_name="classify_rf",
         )
 
-    def test_nn_call_bag(self, use_train_data=False):
+    def nn_v1_call_bag(self, use_train_data=False):
         """
         Get a CallBag for the NN classifier on this plaster.run.
         use_train_data=True when you want to look at over-fitting.
         """
         if use_train_data:
-            true_pep_iz = self.test_nn.train_true_pep_iz
-            pred_pep_iz = self.test_nn.train_pred_pep_iz
+            true_pep_iz = self.nn_v1.train_true_pep_iz
+            pred_pep_iz = self.nn_v1.train_pred_pep_iz
             check.affirm(
                 true_pep_iz is not None and pred_pep_iz is not None,
-                "The test_nn task was not run with the training_set",
+                "The nn_v1 task was not run with the training_set",
             )
-            cached_pr = self.test_nn.train_peps_pr
+            cached_pr = self.nn_v1.train_peps_pr
         else:
-            true_pep_iz = self.test_nn.test_true_pep_iz
-            pred_pep_iz = self.test_nn.test_pred_pep_iz
-            cached_pr = self.test_nn.test_peps_pr
+            true_pep_iz = self.nn_v1.test_true_pep_iz
+            pred_pep_iz = self.nn_v1.test_pred_pep_iz
+            cached_pr = self.nn_v1.test_peps_pr
 
         return CallBag(
             true_pep_iz=true_pep_iz,
             pred_pep_iz=pred_pep_iz,
-            scores=self.test_nn.test_scores,
+            scores=self.nn_v1.test_scores,
             prep_result=self.prep,
             sim_v1_result=self.sim_v1,
             cached_pr=cached_pr,
