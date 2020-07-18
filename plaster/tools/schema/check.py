@@ -5,15 +5,16 @@ Strict guidelines.
 
 """
 
-import pandas as pd
-import os
 import inspect
+import os
 import re
-from plaster.tools.log import log
-import numpy as np
-from typing import get_type_hints
-from functools import wraps
 from collections import Iterable
+from functools import wraps
+from typing import get_type_hints
+
+import numpy as np
+import pandas as pd
+from plaster.tools.log import log
 
 
 def _context(depth=2):
@@ -112,7 +113,7 @@ def affirm(condition, message=None, exp=CheckAffirmError):
         raise exp
 
 
-def t(instance, expected_type, depth=3):
+def t(instance, expected_type, depth=3, **kwargs):
     """
     Check that instance is of expected_type and produce a useful trace and raise if not.
 
@@ -130,7 +131,7 @@ def t(instance, expected_type, depth=3):
         expected_type = type(None)
 
     if not isinstance(instance, expected_type):
-        raise CheckError(expected_type, type(instance), depth)
+        raise CheckError(expected_type, type(instance), depth, **kwargs)
 
 
 def list_t(instance, expected_type):
