@@ -1,8 +1,11 @@
+from math import floor
+
 import numpy as np
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.tools.calibration.calibration import Calibration
+from plaster.tools.image import imops
 from plaster.tools.log.log import debug
 from plaster.tools.utils.utils import np_within
 from zest import zest
@@ -168,6 +171,79 @@ def zest_sigproc_v2_calibration():
         new_mean, new_std = worker.background_estimate(im_sub, divs)
         assert np_within(np.mean(new_mean), 0, tgt_std)
         return True
+
+    def it_can_calibrate_psf_im():
+        divs = 5
+        tgt_mean = 100
+        tgt_std = 10
+        peak_mea = 11
+        peak_dim = (peak_mea, peak_mea)
+
+        s = synth.Synth(n_cycles=1, overwrite=True)
+        peaks = (
+            synth.PeaksModelGaussianCircular(n_peaks=100)
+            .locs_randomize()
+            .amps_constant(val=10000)
+        )
+        synth.CameraModel(bias=tgt_mean, std=tgt_std)
+
+        psf_std = 0.5
+        peaks.widths_uniform(psf_std)
+        imgs = s.render_chcy()
+        bg_mean, bg_std = worker.background_estimate(imgs[0, 0], divs)
+        im_sub = worker.background_subtraction(imgs[0, 0], bg_mean)
+
+        locs, reg_psfs = worker._calibrate_psf_im(
+            im_sub, divs=divs, keep_dist=8, peak_mea=11, locs=None
+        )
+
+        fit_params_mean = [0, 0, 0, 0, 0, 0, 0, 0]
+        fit_params_divisor = 0
+        for x in range(0, reg_psfs.shape[0]):
+            for y in range(0, reg_psfs.shape[1]):
+                if np.sum(reg_psfs[x, y]) == 0:
+                    continue
+                fit_params, fit_variance = imops.fit_gauss2(reg_psfs[x, y])
+                for fv in fit_variance:
+                    try:
+                        assert fv < 0.001
+                    except AssertionError:
+                        print(fv)
+                        raise AssertionError
+                fit_params_mean = [a + b for a, b in zip(fit_params_mean, fit_params)]
+                fit_params_divisor += 1
+        fit_params_mean = [a / fit_params_divisor for a in fit_params_mean]
+        midpt = floor(peak_mea / 2)
+        # true_params: 1, psf_std, psf_std, midpt, midpt, 0, 0, peak_mea
+
+        try:
+            assert abs(1 - fit_params_mean[0]) < 0.1
+            assert abs(psf_std - fit_params_mean[1]) < 0.15
+            assert abs(psf_std - fit_params_mean[2]) < 0.15
+            assert abs(midpt - fit_params_mean[3]) < 0.05
+            assert abs(midpt - fit_params_mean[4]) < 0.05
+            assert abs(fit_params_mean[5]) < 0.01
+            assert abs(fit_params_mean[6]) < 0.01
+            assert abs(peak_mea - fit_params_mean[7]) < 0.1
+        except AssertionError:
+            print(fit_params_mean)
+            raise AssertionError
+        return True
+
+    # def it_can_do__calibrate():
+    #     divs = 5
+    #     tgt_mean = 100
+    #     tgt_std = 10
+    #     with synth.Synth(overwrite=True) as s:
+    #         (
+    #             synth.PeaksModelGaussianCircular(n_peaks=100)
+    #             .locs_randomize()
+    #             .amps_constant(val=10000)
+    #         )
+    #         synth.CameraModel(bias=tgt_mean, std=tgt_std)
+    #         ims = s.render_flchcy()
+    #     calib = worker._calibrate(ims, divs=5, progress=None, overload_psf=None)
+    #     print(type(calib))
 
     zest()
 

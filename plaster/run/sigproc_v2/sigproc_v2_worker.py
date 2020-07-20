@@ -596,8 +596,6 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
     calib = Calibration()
 
     for ch_i in range(n_channels):
-        z_and_region_to_psf = np.zeros((n_z_slices, divs, divs, *peak_dim))
-
         # BACKGROUND
         # Masks out the foreground and uses remaining pixels to estimate
         # regional background mean and std.
@@ -606,41 +604,32 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
             flchcy_ims, ch_i, n_z_slices, divs, calib
         )
 
-        # FIXME: this is just dummy data for now, need to replace with real deal
+        z_and_region_to_psf = np.zeros((n_z_slices, divs, divs, *peak_dim))
+        for fl_i in range(n_fields):
+
+            for z_i in range(n_cycles):
+                # Remember: z_i is a pseudo-cycle: it is really a z-slice
+                # with z_depths[cy_i] holding the actual depth
+                # FIXME: pull these out of calib instead of recalculating
+                bg_mean, bg_std = background_estimate(flchcy_ims[fl_i][ch_i][z_i], divs)
+                im_sub = background_subtraction(flchcy_ims[fl_i][ch_i][z_i], bg_mean)
+
+                locs, reg_psfs = _calibrate_psf_im(
+                    im_sub, divs=divs, keep_dist=8, peak_mea=11, locs=None
+                )
+
+                # ACCUMULATE each field, will normalize at the end
+                z_and_region_to_psf[z_i] += reg_psfs
+
+        # NORMALIZE all psfs
+        denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
+        z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
+
         calib.add(
             {
-                f"regional_psf_zstack.instrument_channel[{ch_i}]": (
-                    np.zeros((n_z_slices, divs, divs, *peak_dim))
-                )
-                for c in flcy_calibs
+                f"regional_psf_zstack.instrument_channel[{ch_i}]": z_and_region_to_psf.tolist()
             }
         )
-
-        # reg_psfs = np.sum(
-        #     [
-        #         np.array(c[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
-        #         for c in flcy_calibs
-        #     ],
-        #     axis=(2, 3),
-        # )
-
-        # denominator = np.sum(z_and_region_to_psf, axis=(2, 3))[:, :, None, None]
-        # calib.add(
-        #     {
-        #         f"regional_psf_zstack.instrument_channel[{ch_i}]": (
-        #             reg_psfs / denominator
-        #         ).tolist()
-        #     }
-        # )
-        #
-        # z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
-        #
-        # calib.add({
-        #     f"regional_bg_std.instrument_channel[{ch_i}]": np.mean([
-        #         np.array(c[f"regional_bg_std.instrument_channel[{ch_i}]"])
-        #         for c in flcy_calibs
-        #     ])
-        # })
 
         # if overload_psf is not None:
         #     # This is used for testing
