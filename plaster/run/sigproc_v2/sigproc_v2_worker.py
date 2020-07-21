@@ -571,6 +571,50 @@ def add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_z_slices, divs, calib):
     return calib
 
 
+def add_psf_stats_to_calib(
+    flchcy_ims, n_fields, ch_i, n_z_slices, divs, peak_dim, calib
+):
+    """
+    Arguments:
+        flchcy_ims: frame, channel, cycles ims to be analyzed
+        n_fields: number fields per frame
+        ch_i: channel index we are adding calib stats for
+        n_z_slices: nbr of z slices, in index we normally use for cycle
+        divs: divisions (in two dims) of image for regional stats
+        calib: Calibration object we are adding stats to
+
+    Returns:
+        calib object with background means and stds added for the given ch_i
+    """
+    z_and_region_to_psf = np.zeros((n_z_slices, divs, divs, *peak_dim))
+    for fl_i in range(n_fields):
+
+        for z_i in range(n_z_slices):
+            # Remember: z_i is a pseudo-cycle: it is really a z-slice
+            # with z_depths[cy_i] holding the actual depth
+            # bg_mean, bg_std = background_estimate(flchcy_ims[fl_i][ch_i][z_i], divs)
+            bg_mean = np.array(calib[f"regional_bg_mean.instrument_channel[{ch_i}]"])
+            im_sub = background_subtraction(flchcy_ims[fl_i][ch_i][z_i], bg_mean)
+
+            locs, reg_psfs = _calibrate_psf_im(
+                im_sub, divs=divs, keep_dist=8, peak_mea=11, locs=None
+            )
+
+            # ACCUMULATE each field, will normalize at the end
+            z_and_region_to_psf[z_i] += reg_psfs
+
+    # NORMALIZE all psfs
+    denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
+    z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
+
+    calib.add(
+        {
+            f"regional_psf_zstack.instrument_channel[{ch_i}]": z_and_region_to_psf.tolist()
+        }
+    )
+    return calib
+
+
 def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
     """
     Accumulate calibration data using a set of fields.
@@ -604,31 +648,8 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
             flchcy_ims, ch_i, n_z_slices, divs, calib
         )
 
-        z_and_region_to_psf = np.zeros((n_z_slices, divs, divs, *peak_dim))
-        for fl_i in range(n_fields):
-
-            for z_i in range(n_cycles):
-                # Remember: z_i is a pseudo-cycle: it is really a z-slice
-                # with z_depths[cy_i] holding the actual depth
-                # FIXME: pull these out of calib instead of recalculating
-                bg_mean, bg_std = background_estimate(flchcy_ims[fl_i][ch_i][z_i], divs)
-                im_sub = background_subtraction(flchcy_ims[fl_i][ch_i][z_i], bg_mean)
-
-                locs, reg_psfs = _calibrate_psf_im(
-                    im_sub, divs=divs, keep_dist=8, peak_mea=11, locs=None
-                )
-
-                # ACCUMULATE each field, will normalize at the end
-                z_and_region_to_psf[z_i] += reg_psfs
-
-        # NORMALIZE all psfs
-        denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
-        z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
-
-        calib.add(
-            {
-                f"regional_psf_zstack.instrument_channel[{ch_i}]": z_and_region_to_psf.tolist()
-            }
+        calib = add_psf_stats_to_calib(
+            flchcy_ims, n_fields, ch_i, n_z_slices, divs, peak_dim, calib
         )
 
         # if overload_psf is not None:
@@ -685,7 +706,7 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
         # --------------------------------------------------------------
 
         # Spoof the sigproc_v2 worker into bypassing illumination balance by giving it all zeros
-        calib.add(
+        '''calib.add(
             {
                 f"regional_illumination_balance.instrument_channel[{ch_i}]": np.ones(
                     (divs, divs)
@@ -790,7 +811,7 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
             {
                 f"regional_illumination_balance.instrument_channel[{ch_i}]": balance.tolist()
             }
-        )
+        )'''
 
     return calib
 
