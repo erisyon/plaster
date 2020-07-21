@@ -651,60 +651,19 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
             flchcy_ims, n_fields, ch_i, n_z_slices, divs, peak_dim, calib
         )
 
-        # if overload_psf is not None:
-        #     # This is used for testing
-        #     z_and_region_to_psf = np.broadcast_to(
-        #         overload_psf, (n_z_slices, divs, divs, *peak_dim)
-        #     ).tolist()
-        #
-        # else:
-        #     # PSF
-        #     # Accumulate the PSF regionally over every field
-        #     # Then divide each PSF though by it's own mass so that the
-        #     # AUC under each PSF is 1.
-        #     # --------------------------------------------------------------
-        #     [
-        #         _calibrate_bg_im(flchcy_ims[fl_i, ch_i, cy_i], regional_bg_mean, regional_bg_std)
-        #         for fl_i in range(n_fields)
-        #         for cy_i in range(n_cycles)
-        #     ]
-        #
-        #     for fl_i in range(n_fields):
-        #
-        #         for cy_i in range(n_cycles):
-        #             # Remember: cy_i is a pseudo-cycle: it is really a z-slice
-        #             # with z_depths[cy_i] holding the actual depth
-        #
-        #             regional_bg_mean = np.array(
-        #                 calib[f"regional_bg_mean.instrument_channel[{ch_i}]"]
-        #             )
-        #             _calibrate_psf_im(flchcy_ims[fl_i, ch_i, cy_i], regional_bg_mean)
-        #
-        #             # ACCUMULATE each field, will normalize at the end
-        #             z_and_region_to_psf[cy_i] += reg_psfs
-
-        # # NORMALIZE all psfs
-        # denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
-        # z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
-        #
-        # calib.add(
-        #     {
-        #         f"regional_psf_zstack.instrument_channel[{ch_i}]": z_and_region_to_psf.tolist()
-        #     }
-        # )
         # 1) background estimate
         # 2) subtract background using estimate
         # 3) psf estimate (volume normalized so already independent of foreground brightness, but needs background subtraction)
         # 4) radiometry using psf estimate
         # 5) regional balancing using the radiometry
-        # FOREGROUND
+        ''' FOREGROUND
         # Runs the standard sigproc_field analysis (without balancing)
         # to get the regional radmats for regional histogram balancing.
         # This requires that the PSF already be estimated so that the
         # radiometry can run.
         # --------------------------------------------------------------
 
-        '''Spoof the sigproc_v2 worker into bypassing illumination balance by giving it all zeros
+        # Spoof the sigproc_v2 worker into bypassing illumination balance by giving it all zeros
         calib.add(
             {
                 f"regional_illumination_balance.instrument_channel[{ch_i}]": np.ones(
