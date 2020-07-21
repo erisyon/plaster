@@ -1,3 +1,4 @@
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
 #ifndef FLANN_ANY_H_
 #define FLANN_ANY_H_
 /*
