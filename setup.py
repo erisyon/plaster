@@ -63,13 +63,11 @@ extensions = [
 # CMake logic copied from https://gist.github.com/ossareh/38ea13049d23f6742f78046170f4c033#file-setup-py-L86
 class CMakeExtension(Extension):
     def __init__(self, name):
-        import pudb; pudb.set_trace()
         Extension.__init__(self, name, sources=[])
 
-
+# TODO: Not working yet, there's something wrong with the paths where the so goes.
 class CMakeBuild(build_ext):
     def run(self):
-        import pudb; pudb.set_trace()
         os.chdir("/erisyon/plaster/plaster/vendor/flann")
         
         try:
@@ -119,7 +117,6 @@ class CMakeBuild(build_ext):
             self.move_output(ext)
 
     def move_output(self, ext):
-        import pudb; pudb.set_trace()
         build_temp = Path(self.build_temp).resolve()
         dest_path = Path(self.get_ext_fullpath(ext.name)).resolve()
         source_path = build_temp / self.get_ext_filename(ext.name)
