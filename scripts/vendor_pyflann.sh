@@ -32,9 +32,19 @@ if [[ ! -e "plaster_root" ]]; then
     error "${_NAME} must be run from plaster root (file 'plaster_root' not found.)"
 fi
 
-# remove existing pyflann prior to revendoring
+# vendored in plaster/vendor; cd into plaster
+cd plaster
+
+# remove existing cflann/pyflann prior to revendoring
 git rm -rf vendor/pyflann
-git commit --no-gpg-sign  -m "remove previously vendored pyflann"
+git rm -rf vendor/flann
+git commit --no-gpg-sign  -m "remove previously vendored cflann/pyflann"
+
+# use git to vendor the c flann lib
+git clone https://github.com/mariusmuja/flann.git vendor/flann
+# remove  git repo related metadata; calling `find -exec rm -rf {} \;`` generates 
+# a non-zero exit code for reasons unknown - as such, using xargs
+find vendor/flann -name '.git' -type d | xargs rf -rf
 
 # pip install into vendor/pyflann
 pip install -U --target vendor/ pyflann==1.6.14
@@ -44,9 +54,10 @@ rm -rf vendor/pyflann-*-info
 # commit pyflann after first stage of vendor, necessary otherwise
 # patch will fail due to files not being in the index
 
-git add vendor/pyflann
-git commit --no-gpg-sign --amend -m "vendor pyflann" vendor/pyflann
+git add vendor/pyflann vendor/flann
+git commit --no-gpg-sign --amend -m "vendor cflann/pyflann" vendor/pyflann vendor/flann
 
 # apply patches
 git am --no-gpg-sign vendor/patches/0001-pyflann.patch
 git am --no-gpg-sign vendor/patches/0002-flannexc.patch
+git am --no-gpg-sign vendor/patches/0003-cmake-cflann.patch

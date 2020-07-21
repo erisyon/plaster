@@ -1,0 +1,55 @@
+From d8884fe6a3a0c2ea2ef159a21c21a238179ba11f Mon Sep 17 00:00:00 2001
+From: "P. Michael Ossareh" <ossareh@gmail.com>
+Date: Tue, 21 Jul 2020 12:05:05 -0500
+Subject: [PATCH] fix(vendor/flann): patch to work with newer cmake
+
+---
+ plaster/vendor/flann/src/cpp/CMakeLists.txt   | 6 +++---
+ plaster/vendor/flann/src/cpp/empty.cpp        | 0
+ plaster/vendor/flann/src/cpp/flann/util/any.h | 1 +
+ 3 files changed, 4 insertions(+), 3 deletions(-)
+ create mode 100644 plaster/vendor/flann/src/cpp/empty.cpp
+
+diff --git a/plaster/vendor/flann/src/cpp/CMakeLists.txt b/plaster/vendor/flann/src/cpp/CMakeLists.txt
+index b421abb..b432568 100644
+--- a/plaster/vendor/flann/src/cpp/CMakeLists.txt
++++ b/plaster/vendor/flann/src/cpp/CMakeLists.txt
+@@ -30,12 +30,12 @@ if (BUILD_CUDA_LIB)
+ endif()
+ 
+ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_COMPILER_IS_GNUCC)
+-    add_library(flann_cpp SHARED "")
++    add_library(flann_cpp SHARED "empty.cpp")
+     set_target_properties(flann_cpp PROPERTIES LINKER_LANGUAGE CXX)
+     target_link_libraries(flann_cpp -Wl,-whole-archive flann_cpp_s -Wl,-no-whole-archive)
+ 
+     if (BUILD_CUDA_LIB)
+-	    cuda_add_library(flann_cuda SHARED "")
++	    cuda_add_library(flann_cuda SHARED "empty.cpp")
+         set_target_properties(flann_cuda PROPERTIES LINKER_LANGUAGE CXX)
+         target_link_libraries(flann_cuda -Wl,-whole-archive flann_cuda_s -Wl,-no-whole-archive)
+         set_property(TARGET flann_cpp_s PROPERTY COMPILE_DEFINITIONS FLANN_USE_CUDA)
+@@ -88,7 +88,7 @@ if (BUILD_C_BINDINGS)
+     set_property(TARGET flann_s PROPERTY COMPILE_DEFINITIONS FLANN_STATIC)
+ 
+     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_COMPILER_IS_GNUCC)
+-        add_library(flann SHARED "")
++        add_library(flann SHARED "empty.cpp")
+         set_target_properties(flann PROPERTIES LINKER_LANGUAGE CXX)
+         target_link_libraries(flann -Wl,-whole-archive flann_s -Wl,-no-whole-archive)
+     else()
+diff --git a/plaster/vendor/flann/src/cpp/empty.cpp b/plaster/vendor/flann/src/cpp/empty.cpp
+new file mode 100644
+index 0000000..e69de29
+diff --git a/plaster/vendor/flann/src/cpp/flann/util/any.h b/plaster/vendor/flann/src/cpp/flann/util/any.h
+index 8014f6a..c86e5aa 100644
+--- a/plaster/vendor/flann/src/cpp/flann/util/any.h
++++ b/plaster/vendor/flann/src/cpp/flann/util/any.h
+@@ -1,3 +1,4 @@
++#pragma GCC diagnostic ignored "-Wmisleading-indentation"
+ #ifndef FLANN_ANY_H_
+ #define FLANN_ANY_H_
+ /*
+-- 
+2.27.0
+
