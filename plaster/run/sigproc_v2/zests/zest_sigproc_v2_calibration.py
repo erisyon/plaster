@@ -68,7 +68,6 @@ def zest_sigproc_v2_calibration():
         bg_mean, bg_std = worker.background_estimate(im, divs)
         assert np_within(np.mean(bg_mean), tgt_mean, 1)
         assert np_within(np.mean(bg_std), tgt_std, 1)
-        return True
 
     def it_subtracts_uniform_bg_mean_correctly():
         with synth.Synth(overwrite=True) as s:
@@ -83,7 +82,6 @@ def zest_sigproc_v2_calibration():
         im_sub = worker.background_subtraction(im, bg_mean)
         new_mean, new_std = worker.background_estimate(im_sub, divs)
         assert np_within(np.mean(new_mean), 0, (1 / tgt_std))
-        return True
 
     def it_adds_regional_bg_stats_to_calib_correctly():
         calib = Calibration()
@@ -104,7 +102,6 @@ def zest_sigproc_v2_calibration():
         assert len(bg_std.shape) == 2
         assert (bg_std > tgt_std - 1).all()
         assert (bg_std < tgt_std + 1).all()
-        return True
 
     def it_estimates_nonuniform_bg_mean_correctly():
         tgt_mean = 200
@@ -127,15 +124,13 @@ def zest_sigproc_v2_calibration():
                     im[x][y] *= 0.5
         # find mean and std, check that it got nonuniformity of means
         bg_mean, bg_std = worker.background_estimate(im, divs)
-        for x in range(0, divs):
-            for y in range(0, divs):
-                if x in [0, divs - 1] or y in [0, divs - 1]:
-                    assert np_within((tgt_mean * 0.5), bg_mean[x][y], tgt_std)
-                    assert np_within(tgt_std * 0.5, bg_std[x][y], tgt_std / 3)
-                else:
-                    assert np_within(tgt_mean, bg_mean[x][y], tgt_std)
-                    assert np_within(tgt_std, bg_std[x][y], tgt_std / 3)
-        return True
+        for x, y in grid_walk(divs):
+            if x in [0, divs - 1] or y in [0, divs - 1]:
+                assert np_within((tgt_mean * 0.5), bg_mean[x][y], tgt_std)
+                assert np_within(tgt_std * 0.5, bg_std[x][y], tgt_std / 3)
+            else:
+                assert np_within(tgt_mean, bg_mean[x][y], tgt_std)
+                assert np_within(tgt_std, bg_std[x][y], tgt_std / 3)
 
     def it_estimates_nonuniform_bg_std_correctly():
         with synth.Synth(overwrite=True) as s:
@@ -204,7 +199,7 @@ def zest_sigproc_v2_calibration():
     def it_can_calibrate_psf_uniform_im():
         s = synth.Synth(n_cycles=1, overwrite=True)
         peaks = (
-            synth.PeaksModelGaussianCircular(n_peaks=300)
+            synth.PeaksModelGaussianCircular(n_peaks=400)
             .locs_randomize()
             .amps_constant(val=10000)
         )
@@ -237,7 +232,7 @@ def zest_sigproc_v2_calibration():
     def it_can_calibrate_psf_uniform_im_w_large_psf_std():
         s = synth.Synth(n_cycles=1, overwrite=True)
         peaks = (
-            synth.PeaksModelGaussianCircular(n_peaks=300)
+            synth.PeaksModelGaussianCircular(n_peaks=400)
             .locs_randomize()
             .amps_constant(val=10000)
         )
@@ -274,7 +269,7 @@ def zest_sigproc_v2_calibration():
 
         s = synth.Synth(n_cycles=1, overwrite=True)
         peaks = (
-            synth.PeaksModelGaussianCircular(n_peaks=300)
+            synth.PeaksModelGaussianCircular(n_peaks=400)
             .locs_randomize()
             .amps_constant(val=10000)
         )
@@ -354,7 +349,7 @@ def zest_sigproc_v2_calibration():
 
         with synth.Synth(overwrite=True) as s:
             (
-                synth.PeaksModelGaussianCircular(n_peaks=100)
+                synth.PeaksModelGaussianCircular(n_peaks=400)
                 .locs_randomize()
                 .amps_constant(val=10000)
             )
@@ -362,15 +357,15 @@ def zest_sigproc_v2_calibration():
             ims = s.render_flchcy()
         calib = worker._calibrate(ims, divs=divs)
 
-        assert type(calib["regional_bg_mean.instrument_channel[0]"]) == list
+        check.list_t(calib["regional_bg_mean.instrument_channel[0]"], list)
         rbm_arr = np.array(calib["regional_bg_mean.instrument_channel[0]"])
         check.array_t(rbm_arr, shape=(divs, divs), dtype=np.float64)
 
-        assert type(calib["regional_bg_std.instrument_channel[0]"]) == list
+        check.list_t(calib["regional_bg_std.instrument_channel[0]"], list)
         rbs_arr = np.array(calib["regional_bg_std.instrument_channel[0]"])
         check.array_t(rbs_arr, shape=(divs, divs), dtype=np.float64)
 
-        assert type(calib["regional_psf_zstack.instrument_channel[0]"])
+        check.list_t(calib["regional_psf_zstack.instrument_channel[0]"], list)
         rpz_arr = np.array(calib["regional_psf_zstack.instrument_channel[0]"])
         check.array_t(rpz_arr, shape=(1, divs, divs, peak_mea, peak_mea))
 
