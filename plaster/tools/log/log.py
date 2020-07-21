@@ -185,7 +185,7 @@ def metrics(**kws):
 
 
 def exception(e, msg=""):
-    """See make_exception"""
+    """See _make_exception"""
     assert isinstance(e, Exception)
     prefix = _make_prefix(EXCEPTION, -3)
     lines = _make_exception(e, msg)
