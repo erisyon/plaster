@@ -1,16 +1,60 @@
+from math import floor
+
 import numpy as np
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.tools.calibration.calibration import Calibration
+from plaster.tools.image import imops
 from plaster.tools.log.log import debug
 from plaster.tools.utils.utils import np_within
 from zest import zest
 
 
+def grid_walk(divs):
+    for x in range(0, divs):
+        for y in range(0, divs):
+            yield x, y
+
+
 def zest_sigproc_v2_calibration():
-    def it_estimates_uniform_background_correctly():
+    divs = None
+    tgt_mean = None
+    tgt_std = None
+    peak_mea = None
+    midpt = None
+    true_params = {}  # if None pylint gets confused
+
+    def _before():
+        nonlocal divs, tgt_mean, tgt_std, peak_mea, midpt, true_params
         divs = 5
+        tgt_mean = 100
+        tgt_std = 10
+        peak_mea = 11
+        midpt = 5
+        # true values, and allowed range, for parms returned by imops
+        # fit_gauss2(): amp, std_x, std_y, pos_x, pos_y, rho, const, mea
+        true_params = {
+            "amp": {"tgt": 1, "range": 0.1},
+            "std_x": {"tgt": None, "range": 0.15},
+            "std_y": {"tgt": None, "range": 0.15},
+            "pos_x": {"tgt": midpt, "range": 0.10},
+            "pos_y": {"tgt": midpt, "range": 0.10},
+            "rho": {"tgt": 0, "range": 0.02},
+            "const": {"tgt": 0, "range": 0.02},
+            "mea": {"tgt": peak_mea, "range": 0.1},
+        }
+
+    def _compare_fit_params(true_params, fit_params):
+        for ix, parm in enumerate(
+            ["amp", "std_x", "std_y", "pos_x", "pos_y", "rho", "const", "mea",]
+        ):
+            assert (
+                abs(true_params[parm]["tgt"] - fit_params[ix])
+                < true_params[parm]["range"]
+            )
+
+    def it_estimates_uniform_background_correctly():
         tgt_mean = 200
         tgt_std = 15
         with synth.Synth(overwrite=True) as s:
@@ -24,12 +68,8 @@ def zest_sigproc_v2_calibration():
         bg_mean, bg_std = worker.background_estimate(im, divs)
         assert np_within(np.mean(bg_mean), tgt_mean, 1)
         assert np_within(np.mean(bg_std), tgt_std, 1)
-        return True
 
     def it_subtracts_uniform_bg_mean_correctly():
-        divs = 5
-        tgt_mean = 100
-        tgt_std = 10
         with synth.Synth(overwrite=True) as s:
             (
                 synth.PeaksModelGaussianCircular(n_peaks=100)
@@ -42,12 +82,8 @@ def zest_sigproc_v2_calibration():
         im_sub = worker.background_subtraction(im, bg_mean)
         new_mean, new_std = worker.background_estimate(im_sub, divs)
         assert np_within(np.mean(new_mean), 0, (1 / tgt_std))
-        return True
 
     def it_adds_regional_bg_stats_to_calib_correctly():
-        divs = 5
-        tgt_mean = 100
-        tgt_std = 10
         calib = Calibration()
         with synth.Synth(overwrite=True) as s:
             (
@@ -66,10 +102,8 @@ def zest_sigproc_v2_calibration():
         assert len(bg_std.shape) == 2
         assert (bg_std > tgt_std - 1).all()
         assert (bg_std < tgt_std + 1).all()
-        return True
 
     def it_estimates_nonuniform_bg_mean_correctly():
-        divs = 5
         tgt_mean = 200
         tgt_std = 15
         # make an image...
@@ -90,27 +124,22 @@ def zest_sigproc_v2_calibration():
                     im[x][y] *= 0.5
         # find mean and std, check that it got nonuniformity of means
         bg_mean, bg_std = worker.background_estimate(im, divs)
-        for x in range(0, divs):
-            for y in range(0, divs):
-                if x in [0, divs - 1] or y in [0, divs - 1]:
-                    assert np_within((tgt_mean * 0.5), bg_mean[x][y], tgt_std / 2)
-                    assert np_within(tgt_std * 0.5, bg_std[x][y], tgt_std / 4)
-                else:
-                    assert np_within(tgt_mean, bg_mean[x][y], tgt_std)
-                    assert np_within(tgt_std, bg_std[x][y], tgt_std / 2)
-        return True
+        for x, y in grid_walk(divs):
+            if x in [0, divs - 1] or y in [0, divs - 1]:
+                assert np_within((tgt_mean * 0.5), bg_mean[x][y], tgt_std)
+                assert np_within(tgt_std * 0.5, bg_std[x][y], tgt_std / 3)
+            else:
+                assert np_within(tgt_mean, bg_mean[x][y], tgt_std)
+                assert np_within(tgt_std, bg_std[x][y], tgt_std / 3)
 
     def it_estimates_nonuniform_bg_std_correctly():
-        divs = 5
-        tgt_mean = 100
-        tgt_std1 = 10
         with synth.Synth(overwrite=True) as s:
             (
                 synth.PeaksModelGaussianCircular(n_peaks=100)
                 .locs_randomize()
                 .amps_constant(val=10000)
             )
-            synth.CameraModel(bias=tgt_mean, std=tgt_std1)
+            synth.CameraModel(bias=tgt_mean, std=tgt_std)
             im1 = s.render_chcy()[0][0]
         # create second image with larger std, to use for border region
         tgt_std2 = 30
@@ -138,15 +167,13 @@ def zest_sigproc_v2_calibration():
                     assert np_within(bg_std[x][y], tgt_std2, tgt_std2 / 2)
                     assert np_within(bg_mean[x][y], tgt_mean, tgt_std2)
                 else:
-                    assert np_within(bg_std[x][y], tgt_std1, tgt_std1 / 2)
-                    assert np_within(bg_mean[x][y], tgt_mean, tgt_std1)
+                    assert np_within(bg_std[x][y], tgt_std, tgt_std / 2)
+                    assert np_within(bg_mean[x][y], tgt_mean, tgt_std)
         return True
 
     def it_subtracts_nonuniform_bg_mean_correctly():
         divs = 15
         border_ratio = 5
-        tgt_mean = 100
-        tgt_std = 10
         with synth.Synth(overwrite=True) as s:
             (
                 synth.PeaksModelGaussianCircular(n_peaks=100)
@@ -168,6 +195,179 @@ def zest_sigproc_v2_calibration():
         new_mean, new_std = worker.background_estimate(im_sub, divs)
         assert np_within(np.mean(new_mean), 0, tgt_std)
         return True
+
+    def it_can_calibrate_psf_uniform_im():
+        s = synth.Synth(n_cycles=1, overwrite=True)
+        peaks = (
+            synth.PeaksModelGaussianCircular(n_peaks=400)
+            .locs_randomize()
+            .amps_constant(val=10000)
+        )
+        synth.CameraModel(bias=tgt_mean, std=tgt_std)
+
+        psf_std = 0.5
+        peaks.widths_uniform(psf_std)
+        imgs = s.render_chcy()
+        bg_mean, bg_std = worker.background_estimate(imgs[0, 0], divs)
+        im_sub = worker.background_subtraction(imgs[0, 0], bg_mean)
+
+        locs, reg_psfs = worker._calibrate_psf_im(im_sub, divs=divs, peak_mea=peak_mea)
+
+        fit_params_sum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        blank_regions = 0
+        for x, y in grid_walk(divs):
+            if np.sum(reg_psfs[x, y]) == 0:
+                blank_regions += 1
+                continue
+            fit_params, fit_variance = imops.fit_gauss2(reg_psfs[x, y])
+            for fv in fit_variance:
+                assert fv < 0.001
+            fit_params_sum += np.array(fit_params)
+        assert blank_regions <= 2
+        fit_params_mean = fit_params_sum / ((divs * divs) - blank_regions)
+        true_params["std_x"]["tgt"] = psf_std
+        true_params["std_y"]["tgt"] = psf_std
+        _compare_fit_params(true_params, fit_params_mean)
+
+    def it_can_calibrate_psf_uniform_im_w_large_psf_std():
+        s = synth.Synth(n_cycles=1, overwrite=True)
+        peaks = (
+            synth.PeaksModelGaussianCircular(n_peaks=400)
+            .locs_randomize()
+            .amps_constant(val=10000)
+        )
+        synth.CameraModel(bias=tgt_mean, std=tgt_std)
+
+        psf_std = 2.5
+        peaks.widths_uniform(psf_std)
+        imgs = s.render_chcy()
+        bg_mean, bg_std = worker.background_estimate(imgs[0, 0], divs)
+        im_sub = worker.background_subtraction(imgs[0, 0], bg_mean)
+
+        locs, reg_psfs = worker._calibrate_psf_im(
+            im_sub, divs=divs, peak_mea=peak_mea, locs=None
+        )
+
+        fit_params_sum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        blank_regions = 0
+        for x, y in grid_walk(divs):
+            if np.sum(reg_psfs[x, y]) == 0:
+                blank_regions += 1
+                continue
+            fit_params, fit_variance = imops.fit_gauss2(reg_psfs[x, y])
+            for fv in fit_variance:
+                assert fv < 0.075
+            fit_params_sum += np.array(fit_params)
+        fit_params_mean = fit_params_sum / ((divs * divs) - blank_regions)
+        true_params["std_x"]["tgt"] = psf_std
+        true_params["std_y"]["tgt"] = psf_std
+        _compare_fit_params(true_params, fit_params_mean)
+
+    def it_can_calibrate_psf_im_nonuniform():
+        n_z_slices = 2
+        z_stack = np.array([])
+
+        s = synth.Synth(n_cycles=1, overwrite=True)
+        peaks = (
+            synth.PeaksModelGaussianCircular(n_peaks=400)
+            .locs_randomize()
+            .amps_constant(val=10000)
+        )
+        synth.CameraModel(bias=tgt_mean, std=tgt_std)
+
+        templist = []
+        std_most = None
+        std_test_corner = None
+        for z_i in range(0, n_z_slices):
+            std_used = 0.5 * (2 + z_i)
+            if not std_most:
+                std_most = std_used
+            elif not std_test_corner:
+                std_test_corner = std_used
+            peaks.widths_uniform(std_used)
+            imgs = s.render_chcy()
+            bg_mean, bg_std = worker.background_estimate(imgs[0, 0], divs)
+            im_sub = worker.background_subtraction(imgs[0, 0], bg_mean)
+            templist.append(im_sub)
+        z_stack = np.array(templist)
+        # here we make an image w nonuniform std by using data from last image
+        # in z_stack to replace data of 0th image, but only in one corner
+        test_corner_width = 2
+        corner_xlim = test_corner_width * z_stack[0].shape[0] / divs
+        corner_ylim = test_corner_width * z_stack[0].shape[1] / divs
+        for x in range(0, z_stack[0].shape[0]):
+            for y in range(0, z_stack[0].shape[1]):
+                if (x < corner_xlim) and (y < corner_ylim):
+                    z_stack[0][x][y] = z_stack[n_z_slices - 1][x][y]
+        # verify that at least 1 loc is within our corner with higher std,
+        # otherwise some of the later code will error out anyway and this
+        # should make the problem easier to debug
+        locs, reg_psfs = worker._calibrate_psf_im(
+            z_stack[0], divs=divs, peak_mea=peak_mea
+        )
+        nbr_in_test_corner_field = 0
+        for x, y in locs:
+            if (x < corner_xlim) and (y < corner_ylim):
+                nbr_in_test_corner_field += 1
+        assert nbr_in_test_corner_field > 0
+        # see if our params for "most" of the image, and the other
+        # part in the corner (with higher std) are close to the true answer
+        fit_params_sum_most = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        fit_params_sum_test_corner = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        divisor_most = 0
+        divisor_test_corner = 0
+        for x, y in grid_walk(divs):
+            if (
+                np.sum(reg_psfs[x, y]) == 0
+            ):  # cannot use imops.fit_gauss2 on all-zero psf
+                continue
+            fit_params, fit_variance = imops.fit_gauss2(reg_psfs[x, y])
+            for fv in fit_variance:
+                assert fv < 0.001
+            if (x < test_corner_width) and (y < test_corner_width):
+                divisor_test_corner += 1
+                fit_params_sum_test_corner += np.array(fit_params)
+            else:
+                divisor_most += 1
+                fit_params_sum_most += np.array(fit_params)
+        assert ((divs * divs) - divisor_most - divisor_test_corner) <= 2
+        fit_params_mean_most = fit_params_sum_most / divisor_most
+        fit_params_mean_test_corner = fit_params_sum_test_corner / divisor_test_corner
+        true_params["std_x"]["tgt"] = std_most
+        true_params["std_y"]["tgt"] = std_most
+        true_params["rho"]["range"] = 0.025
+        true_params["const"]["range"] = 0.025
+        _compare_fit_params(true_params, fit_params_mean_most)
+        true_params["std_x"]["tgt"] = std_test_corner
+        true_params["std_y"]["tgt"] = std_test_corner
+        true_params["rho"]["range"] = 0.05
+        true_params["const"]["range"] = 0.05
+        _compare_fit_params(true_params, fit_params_mean_test_corner)
+
+    def it_can_do__calibrate():
+        from plaster.tools.schema import check
+
+        with synth.Synth(overwrite=True) as s:
+            (
+                synth.PeaksModelGaussianCircular(n_peaks=400)
+                .locs_randomize()
+                .amps_constant(val=10000)
+            )
+            synth.CameraModel(bias=tgt_mean, std=tgt_std)
+            ims = s.render_flchcy()
+        calib = worker._calibrate(ims, divs=divs)
+
+        check.list_t(calib["regional_bg_mean.instrument_channel[0]"], list)
+        rbm_arr = np.array(calib["regional_bg_mean.instrument_channel[0]"])
+        check.array_t(rbm_arr, shape=(divs, divs), dtype=np.float64)
+
+        check.list_t(calib["regional_bg_std.instrument_channel[0]"], list)
+        rbs_arr = np.array(calib["regional_bg_std.instrument_channel[0]"])
+        check.array_t(rbs_arr, shape=(divs, divs), dtype=np.float64)
+
+        check.list_t(calib["regional_psf_zstack.instrument_channel[0]"], list)
+        rpz_arr = np.array(calib["regional_psf_zstack.instrument_channel[0]"])
+        check.array_t(rpz_arr, shape=(1, divs, divs, peak_mea, peak_mea))
 
     zest()
 
