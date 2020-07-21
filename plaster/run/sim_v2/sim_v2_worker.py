@@ -169,7 +169,7 @@ def _radmat_sim(dyemat, dyepeps, ch_params):
 
     assert sample_i == n_samples_total
 
-    return radiometry, true_pep_iz
+    return radiometry.reshape((radiometry.shape[0], radiometry.shape[1] * radiometry.shape[2])), true_pep_iz
 
 
 def sim(sim_v2_params, prep_result, progress=None, pipeline=None):

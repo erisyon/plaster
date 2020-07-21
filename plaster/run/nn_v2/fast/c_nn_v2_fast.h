@@ -28,9 +28,9 @@ typedef Float32 WeightType;
 
 
 typedef struct {
-    Size dtr_i;
-    Size pep_i;
     Size count;
+    Index dtr_i;
+    Index pep_i;
 } DyePepRec;
 
 
@@ -39,8 +39,8 @@ typedef struct {
     Size n_neighbors;
     Size n_cols;
 
-    Size test_radmat_n_rows;
-    RadType *test_radmat;
+    Size test_unit_radmat_n_rows;
+    RadType *test_unit_radmat;
 
     Size train_dyemat_n_rows;
     RadType *train_dyemat;
@@ -56,6 +56,7 @@ typedef struct {
 
 void context_start(Context *ctx);
 void context_free(Context *ctx);
+void context_print(Context *ctx);
 int test_flann();
 
 #endif

@@ -36,6 +36,16 @@ int sanity_check() {
         return 1;
     }
 
+    if(sizeof(Score) != 4) {
+        printf("Failed sanity check: sizeof Score\n");
+        return 1;
+    }
+
+    if(sizeof(RadType) != 4) {
+        printf("Failed sanity check: sizeof RadType\n");
+        return 1;
+    }
+
     return 0;
 }
 
@@ -71,11 +81,14 @@ void score_weighted_inv_square(
             neighbor_weight / (0.1 + (neighbor_dist * neighbor_dist))
             // Add a small bias to avoid divide by zero
         );
+        printf("neighbor_dist=%f\n", neighbor_dist);
+        printf("neighbor_weight=%f\n", neighbor_weight);
+        printf("output_scores[nn_i]=%f\n", output_scores[nn_i]);
     }
 }
 
 
-void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index32 *output_pred_iz, Score *output_scores) {
+void context_classify_unit_radrows(Context *ctx, Size n_rows, RadType *unit_radrows, Index32 *output_pred_iz, Score *output_scores) {
     // radrows, output_pred_iz, and output_scores are seprated so
     // that they can be passed in in batches.
 
@@ -84,15 +97,15 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
     const Size n_neighbors = ctx->n_neighbors;
     ensure(n_neighbors <= N_MAX_NEIGHBORS, "n_neighbors exceeds N_MAX_NEIGHBORS");
 
-    int *neighbor_iz = (int*)alloca(n_rows * n_neighbors * sizeof(int));
-    float *neighbor_dists = (float*)alloca(n_rows * n_neighbors * sizeof(float));
+    int *neighbor_iz = (int *)alloca(n_rows * n_neighbors * sizeof(int));
+    float *neighbor_dists = (float *)alloca(n_rows * n_neighbors * sizeof(float));
     memset(neighbor_iz, 0, n_rows * n_neighbors * sizeof(int));
     memset(neighbor_dists, 0, n_rows * n_neighbors * sizeof(float));
 
     // FETCH a batch of neighbors from FLANN in one call.
     flann_find_nearest_neighbors_index_float(
         ctx->flann_index_id,
-        radrows,
+        unit_radrows,
         n_rows,
         neighbor_iz,
         neighbor_dists,
@@ -101,7 +114,7 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
     );
 
     for (Index row_i=0; row_i<n_rows; row_i++) {
-        RadType *radrow = &radrows[row_i * n_cols];
+        RadType *unit_radrow = &unit_radrows[row_i * n_cols];
         int *row_neighbor_iz = &neighbor_iz[row_i * n_neighbors];
         float *row_neighbor_dists = &neighbor_dists[row_i * n_neighbors];
 
@@ -110,7 +123,7 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
             n_neighbors,
             row_neighbor_iz,
             row_neighbor_dists,
-            radrow,
+            unit_radrow,
             ctx->train_dyemat,
             ctx->train_dyetrack_weights,
             output_scores
@@ -131,6 +144,14 @@ void context_classify_radrows(Context *ctx, Size n_rows, RadType *radrows, Index
         // Set output
         output_pred_iz[row_i] = row_neighbor_iz[highest_score_i];
         output_scores[row_i] = highest_score;
+        printf("row_i=%ld\n", row_i);
+
+        // TODO: In current state there's a stack corruption around here
+        // because I';; sometimes get a stack smashing detected message
+        // I need to switch over to using protected tables like sim_v2
+
+        //float a = output_scores[row_i];
+        //printf("output_scores[row_i]=%2.1f\n", output_scores[row_i]);
     }
 }
 
@@ -141,6 +162,8 @@ void context_start(Context *ctx) {
         ctx->n_neighbors <= ctx->train_dyemat_n_rows,
         "FLANN does not support requesting more neihbors than there are data points"
     );
+
+    context_print(ctx);
 
     // CLEAR internally controlled elements
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
@@ -161,7 +184,7 @@ void context_start(Context *ctx) {
     // TODO: Create inverse variances?
 
     // TODO: Thread this into batches
-    context_classify_radrows(ctx, ctx->test_radmat_n_rows, ctx->test_radmat, ctx->output_pred_iz, ctx->output_scores);
+    context_classify_unit_radrows(ctx, ctx->test_unit_radmat_n_rows, ctx->test_unit_radmat, ctx->output_pred_iz, ctx->output_scores);
 }
 
 
@@ -170,6 +193,26 @@ void context_free(Context *ctx) {
         flann_free_index_float(ctx->flann_index_id, &ctx->flann_params);
         ctx->flann_index_id = 0;
     }
+}
+
+
+void context_print(Context *ctx) {
+//    RadType *train_dyemat;
+//    WeightType *train_dyetrack_weights;
+//    Index32 *output_pred_iz;
+//    Score *output_scores;
+
+    printf("n_neighbors=%ld\n", ctx->n_neighbors);
+    printf("n_cols=%ld\n", ctx->n_cols);
+    printf("train_dyemat_n_rows=%ld\n", ctx->train_dyemat_n_rows);
+    printf("test_unit_radmat_n_rows=%ld\n", ctx->test_unit_radmat_n_rows);
+    for(Index i=0; i<ctx->test_unit_radmat_n_rows; i++) {
+        for(Index c=0; c<ctx->n_cols; c++) {
+            printf("%2.1f ", ctx->test_unit_radmat[i*ctx->n_cols + c]);
+        }
+        printf("\n");
+    }
+
 }
 
 

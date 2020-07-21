@@ -104,6 +104,9 @@ def zest_radmat_sim():
 
 
 def zest_sim_v2_worker():
+    prep_result = PrepResult.test_fixture()
+
+    '''
     prep_params = PrepParams(proteins=[Munch(name="pep1", sequence="ABCDE")])
 
     pros = pd.DataFrame(
@@ -139,6 +142,7 @@ def zest_sim_v2_worker():
         _peps=peps,
         _pep_seqs=pep_seqs,
     )
+    '''
 
     def _sim(err_kwargs=None):
         error_model = ErrorModel.no_errors(n_channels=2, **(err_kwargs or {}))

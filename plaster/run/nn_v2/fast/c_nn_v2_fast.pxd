@@ -10,16 +10,16 @@ cdef extern from "c_nn_v2_fast.h":
     ctypedef float WeightType
 
     ctypedef struct DyePepRec:
-        Size dtr_i
-        Size pep_i
         Size count
+        Index dtr_i
+        Index pep_i
 
     ctypedef struct Context:
         Size n_neighbors
         Size n_cols
 
-        Size test_radmat_n_rows
-        RadType *test_radmat
+        Size test_unit_radmat_n_rows
+        RadType *test_unit_radmat
 
         Size train_dyemat_n_rows
         RadType *train_dyemat

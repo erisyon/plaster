@@ -12,12 +12,12 @@ def _assert_array_contiguous(arr, dtype):
     assert isinstance(arr, np.ndarray) and arr.dtype == dtype and arr.flags["C_CONTIGUOUS"]
 
 
-def fast_nn(test_radmat, train_dyemat, train_dyepeps, n_neighbors):
+def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
     """
     This is the interface to the C implementation of NN.
 
     Arguments:
-        test_radmat: ndarray((n_rows, n_channels * n_cycles), dtype=np.float32)
+        test_unit_radmat: ndarray((n_rows, n_channels * n_cycles), dtype=np.float32)
             The unit_radmat to test. May come from the scope or simulated. Is already
             normalized (1 unit = 1 dye, all channels equalized)
         train_dyemat: ndarray((n_rows, n_channels * n_cycles), dtype=np.uint8)
@@ -31,31 +31,31 @@ def fast_nn(test_radmat, train_dyemat, train_dyepeps, n_neighbors):
 
     Returns:
         (pred_pep_iz, scores)
-        pred_pep_iz: ndarray((test_radmat.shape[0],), dtype=np.uint32)
-        scores: ndarray((test_radmat.shape[0],), dtype=np.float32)
+        pred_pep_iz: ndarray((test_unit_radmat.shape[0],), dtype=np.uint32)
+        scores: ndarray((test_unit_radmat.shape[0],), dtype=np.float32)
     """
-    cdef c_nn.RadType [:, ::1] test_radmat_view
+    cdef c_nn.RadType [:, ::1] test_unit_radmat_view
     cdef c_nn.DyeType [:, ::1] train_dyemat_view
-    cdef c_nn.Index32 [:, ::1] train_dyepeps_view
+    cdef c_nn.Index [:, ::1] train_dyepeps_view
     cdef c_nn.Index32 [::1] output_pred_iz_view
     cdef c_nn.Score [::1] output_scores_view
 
     # CHECKS
-    _assert_array_contiguous(test_radmat, np.float32)
+    _assert_array_contiguous(test_unit_radmat, np.float32)
     _assert_array_contiguous(train_dyemat, np.uint8)
-    _assert_array_contiguous(train_dyepeps, np.uint32)
-    check.array_t(test_radmat, ndim=2)
+    _assert_array_contiguous(train_dyepeps, np.uint64)
+    check.array_t(test_unit_radmat, ndim=2)
     check.array_t(train_dyemat, ndim=2)
-    n_cols = test_radmat.shape[1]
-    assert test_radmat.shape[1] == train_dyemat.shape[1]
+    n_cols = test_unit_radmat.shape[1]
+    assert test_unit_radmat.shape[1] == train_dyemat.shape[1]
     assert train_dyepeps.ndim == 2 and train_dyepeps.shape[1] == 3
 
     # ALLOCATE output arrays
-    output_pred_iz = np.zeros((test_radmat.shape[0],), dtype=np.uint32)
-    output_scores = np.zeros((test_radmat.shape[0],), dtype=np.float32)
+    output_pred_iz = np.zeros((test_unit_radmat.shape[0],), dtype=np.uint32)
+    output_scores = np.zeros((test_unit_radmat.shape[0],), dtype=np.float32)
 
     # CREATE cython views
-    test_radmat_view = test_radmat
+    test_unit_radmat_view = test_unit_radmat
     train_dyemat_view = train_dyemat
     output_pred_iz_view = output_pred_iz
     output_scores_view = output_scores
@@ -64,8 +64,8 @@ def fast_nn(test_radmat, train_dyemat, train_dyepeps, n_neighbors):
     ctx.n_neighbors = n_neighbors
     ctx.n_cols = n_cols
 
-    ctx.test_radmat_n_rows = test_radmat.shape[0]
-    ctx.test_radmat = <c_nn.RadType *>&test_radmat_view[0, 0]
+    ctx.test_unit_radmat_n_rows = test_unit_radmat.shape[0]
+    ctx.test_unit_radmat = <c_nn.RadType *>&test_unit_radmat_view[0, 0]
 
     ctx.output_pred_iz = <c_nn.Index32 *>&output_pred_iz_view[0]
     ctx.output_scores = <c_nn.Score *>&output_scores_view[0]
