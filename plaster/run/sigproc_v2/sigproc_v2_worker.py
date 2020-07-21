@@ -588,7 +588,6 @@ def add_psf_stats_to_calib(
     """
     z_and_region_to_psf = np.zeros((n_z_slices, divs, divs, *peak_dim))
     for fl_i in range(n_fields):
-
         for z_i in range(n_z_slices):
             # Remember: z_i is a pseudo-cycle: it is really a z-slice
             # with z_depths[cy_i] holding the actual depth
@@ -705,8 +704,8 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
         # radiometry can run.
         # --------------------------------------------------------------
 
-        # Spoof the sigproc_v2 worker into bypassing illumination balance by giving it all zeros
-        '''calib.add(
+        '''Spoof the sigproc_v2 worker into bypassing illumination balance by giving it all zeros
+        calib.add(
             {
                 f"regional_illumination_balance.instrument_channel[{ch_i}]": np.ones(
                     (divs, divs)

@@ -12,8 +12,34 @@ from zest import zest
 
 
 def zest_sigproc_v2_calibration():
-    def it_estimates_uniform_background_correctly():
+    divs = None
+    tgt_mean = None
+    tgt_std = None
+    peak_mea = None
+    midpt = None
+    true_params = []  # if None pylint gets confused
+
+    def _before():
+        nonlocal divs, tgt_mean, tgt_std, peak_mea, midpt, true_params
         divs = 5
+        tgt_mean = 100
+        tgt_std = 10
+        peak_mea = 11
+        midpt = 5
+        # true values, and allowed range, for parms returned by imops
+        # fit_gauss2(): amp, std_x, std_y, pos_x, pos_y, rho, const, mea
+        true_params = [
+            [1, 0.1],
+            [None, 0.15],
+            [None, 0.15],
+            [midpt, 0.05],
+            [midpt, 0.05],
+            [0, 0.02],
+            [0, 0.02],
+            [peak_mea, 0.1],
+        ]
+
+    def it_estimates_uniform_background_correctly():
         tgt_mean = 200
         tgt_std = 15
         with synth.Synth(overwrite=True) as s:
@@ -30,9 +56,6 @@ def zest_sigproc_v2_calibration():
         return True
 
     def it_subtracts_uniform_bg_mean_correctly():
-        divs = 5
-        tgt_mean = 100
-        tgt_std = 10
         with synth.Synth(overwrite=True) as s:
             (
                 synth.PeaksModelGaussianCircular(n_peaks=100)
@@ -48,9 +71,6 @@ def zest_sigproc_v2_calibration():
         return True
 
     def it_adds_regional_bg_stats_to_calib_correctly():
-        divs = 5
-        tgt_mean = 100
-        tgt_std = 10
         calib = Calibration()
         with synth.Synth(overwrite=True) as s:
             (
@@ -72,7 +92,6 @@ def zest_sigproc_v2_calibration():
         return True
 
     def it_estimates_nonuniform_bg_mean_correctly():
-        divs = 5
         tgt_mean = 200
         tgt_std = 15
         # make an image...
@@ -96,24 +115,21 @@ def zest_sigproc_v2_calibration():
         for x in range(0, divs):
             for y in range(0, divs):
                 if x in [0, divs - 1] or y in [0, divs - 1]:
-                    assert np_within((tgt_mean * 0.5), bg_mean[x][y], tgt_std / 2)
-                    assert np_within(tgt_std * 0.5, bg_std[x][y], tgt_std / 4)
+                    assert np_within((tgt_mean * 0.5), bg_mean[x][y], tgt_std)
+                    assert np_within(tgt_std * 0.5, bg_std[x][y], tgt_std / 3)
                 else:
                     assert np_within(tgt_mean, bg_mean[x][y], tgt_std)
-                    assert np_within(tgt_std, bg_std[x][y], tgt_std / 2)
+                    assert np_within(tgt_std, bg_std[x][y], tgt_std / 3)
         return True
 
     def it_estimates_nonuniform_bg_std_correctly():
-        divs = 5
-        tgt_mean = 100
-        tgt_std1 = 10
         with synth.Synth(overwrite=True) as s:
             (
                 synth.PeaksModelGaussianCircular(n_peaks=100)
                 .locs_randomize()
                 .amps_constant(val=10000)
             )
-            synth.CameraModel(bias=tgt_mean, std=tgt_std1)
+            synth.CameraModel(bias=tgt_mean, std=tgt_std)
             im1 = s.render_chcy()[0][0]
         # create second image with larger std, to use for border region
         tgt_std2 = 30
@@ -141,15 +157,13 @@ def zest_sigproc_v2_calibration():
                     assert np_within(bg_std[x][y], tgt_std2, tgt_std2 / 2)
                     assert np_within(bg_mean[x][y], tgt_mean, tgt_std2)
                 else:
-                    assert np_within(bg_std[x][y], tgt_std1, tgt_std1 / 2)
-                    assert np_within(bg_mean[x][y], tgt_mean, tgt_std1)
+                    assert np_within(bg_std[x][y], tgt_std, tgt_std / 2)
+                    assert np_within(bg_mean[x][y], tgt_mean, tgt_std)
         return True
 
     def it_subtracts_nonuniform_bg_mean_correctly():
         divs = 15
         border_ratio = 5
-        tgt_mean = 100
-        tgt_std = 10
         with synth.Synth(overwrite=True) as s:
             (
                 synth.PeaksModelGaussianCircular(n_peaks=100)
@@ -173,11 +187,6 @@ def zest_sigproc_v2_calibration():
         return True
 
     def it_can_calibrate_psf_uniform_im():
-        divs = 5
-        tgt_mean = 100
-        tgt_std = 10
-        peak_mea = 11
-
         s = synth.Synth(n_cycles=1, overwrite=True)
         peaks = (
             synth.PeaksModelGaussianCircular(n_peaks=100)
@@ -193,7 +202,7 @@ def zest_sigproc_v2_calibration():
         im_sub = worker.background_subtraction(imgs[0, 0], bg_mean)
 
         locs, reg_psfs = worker._calibrate_psf_im(
-            im_sub, divs=divs, keep_dist=8, peak_mea=11, locs=None
+            im_sub, divs=divs, keep_dist=8, peak_mea=peak_mea, locs=None
         )
 
         fit_params_mean = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -208,25 +217,13 @@ def zest_sigproc_v2_calibration():
                 fit_params_mean = [a + b for a, b in zip(fit_params_mean, fit_params)]
                 fit_params_divisor += 1
         fit_params_mean = [a / fit_params_divisor for a in fit_params_mean]
-        midpt = floor(peak_mea / 2)
-        # true_params: 1, psf_std, psf_std, midpt, midpt, 0, 0, peak_mea
-
-        assert abs(1 - fit_params_mean[0]) < 0.1
-        assert abs(psf_std - fit_params_mean[1]) < 0.15
-        assert abs(psf_std - fit_params_mean[2]) < 0.15
-        assert abs(midpt - fit_params_mean[3]) < 0.05
-        assert abs(midpt - fit_params_mean[4]) < 0.05
-        assert abs(fit_params_mean[5]) < 0.01
-        assert abs(fit_params_mean[6]) < 0.01
-        assert abs(peak_mea - fit_params_mean[7]) < 0.1
+        true_params[1][0] = psf_std
+        true_params[2][0] = psf_std
+        for true, fit in zip(true_params, fit_params_mean):
+            assert abs(true[0] - fit) < true[1]
         return True
 
     def it_can_calibrate_psf_uniform_im_w_large_psf_std():
-        divs = 5
-        tgt_mean = 100
-        tgt_std = 10
-        peak_mea = 11
-
         s = synth.Synth(n_cycles=1, overwrite=True)
         peaks = (
             synth.PeaksModelGaussianCircular(n_peaks=100)
@@ -242,7 +239,7 @@ def zest_sigproc_v2_calibration():
         im_sub = worker.background_subtraction(imgs[0, 0], bg_mean)
 
         locs, reg_psfs = worker._calibrate_psf_im(
-            im_sub, divs=divs, keep_dist=8, peak_mea=11, locs=None
+            im_sub, divs=divs, keep_dist=8, peak_mea=peak_mea, locs=None
         )
 
         fit_params_mean = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -257,24 +254,14 @@ def zest_sigproc_v2_calibration():
                 fit_params_mean = [a + b for a, b in zip(fit_params_mean, fit_params)]
                 fit_params_divisor += 1
         fit_params_mean = [a / fit_params_divisor for a in fit_params_mean]
-        midpt = floor(peak_mea / 2)
-        # true_params: 1, psf_std, psf_std, midpt, midpt, 0, 0, peak_mea
-        assert abs(1 - fit_params_mean[0]) < 0.1
-        assert abs(psf_std - fit_params_mean[1]) < 0.15
-        assert abs(psf_std - fit_params_mean[2]) < 0.15
-        assert abs(midpt - fit_params_mean[3]) < 0.05
-        assert abs(midpt - fit_params_mean[4]) < 0.05
-        assert abs(fit_params_mean[5]) < 0.01
-        assert abs(fit_params_mean[6]) < 0.01
-        assert abs(peak_mea - fit_params_mean[7]) < 0.1
+        true_params[1][0] = psf_std
+        true_params[2][0] = psf_std
+
+        for true, fit in zip(true_params, fit_params_mean):
+            assert abs(true[0] - fit) < true[1]
         return True
 
     def it_can_calibrate_psf_im_nonuniform():
-
-        divs = 5
-        tgt_mean = 100
-        tgt_std = 10
-        peak_mea = 11
         n_z_slices = 2
         z_stack = np.array([])
 
@@ -314,7 +301,7 @@ def zest_sigproc_v2_calibration():
         # otherwise some of the later code will error out anyway and this
         # should make the problem easier to debug
         locs, reg_psfs = worker._calibrate_psf_im(
-            z_stack[0], divs=divs, keep_dist=8, peak_mea=11, locs=None
+            z_stack[0], divs=divs, keep_dist=8, peak_mea=peak_mea, locs=None
         )
         nbr_in_corner_field = 0
         for x, y in locs:
@@ -353,31 +340,21 @@ def zest_sigproc_v2_calibration():
         fit_params_mean_corner = [
             a / fit_params_divisor_corner for a in fit_params_mean_corner
         ]
-        midpt = floor(peak_mea / 2)
-        # true_params: 1, std_most, std_most, midpt, midpt, 0, 0, peak_mea
-        assert abs(1 - fit_params_mean_most[0]) < 0.1
-        assert abs(std_most - fit_params_mean_most[1]) < 0.15
-        assert abs(std_most - fit_params_mean_most[2]) < 0.15
-        assert abs(midpt - fit_params_mean_most[3]) < 0.05
-        assert abs(midpt - fit_params_mean_most[4]) < 0.05
-        assert abs(fit_params_mean_most[5]) < 0.025
-        assert abs(fit_params_mean_most[6]) < 0.025
-        assert abs(peak_mea - fit_params_mean_most[7]) < 0.1
-        # true_params: 1, std_corner, std_corner, midpt, midpt, 0, 0, peak_mea
-        assert abs(1 - fit_params_mean_corner[0]) < 0.1
-        assert abs(std_corner - fit_params_mean_corner[1]) < 0.15
-        assert abs(std_corner - fit_params_mean_corner[2]) < 0.15
-        assert abs(midpt - fit_params_mean_corner[3]) < 0.05
-        assert abs(midpt - fit_params_mean_corner[4]) < 0.05
-        assert abs(fit_params_mean_corner[5]) < 0.05
-        assert abs(fit_params_mean_corner[6]) < 0.05
-        assert abs(peak_mea - fit_params_mean_corner[7]) < 0.1
+        true_params[1][0] = std_most
+        true_params[2][0] = std_most
+        true_params[5][1] = 0.025
+        true_params[6][1] = 0.025
+        for true, fit in zip(true_params, fit_params_mean_most):
+            assert abs(true[0] - fit) < true[1]
+        true_params[1][0] = std_corner
+        true_params[2][0] = std_corner
+        true_params[5][1] = 0.05
+        true_params[6][1] = 0.05
+        for true, fit in zip(true_params, fit_params_mean_corner):
+            assert abs(true[0] - fit) < true[1]
         return True
 
     def it_can_do__calibrate():
-        divs = 5
-        tgt_mean = 100
-        tgt_std = 10
         with synth.Synth(overwrite=True) as s:
             (
                 synth.PeaksModelGaussianCircular(n_peaks=100)
