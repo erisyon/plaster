@@ -7,6 +7,7 @@
 #include "pthread.h"
 #include "unistd.h"
 #include "c_nn_v2_fast.h"
+#include "c_sim_v2_fast.h"
 
 
 void ensure(int expr, const char *fmt, ...) {
