@@ -2,57 +2,40 @@ import numpy as np
 import pandas as pd
 from munch import Munch
 from plaster.run.sim_v2 import sim_v2_worker
+from plaster.run.nn_v2.nn_v2_worker import nn_v2_worker
 from plaster.run.nn_v2.nn_v2_params import NNV2Params
-from plaster.run.prep.prep_params import PrepParams
 from plaster.run.prep.prep_result import PrepResult
+from plaster.run.sim_v2.sim_v2_params import SimV2Params, ErrorModel
 from plaster.tools.log.log import debug, prof
 from zest import zest
 
 
 def zest_nn_v2_worker():
-    nn_v2_params = NNV2Params()
+    prep_result = PrepResult.test_fixture()
 
-    prep_params = PrepParams(proteins=[Munch(name="pep1", sequence="ABCDE")])
+    error_model = ErrorModel.no_errors(n_channels=2, beta=100.0)
 
-    pros = pd.DataFrame(
-        dict(pro_i=[1], pro_id=["pep1"], pro_ptm_locs=[None], pro_report=[None],)
+    sim_v2_params = SimV2Params.construct_from_aa_list(
+        ["A", "B"],
+        error_model=error_model,
+        n_edmans=4,
+        n_samples_train=10,
+        n_samples_test=5,
     )
 
-    pro_seqs = pd.DataFrame(
-        dict(
-            aa=["A", "B", "C", "D", "E"],
-            pro_i=[1, 1, 1, 1, 1],
-            pro_name=["pep1", "pep1", "pep1", "pep1", "pep1"],
-            pro_ptm_locs=[None, None, None, None, None],
-            pro_report=[None, None, None, None, None],
-        )
-    )
+    sim_v2_result = sim_v2_worker.sim(sim_v2_params, prep_result)
 
-    prep_result = PrepResult(
-        params=prep_params,
-        _pros=pros,
-        _pro_seqs=pro_seqs,
-        _peps=pros,
-        _pep_seqs=pro_seqs,
-    )
+    # Flip just to convinvce myself that it is working
+    # so that they aren't accidentally in the right order
+    sim_v2_result.test_radmat = np.flip(sim_v2_result.test_radmat, axis=0).copy()
+    sim_v2_result.test_true_pep_iz = np.flip(sim_v2_result.test_true_pep_iz, axis=0).copy()
 
-    # sim_v2_params = None  # TODO
-    # sim_v2_result = sim_v2_worker.sim(sim_v2_params, prep_result)
+    nn_v2_params = NNV2Params(n_neighbors=2)
 
-    # TODO
-    # sim_v2_result = SimV2Result(
-    #     params=sim_v2_params,
-    #     train_flus=train_flus,
-    #     train_dyemat=train_dyemat,
-    #     train_dyepeps_df=train_dyepeps_df,
-    #     train_radmat=train_radmat,
-    #     train_radmat_true_pep_iz=train_radmat_true_pep_iz,
-    #     test_flus=test_flus,
-    #     test_dyemat=test_dyemat,
-    #     test_dyepeps_df=test_dyepeps_df,
-    #     test_radmat=test_radmat,
-    #     test_radmat_true_pep_iz=test_radmat_true_pep_iz,
-    # )
+    nn_v2_result = nn_v2_worker(nn_v2_params, sim_v2_result)
 
-    # nn_v2_fast.nn(nn_v2_params, prep_result, None)
-    # nn_worker(nn_v2_params, prep_result, sim_v2_result)
+    def it_predicts_test():
+        assert nn_v2_result.test_pred_pep_iz.tolist() == [3] * 5 + [2] * 5 + [1] * 5
+        assert np.all(nn_v2_result.test_scores >= 1.0)
+
+    zest()

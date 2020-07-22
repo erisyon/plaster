@@ -155,7 +155,7 @@ class ClassifyGenerator(BaseGenerator):
             )
         )
 
-        train_rf_task = test_rf_task = test_nn_task = {}
+        train_rf_task = test_rf_task = nn_v1_task = {}
         run_descs = []
         for protease, aa_list, err_set in self.run_parameter_permutator():
             for sigproc_i, sigproc_task in enumerate(sigproc_tasks):
@@ -184,7 +184,7 @@ class ClassifyGenerator(BaseGenerator):
                     test_rf_task = task_templates.test_rf()
 
                 if not self.classify_skip_nn:
-                    test_nn_task = task_templates.nn_v1()
+                    nn_v1_task = task_templates.nn_v1()
 
                 # TODO: classify with NN or RF or both
                 classify_rf_task = {}
@@ -214,7 +214,7 @@ class ClassifyGenerator(BaseGenerator):
                     **sim_v1_task,
                     **train_rf_task,
                     **test_rf_task,
-                    **test_nn_task,
+                    **nn_v1_task,
                     **sigproc_task,
                     **lnfit_task,
                     **classify_rf_task,
@@ -226,7 +226,7 @@ class ClassifyGenerator(BaseGenerator):
                 if not ptm_report and not mhc_report and not pro_report:
                     self.report_section_markdown(f"# RUN {run_desc.run_name}")
                     self.report_section_run_object(run_desc)
-                    if test_rf_task or test_nn_task:
+                    if test_rf_task or nn_v1_task:
                         self.report_section_from_template(
                             "train_and_test_template.ipynb"
                         )
@@ -240,7 +240,7 @@ class ClassifyGenerator(BaseGenerator):
         self.report_section_markdown(f"# JOB {self.job}")
         self.report_section_job_object()
 
-        if test_rf_task or test_nn_task:
+        if test_rf_task or nn_v1_task:
             if ptm_report:
                 self.report_section_from_template("train_and_test_template_ptm.ipynb")
             elif mhc_report:

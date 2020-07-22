@@ -1,7 +1,7 @@
 """
 A classifier for fluorosequences using with a Gaussian Mixture Model on top.
 
-Terminology (applies to test_nn and test_nn)
+Terminology (applies to nn_v1)
 
     n_features:
         (n_cycles * n_channels)
@@ -681,7 +681,9 @@ def nn(nn_params, sim_result, radmat, true_dyemat=None, progress=None):
         flann,
         n_dts,
     ) = _step_1_create_neighbors_lookup_singleprocess(
-        sim_result.train_true_pep_iz, sim_result.train_dyemat, output_dt_mat=dt_mat.arr(),
+        sim_result.train_true_pep_iz,
+        sim_result.train_dyemat,
+        output_dt_mat=dt_mat.arr(),
     )
 
     # dyetracks_df: (dye_i, weight)

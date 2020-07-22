@@ -226,7 +226,7 @@ def classify_rf(train_relative_path, sigproc_relative_path, sim_relative_path):
 
 def nn_v1(**kws):
     return Munch(
-        test_nn=Munch(
+        nn_v1=Munch(
             version="1.0",
             inputs=Munch(sim="../sim_v1", prep="../prep"),
             parameters=Munch(**kws),
