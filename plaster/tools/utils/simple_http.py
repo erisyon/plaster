@@ -3,6 +3,7 @@ import json
 import ssl
 from urllib.parse import urlsplit
 
+from munch import munchify
 from plaster.tools.log.log import error
 from retrying import retry as _retry
 
@@ -31,7 +32,7 @@ def http_method(
         Passes kwargs to the HTTP Connection Class
         Uses Content-Length if provided
         Encodes to UTF-8 if not application/octet-stream
-        Returns a dict from json.loads if application/json
+        Returns a Munch if application/json; see https://github.com/Infinidat/munch
         Returns str in any other cases
     """
 
@@ -91,10 +92,10 @@ def http_method(
     else:
         result = response.read()
 
-    if response.getheader("Content-Type") != "application/octet-stream":
+    if "application/octet-stream" not in response.getheader("Content-Type"):
         result = result.decode("utf-8")
 
-    if response.getheader("Content-Type") == "application/json":
-        result = json.loads(result)
+    if "application/json" in response.getheader("Content-Type"):
+        result = munchify(json.loads(result))
 
     return result
