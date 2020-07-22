@@ -16,10 +16,10 @@ def zest_fast_nn():
             [1, 2, 5],  # Dye track 1 comes from pep 2 5 times
             [2, 2, 5],  # Dye track 2 comes from pep 2 5 times
         ],
-        dtype=np.uint32,
+        dtype=np.uint64,
     )
 
-    test_radmat = np.array(
+    test_unit_radmat = np.array(
         [
             [1.1, 0.9, 0.0, 0.0, 1.9, 1.1, 0.0, 0.1],  # from dye track 2
             [2.1, 0.9, 1.1, 1.0, 1.1, 0.0, 0.1, 0.0],  # from dye track 1
@@ -28,7 +28,7 @@ def zest_fast_nn():
     )
 
     pred_iz, scores = nn_v2_fast.fast_nn(
-        test_radmat, train_dyemat, train_dyepeps, n_neighbors=2
+        test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors=2
     )
     assert pred_iz.tolist() == [2, 1]
 

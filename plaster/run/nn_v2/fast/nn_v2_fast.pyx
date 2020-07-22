@@ -8,8 +8,14 @@ from plaster.tools.schema import check
 
 
 # Local helpers
-def _assert_array_contiguous(arr, dtype):
-    assert isinstance(arr, np.ndarray) and arr.dtype == dtype and arr.flags["C_CONTIGUOUS"]
+def _assert_array_contiguous(arr, dtype, which):
+    if not (isinstance(arr, np.ndarray) and arr.dtype == dtype and arr.flags["C_CONTIGUOUS"]):
+        raise AssertionError(
+            f"array {which} is incorrect: "
+            f"is_ndarray: {isinstance(arr, np.ndarray)} "
+            f"dtype was {arr.dtype} expected {dtype} "
+            f"continguous was {arr.flags['C_CONTIGUOUS']}."
+        )
 
 
 def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
@@ -41,9 +47,9 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
     cdef c_nn.Score [::1] output_scores_view
 
     # CHECKS
-    _assert_array_contiguous(test_unit_radmat, np.float32)
-    _assert_array_contiguous(train_dyemat, np.uint8)
-    _assert_array_contiguous(train_dyepeps, np.uint64)
+    _assert_array_contiguous(test_unit_radmat, np.float32, "test_unit_radmat")
+    _assert_array_contiguous(train_dyemat, np.uint8, "train_dyemat")
+    _assert_array_contiguous(train_dyepeps, np.uint64, "train_dyepeps")
     check.array_t(test_unit_radmat, ndim=2)
     check.array_t(train_dyemat, ndim=2)
     n_cols = test_unit_radmat.shape[1]
