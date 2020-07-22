@@ -209,7 +209,8 @@ class PeaksModelGaussianCircular(PeaksModelGaussian):
         self.std = 1.0
 
     def widths_uniform(self, std=1.5):
-        self.std = std
+        self.std_x = [std for _ in self.locs]
+        self.std_y = [std for _ in self.locs]
         return self
 
     def render(self, im, cy_i):
