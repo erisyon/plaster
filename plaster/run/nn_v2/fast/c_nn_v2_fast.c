@@ -7,28 +7,6 @@
 #include "pthread.h"
 #include "unistd.h"
 #include "c_nn_v2_fast.h"
-#include "c_sim_v2_fast.h"
-
-
-void ensure(int expr, const char *fmt, ...) {
-    // Replacement for assert with var-args and local control of compilation.
-    // See ensure_only_in_debug below.
-    va_list args;
-    va_start(args, fmt);
-    if(!expr) {
-        vfprintf(stderr, fmt, args);
-        fflush(stderr);
-        exit(1);
-    }
-    va_end(args);
-}
-
-
-#ifdef DEBUG
-    #define ensure_only_in_debug ensure
-#else
-    #define ensure_only_in_debug(...) ((void)0)
-#endif
 
 
 int sanity_check() {
@@ -103,6 +81,8 @@ void context_classify_unit_radrows(Context *ctx, Size n_rows, RadType *unit_radr
     memset(neighbor_iz, 0, n_rows * n_neighbors * sizeof(int));
     memset(neighbor_dists, 0, n_rows * n_neighbors * sizeof(float));
 
+//HERHE converting to using tables
+
     // FETCH a batch of neighbors from FLANN in one call.
     flann_find_nearest_neighbors_index_float(
         ctx->flann_index_id,
@@ -131,8 +111,8 @@ void context_classify_unit_radrows(Context *ctx, Size n_rows, RadType *unit_radr
         );
 
         // PICK winner
-        Score score_sum = (Score)0;
         Score highest_score = (Score)0;
+        Score score_sum = (Score)0;
         Index highest_score_i = 0;
         for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
             if (output_scores[nn_i] > highest_score) {

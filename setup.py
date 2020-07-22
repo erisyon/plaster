@@ -24,13 +24,19 @@ extensions = [
         sources=[
             "./plaster/run/sim_v2/fast/sim_v2_fast.pyx",
             "./plaster/run/sim_v2/fast/c_sim_v2_fast.c",
+            "./plaster/tools/c_common/c_common.c",
         ],
-        include_dirs=["./plaster/run/sim_v2/fast", numpy.get_include(),],
+        include_dirs=[
+            "./plaster/run/sim_v2/fast",
+            "./plaster/tools/c_common",
+            numpy.get_include(),
+        ],
         extra_compile_args=[
             "-Wno-unused-but-set-variable",
             "-Wno-unused-label",
             "-Wno-cpp",
             "-pthread",
+            "-DDEBUG",
             # "-DNDEBUG",
         ],
     ),
@@ -39,9 +45,11 @@ extensions = [
         sources=[
             "./plaster/run/nn_v2/fast/nn_v2_fast.pyx",
             "./plaster/run/nn_v2/fast/c_nn_v2_fast.c",
+            "./plaster/tools/c_common/c_common.c",
         ],
         include_dirs=[
             "./plaster/run/nn_v2/fast",
+            "./plaster/tools/c_common",
             "/flann/src/cpp/flann/",
             numpy.get_include(),
         ],
@@ -49,6 +57,7 @@ extensions = [
         library_dirs=["/flann/lib"],
         extra_compile_args=[
             "-DNPY_NO_DEPRECATED_API",
+            "-DDEBUG",
             # "-DNDEBUG",
         ],
     ),
