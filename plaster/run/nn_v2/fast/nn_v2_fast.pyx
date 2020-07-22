@@ -94,31 +94,31 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
         ctx.n_neighbors = n_neighbors
         ctx.n_cols = n_cols
 
-        ctx.test_unit_radmat = c_nn.table_init(
+        ctx.test_unit_radmat = c_nn.table_init_readonly(
             <c_nn.Uint8 *>&test_unit_radmat_view[0, 0],
             test_unit_radmat.nbytes,
             test_unit_radmat.itemsize * test_unit_radmat.shape[1]
         )
 
-        ctx.train_dyemat = c_nn.table_init(
+        ctx.train_dyemat = c_nn.table_init_readonly(
             <c_nn.Uint8 *>&train_dyemat_as_radtype[0],
             train_dyemat_n_elems * sizeof(c_nn.RadType),
             n_cols * sizeof(c_nn.RadType)
         )
-        
+
         ctx.output_pred_iz = c_nn.table_init(
             <c_nn.Uint8 *>&output_pred_iz_view[0],
             output_pred_iz.nbytes,
-            output_pred_iz.itemsize * output_pred_iz.shape[0]
+            output_pred_iz.itemsize
         )
 
         ctx.output_scores = c_nn.table_init(
             <c_nn.Uint8 *>&output_scores_view[0],
             output_scores.nbytes,
-            output_scores.itemsize * output_scores.shape[0]
+            output_scores.itemsize
         )
 
-        ctx.train_dyetrack_weights = c_nn.table_init(
+        ctx.train_dyetrack_weights = c_nn.table_init_readonly(
             <c_nn.Uint8 *>&dyetrack_weights_float[0],
             train_dyemat_n_rows * sizeof(c_nn.WeightType),
             sizeof(c_nn.WeightType)

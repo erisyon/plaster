@@ -36,6 +36,6 @@ def zest_nn_v2_worker():
 
     def it_predicts_test():
         assert nn_v2_result.test_pred_pep_iz.tolist() == [3] * 5 + [2] * 5 + [1] * 5
-        debug(nn_v2_result.test_scores)
+        assert np.all(nn_v2_result.test_scores >= 1.0)
 
     zest()

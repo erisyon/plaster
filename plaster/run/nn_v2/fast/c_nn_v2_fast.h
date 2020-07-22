@@ -11,11 +11,11 @@ typedef struct {
     Size n_neighbors;
     Size n_cols;
 
-    Table test_unit_radmat;
-    Table train_dyetrack_weights;
-    Table train_dyemat;
-    Table output_pred_iz;
-    Table output_scores;
+    Table test_unit_radmat;  // RadType (Float32)
+    Table train_dyetrack_weights;  // WeightType (Float32)
+    Table train_dyemat;  // RadType (Float32)
+    Table output_pred_iz;  // Index32
+    Table output_scores;  // Score (Float32)
 
     // The following are internal to the .c file; freed by context_free()
     struct FLANNParameters flann_params;

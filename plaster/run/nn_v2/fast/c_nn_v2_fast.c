@@ -46,33 +46,33 @@ void score_weighted_inv_square(
     int *neighbor_iz,  // array((n_neighbors,), type=int): indices to dyetrack
     float *neighbor_dists,  // array((n_neighbors,), type=float): distances computed by FLANN
     RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
-    RadType *dyemat,  // arrays((n_dyetracks, n_cols), type=RadType): All dyetracks
-    WeightType *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
+    Table *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
     Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
 ) {
     // scoring funcs take neighors and distances and return scores for each
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_i = neighbor_iz[nn_i];
         RadType neighbor_dist = neighbor_dists[nn_i];
-        WeightType neighbor_weight = dyetrack_weights[neighbor_i];
+        WeightType neighbor_weight = *table_get_row(dyetrack_weights, neighbor_i, WeightType);
 
         output_scores[nn_i] = (Score)(
             neighbor_weight / (0.1 + (neighbor_dist * neighbor_dist))
             // Add a small bias to avoid divide by zero
         );
-        printf("neighbor_dist=%f\n", neighbor_dist);
-        printf("neighbor_weight=%f\n", neighbor_weight);
-        printf("output_scores[nn_i]=%f\n", output_scores[nn_i]);
     }
 }
 
 
-void context_classify_unit_radrows(Context *ctx, Size n_rows, RadType *unit_radrows, Index32 *output_pred_iz, Score *output_scores) {
-    // radrows, output_pred_iz, and output_scores are seprated so
+void context_classify_unit_radrows(
+    Context *ctx,
+    Table unit_radrows,
+    Table output_pred_iz,
+    Table output_scores
+) {
+    // unit_radrows, output_pred_iz, and output_scores are seprated so
     // that they can be passed in in batches.
-
     // FIND neighbor targets via ANN
-    const Size n_cols = ctx->n_cols;
+    Size n_rows = unit_radrows.n_rows;
     const Size n_neighbors = ctx->n_neighbors;
     ensure(n_neighbors <= N_MAX_NEIGHBORS, "n_neighbors exceeds N_MAX_NEIGHBORS");
 
@@ -81,12 +81,10 @@ void context_classify_unit_radrows(Context *ctx, Size n_rows, RadType *unit_radr
     memset(neighbor_iz, 0, n_rows * n_neighbors * sizeof(int));
     memset(neighbor_dists, 0, n_rows * n_neighbors * sizeof(float));
 
-//HERHE converting to using tables
-
     // FETCH a batch of neighbors from FLANN in one call.
     flann_find_nearest_neighbors_index_float(
         ctx->flann_index_id,
-        unit_radrows,
+        table_get_row(&unit_radrows, 0, RadType),
         n_rows,
         neighbor_iz,
         neighbor_dists,
@@ -95,19 +93,18 @@ void context_classify_unit_radrows(Context *ctx, Size n_rows, RadType *unit_radr
     );
 
     for (Index row_i=0; row_i<n_rows; row_i++) {
-        RadType *unit_radrow = &unit_radrows[row_i * n_cols];
+        RadType *unit_radrow = table_get_row(&unit_radrows, row_i, RadType);
         int *row_neighbor_iz = &neighbor_iz[row_i * n_neighbors];
         float *row_neighbor_dists = &neighbor_dists[row_i * n_neighbors];
 
-        Score output_scores[N_MAX_NEIGHBORS];
+        Score _output_scores[N_MAX_NEIGHBORS];
         score_weighted_inv_square(
             n_neighbors,
             row_neighbor_iz,
             row_neighbor_dists,
             unit_radrow,
-            ctx->train_dyemat,
-            ctx->train_dyetrack_weights,
-            output_scores
+            &ctx->train_dyetrack_weights,
+            _output_scores
         );
 
         // PICK winner
@@ -115,24 +112,16 @@ void context_classify_unit_radrows(Context *ctx, Size n_rows, RadType *unit_radr
         Score score_sum = (Score)0;
         Index highest_score_i = 0;
         for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
-            if (output_scores[nn_i] > highest_score) {
-                highest_score = output_scores[nn_i];
+            if (_output_scores[nn_i] > highest_score) {
+                highest_score = _output_scores[nn_i];
                 highest_score_i = nn_i;
             }
-            score_sum += output_scores[nn_i];
+            score_sum += _output_scores[nn_i];
         }
 
         // Set output
-        output_pred_iz[row_i] = row_neighbor_iz[highest_score_i];
-        output_scores[row_i] = highest_score;
-        printf("row_i=%ld\n", row_i);
-
-        // TODO: In current state there's a stack corruption around here
-        // because I';; sometimes get a stack smashing detected message
-        // I need to switch over to using protected tables like sim_v2
-
-        //float a = output_scores[row_i];
-        //printf("output_scores[row_i]=%2.1f\n", output_scores[row_i]);
+        table_set_row(&output_pred_iz, row_i, &row_neighbor_iz[highest_score_i]);
+        table_set_row(&output_scores, row_i, &highest_score);
     }
 }
 
@@ -140,11 +129,11 @@ void context_classify_unit_radrows(Context *ctx, Size n_rows, RadType *unit_radr
 void context_start(Context *ctx) {
     ensure(sanity_check() == 0, "Sanity checks failed");
     ensure(
-        ctx->n_neighbors <= ctx->train_dyemat_n_rows,
+        ctx->n_neighbors <= ctx->train_dyemat.n_rows,
         "FLANN does not support requesting more neihbors than there are data points"
     );
 
-    context_print(ctx);
+    // context_print(ctx);
 
     // CLEAR internally controlled elements
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
@@ -155,8 +144,8 @@ void context_start(Context *ctx) {
     // CREATE the ANN index
     float speedup = 0.0f;
     ctx->flann_index_id = flann_build_index_float(
-        ctx->train_dyemat,
-        ctx->train_dyemat_n_rows,
+        table_get_row(&ctx->train_dyemat, 0, RadType),
+        ctx->train_dyemat.n_rows,
         ctx->n_cols,
         &speedup,
         &ctx->flann_params
@@ -165,7 +154,12 @@ void context_start(Context *ctx) {
     // TODO: Create inverse variances?
 
     // TODO: Thread this into batches
-    context_classify_unit_radrows(ctx, ctx->test_unit_radmat_n_rows, ctx->test_unit_radmat, ctx->output_pred_iz, ctx->output_scores);
+    context_classify_unit_radrows(
+        ctx,
+        ctx->test_unit_radmat,
+        ctx->output_pred_iz,
+        ctx->output_scores
+    );
 }
 
 
@@ -178,22 +172,17 @@ void context_free(Context *ctx) {
 
 
 void context_print(Context *ctx) {
-//    RadType *train_dyemat;
-//    WeightType *train_dyetrack_weights;
-//    Index32 *output_pred_iz;
-//    Score *output_scores;
-
     printf("n_neighbors=%ld\n", ctx->n_neighbors);
     printf("n_cols=%ld\n", ctx->n_cols);
-    printf("train_dyemat_n_rows=%ld\n", ctx->train_dyemat_n_rows);
-    printf("test_unit_radmat_n_rows=%ld\n", ctx->test_unit_radmat_n_rows);
-    for(Index i=0; i<ctx->test_unit_radmat_n_rows; i++) {
+    printf("train_dyemat.n_rows=%ld\n", ctx->train_dyemat.n_rows);
+    printf("test_unit_radmat.n_rows=%ld\n", ctx->test_unit_radmat.n_rows);
+    for(Index row_i=0; row_i<ctx->test_unit_radmat.n_rows; row_i++) {
+        RadType *radrow = table_get_row(&ctx->test_unit_radmat, row_i, RadType);
         for(Index c=0; c<ctx->n_cols; c++) {
-            printf("%2.1f ", ctx->test_unit_radmat[i*ctx->n_cols + c]);
+            printf("%2.1f ", radrow[c]);
         }
         printf("\n");
     }
-
 }
 
 

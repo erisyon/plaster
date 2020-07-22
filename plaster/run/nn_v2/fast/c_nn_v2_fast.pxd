@@ -21,6 +21,8 @@ cdef extern from "c_nn_v2_fast.h":
         Uint64 n_rows
 
     Table table_init(Uint8 *base, Size n_bytes, Size n_bytes_per_row)
+    Table table_init_readonly(Uint8 *base, Size n_bytes, Size n_bytes_per_row)
+    void table_set_row(Table *table, Index row_i, void *src)
 
     ctypedef struct DyePepRec:
         Size count

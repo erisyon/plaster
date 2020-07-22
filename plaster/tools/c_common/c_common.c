@@ -49,14 +49,28 @@ void _trace(const char *fmt, ...) {
 
 Table table_init(Uint8 *base, Size n_bytes, Size n_bytes_per_row) {
     // Wrap an externally allocated memory buffer ptr as a Table.
-    ensure(n_bytes_per_row % 8 == 0, "Mis-aligned table row size");
+    ensure(n_bytes_per_row % 4 == 0, "Mis-aligned table row size");
     ensure((Uint64)base % 8 == 0, "Mis-aligned table");
     Table table;
     table.rows = base;
     table.n_rows = 0;
     table.n_bytes_per_row = n_bytes_per_row;
     table.n_max_rows = n_bytes / n_bytes_per_row;
+    table.readonly = 0;
     memset(table.rows, 0, n_bytes);
+    return table;
+}
+
+
+Table table_init_readonly(Uint8 *base, Size n_bytes, Size n_bytes_per_row) {
+    // Wrap an externally allocated memory buffer ptr as a Table.
+    ensure(n_bytes_per_row % 4 == 0, "Mis-aligned table row size");
+    ensure((Uint64)base % 8 == 0, "Mis-aligned table");
+    Table table;
+    table.rows = base;
+    table.n_bytes_per_row = n_bytes_per_row;
+    table.n_max_rows = n_bytes / n_bytes_per_row;
+    table.n_rows = table.n_max_rows;
     return table;
 }
 
@@ -77,11 +91,22 @@ Index table_add(Table *table, void *src, pthread_mutex_t *lock) {
     Index row_i = table->n_rows;
     table->n_rows ++;
     if(lock) pthread_mutex_unlock(lock);
+    ensure_only_in_debug(!table->readonly, "Attempting to write to a readonly table");
     ensure(0 <= row_i && row_i < table->n_max_rows, "Table overflow");
     if(src != 0) {
         memcpy(table->rows + table->n_bytes_per_row * row_i, src, table->n_bytes_per_row);
     }
     return row_i;
+}
+
+
+void table_set_row(Table *table, Index row_i, void *src) {
+    // Set a row to the table and halt on overflow.
+    ensure_only_in_debug(!table->readonly, "Attempting to set to a readonly table");
+    ensure(0 <= row_i && row_i < table->n_max_rows, "Table overflow");
+    if(src != 0) {
+        memcpy(table->rows + table->n_bytes_per_row * row_i, src, table->n_bytes_per_row);
+    }
 }
 
 

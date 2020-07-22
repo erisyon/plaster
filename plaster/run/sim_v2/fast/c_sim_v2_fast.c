@@ -627,7 +627,7 @@ void context_work_orders_start(Context *ctx) {
         pthread_join(ids[i], NULL);
     }
 
-    trace("dtrs n_rows = %ld\n", ctx->dtrs.n_rows);
+    // trace("dtrs n_rows = %ld\n", ctx->dtrs.n_rows);
 }
 
 

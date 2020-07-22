@@ -46,6 +46,7 @@ typedef struct {
     Uint64 n_bytes_per_row;
     Uint64 n_max_rows;
     Uint64 n_rows;
+    Uint64 readonly;
 } Table;
 
 
@@ -76,8 +77,11 @@ void _trace(const char *fmt, ...);
 
 // Tables
 Table table_init(Uint8 *base, Size n_bytes, Size n_bytes_per_row);
+Table table_init_readonly(Uint8 *base, Size n_bytes, Size n_bytes_per_row);
+
 void *_table_get_row(Table *table, Index row);
 #define table_get_row(table, row, type) (type *)_table_get_row(table, row)
+void table_set_row(Table *table, Index row_i, void *src);
 Index table_add(Table *table, void *src, pthread_mutex_t *lock);
 void table_validate(Table *table, void *ptr, char *msg);
 #ifdef DEBUG
