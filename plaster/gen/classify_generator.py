@@ -158,7 +158,7 @@ class ClassifyGenerator(BaseGenerator):
         train_rf_task = test_rf_task = nn_v1_task = {}
         run_descs = []
         for protease, aa_list, err_set in self.run_parameter_permutator():
-            for sigproc_i, sigproc_task in enumerate(sigproc_tasks):
+            for sigproc_i, sigproc_v1_task in enumerate(sigproc_tasks):
                 prep_task = task_templates.prep(
                     self.protein,
                     protease,
@@ -188,7 +188,7 @@ class ClassifyGenerator(BaseGenerator):
 
                 # TODO: classify with NN or RF or both
                 classify_rf_task = {}
-                if sigproc_task:
+                if sigproc_v1_task and len(train_rf_task) > 0:
                     classify_rf_task = task_templates.classify_rf(
                         sim_relative_path="../sim_v1",
                         train_relative_path=f"../{utils.get_root_key(train_rf_task)}",
@@ -215,7 +215,7 @@ class ClassifyGenerator(BaseGenerator):
                     **train_rf_task,
                     **test_rf_task,
                     **nn_v1_task,
-                    **sigproc_task,
+                    **sigproc_v1_task,
                     **lnfit_task,
                     **classify_rf_task,
                 )
@@ -230,7 +230,7 @@ class ClassifyGenerator(BaseGenerator):
                         self.report_section_from_template(
                             "train_and_test_template.ipynb"
                         )
-                    if sigproc_task:
+                    if sigproc_v1_task:
                         self.report_section_from_template("sigproc_v1_template.ipynb")
                         if lnfit_task:
                             self.report_section_from_template("lnfit_template.ipynb")
