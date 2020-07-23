@@ -1,12 +1,10 @@
 import numpy as np
-import pandas as pd
-from munch import Munch
-from plaster.run.sim_v2 import sim_v2_worker
-from plaster.run.nn_v2.nn_v2_worker import nn_v2_worker
+
 from plaster.run.nn_v2.nn_v2_params import NNV2Params
+from plaster.run.nn_v2.nn_v2_worker import nn_v2_worker
 from plaster.run.prep.prep_result import PrepResult
+from plaster.run.sim_v2 import sim_v2_worker
 from plaster.run.sim_v2.sim_v2_params import SimV2Params, ErrorModel
-from plaster.tools.log.log import debug, prof
 from zest import zest
 
 
@@ -37,5 +35,11 @@ def zest_nn_v2_worker():
     def it_predicts_test():
         assert nn_v2_result.test_pred_pep_iz.tolist() == [3] * 5 + [2] * 5 + [1] * 5
         assert np.all(nn_v2_result.test_scores >= 1.0)
+
+    zest()
+
+
+def zest_v1_v2_compare():
+    PrepResult.random_fixture(2)
 
     zest()
