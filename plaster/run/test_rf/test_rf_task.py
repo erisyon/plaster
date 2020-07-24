@@ -12,7 +12,7 @@ class TestRFTask(PipelineTask):
         test_rf_params = TestRFParams(**self.config.parameters)
 
         prep_result = PrepResult.load_from_folder(self.inputs.prep)
-        sim_result = SimV1Result.load_from_folder(self.inputs.sim)
+        sim_result = SimV1Result.load_from_folder(self.inputs.sim_v2)
         train_rf_result = TrainRFResult.load_from_folder(self.inputs.train_rf)
 
         test_rf_result = test_rf(

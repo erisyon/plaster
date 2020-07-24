@@ -172,7 +172,7 @@ def _radmat_sim(dyemat, dyepeps, ch_params):
     return radiometry.reshape((radiometry.shape[0], radiometry.shape[1] * radiometry.shape[2])), true_pep_iz
 
 
-def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
+def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     train_flus = None
     train_dyemat = None
     train_dyepeps = None

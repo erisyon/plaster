@@ -1,8 +1,7 @@
 from munch import Munch
 import pandas as pd
 import numpy as np
-from plaster.run.prep.prep_params import PrepParams
-from plaster.run.prep.prep_result import PrepResult
+from plaster.run.prep import prep_fixtures
 from plaster.run.sim_v2.sim_v2_params import SimV2Params, ErrorModel, RadType
 from plaster.run.sim_v2 import sim_v2_worker
 from plaster.tools.utils import utils
@@ -90,7 +89,7 @@ def zest_radmat_sim():
 
 
 def zest_sim_v2_worker():
-    prep_result = PrepResult.test_fixture()
+    prep_result = prep_fixtures.result_simple_fixture()
 
     def _sim(err_kwargs=None):
         error_model = ErrorModel.no_errors(n_channels=2, **(err_kwargs or {}))
@@ -99,7 +98,7 @@ def zest_sim_v2_worker():
             ["A", "B"], error_model=error_model, n_edmans=4
         )
 
-        return sim_v2_worker.sim(sim_v2_params, prep_result), sim_v2_params
+        return sim_v2_worker.sim_v2(sim_v2_params, prep_result), sim_v2_params
 
     def it_returns_train_dyemat():
         # Because it has no errors, there's only a perfect dyemats

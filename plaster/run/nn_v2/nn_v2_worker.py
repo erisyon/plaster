@@ -3,7 +3,7 @@ from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.nn_v2.fast import nn_v2_fast
 
 
-def nn_v2_worker(nn_v2_params, sim_v2_result):
+def nn_v2(nn_v2_params, sim_v2_result):
 
     # TODO: This normalization term will need to come from calibration?
     # For now, I'm hard-coding it.

@@ -12,7 +12,7 @@ class NNV1Task(PipelineTask):
         nn_v1_params = NNV1Params(**self.config.parameters)
 
         prep_result = PrepResult.load_from_folder(self.inputs.prep)
-        sim_v1_result = SimV1Result.load_from_folder(self.inputs.sim)
+        sim_v1_result = SimV1Result.load_from_folder(self.inputs.sim_v2)
 
         nn_v1_result = nn_v1(
             nn_v1_params,
