@@ -8,7 +8,6 @@ import uuid
 
 from munch import Munch
 from plaster.gen import helpers
-from plaster.gen.calib_nn_generator import CalibNNV1Generator
 from plaster.gen.classify_generator import ClassifyGenerator
 from plaster.gen.errors import ValidationError
 from plaster.gen.ptm_generator import PTMGenerator
@@ -478,7 +477,6 @@ class GenApp(cli.Application, GenFuncs):
         ptm=PTMGenerator,
         sigproc_v1=SigprocV1Generator,
         sigproc_v2=SigprocV2Generator,
-        calib_nn_v1=CalibNNV1Generator,
         calib_sigproc_v2=SigprocV2CalibGenerator,
         survey=SurveyGenerator,
     )

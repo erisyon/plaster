@@ -1,11 +1,12 @@
+raise DeprecationWarning
 from munch import Munch
+from plaster.gen import task_templates
+from plaster.gen.base_generator import BaseGenerator
+from plaster.gen.errors import ValidationError
+from plaster.gen.sigproc_v1_generator import SigprocV1Generator
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
 from plumbum import local
-from plaster.gen import task_templates
-from plaster.gen.errors import ValidationError
-from plaster.gen.base_generator import BaseGenerator
-from plaster.gen.sigproc_v1_generator import SigprocV1Generator
 
 modes = ("gain", "vpe")
 

@@ -124,6 +124,15 @@ class BaseGenerator(Munch):
         s.is_kws_r(calibration_file=s.is_str(), instrument_subject_id=s.is_str(),)
     )
 
+    dye_names_schema = s(
+        s.is_kws_r(
+            dye_names=s.is_str(
+                help="Dye names of each channel; will be saved with this scope.",
+                userdata=dict(cli=True),
+            )
+        )
+    )
+
     report_metadata = Munch(
         metadata=Munch(
             kernelspec=Munch(
