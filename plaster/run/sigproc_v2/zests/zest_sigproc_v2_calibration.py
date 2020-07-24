@@ -221,7 +221,7 @@ def zest_sigproc_v2_calibration():
                 continue
             fit_params, fit_variance = imops.fit_gauss2(reg_psfs[x, y])
             for fv in fit_variance:
-                assert fv < 0.001
+                assert fv < 0.01
             fit_params_sum += np.array(fit_params)
         assert blank_regions <= 2
         fit_params_mean = fit_params_sum / ((divs * divs) - blank_regions)
@@ -323,7 +323,7 @@ def zest_sigproc_v2_calibration():
                 continue
             fit_params, fit_variance = imops.fit_gauss2(reg_psfs[x, y])
             for fv in fit_variance:
-                assert fv < 0.001
+                assert fv < 0.01
             if (x < test_corner_width) and (y < test_corner_width):
                 divisor_test_corner += 1
                 fit_params_sum_test_corner += np.array(fit_params)
