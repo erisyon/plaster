@@ -178,7 +178,10 @@ class BaseResult(Munch):
         and then as Munch to try again.
         """
         try:
-            return Munch.__getattr__(self, key)
+            val = Munch.__getattr__(self, key)
+            if isinstance(val, ArrayResult):
+                return val.arr()
+            return val
         except AttributeError:
             # Bypass munch for these elements...
             _folder = object.__getattribute__(self, "_folder")
