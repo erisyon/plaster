@@ -106,7 +106,38 @@ def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples):
 
     return dyemat, dyepeps, pep_recalls
 
+def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cycles):
+    """
+    Generate a radmat with equal number of samples per peptide.
+    """
 
+    # SORT dyepeps by peptide (col 1) first then by count (col 2)
+    # Note that np.lexsort puts the primary sort key LAST in the argument
+    sorted_dyepeps = dyepeps[np.lexsort((dyepeps[:,2 ], dyepeps[:, 1]))]
+
+    # GROUP sorted_dyepeps by peptide using trick described here:
+    # https://stackoverflow.com/a/43094244
+    # This results in a list of numpy arrays.
+    # Note there might be holes, unlikely but possible that
+    # not every peptide has an entry in grouped_dyepep_rows therefore
+    # this can not be treated as a lookup table by pep_i)
+    grouped_dyepep_rows = np.split(
+        sorted_dyepeps,
+        np.cumsum(np.unique(sorted_dyepeps[:, 1], return_counts=True)[1])[:-1]
+    )
+
+    n_peps = np.max(dyepeps[:, 1]) + 1
+    dt_sample_mat = np.zeros((n_peps, n_samples_per_pep), dtype=int)
+
+    for group in grouped_dyepep_rows:
+        pep_i = group[0, 1]
+        counts = group[:, 2].astype(np.float32)
+        prob = counts / counts.sum()
+        dt_sample_mat[pep_i, :] = np.random.choice(group[:, 0], n_samples_per_pep, p=prob)
+
+        # TODO: Add call to C here
+
+'''
 def _radmat_sim(dyemat, dyepeps, ch_params):
     """
     TODO: This can be sped up in a variety of ways.
@@ -119,6 +150,18 @@ def _radmat_sim(dyemat, dyepeps, ch_params):
     nice that the simulator goes through the same code path.
 
     But also, this just needs to be moved into C.
+
+
+        # HERE:
+        # The _radmat_sim is apples to oranges from sim_v1 because
+        # test_dyemat is uniqued!
+        # I want to give each peptide an equal testing chance,
+        # not each dyetrack. So I need to perform a lookup
+        # here to get copies of the dyetracks for each
+        # peptide. This is tricky because I need to sample from the
+        # available dyetrack for each peptide according to frequency
+
+
     """
 
     if dyepeps.shape[0] == 0:
@@ -170,9 +213,9 @@ def _radmat_sim(dyemat, dyepeps, ch_params):
     assert sample_i == n_samples_total
 
     return radiometry.reshape((radiometry.shape[0], radiometry.shape[1] * radiometry.shape[2])), true_pep_iz
+'''
 
-
-def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
+def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     train_flus = None
     train_dyemat = None
     train_dyepeps = None
@@ -212,6 +255,7 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
         test_dyemat, test_dyepeps, test_pep_recalls = _dyemat_sim(
             sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test
         )
+
         test_radmat, test_true_pep_iz = _radmat_sim(
             test_dyemat.reshape(
                 (test_dyemat.shape[0], sim_v2_params.n_channels, sim_v2_params.n_cycles)
@@ -222,6 +266,10 @@ def sim(sim_v2_params, prep_result, progress=None, pipeline=None):
 
         if not sim_v2_params.test_includes_dyemat:
             test_dyemat, test_dyepeps_df = None, None
+
+        debug(test_radmat.shape)
+        debug(test_true_pep_iz.shape)
+
 
     return SimV2Result(
         params=sim_v2_params,

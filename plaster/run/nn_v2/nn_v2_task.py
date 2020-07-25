@@ -10,7 +10,7 @@ class TestNNTask(PipelineTask):
         nn_v2_params = NNV2Params(**self.config.parameters)
 
         prep_result = PrepResult.load_from_folder(self.inputs.prep)
-        sim_v2_result = SimV2Result.load_from_folder(self.inputs.sim)
+        sim_v2_result = SimV2Result.load_from_folder(self.inputs.sim_v2)
 
         nn_v2_result = nn_worker(nn_v2_params, prep_result, sim_v2_result)
         nn_v2_result.save()
