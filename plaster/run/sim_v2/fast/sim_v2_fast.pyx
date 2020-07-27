@@ -165,58 +165,45 @@ def sim(
         free(n_aas)
 
 '''
-TODO Change this to be called from sim_v2_worker._radmat_sim
+def radmat(dyemat, ch_params, output_radmat, pep_i):
+    """
+    Generate a radmat for the samples of one peptide.
 
-def radmat(dyetracks, dyepeps, ch_params, n_samples_per_pep):
+    dyemat: ndarray[], the sampled dyerows to convert to rad
+    ch_params: Channels parameters
+    output_radmat: The full radmat to write into only on the
+        pep_i rows
+    pep_i: Which pep (0-th axis of output_radmat)
     """
-    Generate a radmat for each peptide in dyepeps such that
-    we end up with n_samples_per_pep per pepide in such a way
-    that the dyetracks are appropriately sampled from the
-    distribution of each peptide.
-    """
-    cdef csim.Uint8 [:, ::1] dyetracks_view
-    cdef csim.Uint64 [:, ::1] dyepeps_view
-    cdef csim.Float32 [::1] prob_view
+
+    cdef csim.Uint8 [:, :, ::1] dyemat_view
     cdef csim.Float32 [:, :, :, ::1] output_radmat_view
+    cdef Index ch_i = 0
 
-    cdef Index pep_i = 0
-    cdef Index dyepep_i = 0
-    cdef Size n_dyepep_rows = dyepeps.shape[0]
-    cdef Size sum_count
-    cdef Size n_rows
-    cdef Float32 prob[
-
-    # SORT dyepeps by peptide (col 1) first then by count (col 2)
-    # Note that np.lexsort puts the primary sort key LAST in the argument
-    sorted_dyepeps = dyepeps[np.lexsort((dyepeps[:,2 ], dyepeps[:, 1]))]
-
-    # GROUP sorted_dyepeps by peptide using trick described here:
-    # https://stackoverflow.com/a/43094244
-    # This results in a list of numpy arrays.
-    # Note there might be holes, unlikely but possible that
-    # not every peptide has an entry in grouped_dyepep_rows therefore
-    # this can not be treated as a lookup table by pep_i)
-    grouped_dyepep_rows = np.split(
-        sorted_dyepeps,
-        np.cumsum(np.unique(sorted_dyepeps[:, 1], return_counts=True)[1])[:-1]
-    )
-
-    n_peps = np.max(dyepeps[:, 1]) + 1
-    output_radmat = np.zeros((n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=np.float32)
+    dyemat_view = &dyetracks[0, 0, 0]
     output_radmat_view = &output_radmat[0, 0, 0, 0]
 
-    dyetracks_view = &dyetracks[0, 0]
-    for group in grouped_dyepep_rows:
-        dyepeps_view = &group[0, 0]
-        pep_i = dyepeps_view[0, 1]
+    # This might need to be converted to C and multi-threaded
+    # for now I'm going to try it in cython only.
 
-        counts = group[:, 2].astype(np.float32)
-        prob = counts / counts.sum()
-        dyetrack_iz = np.random.choice(group[:, 0], n_samples_per_pep, p=prob)
+    for ch_i in range(n_channels):
+        ch_log_beta = math.log(ch_params[ch_i].beta)
+        ch_sigma = ch_params[ch_i].sigma
 
-        output_radmat_view[pep_i,
+        # dyemat can have zeros, nan these to prevent log(0)
+        dm_nan = dyemat[:, ch_i, :].astype(float)
+        dm_nan[dm_nan == 0] = np.nan
 
+        dm_nan = np.repeat(dm_nan[None, :], count, axis=0)
 
+        logs = np.log(dm_nan)  # log(nan) == nan
 
+        # Remember: log(a) + log(b) == log(a*b)
+        # So we're scaling the dyes by beta and taking the log
+        ch_radiometry = _rand_lognormals(log_ch_beta + logs, ch_sigma)
+        np.random.lognormal(mean=logs, sigma=sigma, size=logs.shape)
+
+        radiometry[sample_i : int(sample_i + count), ch, :] = np.nan_to_num(
+            ch_radiometry
+        )
 '''
-

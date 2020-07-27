@@ -45,6 +45,113 @@ def zest_gen_flus():
     zest()
 
 
+def zest_sample_pep_dyemat():
+    def it_samples():
+        dyepep_group = np.array([[1, 1, 5], [2, 1, 5], [3, 1, 0],], dtype=int)
+
+        n_samples_per_pep = 10
+        sampled_dt_iz = sim_v2_worker._sample_pep_dyemat(
+            dyepep_group, n_samples_per_pep
+        )
+        assert sampled_dt_iz.shape == (n_samples_per_pep,)
+        assert not np.any(sampled_dt_iz == 0)
+        assert np.any(sampled_dt_iz == 1)
+        assert np.any(sampled_dt_iz == 2)
+        assert not np.any(sampled_dt_iz == 3)
+
+    def it_handles_no_samples():
+        dyepep_group = np.zeros((0, 3), dtype=int)
+        n_samples_per_pep = 10
+        sampled_dt_iz = sim_v2_worker._sample_pep_dyemat(
+            dyepep_group, n_samples_per_pep
+        )
+        assert sampled_dt_iz.shape == (0,)
+
+    def it_handles_no_counts():
+        dyepep_group = np.zeros((1, 3), dtype=int)
+        n_samples_per_pep = 10
+        sampled_dt_iz = sim_v2_worker._sample_pep_dyemat(
+            dyepep_group, n_samples_per_pep
+        )
+        assert sampled_dt_iz.shape == (0,)
+
+    zest()
+
+
+def zest_radmat_from_sampled_pep_dyemat():
+    n_channels = 2
+    n_cycles = 3
+    n_samples_per_pep = 5
+    n_peps = 2
+
+    # fmt: off
+    sampled_dyemat = np.array([
+        [[1, 1, 0], [1, 0, 0]],
+        [[2, 2, 1], [2, 1, 0]],
+        [[2, 2, 1], [2, 1, 0]],
+        [[1, 1, 0], [1, 0, 0]],
+        [[1, 1, 0], [1, 0, 0]],
+    ], dtype=np.uint8)
+    # fmt: on
+
+    output_radmat = np.zeros((n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=np.float32)
+
+    ch_params_no_noise = [
+        Munch(beta=10.0, sigma=0.0),
+        Munch(beta=10.0, sigma=0.0),
+    ]
+
+    ch_params_with_noise = [
+        Munch(beta=10.0, sigma=0.1),
+        Munch(beta=10.0, sigma=0.1),
+    ]
+
+    def it_returns_noise_free_radmat():
+        sim_v2_worker._radmat_from_sampled_pep_dyemat(
+            sampled_dyemat,
+            ch_params_no_noise,
+            n_channels,
+            output_radmat,
+            pep_i=1
+        )
+
+        assert output_radmat.shape == (n_peps, n_samples_per_pep, n_channels, n_cycles)
+        assert np.all(output_radmat[0, :, :, :] == 0.0)
+        assert np.all(output_radmat[1, :, :, :] == 10.0 * sampled_dyemat.astype(np.float32))
+
+    def it_returns_noisy_radmat():
+        sim_v2_worker._radmat_from_sampled_pep_dyemat(
+            sampled_dyemat,
+            ch_params_with_noise,
+            n_channels,
+            output_radmat,
+            pep_i=1
+        )
+
+        assert output_radmat.shape == (n_peps, n_samples_per_pep, n_channels, n_cycles)
+        assert np.all(output_radmat[0, :, :, :] == 0.0)
+        expected = 10.0 * sampled_dyemat.astype(np.float32)
+        diff = output_radmat[1, :, :, :] - expected
+        diff = utils.np_safe_divide(diff, expected)**2
+        assert np.all( (diff**2 < 0.1**2) | np.isnan(diff) )
+
+    def it_handles_empty_dyemat():
+        empty_dyemat = np.zeros((0, n_channels, n_cycles), dtype=np.uint8)
+
+        sim_v2_worker._radmat_from_sampled_pep_dyemat(
+            empty_dyemat,
+            ch_params_no_noise,
+            n_channels,
+            output_radmat,
+            pep_i=1
+        )
+
+        assert output_radmat.shape == (n_peps, n_samples_per_pep, n_channels, n_cycles)
+        assert np.all(output_radmat[:, :, :, :] == 0.0)
+
+    zest()
+
+
 def zest_radmat_sim():
     ch_params_with_noise = [
         Munch(beta=7500.0, sigma=0.16),
@@ -56,26 +163,60 @@ def zest_radmat_sim():
         Munch(beta=1.0, sigma=0.0),
     ]
 
-    dyemat = np.array(
-        [[[0, 0, 0], [0, 0, 0]], [[1, 1, 0], [1, 0, 0]], [[2, 2, 1], [2, 1, 0]],]
-    )
+    # fmt: off
+    dyemat = np.array([
+        [[0, 0, 0], [0, 0, 0]],
+        [[1, 1, 0], [1, 0, 0]],
+        [[2, 2, 1], [2, 1, 0]],
+    ])
 
-    dyepeps = np.array([[0, 0, 0], [1, 1, 10], [1, 2, 5], [2, 2, 5],])
+    dyepeps = np.array([
+        [0, 0, 0],
+        [1, 1, 10],
+        [1, 2, 5],
+        [2, 2, 5],
+    ])
+    # fmt: on
+
+    n_samples_per_pep = 5
+    n_channels = 2
+    n_cycles = 3
+    n_peps = 3
 
     def it_returns_reasonable_radiometry():
         radiometry, true_pep_iz = sim_v2_worker._radmat_sim(
-            dyemat, dyepeps, ch_params_with_noise
+            dyemat,
+            dyepeps,
+            ch_params_with_noise,
+            n_samples_per_pep,
+            n_channels,
+            n_cycles,
         )
+        assert radiometry.shape == (n_peps * n_samples_per_pep, n_channels, n_cycles)
+        assert true_pep_iz.tolist() == [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
         assert np.all(radiometry[radiometry > 0.0] > 1000.0)
 
     def it_returns_correct_radiometry_with_no_noise():
         # By using no noise, we can just compare that radiometry gave back the dyemat
         # but with each peptide repeated
         radiometry, true_pep_iz = sim_v2_worker._radmat_sim(
-            dyemat, dyepeps, ch_params_no_noise
+            dyemat,
+            dyepeps,
+            ch_params_no_noise,
+            n_samples_per_pep,
+            n_channels,
+            n_cycles,
         )
-        assert utils.np_array_same(radiometry[0:15], dyemat[1, :].flatten().astype(RadType))
-        assert utils.np_array_same(radiometry[15:20], dyemat[2, :].flatten().astype(RadType))
+
+        # HERHE
+        import pudb; pudb.set_trace()
+        assert utils.np_array_same(
+            radiometry[0:n_samples_per_pep], dyemat[0, :].flatten().astype(RadType)
+        )
+        assert utils.np_array_same(
+            radiometry[n_samples_per_pep:2*n_samples_per_pep], dyemat[1, :].flatten().astype(RadType)
+            radiometry[15:20], dyemat[2, :].flatten().astype(RadType)
+        )
         # fmt: off
         assert true_pep_iz[0:20].tolist() == [
             1, 1, 1, 1, 1,
@@ -124,11 +265,7 @@ def zest_sim_v2_worker():
         sim_v2_result, sim_v2_params = _sim()
         assert utils.np_array_same(
             sim_v2_result.train_dyepeps,
-            np.array([
-                [1, 1, 5000],
-                [2, 2, 5000],
-                [3, 3, 5000],
-            ], dtype=np.uint64),
+            np.array([[1, 1, 5000], [2, 2, 5000], [3, 3, 5000],], dtype=np.uint64),
         )
 
     def it_handles_non_fluorescent():
@@ -165,7 +302,9 @@ def zest_sim_v2_worker():
         flus = sim_v2_result.train_flus
         assert utils.np_array_same(flus[0], np.array([7], dtype=np.uint8))
         assert utils.np_array_same(flus[1], np.array([0, 1, 7, 7, 7], dtype=np.uint8))
-        assert utils.np_array_same(flus[2], np.array([1, 7, 1, 7, 7, 7], dtype=np.uint8))
+        assert utils.np_array_same(
+            flus[2], np.array([1, 7, 1, 7, 7, 7], dtype=np.uint8)
+        )
         assert utils.np_array_same(flus[3], np.array([1, 1, 7, 7, 7], dtype=np.uint8))
 
     # def it_returns_test_fields():

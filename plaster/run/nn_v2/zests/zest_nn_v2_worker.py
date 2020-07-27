@@ -27,7 +27,9 @@ def zest_nn_v2_worker():
     # Flip just to convinvce myself that it is working
     # so that they aren't accidentally in the right order
     sim_v2_result.test_radmat = np.flip(sim_v2_result.test_radmat, axis=0).copy()
-    sim_v2_result.test_true_pep_iz = np.flip(sim_v2_result.test_true_pep_iz, axis=0).copy()
+    sim_v2_result.test_true_pep_iz = np.flip(
+        sim_v2_result.test_true_pep_iz, axis=0
+    ).copy()
 
     nn_v2_params = NNV2Params(n_neighbors=2)
 
