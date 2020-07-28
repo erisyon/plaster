@@ -49,7 +49,7 @@ void score_weighted_inv_square(
     Table *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
     Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
 ) {
-    // scoring funcs take neighors and distances and return scores for each
+    // scoring funcs take neighbors and distances and return scores for each
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_i = neighbor_iz[nn_i];
         RadType neighbor_dist = neighbor_dists[nn_i];
@@ -69,7 +69,7 @@ void context_classify_unit_radrows(
     Table output_pred_iz,
     Table output_scores
 ) {
-    // unit_radrows, output_pred_iz, and output_scores are seprated so
+    // unit_radrows, output_pred_iz, and output_scores are separated so
     // that they can be passed in in batches.
     // FIND neighbor targets via ANN
     Size n_rows = unit_radrows.n_rows;

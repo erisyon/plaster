@@ -3,7 +3,7 @@ from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.nn_v2.fast import nn_v2_fast
 
 
-def nn_v2_worker(nn_v2_params, sim_v2_result):
+def nn_v2(nn_v2_params, sim_v2_result):
 
     # TODO: This normalization term will need to come from calibration?
     # For now, I'm hard-coding it.
@@ -12,7 +12,9 @@ def nn_v2_worker(nn_v2_params, sim_v2_result):
     radmat_normalization = np.zeros((n_channels * n_cycles), np.float32)
     for ch in range(n_channels):
         for cy in range(n_cycles):
-            radmat_normalization[ch*n_cycles + cy] = sim_v2_result.params.by_channel[ch].beta
+            radmat_normalization[ch * n_cycles + cy] = sim_v2_result.params.by_channel[
+                ch
+            ].beta
 
     assert np.all(radmat_normalization > 0.0)
 

@@ -398,9 +398,7 @@ class RunResult:
         """
         if classifier is None:
             classifier = self.get_available_classifiers()[0]
-        return self[f"{classifier}_call_bag"](
-            use_train_data=use_train_data
-        )
+        return self[f"{classifier}_call_bag"](use_train_data=use_train_data)
 
     def test_rf_call_bag(self, use_train_data=False):
         """

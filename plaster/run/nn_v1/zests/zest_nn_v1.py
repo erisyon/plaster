@@ -443,5 +443,3 @@ def zest_nn_v1():
             assert nn_result.dt_scores.shape == (3,)
 
     zest()
-
-

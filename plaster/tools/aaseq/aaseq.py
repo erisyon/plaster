@@ -122,3 +122,8 @@ def aa_list_to_str(seqlist, spaces=None):
     for i in range(0, len_, spaces):
         s += "".join(seqlist[i : i + spaces]) + " "
     return s
+
+
+def aa_random(n_aas):
+    df = aa_code_df.sample(n_aas, replace=True, weights="frequency")
+    return df.aa.str.cat()

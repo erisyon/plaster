@@ -10,7 +10,7 @@ class SurveyNNTask(PipelineTask):
         survey_nn_params = SurveyNNParams(**self.config.parameters)
 
         prep_result = PrepResult.load_from_folder(self.inputs.prep)
-        sim_result = SimV1Result.load_from_folder(self.inputs.sim)
+        sim_result = SimV1Result.load_from_folder(self.inputs.sim_v2)
 
         survey_nn_result = survey_nn(
             survey_nn_params,
