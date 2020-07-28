@@ -133,7 +133,9 @@ def _rand_lognormals(logs, sigma):
     return np.random.lognormal(mean=logs, sigma=sigma, size=logs.shape)
 
 
-def _radmat_from_sampled_pep_dyemat(dyemat, ch_params, n_channels, output_radmat, pep_i):
+def _radmat_from_sampled_pep_dyemat(
+    dyemat, ch_params, n_channels, output_radmat, pep_i
+):
     if dyemat.shape[0] > 0:
         for ch_i in range(n_channels):
             ch_log_beta = math.log(ch_params[ch_i].beta)
@@ -195,11 +197,16 @@ def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cyc
         # All of the pep_iz (column 1) should be the same since that's what a "group" is.
         pep_i = dyepep_group[0, 1]
         sampled_dt_iz = _sample_pep_dyemat(dyepep_group, n_samples_per_pep)
-        _radmat_from_sampled_pep_dyemat(dyemat[sampled_dt_iz], ch_params, n_channels, output_radmat, pep_i)
+        _radmat_from_sampled_pep_dyemat(
+            dyemat[sampled_dt_iz], ch_params, n_channels, output_radmat, pep_i
+        )
 
-    output_radmat = output_radmat.reshape((n_peps * n_samples_per_pep, n_channels, n_cycles))
+    output_radmat = output_radmat.reshape(
+        (n_peps * n_samples_per_pep, n_channels, n_cycles)
+    )
     true_pep_iz = np.repeat(np.arange(n_peps), n_samples_per_pep)
     return output_radmat, true_pep_iz
+
 
 def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     train_flus = None

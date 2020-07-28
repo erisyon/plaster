@@ -1,3 +1,4 @@
+"""
 from plaster.tools.utils.tmp import tmp_folder, tmp_file
 from plaster.run.prep import prep_fixtures
 from plaster.run.sim_v1 import sim_v1_fixtures
@@ -29,3 +30,4 @@ def zest_v1_v2_compare():
         debug(nn_v2_result.test_pred_pep_iz.shape)
 
     zest()
+"""

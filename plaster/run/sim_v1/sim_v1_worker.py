@@ -687,9 +687,6 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
             progress=progress,
         )
 
-        debug(test_radmat.shape)
-        debug(test_true_pep_iz.shape)
-
         # CHECK that the train and test are not identical in SOME non_zero_row
         # If they are, there was some sort of RNG seed errors which might happen
         # for example if sub-processes failed to re-init their RNG seeds.

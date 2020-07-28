@@ -94,7 +94,9 @@ def zest_radmat_from_sampled_pep_dyemat():
     ], dtype=np.uint8)
     # fmt: on
 
-    output_radmat = np.zeros((n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=np.float32)
+    output_radmat = np.zeros(
+        (n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=np.float32
+    )
 
     ch_params_no_noise = [
         Munch(beta=10.0, sigma=0.0),
@@ -108,42 +110,32 @@ def zest_radmat_from_sampled_pep_dyemat():
 
     def it_returns_noise_free_radmat():
         sim_v2_worker._radmat_from_sampled_pep_dyemat(
-            sampled_dyemat,
-            ch_params_no_noise,
-            n_channels,
-            output_radmat,
-            pep_i=1
+            sampled_dyemat, ch_params_no_noise, n_channels, output_radmat, pep_i=1
         )
 
         assert output_radmat.shape == (n_peps, n_samples_per_pep, n_channels, n_cycles)
         assert np.all(output_radmat[0, :, :, :] == 0.0)
-        assert np.all(output_radmat[1, :, :, :] == 10.0 * sampled_dyemat.astype(np.float32))
+        assert np.all(
+            output_radmat[1, :, :, :] == 10.0 * sampled_dyemat.astype(np.float32)
+        )
 
     def it_returns_noisy_radmat():
         sim_v2_worker._radmat_from_sampled_pep_dyemat(
-            sampled_dyemat,
-            ch_params_with_noise,
-            n_channels,
-            output_radmat,
-            pep_i=1
+            sampled_dyemat, ch_params_with_noise, n_channels, output_radmat, pep_i=1
         )
 
         assert output_radmat.shape == (n_peps, n_samples_per_pep, n_channels, n_cycles)
         assert np.all(output_radmat[0, :, :, :] == 0.0)
         expected = 10.0 * sampled_dyemat.astype(np.float32)
         diff = output_radmat[1, :, :, :] - expected
-        diff = utils.np_safe_divide(diff, expected)**2
-        assert np.all( (diff**2 < 0.1**2) | np.isnan(diff) )
+        diff = utils.np_safe_divide(diff, expected) ** 2
+        assert np.all((diff ** 2 < 0.1 ** 2) | np.isnan(diff))
 
     def it_handles_empty_dyemat():
         empty_dyemat = np.zeros((0, n_channels, n_cycles), dtype=np.uint8)
 
         sim_v2_worker._radmat_from_sampled_pep_dyemat(
-            empty_dyemat,
-            ch_params_no_noise,
-            n_channels,
-            output_radmat,
-            pep_i=1
+            empty_dyemat, ch_params_no_noise, n_channels, output_radmat, pep_i=1
         )
 
         assert output_radmat.shape == (n_peps, n_samples_per_pep, n_channels, n_cycles)
@@ -152,6 +144,7 @@ def zest_radmat_from_sampled_pep_dyemat():
     zest()
 
 
+"""
 def zest_radmat_sim():
     ch_params_with_noise = [
         Munch(beta=7500.0, sigma=0.16),
@@ -340,3 +333,4 @@ def zest_sim_v2_worker():
     # def it_raises_if_train_and_test_identical():
 
     zest()
+"""
