@@ -459,8 +459,7 @@ class BaseGenerator(Munch):
             for param in params:
                 if param[0].startswith("err_"):
                     parts = param[0].split(":")
-                    err_set[parts[0][4:]][int(parts[1])] = param[1]
-                    # The 4: removes the "err_"
+                    err_set[parts[0][4:]][int(parts[1])] = param[1]  # The 4: removes the "err_"
 
             yield protease, label_set, err_set
 
