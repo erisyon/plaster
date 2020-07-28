@@ -2,7 +2,7 @@ from munch import Munch
 from plaster.tools.schema.schema import Schema as s, Params
 
 
-class SurveyNNParams(Params):
+class SurveyNNV1Params(Params):
     # Maybe I'll inherit params from TestNN, but let's see what we want first...
 
     defaults = Munch()
