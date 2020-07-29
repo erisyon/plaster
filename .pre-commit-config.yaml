@@ -1,0 +1,26 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 19.10b0
+    hooks:
+      - id: black
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.3.9
+    hooks:
+      - id: nbstripout
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.1.0
+    hooks:
+      # defaults to >=500kb
+      - id: check-added-large-files
+      # helps catch OSX/Linux/macos filesystem differences
+      - id: check-case-conflict
+      # loads json blobs to make sure they're valid
+      - id: check-json
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.24.2
+    hooks:
+      - id: yamllint
+        # TODO: remove this, once we've established a good set of values
+        args: ["-d", "relaxed"]
