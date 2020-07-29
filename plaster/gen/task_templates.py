@@ -156,7 +156,7 @@ def survey_nn_v1():
     return Munch(
         survey_nn_v1=Munch(
             version="1.0",
-            inputs=Munch(prep="../prep", sim="../sim_v1"),
+            inputs=Munch(prep="../prep", sim_v1="../sim_v1"),
             parameters=Munch(),
         )
     )
@@ -166,7 +166,7 @@ def train_rf():
     return Munch(
         train_rf=Munch(
             version="1.0",
-            inputs=Munch(sim="../sim_v1"),
+            inputs=Munch(sim_v1="../sim_v1"),
             parameters=Munch(
                 n_estimators=10,
                 min_samples_leaf=50,
@@ -182,7 +182,7 @@ def test_rf():
     return Munch(
         test_rf=Munch(
             version="1.0",
-            inputs=Munch(sim="../sim_v1", train_rf="../train_rf", prep="../prep"),
+            inputs=Munch(sim_v1="../sim_v1", train_rf="../train_rf", prep="../prep"),
             parameters=Munch(include_training_set=False, keep_all_class_scores=False),
         )
     )
@@ -220,9 +220,9 @@ def classify_rf(train_relative_path, sigproc_relative_path, sim_relative_path):
         classify_rf=Munch(
             version="1.0",
             inputs=Munch(
-                sim=sim_relative_path,
+                sim_v1=sim_relative_path,
                 train_rf=train_relative_path,
-                sigproc=sigproc_relative_path,
+                sigproc_v1=sigproc_relative_path,
             ),
             parameters=Munch(),
         )
@@ -233,7 +233,7 @@ def nn_v1(**kws):
     return Munch(
         nn_v1=Munch(
             version="1.0",
-            inputs=Munch(sim="../sim_v1", prep="../prep"),
+            inputs=Munch(sim_v1="../sim_v1", prep="../prep"),
             parameters=Munch(**kws),
         )
     )

@@ -1,0 +1,39 @@
+---
+# TODO:
+#  - kustomize  ; once we know what we want from the options
+#  - skjold     ; once we work out the github token pattern
+#  - yamlfmt    ; once we establish what the right settings should be vis-a-vis .editorconfig,
+#               ; does it class with yamllint?
+#  - commitizen ; once we get commitzen in the container
+#  - mypy       ; need to do more research
+#  - shell-lint ; need to check with ZBS if he agrees with the lint rules
+#  - beautysh   ; need to check with ZBS if he agrees with the format; also, does this class with shell-lint
+#  - unimport   ; the project seems quite unstable right now; wait for it to settle down
+#  - markdownlint ; this one https://github.com/markdownlint/markdownlint, when we've worked out vscode integration
+#  - dectect-secrets ; need to establish a baseline w.r.t. helm charts, terraform file shas, etc
+repos:
+  - repo: https://github.com/psf/black
+    rev: 19.10b0
+    hooks:
+      - id: black
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.3.9
+    hooks:
+      - id: nbstripout
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.1.0
+    hooks:
+      # defaults to >=500kb
+      - id: check-added-large-files
+      # helps catch OSX/Linux/macos filesystem differences
+      - id: check-case-conflict
+      # loads json blobs to make sure they're valid
+      - id: check-json
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.24.2
+    hooks:
+      - id: yamllint
+        # TODO: remove this, once we've established a good set of values
+        args: ["-d", "relaxed"]

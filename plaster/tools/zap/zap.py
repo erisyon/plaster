@@ -50,7 +50,7 @@ from concurrent.futures import (
     as_completed,
     thread,
 )
-from plaster.tools.log.log import debug, error, info, exception
+from plaster.tools.log.log import debug, error, info, exception, prof
 from plaster.tools.utils import utils
 
 global_cpu_limit = None
@@ -168,19 +168,19 @@ def _do_zap_with_executor(executor, zap):
     """
     retry_iz = []
 
-    future_to_i = {}
+    wo_i_by_future = {}
     for i, work_order in enumerate(zap.work_orders):
         # Important: the executor submit must not be passed
         # the actual work_order to bypass serialization.
         future = executor.submit(_run_work_order_fn, zap.id, i)
-        future_to_i[future] = i
+        wo_i_by_future[future] = i
 
     results = [None] * zap.n_work_orders
     timings = [None] * zap.n_work_orders
 
     n_done = 0
-    for future in as_completed(future_to_i):
-        i = future_to_i[future]
+    for future in as_completed(wo_i_by_future):
+        i = wo_i_by_future[future]
         work_order = zap.work_orders[i]
         try:
             result, duration = future.result()

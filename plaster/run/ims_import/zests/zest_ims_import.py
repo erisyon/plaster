@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from munch import Munch
 from plumbum import local
 import tempfile
@@ -8,16 +9,19 @@ from plaster.run.ims_import import ims_import_worker as worker
 from plaster.tools.log.log import debug
 
 
-class ND2(Munch):
-    def get_fields(self):
-        ims = np.full((3, self.n_channels, self.dim[0], self.dim[1]), 0.0)
+class _MockND2(Munch):
+    def get_field(self, field, channel):
+        ims = np.zeros((self.dim[0], self.dim[1]), dtype=np.uint16)
         if self._fill_by == "channel":
-            for ch in range(self.n_channels):
-                ims[:, ch, :, :] = ch
+            ims[:, :] = channel
         elif self._fill_by == "cycle":
-            for cy in range(self._n_cycles):
-                ims[cy, :, :, :] = cy
+            ims[:, :] = field
         return ims
+
+
+@contextmanager
+def MockND2(**kwargs):
+    yield _MockND2(**kwargs)
 
 
 @zest.group("integration")
@@ -39,7 +43,7 @@ def zest_ims_import():
         cycle_files = [(src_path / f"{i}.nd2") for i in range(n_cycles)]
 
         def _make_nd2(dim, fill_by="channel", n_cycles=None):
-            return ND2(
+            return MockND2(
                 n_fields=n_fields,
                 n_channels=n_channels,
                 dim=(dim, dim),
@@ -60,8 +64,7 @@ def zest_ims_import():
         def _before():
             nonlocal ims_import_params, nd2
             ims_import_params = ImsImportParams()
-            nd2 = _make_nd2(64)
-            m_nd2.returns(nd2)
+            m_nd2.hook_to_call = lambda _: _make_nd2(64)
             m_scan_nd2_files.returns(cycle_files)
             m_scan_tif_files.returns([])
             m_scan_npy_files.returns([])
@@ -77,8 +80,7 @@ def zest_ims_import():
 
         def it_converts_to_power_of_2():
             with zest.mock(worker._convert_message):
-                nd2 = _make_nd2(63)
-                m_nd2.returns(nd2)
+                m_nd2.hook_to_call = lambda _: _make_nd2(63)
                 result = worker.ims_import(src_path, ims_import_params)
                 assert result.field_chcy_ims(0).shape == (n_channels, n_cycles, 64, 64)
 
@@ -115,8 +117,7 @@ def zest_ims_import():
             def _before():
                 nonlocal ims_import_params, nd2
                 ims_import_params = ImsImportParams(is_movie=True)
-                nd2 = _make_nd2(64, "cycle", n_fields)
-                m_nd2.returns(nd2)
+                m_nd2.hook_to_call = lambda _: _make_nd2(64, "cycle", n_fields)
                 m_scan_nd2_files.returns(cycle_files)
                 m_scan_tif_files.returns([])
 
@@ -150,8 +151,7 @@ def zest_ims_import():
 
             def it_converts_to_power_of_2():
                 with zest.mock(worker._convert_message):
-                    nd2 = _make_nd2(63, "cycle", n_fields)
-                    m_nd2.returns(nd2)
+                    m_nd2.hook_to_call = lambda _: _make_nd2(63, "cycle", n_fields)
                     result = worker.ims_import(src_path, ims_import_params)
                     assert result.field_chcy_ims(0).shape == (
                         n_channels,
