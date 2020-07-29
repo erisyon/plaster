@@ -255,7 +255,6 @@ def _do_work_orders_thread_mode(zap):
             # Unlike above with os.kill(), the thread clears are not so destructive,
             # so we want to call them in any situation in which we're bubbling up the
             # exception.
-            print("TRYING TO STOP THREAD WORK ORDERS")
             executor._threads.clear()
             thread._threads_queues.clear()
             raise e

@@ -137,6 +137,7 @@ from plaster.tools.image import imops
 
 OUTPUT_NP_TYPE = np.float32
 
+
 def _scan_nd2_files(src_dir):
     """Mock-point"""
     return list(src_dir // "*.nd2")
@@ -361,10 +362,12 @@ def _do_nd2_scatter(src_path, start_field, n_fields, cycle_i, n_channels, target
                 im = nd2.get_field(field_i, channel_i)
 
                 if im.shape[0] != target_mea or im.shape[1] != target_mea:
-                    working_im[0: im.shape[0], 0: im.shape[1]] = im[:, :]
+                    working_im[0 : im.shape[0], 0 : im.shape[1]] = im[:, :]
                     im = working_im
 
-                dst_file = _npy_filename_by_field_channel_cycle(field_i, channel_i, cycle_i)
+                dst_file = _npy_filename_by_field_channel_cycle(
+                    field_i, channel_i, cycle_i
+                )
                 dst_files += [dst_file]
                 np.save(dst_file, im)
 
@@ -402,7 +405,9 @@ def _do_gather(
     check.list_t(src_channels, int)
     n_channels = len(src_channels)
 
-    field_chcy_arr = nd2_import_result.allocate_field(output_field_i, (n_channels, n_cycles, dim, dim), OUTPUT_NP_TYPE)
+    field_chcy_arr = nd2_import_result.allocate_field(
+        output_field_i, (n_channels, n_cycles, dim, dim), OUTPUT_NP_TYPE
+    )
     field_chcy_ims = field_chcy_arr.arr()
 
     chcy_i_to_quality = np.zeros((n_channels, n_cycles))
@@ -463,39 +468,41 @@ def _do_movie_import(
     The "fields" from the .nd2 file become "cycles" as if the instrument had
     taken 1 field with a lot of cycles.
     """
+    working_im = np.zeros((target_mea, target_mea), OUTPUT_NP_TYPE)
 
     with _nd2(nd2_path) as nd2:
+        n_actual_cycles = nd2.n_fields
+        n_channels = nd2.n_channels
+        actual_dim = nd2.dim
 
-        # TODO FIX ME
-        ims = nd2.get_fields()
-        n_actual_cycles = ims.shape[0]
-        n_channels = ims.shape[1]
-        actual_dim = ims.shape[2:4]
-
-        # The .nd2 file is usually of shape (n_fields, n_channels, dim, dim)
-        # but in a movie, the n_fields is becoming the n_cycles so swap the fields and channel
-        # putting ims into (n_channels, n_cycles, dim, dim)
-        chcy_ims = np.swapaxes(ims, 0, 1)
+        chcy_arr = nd2_import_result.allocate_field(
+            output_field_i,
+            (n_channels, n_cycles, target_mea, target_mea),
+            OUTPUT_NP_TYPE,
+        )
+        chcy_ims = chcy_arr.arr()
 
         assert start_cycle + n_cycles <= n_actual_cycles
-        chcy_ims = chcy_ims[:, start_cycle : start_cycle + n_cycles, :, :]
-
         check.affirm(
             actual_dim[0] <= target_mea and actual_dim[1] <= target_mea,
             f"nd2 scatter requested {target_mea} which is smaller than {actual_dim}",
         )
 
-        if actual_dim[0] != target_mea or actual_dim[1] != target_mea:
-            # CONVERT into a zero pad
-            new_chcy_ims = np.zeros(
-                (n_channels, n_cycles, target_mea, target_mea), dtype=ims.dtype
-            )
-            new_chcy_ims[:, :, 0 : actual_dim[0], 0 : actual_dim[1]] = chcy_ims[:, :, :, :]
-            chcy_ims = new_chcy_ims
+        for ch_i in range(n_channels):
+            for cy_in_i in range(start_cycle, start_cycle + n_cycles):
+                cy_out_i = cy_in_i - start_cycle
 
-        # TODO Add quality
+                im = nd2.get_field(cy_in_i, ch_i).astype(OUTPUT_NP_TYPE)
 
-        nd2_import_result.save_field(output_field_i, chcy_ims)
+                if actual_dim[0] != target_mea or actual_dim[1] != target_mea:
+                    # CONVERT into a zero pad
+                    working_im[0 : actual_dim[0], 0 : actual_dim[1]] = im
+                    im = working_im
+
+                chcy_ims[ch_i, cy_out_i, :, :] = im
+
+        # Task: Add quality
+        nd2_import_result.save_field(output_field_i, chcy_arr)
 
     return output_field_i, n_actual_cycles
 

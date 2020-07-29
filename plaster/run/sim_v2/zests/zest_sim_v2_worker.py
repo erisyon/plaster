@@ -94,10 +94,6 @@ def zest_radmat_from_sampled_pep_dyemat():
     ], dtype=np.uint8)
     # fmt: on
 
-    output_radmat = np.zeros(
-        (n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=np.float32
-    )
-
     ch_params_no_noise = [
         Munch(beta=10.0, sigma=0.0),
         Munch(beta=10.0, sigma=0.0),
@@ -107,6 +103,14 @@ def zest_radmat_from_sampled_pep_dyemat():
         Munch(beta=10.0, sigma=0.1),
         Munch(beta=10.0, sigma=0.1),
     ]
+
+    output_radmat = None
+
+    def _before():
+        nonlocal output_radmat
+        output_radmat = np.zeros(
+            (n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=np.float32
+        )
 
     def it_returns_noise_free_radmat():
         sim_v2_worker._radmat_from_sampled_pep_dyemat(
