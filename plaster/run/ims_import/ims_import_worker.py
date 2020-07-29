@@ -7,20 +7,123 @@ Options:
 
         Each ND2 file is a collection of channels/field images per cycle.
         This organization needs to be transposed to effectively parallelize the
-        sigprocv2 stage (which acts on all cycles/channels of 1 field in parallel).
+        sigproc stage (which acts on all cycles/channels of 1 field in parallel).
 
         Done in two stages:
             1. scatter the .nd2 files into individual .npy files
             2. gather those .nd2 files back into field stacks.
 
     * TIF files
+
+
+Work needed Jul 2020
+
+This module is responsible for accepting image input from
+a variety of input formats and converting it into numpy
+arrays in the shape and organization that are convenient for
+downstream processing.
+
+Definitions:
+    * Frame / image
+        An image taken by the microscope. This is at one wavelength,
+        at one (X,Y,Z) position of the microscope's stage. It is
+        typcially a square power-of-two and 16-bits but may deviate
+        from this and need correction to the next square power-of-two
+        and may need to be padded up to 16-bits.
+    * Channel
+        A set of frames that correspond to a certain wavelength (ie
+        filter setting) on the scope.
+    * Cycle
+        A set of frames (comprising all channels, all fields) that
+        are taken after a certain "chemical cycle"
+    * Field
+        A field is all frames (all channels, cycles) that coorespond
+        to a given (x, y, z) position of the microscope's stage.
+    * Metadata
+        Various metadata about the camera. Example: focus, brightess, etc.
+        Not consistent on all input formats and scopes
+    * "mea" or "measure" is a 1-dimensional measure
+    * "dim" is a 2-d measure. If something is square then dim == (mea, mea)
+
+Input formats:
+    *.nd2
+        This is a Nikon format the some of our older scopes use.
+        It is not a well supported nor documented format but
+        after some significant reverse-engineering I was able to
+        get most of what I wanted out of the files. See nd2.py.
+
+        ND2 files are usually, BUT NOT ALWAYS, written in the
+        order that 1 nd2 file contains 1 cycle (all channels).
+
+        The later steps of processing want the data in 1-file-per-field
+        order so that each field can be processed in parallel.
+
+    *.tif
+        This is an even older use-case where some of the earliest
+        experiments dumped large numbers of 16-but tif files with magic
+        semantically significant filenames.  At least TIF is relatively
+        well-supported and can use the skimage library.
+        The tif files are sometimes spread out over a directory
+        tree and require recursive traversal to find them all.
+
+    *.npy
+        This is the simplest format and will be what our production
+        scopes will emit (to hopefully avoid a lot of the work
+        in this module!)
+
+    Input considerations:
+        * The order of the input data / files is not typically in
+          the most convenient order for processing.
+        * The order of the input data is not always consistent and
+          various modes have to accommodate this.
+        * The input frames are not always in a power-of-two and
+          have to be converted
+        * A quality metric is useful to have and we might as well
+          calculate it while we have the frames in memory
+
+Output format:
+    The output is in .npy format, all frames correctly scale to a power of two
+    and organized by field.
+
+
+Current approach:
+    If you are in "movie mode" (which is an unhelpful name and needs to be
+    revisited) then the .nd2 files are already in field-major order and
+    therefore the task is simpler.
+
+    If NOT in movie mode then a scatter/gather approach is taken:
+        1. Scan file system and use some hints provided by the ims_import_params
+           to decide which file-names/file-paths will be imported
+        2. Scatter files by deconstructing ND2 or TIF files into individual
+           frames (1 file per frame) and converting them to next power-of-two
+           if needed.
+        3. Gather files by copying individual scattered files into the
+           correct output order (field, channel, cycle).
+
+Other notes
+    * TODO Explain clamping and note that the input start/stop is not nec same as output
+    * TODO Explain zap
+    * As currently implemented even the scanning of the files is a bit
+      slow as it opens and checks vitals on every file when it could
+      do that progressively.
+    * It might be faster to avoid the scatter stage and instead have
+      each gather thread/process open the source files and scan them
+      to find the desired frame.
+    * The dimension conversions are painful
+    * I use memory mapping to keep memory requiremetns down
+    * Things are generally hard-coded to expect 16-bit files in places
+      and that's okay as we do not expect other formats but it
+      would be nice to be cleaner about it.
+    * Some of the metadata is accompaniyed by TSV (tab separated value) files
+      of an unusual format.
+
+
 """
 
 from skimage.io import imread
-import os
 import re
 import numpy as np
-from plaster.run.nd2 import ND2
+from plaster.run.ims_import.nd2 import ND2
 from munch import Munch
 from plumbum import local
 from plaster.run.ims_import.ims_import_result import ImsImportResult
@@ -28,9 +131,11 @@ from plaster.tools.utils import utils
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
 from plaster.tools.tsv import tsv
-from plaster.tools.log.log import important, debug, info
+from plaster.tools.log.log import important, debug, info, prof
 from plaster.tools.image import imops
 
+
+OUTPUT_NP_TYPE = np.float32
 
 def _scan_nd2_files(src_dir):
     """Mock-point"""
@@ -57,9 +162,10 @@ def _load_npy(npy_path):
     return np.load(str(npy_path))
 
 
-def _convert_message(target_dim, new_dim):
+def _convert_message(target_mea, new_dim):
     """Mock-point"""
-    important(f"Converting from dim {target_dim} to {new_dim}")
+    # important(f"Converting from dim {target_mea} to {new_dim}")
+    pass
 
 
 def _scan_files(src_dir):
@@ -84,17 +190,15 @@ def _scan_files(src_dir):
     min_field = 10000
     min_channel = 10000
     min_cycle = 10000
-    dim = 0
-    mode = None
 
     if len(nd2_paths) > 0:
         mode = "nd2"
 
         # OPEN a single image to get the vitals
-        nd2 = _nd2(nd2_paths[0])
-        n_fields = nd2.n_fields
-        n_channels = nd2.n_channels
-        dim = nd2.dim
+        with _nd2(nd2_paths[0]) as nd2:
+            n_fields = nd2.n_fields
+            n_channels = nd2.n_channels
+            dim = nd2.dim
 
     elif len(npy_paths) > 0:
         mode = "npy"
@@ -227,52 +331,43 @@ def _metadata_filename_by_field_cycle(field, cycle):
     return f"__{field:03d}-{cycle:02d}.json"
 
 
-def _do_nd2_scatter(src_path, start_field, n_fields, cycle_i, n_channels, target_dim):
+def _do_nd2_scatter(src_path, start_field, n_fields, cycle_i, n_channels, target_mea):
     """
     Scatter a cycle .nd2 into individual numpy files.
 
-    target_dim is a scalar. The target will be put into this square form.
+    target_mea is a scalar. The target will be put into this square form.
     """
-    nd2 = _nd2(src_path)
 
-    ims = nd2.get_fields()
-    _n_channels = ims.shape[1]
-    actual_dim = ims.shape[2:4]
-    assert n_channels == _n_channels
+    working_im = np.zeros((target_mea, target_mea), np.uint16)
 
-    check.affirm(
-        actual_dim[0] <= target_dim and actual_dim[1] <= target_dim,
-        f"nd2 scatter requested {target_dim} which is smaller than {actual_dim}",
-    )
+    with _nd2(src_path) as nd2:
+        dst_files = []
+        for field_i in range(start_field, start_field + n_fields):
+            info = Munch(
+                x=nd2.x[field_i],
+                y=nd2.y[field_i],
+                z=nd2.z[field_i],
+                pfs_status=nd2.pfs_status[field_i],
+                pfs_offset=nd2.pfs_offset[field_i],
+                exposure_time=nd2.exposure_time[field_i],
+                camera_temp=nd2.camera_temp[field_i],
+                cycle_i=cycle_i,
+                field_i=field_i,
+            )
+            info_dst_file = _metadata_filename_by_field_cycle(field_i, cycle_i)
+            utils.json_save(info_dst_file, info)
 
-    if actual_dim[0] != target_dim or actual_dim[1] != target_dim:
-        # CONVERT into a zero pad
-        new_ims = np.zeros(
-            (n_fields, _n_channels, target_dim, target_dim), dtype=ims.dtype
-        )
-        new_ims[:, :, 0 : actual_dim[0], 0 : actual_dim[1]] = ims[:, :, :, :]
-        ims = new_ims
+            for channel_i in range(n_channels):
+                im = nd2.get_field(field_i, channel_i)
 
-    dst_files = []
-    for field_i in range(start_field, start_field + n_fields):
-        info = Munch(
-            x=nd2.x[field_i],
-            y=nd2.y[field_i],
-            z=nd2.z[field_i],
-            pfs_status=nd2.pfs_status[field_i],
-            pfs_offset=nd2.pfs_offset[field_i],
-            exposure_time=nd2.exposure_time[field_i],
-            camera_temp=nd2.camera_temp[field_i],
-            cycle_i=cycle_i,
-            field_i=field_i,
-        )
-        info_dst_file = _metadata_filename_by_field_cycle(field_i, cycle_i)
-        utils.json_save(info_dst_file, info)
+                if im.shape[0] != target_mea or im.shape[1] != target_mea:
+                    working_im[0: im.shape[0], 0: im.shape[1]] = im[:, :]
+                    im = working_im
 
-        for channel_i in range(n_channels):
-            dst_file = _npy_filename_by_field_channel_cycle(field_i, channel_i, cycle_i)
-            dst_files += [dst_file]
-            np.save(dst_file, ims[field_i, channel_i])
+                dst_file = _npy_filename_by_field_channel_cycle(field_i, channel_i, cycle_i)
+                dst_files += [dst_file]
+                np.save(dst_file, im)
+
     return dst_files
 
 
@@ -307,7 +402,9 @@ def _do_gather(
     check.list_t(src_channels, int)
     n_channels = len(src_channels)
 
-    field_chcy_ims = np.zeros((n_channels, n_cycles, dim, dim))
+    field_chcy_arr = nd2_import_result.allocate_field(output_field_i, (n_channels, n_cycles, dim, dim), OUTPUT_NP_TYPE)
+    field_chcy_ims = field_chcy_arr.arr()
+
     chcy_i_to_quality = np.zeros((n_channels, n_cycles))
     cy_i_to_metadata = [None] * n_cycles
 
@@ -325,9 +422,11 @@ def _do_gather(
                 scatter_fp = _npy_filename_by_field_channel_cycle(
                     input_field_i, src_channel_i, input_cycle_i
                 )
-            im = field_chcy_ims[dst_channel_i, output_cycle_i, :, :] = _load_npy(
-                scatter_fp
-            )
+
+            im = _load_npy(scatter_fp)
+            if im.dtype != OUTPUT_NP_TYPE:
+                im = im.astype(OUTPUT_NP_TYPE)
+            field_chcy_ims[dst_channel_i, output_cycle_i, :, :] = im
             chcy_i_to_quality[dst_channel_i, output_cycle_i] = _quality(im)
 
         # GATHER metadata files if any
@@ -342,14 +441,14 @@ def _do_gather(
         output_cycle_i += 1
 
     nd2_import_result.save_field(
-        output_field_i, field_chcy_ims, cy_i_to_metadata, chcy_i_to_quality
+        output_field_i, field_chcy_arr, cy_i_to_metadata, chcy_i_to_quality
     )
 
     return output_field_i
 
 
 def _do_movie_import(
-    nd2_path, output_field_i, start_cycle, n_cycles, target_dim, nd2_import_result
+    nd2_path, output_field_i, start_cycle, n_cycles, target_mea, nd2_import_result
 ):
     """
     Import Nikon ND2 "movie" files.
@@ -365,37 +464,38 @@ def _do_movie_import(
     taken 1 field with a lot of cycles.
     """
 
-    nd2 = _nd2(nd2_path)
+    with _nd2(nd2_path) as nd2:
 
-    ims = nd2.get_fields()
-    n_actual_cycles = ims.shape[0]
-    n_channels = ims.shape[1]
-    actual_dim = ims.shape[2:4]
+        # TODO FIX ME
+        ims = nd2.get_fields()
+        n_actual_cycles = ims.shape[0]
+        n_channels = ims.shape[1]
+        actual_dim = ims.shape[2:4]
 
-    # The .nd2 file is usually of shape (n_fields, n_channels, dim, dim)
-    # but in a movie, the n_fields is becoming the n_cycles so swap the fields and channel
-    # putting ims into (n_channels, n_cycles, dim, dim)
-    chcy_ims = np.swapaxes(ims, 0, 1)
+        # The .nd2 file is usually of shape (n_fields, n_channels, dim, dim)
+        # but in a movie, the n_fields is becoming the n_cycles so swap the fields and channel
+        # putting ims into (n_channels, n_cycles, dim, dim)
+        chcy_ims = np.swapaxes(ims, 0, 1)
 
-    assert start_cycle + n_cycles <= n_actual_cycles
-    chcy_ims = chcy_ims[:, start_cycle : start_cycle + n_cycles, :, :]
+        assert start_cycle + n_cycles <= n_actual_cycles
+        chcy_ims = chcy_ims[:, start_cycle : start_cycle + n_cycles, :, :]
 
-    check.affirm(
-        actual_dim[0] <= target_dim and actual_dim[1] <= target_dim,
-        f"nd2 scatter requested {target_dim} which is smaller than {actual_dim}",
-    )
-
-    if actual_dim[0] != target_dim or actual_dim[1] != target_dim:
-        # CONVERT into a zero pad
-        new_chcy_ims = np.zeros(
-            (n_channels, n_cycles, target_dim, target_dim), dtype=ims.dtype
+        check.affirm(
+            actual_dim[0] <= target_mea and actual_dim[1] <= target_mea,
+            f"nd2 scatter requested {target_mea} which is smaller than {actual_dim}",
         )
-        new_chcy_ims[:, :, 0 : actual_dim[0], 0 : actual_dim[1]] = chcy_ims[:, :, :, :]
-        chcy_ims = new_chcy_ims
 
-    # TODO Add quality
+        if actual_dim[0] != target_mea or actual_dim[1] != target_mea:
+            # CONVERT into a zero pad
+            new_chcy_ims = np.zeros(
+                (n_channels, n_cycles, target_mea, target_mea), dtype=ims.dtype
+            )
+            new_chcy_ims[:, :, 0 : actual_dim[0], 0 : actual_dim[1]] = chcy_ims[:, :, :, :]
+            chcy_ims = new_chcy_ims
 
-    nd2_import_result.save_field(output_field_i, chcy_ims)
+        # TODO Add quality
+
+        nd2_import_result.save_field(output_field_i, chcy_ims)
 
     return output_field_i, n_actual_cycles
 
@@ -412,12 +512,12 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
         dim,
     ) = _scan_files(src_dir)
 
-    target_dim = max(dim[0], dim[1])
+    target_mea = max(dim[0], dim[1])
 
-    if not utils.is_power_of_2(target_dim):
-        new_dim = utils.next_power_of_2(target_dim)
-        _convert_message(target_dim, new_dim)
-        target_dim = new_dim
+    if not utils.is_power_of_2(target_mea):
+        new_dim = utils.next_power_of_2(target_mea)
+        _convert_message(target_mea, new_dim)
+        target_mea = new_dim
 
     src_channels = list(range(n_channels))
 
@@ -446,6 +546,8 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
         return start_cycle, n_cycles
 
     tsv_data = tsv.load_tsv_for_folder(src_dir)
+
+    # ALLOCATE the ImsImportResult
     ims_import_result = ImsImportResult(
         params=ims_import_params, tsv_data=Munch(tsv_data)
     )
@@ -468,7 +570,7 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
             _stack=True,
             start_cycle=start_cycle,
             n_cycles=n_cycles,
-            target_dim=target_dim,
+            target_mea=target_mea,
             nd2_import_result=ims_import_result,
         )
 
@@ -485,13 +587,13 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
             zap.arrays(
                 _do_nd2_scatter,
                 dict(cycle_i=list(range(len(nd2_paths))), src_path=nd2_paths),
-                _process_mode=True,
+                _process_mode=False,
                 _progress=progress,
                 _stack=True,
                 start_field=start_field,
                 n_fields=n_fields,
                 n_channels=n_channels,
-                target_dim=target_dim,
+                target_mea=target_mea,
             )
 
         elif mode == "tif":
@@ -539,7 +641,7 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
             src_channels=src_channels,
             start_cycle=start_cycle,
             n_cycles=n_cycles,
-            dim=target_dim,
+            dim=target_mea,
             nd2_import_result=ims_import_result,
             mode=mode,
             npy_paths_by_field_channel_cycle=npy_paths_by_field_channel_cycle,
@@ -548,7 +650,8 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
     ims_import_result.n_fields = len(field_iz)
     ims_import_result.n_channels = n_channels
     ims_import_result.n_cycles = n_cycles
-    ims_import_result.dim = target_dim
+    ims_import_result.dim = target_mea
+    ims_import_result.dtype = np.dtype(OUTPUT_NP_TYPE).name
 
     # CLEAN
     for file in local.cwd // "__*":
