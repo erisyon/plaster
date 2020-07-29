@@ -5,14 +5,14 @@ from plaster.tools.schema import check
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils.utils import set_defaults
 from plaster.run.base_result import BaseResult
-from plaster.run.survey_nn.survey_nn_params import SurveyNNParams
+from plaster.run.survey_nn_v1.survey_nn_v1_params import SurveyNNV1Params
 
 
-class SurveyNNResult(BaseResult):
-    name = "survey_nn"
-    filename = "survey_nn.pkl"
+class SurveyNNV1Result(BaseResult):
+    name = "survey_nn_v1"
+    filename = "survey_nn_v1.pkl"
 
-    required_props = dict(params=SurveyNNParams, _survey=(pd.DataFrame))
+    required_props = dict(params=SurveyNNV1Params, _survey=(pd.DataFrame))
 
     survey_columns = [
         "pro_i",

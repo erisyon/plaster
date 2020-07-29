@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from plaster.run.survey_nn.survey_nn_result import SurveyNNResult
+from plaster.run.survey_nn_v1.survey_nn_v1_result import SurveyNNV1Result
 from plaster.tools.aaseq.aaseq import aa_str_to_list
 from plaster.tools.schema import check
 from scipy.spatial.distance import cdist
@@ -42,7 +42,7 @@ def _euc_dist(sim_result):
     return range(n_peps), neighbor_pep_i, neighbor_dist
 
 
-def survey_nn(survey_nn_params, prep_result, sim_result, progress=None, pipeline=None):
+def survey_nn_v1(survey_nn_params, prep_result, sim_result, progress=None, pipeline=None):
     """
     Compute a distance between between peptides that exist in prep_result
     using the dye-tracks employed by nearest-neighbor.  Create a DF that
@@ -93,6 +93,6 @@ def survey_nn(survey_nn_params, prep_result, sim_result, progress=None, pipeline
         .join(peps__flus.set_index("pep_i"), how="left")
         .join(pepstrs.set_index("pep_i"), how="left")
         .reset_index()
-    )[SurveyNNResult.survey_columns]
+    )[SurveyNNV1Result.survey_columns]
 
-    return SurveyNNResult(params=survey_nn_params, _survey=df)
+    return SurveyNNV1Result(params=survey_nn_params, _survey=df)

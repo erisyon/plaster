@@ -1,8 +1,10 @@
+import random
 from munch import Munch
 import pandas as pd
 import numpy as np
 from plaster.run.base_result import BaseResult
 from plaster.run.prep.prep_params import PrepParams
+from plaster.tools.aaseq.aaseq import aa_random
 from plaster.tools.utils import utils
 from plaster.tools.log.log import debug
 
@@ -311,70 +313,4 @@ class PrepResult(BaseResult):
 
         return PrepResult(
             _pros=_pros, _pro_seqs=_pro_seqs, _peps=_peps, _pep_seqs=_pep_seqs,
-        )
-
-    @classmethod
-    def test_fixture(cls):
-        """
-        Generate a simple test fixture with some proteins and peptides
-        """
-
-        prep_params = PrepParams(
-            proteins=[
-                Munch(name="pro1", sequence="ABCDE"),
-                Munch(name="pro2", sequence="BGBIJK BBLMN"),
-            ]
-        )
-
-        pros = pd.DataFrame(
-            dict(
-                pro_id=["nul", "pro1", "pro2"],
-                pro_is_decoy=[False, False, False],
-                pro_i=[0, 1, 2],
-                pro_ptm_locs=[None, None, None],
-                pro_report=[None, None, None],
-            )
-        )
-
-        pro_seqs = pd.DataFrame(
-            dict(
-                pro_i=[0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-                aa=[
-                    ".",
-                    "A", "B", "C", "D", "E",
-                    "B", "G", "B", "I", "J", "K", "B", "B", "L", "M", "N",
-                ],
-            )
-        )
-
-        peps = pd.DataFrame(
-            dict(
-                pep_i=[0, 1, 2, 3],
-                pep_start=[0, 1, 6, 12],
-                pep_stop=[1, 6, 12, 17],
-                pro_i=[0, 1, 2, 2]
-            )
-        )
-
-        pep_seqs = pd.DataFrame(
-            dict(
-                pep_i=[0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3],
-                aa=[
-                    ".",
-                    "A", "B", "C", "D", "E",
-                    "B", "G", "B", "I", "J", "K",
-                    "B", "B", "L", "M", "N",
-                ],
-                pep_offset_in_pro=[
-                    0, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-                ],
-            )
-        )
-
-        return cls(
-            params=prep_params,
-            _pros=pros,
-            _pro_seqs=pro_seqs,
-            _peps=peps,
-            _pep_seqs=pep_seqs,
         )

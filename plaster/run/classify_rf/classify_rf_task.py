@@ -16,7 +16,9 @@ class ClassifyRFTask(PipelineTask):
             self.inputs.sigproc_v1, prop_list=["n_cycles", "n_channels"]
         )
 
-        sim_result = SimV1Result.load_from_folder(self.inputs.sim, prop_list=["params"])
+        sim_result = SimV1Result.load_from_folder(
+            self.inputs.sim_v2, prop_list=["params"]
+        )
 
         classify_rf_result = classify_rf(
             classify_rf_params,

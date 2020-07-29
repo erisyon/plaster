@@ -44,8 +44,8 @@ from plaster.run.train_rf.train_rf_task import TrainRFTask
 from plaster.run.classify_rf.classify_rf_task import ClassifyRFTask
 from plaster.run.prep.prep_task import PrepTask
 from plaster.run.report.report_task import ReportTask
-from plaster.run.survey_nn.survey_nn_task import SurveyNNTask
-from plaster.run.survey_nn.survey_nn_result import SurveyNNResult
+from plaster.run.survey_nn_v1.survey_nn_v1_task import SurveyNNV1Task
+from plaster.run.survey_nn_v1.survey_nn_v1_result import SurveyNNV1Result
 from plaster.run.nn_v1.nn_v1_task import NNV1Task
 from plaster.run.nn_v1.nn_v1_result import NNV1Result
 
@@ -110,7 +110,7 @@ def task_list_from_config(config):
         train_rf=TrainRFTask,
         test_rf=TestRFTask,
         classify_rf=ClassifyRFTask,
-        survey_nn=SurveyNNTask,
+        survey_nn_v1=SurveyNNV1Task,
         nn_v1=NNV1Task,
         report=ReportTask,
     )
@@ -136,7 +136,7 @@ def task_list_from_config(config):
         PrepTask,
         SimV1Task,
         SimV2Task,
-        SurveyNNTask,
+        SurveyNNV1Task,
         TrainRFTask,
         TestRFTask,
         ClassifyRFTask,
@@ -304,7 +304,7 @@ class RunResult:
         test_rf=TestRFResult,
         train_rf=TrainRFResult,
         sim_nn=SimV1Result,  # Example of why it is needed to pull the klass from the run
-        survey_nn=SurveyNNResult,
+        survey_nn_v1=SurveyNNV1Result,
     )
 
     def __init__(self, run_folder, include_manifest=True):
@@ -398,9 +398,7 @@ class RunResult:
         """
         if classifier is None:
             classifier = self.get_available_classifiers()[0]
-        return self[f"{classifier}_call_bag"](
-            use_train_data=use_train_data
-        )
+        return self[f"{classifier}_call_bag"](use_train_data=use_train_data)
 
     def test_rf_call_bag(self, use_train_data=False):
         """
