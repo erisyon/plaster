@@ -8,7 +8,6 @@ from plaster.run.train_rf.train_rf_result import TrainRFResult
 
 class ClassifyRFTask(PipelineTask):
     def start(self):
-        import pudb; pudb.set_trace()
         classify_rf_params = ClassifyRFParams(**self.config.parameters)
 
         train_rf_result = TrainRFResult.load_from_folder(self.inputs.train_rf)
@@ -18,7 +17,7 @@ class ClassifyRFTask(PipelineTask):
         )
 
         sim_result = SimV1Result.load_from_folder(
-            self.inputs.sim_v2, prop_list=["params"]
+            self.inputs.sim_v1, prop_list=["params"]
         )
 
         classify_rf_result = classify_rf(

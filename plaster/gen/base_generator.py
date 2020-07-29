@@ -488,6 +488,11 @@ class BaseGenerator(Munch):
             ("code", [f'run = RunResult("./{run.run_name}")'],),
         ]
 
+    def report_section_first_run_object(self):
+        self._report_sections += [
+            ("code", [f'run = job.runs[0]'],),
+        ]
+
     def report_section_job_object(self):
         self._report_sections += [
             ("code", [f'job = JobResult(".")'],),
