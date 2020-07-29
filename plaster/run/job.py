@@ -11,7 +11,7 @@ This module organizes all-run results.
 import pandas as pd
 from plumbum import local
 from plaster.run.run import RunResult
-from plaster.run.survey_nn.survey_nn_result import SurveyNNResult
+from plaster.run.survey_nn_v1.survey_nn_v1_result import SurveyNNV1Result
 from plaster.tools.schema import check
 from plaster.tools.assets import assets
 
@@ -451,7 +451,7 @@ class JobResult:
         remember, just look in the JobResult to see what it can do.
         """
 
-        filters = filters or SurveyNNResult.defaults
+        filters = filters or SurveyNNV1Result.defaults
 
         def _filter_runs(df):
             # A last minute addition to survey is the ability to include
