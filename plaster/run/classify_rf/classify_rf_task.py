@@ -17,7 +17,7 @@ class ClassifyRFTask(PipelineTask):
         )
 
         sim_result = SimV1Result.load_from_folder(
-            self.inputs.sim_v2, prop_list=["params"]
+            self.inputs.sim_v1, prop_list=["params"]
         )
 
         classify_rf_result = classify_rf(

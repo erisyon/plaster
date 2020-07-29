@@ -7,13 +7,15 @@ Helpful reference:
 https://github.com/openmicroscopy/bioformats/blob/develop/components/formats-gpl/src/loci/formats/in/NativeND2Reader.java
 """
 
-
+import mmap
 import numpy as np
 import struct
 from munch import Munch
+from contextlib import contextmanager
+from plaster.tools.log.log import debug
 
 
-class ND2:
+class _ND2:
     data_types = {
         1: "unsigned_char",
         2: "unsigned_int",
@@ -25,12 +27,17 @@ class ND2:
         11: "dict",
     }
 
-    def __init__(self, path):
-        with open(path, "rb") as f:
-            self.data = f.read()
+    def __init__(self, data):
+        self.data = data
 
+        # The CHUNK MAP SIGNATURE is generally near the end of the file
+        end_block = len(data) - 10_000
+        tail_data = data[end_block:]
         sig = bytes("ND2 CHUNK MAP SIGNATURE 0000001!", encoding="utf-8")
-        off_sig = self.data.find(sig)
+        found_offset = tail_data.find(sig)
+        if found_offset < 0:
+            raise ValueError("nd2 file did not find a signature")
+        off_sig = found_offset + end_block
 
         chunk_map_pos = self._u64(off_sig + len(sig))
 
@@ -243,40 +250,42 @@ class ND2:
                 print(f"{'  ' * indent}{k} = DICT")
                 self._dumpd(v, indent + 1)
 
-    def get_fields(self, n_fields=None):
-        """
-        Returns numpy array of shape (n_fields, n_channels, dim, dim)
-        """
-        if n_fields is None:
-            n_fields = self.n_fields
-        ims = np.zeros((n_fields, self.n_channels, *self.dim))
-        for field in range(n_fields):
-            block = self.images[field]
-
-            pos = block.pos
-            pos += 4  # Skip magic header
-
-            name_len = self._u32(pos)
-            pos += 4
-
-            data_len = self._u64(pos)
-            pos += 8
-
-            pos += name_len
-
-            timestamp = self._f64(pos)
-            pos += 8
-
-            n_pixels = self.dim[0] * self.dim[1] * self.n_channels
-            im = np.ndarray(
-                (n_pixels,), buffer=self.data[pos : pos + n_pixels * 2], dtype="uint16"
-            )
-            for channel in range(self.n_channels):
-                ims[field, channel, :, :] = np.reshape(
-                    im[channel :: self.n_channels], self.dim
-                )
-
-        return ims
+    # def get_fields(self, n_fields=None):
+    #     """
+    #     Returns numpy array of shape (n_fields, n_channels, dim, dim)
+    #     """
+    #     if n_fields is None:
+    #         n_fields = self.n_fields
+    #
+    #     ims = np.zeros((n_fields, self.n_channels, *self.dim))
+    #
+    #     for field in range(n_fields):
+    #         block = self.images[field]
+    #
+    #         pos = block.pos
+    #         pos += 4  # Skip magic header
+    #
+    #         name_len = self._u32(pos)
+    #         pos += 4
+    #
+    #         data_len = self._u64(pos)
+    #         pos += 8
+    #
+    #         pos += name_len
+    #
+    #         timestamp = self._f64(pos)
+    #         pos += 8
+    #
+    #         n_pixels = self.dim[0] * self.dim[1] * self.n_channels
+    #         im = np.ndarray(
+    #             (n_pixels,), buffer=self.data[pos : pos + n_pixels * 2], dtype="uint16"
+    #         )
+    #         for channel in range(self.n_channels):
+    #             ims[field, channel, :, :] = np.reshape(
+    #                 im[channel :: self.n_channels], self.dim
+    #             )
+    #
+    #     return ims
 
     def get_field(self, field, channel):
         block = self.images[field]
@@ -300,3 +309,14 @@ class ND2:
             (n_pixels,), buffer=self.data[pos : pos + n_pixels * 2], dtype="uint16"
         )
         return np.reshape(im[channel :: self.n_channels], self.dim)
+
+
+@contextmanager
+def ND2(path):
+    with open(path, "rb") as f:
+        map_obj = mmap.mmap(f.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
+        try:
+            nd2 = _ND2(map_obj)
+            yield nd2
+        finally:
+            map_obj.close()

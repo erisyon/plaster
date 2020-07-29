@@ -2,7 +2,7 @@ from munch import Munch
 import pandas as pd
 import numpy as np
 from plumbum import local
-from plaster.run.base_result import BaseResult
+from plaster.run.base_result import BaseResult, ArrayResult
 from plaster.run.ims_import.ims_import_params import ImsImportParams
 from plaster.tools.utils import utils
 from plaster.tools.utils.fancy_indexer import FancyIndexer
@@ -29,6 +29,7 @@ class ImsImportResult(BaseResult):
         n_cycles=int,
         dim=int,
         tsv_data=Munch,
+        dtype=str,
     )
 
     _metadata_columns = (
@@ -52,6 +53,10 @@ class ImsImportResult(BaseResult):
     def _field_qualities_filename(self, field_i):
         return str(self._folder / f"field_{field_i:03d}_qualities.pkl")
 
+    def allocate_field(self, field_i, shape, dtype):
+        filename = self._field_ims_filename(field_i)
+        return ArrayResult(filename, dtype, shape, mode="w+")
+
     def save_field(
         self, field_i, field_chcy_ims, metadata_by_cycle=None, chcy_qualities=None
     ):
@@ -62,9 +67,14 @@ class ImsImportResult(BaseResult):
         temporary pickle file and are reduced to a single value
         in the main thread's result instance.
         """
-        np.save(self._field_ims_filename(field_i), field_chcy_ims)
+        if isinstance(field_chcy_ims, np.ndarray):
+            np.save(self._field_ims_filename(field_i), field_chcy_ims)
+        elif isinstance(field_chcy_ims, ArrayResult):
+            field_chcy_ims.flush()
+
         if metadata_by_cycle is not None:
             utils.pickle_save(self._field_metadata_filename(field_i), metadata_by_cycle)
+
         if chcy_qualities is not None:
             utils.pickle_save(self._field_qualities_filename(field_i), chcy_qualities)
 
@@ -106,10 +116,12 @@ class ImsImportResult(BaseResult):
 
     def field_chcy_ims(self, field_i):
         if field_i not in self._cache_field_chcy_ims:
-            self._cache_field_chcy_ims[field_i] = np.load(
-                self._field_ims_filename(field_i)
+            self._cache_field_chcy_ims[field_i] = ArrayResult(
+                self._field_ims_filename(field_i),
+                dtype=np.dtype(self.dtype),
+                shape=(self.n_channels, self.n_cycles, self.dim, self.dim)
             )
-        return self._cache_field_chcy_ims[field_i]
+        return self._cache_field_chcy_ims[field_i].arr()
 
     def n_fields_channel_cycles(self):
         return self.n_fields, self.n_channels, self.n_cycles

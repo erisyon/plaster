@@ -230,12 +230,6 @@ class ClassifyGenerator(BaseGenerator):
                         self.report_section_from_template(
                             "train_and_test_template.ipynb"
                         )
-                    if sigproc_v1_task:
-                        self.report_section_from_template("sigproc_v1_template.ipynb")
-                        if lnfit_task:
-                            self.report_section_from_template("lnfit_template.ipynb")
-                        # TODO: this classify template needs to work for NN also
-                        self.report_section_from_template("classify_template.ipynb")
 
         self.report_section_markdown(f"# JOB {self.job}")
         self.report_section_job_object()
@@ -263,6 +257,10 @@ class ClassifyGenerator(BaseGenerator):
             sigproc_imports_desc += "\n".join(
                 [f"\t* {s.ims_import.inputs.src_dir}" for s in sigproc_tasks]
             )
+
+            self.report_section_first_run_object()
+            self.report_section_from_template("sigproc_v1_template.ipynb")
+            self.report_section_from_template("classify_template.ipynb")
 
         self.report_preamble(
             utils.smart_wrap(
