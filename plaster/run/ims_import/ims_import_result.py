@@ -7,6 +7,7 @@ from plaster.run.ims_import.ims_import_params import ImsImportParams
 from plaster.tools.utils import utils
 from plaster.tools.utils.fancy_indexer import FancyIndexer
 from plaster.tools.log.log import debug
+from plaster.tools.schema import check
 
 
 class ImsImportResult(BaseResult):
@@ -67,10 +68,8 @@ class ImsImportResult(BaseResult):
         temporary pickle file and are reduced to a single value
         in the main thread's result instance.
         """
-        if isinstance(field_chcy_ims, np.ndarray):
-            np.save(self._field_ims_filename(field_i), field_chcy_ims)
-        elif isinstance(field_chcy_ims, ArrayResult):
-            field_chcy_ims.flush()
+        check.t(field_chcy_ims, ArrayResult)
+        field_chcy_ims.flush()
 
         if metadata_by_cycle is not None:
             utils.pickle_save(self._field_metadata_filename(field_i), metadata_by_cycle)
@@ -119,7 +118,7 @@ class ImsImportResult(BaseResult):
             self._cache_field_chcy_ims[field_i] = ArrayResult(
                 self._field_ims_filename(field_i),
                 dtype=np.dtype(self.dtype),
-                shape=(self.n_channels, self.n_cycles, self.dim, self.dim)
+                shape=(self.n_channels, self.n_cycles, self.dim, self.dim),
             )
         return self._cache_field_chcy_ims[field_i].arr()
 
