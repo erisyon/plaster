@@ -35,9 +35,6 @@ typedef Float32 WeightType;
 #define CYCLE_TYPE_PRE ((CycleKindType)(0))
 #define CYCLE_TYPE_MOCK ((CycleKindType)(1))
 #define CYCLE_TYPE_EDMAN ((CycleKindType)(2))
-
-
-
 #define N_MAX_NEIGHBORS (8)
 
 
