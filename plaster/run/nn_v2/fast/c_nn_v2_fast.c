@@ -72,28 +72,44 @@ void score_weighted_gaussian_mixture(
     Table *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
     Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
 ) {
+    double weights[N_MAX_NEIGHBORS];
     double weighted_pdf[N_MAX_NEIGHBORS];
     double weighted_pdf_sum = 0.0;
+
+    // TODO: std_per_dye should be per channel
+    // TODO: I need to do an experiment to figure out how
+    // to compare lognormal to this model? And ALSO I need to
+    // be sure to set that in the _v1 comparison
+    double std_per_dye = sqrt(0.1);
 
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_i = neighbor_dye_iz[nn_i];
         RadType *neighbor_target_dt = table_get_row(train_dyemat, neighbor_i, RadType);
         WeightType neighbor_weight = *table_get_row(dyetrack_weights, neighbor_i, WeightType);
+        weights[nn_i] = (double)neighbor_weight;
 
         double vdist = (double)0.0;
+        double det = 1.0;
         for (Index col_i=0; col_i<n_cols; col_i++) {
-            double delta = (double)neighbor_target_dt[col_i] - (double)radrow[col_i];
-            vdist += delta * delta;
-            // TODO: Add inv_var if needed and sigma determinant if needed
+            double target_dt_for_col_i = (double)neighbor_target_dt[col_i];
+            double delta = target_dt_for_col_i - (double)radrow[col_i];
+            double std_units = std_per_dye * (target_dt_for_col_i == 0.0 ? 0.5 : target_dt_for_col_i);
+            double variance = std_units * std_units;
+            ensure_only_in_debug(variance > 0, "Illegal zero variance");
+            det *= variance;
+            vdist += delta * delta / variance;
         }
-        double weight = exp(-vdist / 2.0) * (double)neighbor_weight;
+        ensure_only_in_debug(det > 0, "Illegal zero det");
+        double inv_sqrt_det = 1.0 / sqrt(det);
+        double weight = (double)neighbor_weight * inv_sqrt_det * exp(-vdist / 2.0);
         weighted_pdf[nn_i] = weight;
         weighted_pdf_sum += weight;
     }
 
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
+        Score penalty = (Score)(1.0 - exp(-0.8 * weights[nn_i]));
         if(weighted_pdf_sum > 0.0) {
-            output_scores[nn_i] = (Score)(weighted_pdf[nn_i] / weighted_pdf_sum);
+            output_scores[nn_i] = penalty * (Score)(weighted_pdf[nn_i] / weighted_pdf_sum);
         }
         else {
             output_scores[nn_i] = (Score)0;
