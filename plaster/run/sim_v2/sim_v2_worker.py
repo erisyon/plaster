@@ -94,7 +94,7 @@ def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples):
         pep_recalls: ndarray(n_peps)
     """
 
-    # TODO: bleach each channel
+    # TODO: bleach per channel
     dyemat, dyepeps, pep_recalls = sim_v2_fast.sim(
         flus,
         pi_brights,
@@ -265,6 +265,12 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         sim_v2_params, train_flus, train_pi_brights, sim_v2_params.n_samples_train
     )
 
+    # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
+    # Note that np.lexsort puts the primary sort key LAST in the argument
+    train_dyepeps = train_dyepeps[
+        np.lexsort((-train_dyepeps[:, 2], train_dyepeps[:, 0]))
+    ]
+
     if sim_v2_params.train_includes_radmat:
         train_radmat, train_true_pep_iz, train_true_dye_iz = _radmat_sim(
             train_dyemat.reshape(
@@ -296,6 +302,12 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         test_dyemat, test_dyepeps, test_pep_recalls = _dyemat_sim(
             sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test
         )
+
+        # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
+        # Note that np.lexsort puts the primary sort key LAST in the argument
+        test_dyepeps = test_dyepeps[
+            np.lexsort((-test_dyepeps[:, 2], test_dyepeps[:, 0]))
+        ]
 
         test_radmat, test_true_pep_iz, test_true_dye_iz = _radmat_sim(
             test_dyemat.reshape(

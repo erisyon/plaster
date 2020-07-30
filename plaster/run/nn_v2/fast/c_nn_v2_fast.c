@@ -176,11 +176,12 @@ void context_classify_unit_radrows(
         // PICK peptide winner using Maximum Liklihood
         // the .pyx asserts that these are sorted by highest
         // count so we can just pick [0] from the correct dyepep
-        Index *dyepeps_block = table_get_row(&ctx->train_dye_i_to_dyepep_offset, most_likely_dye_i, Index);
+        Index dyepeps_offset = *table_get_row(&ctx->train_dye_i_to_dyepep_offset, most_likely_dye_i, Index);
+        Index *dyepeps_block = table_get_row(&ctx->train_dyepeps, dyepeps_offset, Index);
         ensure_only_in_debug(dyepeps_block[0] == most_likely_dye_i, "dyepeps_block point to wrong block");
         Index most_likely_pep_i = dyepeps_block[1];
 
-        WeightType *weight = table_get_row(&ctx->train_dyetrack_weights, most_likely_dye_i, WeightType);
+        WeightType weight = *table_get_row(&ctx->train_dyetrack_weights, most_likely_dye_i, WeightType);
         Score pep_score = (Score)dyepeps_block[2] / (Score)weight;
         Score score = dye_score * pep_score;
 

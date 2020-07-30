@@ -97,24 +97,28 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
         # SUM dyepep counts to get weights. Sum to Uint64 then downcast to Float32 to maintain precision
         # CREATE a lookup table to the start of each dyetrack
         train_dyepeps_view = train_dyepeps
-        last_dye_i = -1
+
+        assert train_dyepeps_view[0, 0] > 0
+        last_dye_i = 0  # First dye starts at 1 since 0 is reserved
+        last_count = 0
         for i in range(dyepep_n_rows):
             dye_i = train_dyepeps_view[i, 0]
             assert 0 <= dye_i < train_dyemat_n_rows
             dyetrack_weights_uint64[dye_i] += train_dyepeps_view[i, 2]
 
+            # print(f"dye_i={dye_i} pep_i={train_dyepeps_view[i, 1]} count={train_dyepeps_view[i, 2]} last_dye_i={last_dye_i}")
             if dye_i != last_dye_i:
                 assert dye_i == last_dye_i + 1
                 dye_i_to_dyepep_offset[dye_i] = i
             else:
                 # Ensure that this is sorted allows picking
                 # the most likely pep without a search
-                assert train_dyepeps_view[i, 2] < last_count
+                assert train_dyepeps_view[i, 2] <= last_count
 
             last_dye_i = dye_i
             last_count = train_dyepeps_view[i, 2]
 
-        n_dyetracks = last_dye_i + 1
+        n_dyetracks = <c_nn.Size>(last_dye_i + 1)
 
         # DOWNCAST weights to Float32
         for i in range(train_dyemat_n_rows):
@@ -137,14 +141,14 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
         )
 
         ctx.train_dyepeps = c_nn.table_init_readonly(
-            <c_nn.Index *>&train_dyepeps_view[0, 0],
+            <c_nn.Uint8 *>&train_dyepeps_view[0, 0],
             dyepep_n_rows * sizeof(c_nn.Index) * 3,
             sizeof(c_nn.Index) * 3
         )
 
         ctx.train_dye_i_to_dyepep_offset = c_nn.table_init_readonly(
-            <c_nn.Index *>&dye_i_to_dyepep_offset_view[0],
-            sizeof(c_nn.Index) * n_dye_tracks,
+            <c_nn.Uint8 *>&dye_i_to_dyepep_offset[0],
+            sizeof(c_nn.Index) * n_dyetracks,
             sizeof(c_nn.Index),
         )
 
