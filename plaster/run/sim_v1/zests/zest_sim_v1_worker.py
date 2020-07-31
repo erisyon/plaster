@@ -622,7 +622,7 @@ def zest_sim():
                 n_cycles,
             )
             assert sim_result.train_dyemat.dtype == np.uint8
-            assert np.all(sim_result.train_recalls[:] == 0.0)
+            assert np.all(sim_result.train_pep_recalls[:] == 0.0)
 
     def it_generates_flu_info():
         with tmp.tmp_folder(chdir=True):

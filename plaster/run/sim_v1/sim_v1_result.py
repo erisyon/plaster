@@ -21,7 +21,7 @@ class SimV1Result(BaseResult):
         train_true_pep_iz=np.ndarray,
         train_dyemat=ArrayResult,  # (n_peps, n_samples, n_channels, n_cycles):uint8
         train_radmat=ArrayResult,  # (n_peps, n_samples, n_channels, n_cycles):float32
-        train_recalls=ArrayResult,  # (n_peps):float32
+        train_pep_recalls=ArrayResult,  # (n_peps):float32
         train_flus=np.ndarray,
         train_flu_remainders=np.ndarray,
         test_true_pep_iz=(type(None), np.ndarray),

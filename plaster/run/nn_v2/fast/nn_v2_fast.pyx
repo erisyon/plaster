@@ -177,10 +177,7 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
         )
 
         # Handoff to the C code...
-        start = time.time()
         c_nn.context_start(&ctx)
-        stop = time.time()
-        print(f"nn_v2 run time {stop - start}")
 
     finally:
         free(train_dyemat_as_radtype)

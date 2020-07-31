@@ -107,7 +107,9 @@ class CallBag:
         self._cached_pr_abund = cached_pr_abund
         self.classifier_name = classifier_name
         if sim_v1_result is not None:
-            assert len(self._sim_v1_result.train_recalls) == self._prep_result.n_peps
+            assert (
+                len(self._sim_v1_result.train_pep_recalls) == self._prep_result.n_peps
+            )
         self.df = pd.DataFrame(kwargs)
 
     def copy(self):
@@ -380,9 +382,9 @@ class CallBag:
         # This will leave NANs for all those that are not in the subset.
         if self._sim_v1_result is not None:
             filtered_pep_recalls = np.full_like(
-                self._sim_v1_result.train_recalls, np.nan
+                self._sim_v1_result.train_pep_recalls, np.nan
             )
-            filtered_pep_recalls[pep_iz_subset] = self._sim_v1_result.train_recalls[
+            filtered_pep_recalls[pep_iz_subset] = self._sim_v1_result.train_pep_recalls[
                 pep_iz_subset
             ]
         else:
@@ -527,9 +529,9 @@ class CallBag:
         # This will leave NANs for all those that are not in the subset.
         if self._sim_v1_result is not None:
             filtered_pep_recalls = np.full_like(
-                self._sim_v1_result.train_recalls, np.nan
+                self._sim_v1_result.train_pep_recalls, np.nan
             )
-            filtered_pep_recalls[pep_iz_subset] = self._sim_v1_result.train_recalls[
+            filtered_pep_recalls[pep_iz_subset] = self._sim_v1_result.train_pep_recalls[
                 pep_iz_subset
             ]
         else:
@@ -752,7 +754,7 @@ class CallBag:
 
         prsa = np.swapaxes(prsa, 0, 1)
 
-        train_recalls = self._sim_v1_result.train_recalls
+        train_pep_recalls = self._sim_v1_result.train_pep_recalls
 
         pep_prsa_tuples = []
         for pep_i, pep_prsa in zip(pep_iz, prsa):
@@ -762,7 +764,7 @@ class CallBag:
             pep_prsa_tuples += [
                 (
                     pep_prsa[first_non_zero_i:, 0],  # Precision
-                    pep_prsa[first_non_zero_i:, 1] * train_recalls[pep_i],  # Recall
+                    pep_prsa[first_non_zero_i:, 1] * train_pep_recalls[pep_i],  # Recall
                     pep_prsa[first_non_zero_i:, 2],  # Score
                     pep_prsa[first_non_zero_i:, 3],  # AUC
                 )

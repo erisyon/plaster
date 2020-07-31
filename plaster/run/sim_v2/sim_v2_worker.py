@@ -132,11 +132,6 @@ def _sample_pep_dyemat(dyepep_group, n_samples_per_pep):
         return np.zeros((0,), dtype=int)
 
 
-def _rand_lognormals(logs, sigma):
-    """Mock-point"""
-    return np.random.lognormal(mean=logs, sigma=sigma, size=logs.shape)
-
-
 def _radmat_from_sampled_pep_dyemat(
     dyemat, ch_params, n_channels, output_radmat, pep_i
 ):
@@ -177,7 +172,7 @@ def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cyc
 
     # SORT dyepeps by peptide (col 1) first then by count (col 2)
     # Note that np.lexsort puts the primary sort key LAST in the argument
-    sorted_dyepeps = dyepeps[np.lexsort((dyepeps[:, 2], dyepeps[:, 1]))]
+    sorted_dyepeps = dyepeps[np.lexsort((-dyepeps[:, 2], dyepeps[:, 1]))]
 
     # GROUP sorted_dyepeps by peptide using trick described here:
     # https://stackoverflow.com/a/43094244
@@ -201,7 +196,7 @@ def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cyc
     )
     output_true_dye_iz = np.zeros((n_peps, n_samples_per_pep), dtype=int)
 
-    for dyepep_group in grouped_dyepep_rows:
+    for group_i, dyepep_group in enumerate(grouped_dyepep_rows):
         # All of the pep_iz (column 1) should be the same since that's what a "group" is.
         if dyepep_group.shape[0] > 0:
             pep_i = dyepep_group[0, 1]
@@ -334,20 +329,53 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
                     "Train and test sets are identical. Probably RNG bug.",
                 )
 
-        if not sim_v2_params.test_includes_dyemat:
-            test_dyemat, test_dyepeps_df = None, None
+        # if not sim_v2_params.test_includes_dyemat:
+        #     test_dyemat, test_dyepeps_df = None, None
+
+    # REMOVE all-zero rows (EXECPT THE FIRST which is the nul row)
+    non_zero_rows = np.argwhere(test_true_pep_iz != 0).flatten()
+    debug(non_zero_rows.shape, test_radmat.shape)
+    test_radmat = test_radmat[non_zero_rows]
+    debug(test_radmat.shape)
+    test_true_pep_iz = test_true_pep_iz[non_zero_rows]
+    test_true_dye_iz = test_true_dye_iz[non_zero_rows]
+
+    """
+    assert np.all(train_dyemat[0, :] == 0)
+    debug(train_dyemat.shape)
+    debug(np.all(train_dyemat[:, :] == 0, axis=1).sum())
+    some_non_zero_row_args = np.argwhere(~np.all(train_dyemat[:, :] == 0, axis=1)).flatten()
+    debug(some_non_zero_row_args.shape)
+    some_non_zero_row_args = np.concatenate(([0], some_non_zero_row_args))
+    train_dyemat = train_dyemat[some_non_zero_row_args]
+    if train_radmat is not None:
+        train_radmat = train_radmat[some_non_zero_row_args]
+    if train_true_pep_iz is not None:
+        train_true_pep_iz = train_true_pep_iz[some_non_zero_row_args]
+    if train_true_dye_iz is not None:
+        train_true_dye_iz = train_true_dye_iz[some_non_zero_row_args]
+
+    if test_dyemat is not None:
+        assert np.all(test_dyemat[0, :] == 0)
+    some_non_zero_row_args = np.argwhere(~np.all(test_dyemat[:, :] == 0, axis=1)).flatten()
+    some_non_zero_row_args = np.concatenate(([0], some_non_zero_row_args))
+    test_dyemat = test_dyemat[some_non_zero_row_args]
+    test_radmat = test_radmat[some_non_zero_row_args]
+    test_true_pep_iz = test_true_pep_iz[some_non_zero_row_args]
+    test_true_dye_iz = test_true_dye_iz[some_non_zero_row_args]
+    """
 
     return SimV2Result(
         params=sim_v2_params,
         train_dyemat=train_dyemat,
+        train_radmat=train_radmat,
         train_pep_recalls=train_pep_recalls,
         train_flus=train_flus,
-        train_dyepeps=train_dyepeps,
-        train_radmat=train_radmat,
         train_true_pep_iz=train_true_pep_iz,
         train_true_dye_iz=train_true_dye_iz,
+        train_dyepeps=train_dyepeps,
         test_dyemat=test_dyemat,
         test_radmat=test_radmat,
-        test_true_dye_iz=test_true_dye_iz,
         test_true_pep_iz=test_true_pep_iz,
+        test_true_dye_iz=test_true_dye_iz,
     )

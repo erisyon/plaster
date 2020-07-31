@@ -63,24 +63,46 @@ void score_weighted_inv_square(
 }
 
 
-void score_weighted_gaussian_mixture(
+void local_trace(const char *fmt, ...) {
+    static FILE *trace_file = (FILE *)0;
+    if(!trace_file) {
+        trace_file = fopen("trace.txt", "wt");
+    }
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(trace_file, fmt, args);
+    fflush(trace_file);
+    va_end(args);
+}
+
+
+void _score_weighted_gaussian_mixture(
     int n_neighbors,
     Size n_cols,
     int *neighbor_dye_iz,  // array((n_neighbors,), type=int): indices to dyetrack
     Table *train_dyemat,  // arrays((n_dyetracks, n_cols), type=RadType): All dye weights
     RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
     Table *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
-    Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
+    Score *output_scores,  // array((n_neighbors,), type=float): returned scores for each neighbor
+    int mode,
+    char *name
 ) {
     double weights[N_MAX_NEIGHBORS];
     double weighted_pdf[N_MAX_NEIGHBORS];
     double weighted_pdf_sum = 0.0;
-
-    // TODO: std_per_dye should be per channel
-    // TODO: I need to do an experiment to figure out how
-    // to compare lognormal to this model? And ALSO I need to
-    // be sure to set that in the _v1 comparison
     double std_per_dye = sqrt(0.1);
+
+    if(name) {
+        local_trace("%s\n", name);
+    }
+
+    if(mode == 1) {
+        for (Index col_i=0; col_i<n_cols; col_i++) {
+            local_trace("%2.1f ", radrow[col_i]);
+        }
+        local_trace("\n");
+        return;
+    }
 
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_i = neighbor_dye_iz[nn_i];
@@ -92,7 +114,150 @@ void score_weighted_gaussian_mixture(
         double det = 1.0;
         for (Index col_i=0; col_i<n_cols; col_i++) {
             double target_dt_for_col_i = (double)neighbor_target_dt[col_i];
-            double delta = target_dt_for_col_i - (double)radrow[col_i];
+            if(mode == 2) {
+                local_trace("%d ", (int)target_dt_for_col_i);
+            }
+
+            double delta = (double)radrow[col_i] - target_dt_for_col_i;
+            if(mode == 3) {
+                local_trace("%2.1f ", delta);
+            }
+
+            double std_units = std_per_dye * (target_dt_for_col_i == 0.0 ? 0.5 : target_dt_for_col_i);
+            double variance = std_units * std_units;
+            ensure_only_in_debug(variance > 0, "Illegal zero variance");
+            det *= variance;
+            vdist += delta * delta / variance;
+        }
+        if(mode == 2 || mode == 3) {
+            local_trace("\n");
+        }
+
+        if(mode == 4) {
+            local_trace("%2.1f ", vdist);
+        }
+
+        ensure_only_in_debug(det > 0, "Illegal zero det");
+        double inv_sqrt_det = 1.0 / sqrt(det);
+        double pdf = inv_sqrt_det * exp(-vdist / 2.0);
+        if(mode == 5) {
+            local_trace("%2.1f ", pdf);
+        }
+        if(mode == 6) {
+            local_trace("%2.1f ", (double)neighbor_weight);
+        }
+
+        double wpdf = (double)neighbor_weight * pdf;
+        weighted_pdf[nn_i] = wpdf;
+        weighted_pdf_sum += wpdf;
+    }
+    if(mode == 2 || mode == 3 || mode == 4 || mode == 5 || mode == 6) {
+        local_trace("\n");
+    }
+
+    if(mode == 7) {
+        local_trace("%2.1f ", (double)weighted_pdf_sum);
+    }
+
+    for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
+        Score penalty = (Score)(1.0 - exp(-0.8 * weights[nn_i]));
+        if(weighted_pdf_sum > 0.0) {
+            Score score_pre_penalty = (Score)(weighted_pdf[nn_i] / weighted_pdf_sum);
+            if(mode == 8) {
+                local_trace("%2.1f ", score_pre_penalty);
+            }
+            output_scores[nn_i] = penalty * score_pre_penalty;
+        }
+        else {
+            output_scores[nn_i] = (Score)0;
+        }
+    }
+
+    if(name) {
+        local_trace("\n");
+    }
+}
+
+
+void score_weighted_gaussian_mixture(
+    int n_neighbors,
+    Size n_cols,
+    int *neighbor_dye_iz,  // array((n_neighbors,), type=int): indices to dyetrack
+    Table *train_dyemat,  // arrays((n_dyetracks, n_cols), type=RadType): All dye weights
+    RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
+    Table *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
+    Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
+) {
+//    double weights[N_MAX_NEIGHBORS];
+//    double weighted_pdf[N_MAX_NEIGHBORS];
+//    double weighted_pdf_sum = 0.0;
+
+    // TODO: std_per_dye should be per channel
+    // TODO: I need to do an experiment to figure out how
+    // to compare lognormal to this model? And ALSO I need to
+    // be sure to set that in the _v1 comparison
+    //double std_per_dye = sqrt(0.1);
+    //local_trace("\nspd = %f\n", std_per_dye);
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        0, NULL
+    );
+
+/*
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        1, "radrow"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        2, "target"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        3, "delta"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        4, "vdist"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        5, "pdf"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        6, "weights"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        7, "weigh sum"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        8, "score pre penalty"
+    );
+*/
+    /*
+    for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
+        Index neighbor_i = neighbor_dye_iz[nn_i];
+        RadType *neighbor_target_dt = table_get_row(train_dyemat, neighbor_i, RadType);
+        WeightType neighbor_weight = *table_get_row(dyetrack_weights, neighbor_i, WeightType);
+        weights[nn_i] = (double)neighbor_weight;
+
+        double vdist = (double)0.0;
+        double det = 1.0;
+        for (Index col_i=0; col_i<n_cols; col_i++) {
+            double target_dt_for_col_i = (double)neighbor_target_dt[col_i];
+            double delta = (double)radrow[col_i] - target_dt_for_col_i;
+
             double std_units = std_per_dye * (target_dt_for_col_i == 0.0 ? 0.5 : target_dt_for_col_i);
             double variance = std_units * std_units;
             ensure_only_in_debug(variance > 0, "Illegal zero variance");
@@ -101,9 +266,9 @@ void score_weighted_gaussian_mixture(
         }
         ensure_only_in_debug(det > 0, "Illegal zero det");
         double inv_sqrt_det = 1.0 / sqrt(det);
-        double weight = (double)neighbor_weight * inv_sqrt_det * exp(-vdist / 2.0);
-        weighted_pdf[nn_i] = weight;
-        weighted_pdf_sum += weight;
+        double wpdf = (double)neighbor_weight * inv_sqrt_det * exp(-vdist / 2.0);
+        weighted_pdf[nn_i] = wpdf;
+        weighted_pdf_sum += wpdf;
     }
 
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
@@ -115,6 +280,8 @@ void score_weighted_gaussian_mixture(
             output_scores[nn_i] = (Score)0;
         }
     }
+    */
+
 }
 
 void context_classify_unit_radrows(

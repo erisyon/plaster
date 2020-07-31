@@ -54,8 +54,8 @@ def text_prep_and_sim_info(run):
         and the high-level overview of the label space.
     """
 
-    n_train_non_zero_recall_peps = (run.sim_v1.train_recalls > 0.0).sum()
-    n_train_zero_recall_peps = (run.sim_v1.train_recalls == 0.0).sum()
+    n_train_non_zero_recall_peps = (run.sim_v1.train_pep_recalls > 0.0).sum()
+    n_train_zero_recall_peps = (run.sim_v1.train_pep_recalls == 0.0).sum()
     n_train_peps = n_train_non_zero_recall_peps + n_train_zero_recall_peps
 
     n_test_non_zero_recall_peps = (run.sim_v1.test_recalls > 0.0).sum()
@@ -186,7 +186,7 @@ def plot_peptide_effective_labelability(run, **kwargs):
     pep_iz_poi = pep_iz_in_report(run, with_ptms=False)
     pep_iz_ptm = pep_iz_in_report(run, with_ptms=True)
 
-    pep_indices = [np.array(range(1, run.sim_v1.train_recalls.shape[0]))]
+    pep_indices = [np.array(range(1, run.sim_v1.train_pep_recalls.shape[0]))]
     if len(pep_iz_poi):
         pep_indices.append(np.sort(pep_iz_poi))
     if len(pep_iz_ptm):
@@ -202,13 +202,13 @@ def plot_peptide_effective_labelability(run, **kwargs):
     ):
 
         for idx, domain in zip(pep_indices, ["", "POI ", "PTM "]):
-            train_recalls = run.sim_v1.train_recalls[idx]
+            train_pep_recalls = run.sim_v1.train_pep_recalls[idx]
 
-            train_recalls_sorted = np.sort(train_recalls)[::-1]
-            n_classes = len(train_recalls_sorted)
-            n_observable = np.sum(train_recalls_sorted.astype(bool))
+            train_pep_recalls_sorted = np.sort(train_pep_recalls)[::-1]
+            n_classes = len(train_pep_recalls_sorted)
+            n_observable = np.sum(train_pep_recalls_sorted.astype(bool))
             z.cols(
-                train_recalls_sorted,
+                train_pep_recalls_sorted,
                 f_title=f"{domain}{n_observable} of {n_classes} ({100.0 * n_observable / n_classes:,.1f}%) peptides labelable",
             )
 

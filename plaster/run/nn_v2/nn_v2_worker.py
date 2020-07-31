@@ -5,7 +5,6 @@ from plaster.tools.log.log import prof
 
 
 def nn_v2(nn_v2_params, sim_v2_result):
-
     # TODO: This normalization term will need to come from calibration?
     # For now, I'm hard-coding it.
     n_cycles = sim_v2_result.params.n_cycles
@@ -22,14 +21,12 @@ def nn_v2(nn_v2_params, sim_v2_result):
     # CONVERT into a unit_radmat
     unit_radmat = sim_v2_result.flat_test_radmat() / radmat_normalization
 
-    prof()
     test_pred_pep_iz, test_scores, test_pred_dye_iz = nn_v2_fast.fast_nn(
         unit_radmat,
         sim_v2_result.flat_train_dyemat(),
         sim_v2_result.train_dyepeps,
         n_neighbors=nn_v2_params.n_neighbors,
     )
-    prof()
 
     return NNV2Result(
         test_pred_pep_iz=test_pred_pep_iz,

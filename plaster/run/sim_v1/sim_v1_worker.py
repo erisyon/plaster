@@ -561,6 +561,7 @@ def _do_pep_sim(
         output_radmat[pep_i] = _step_5_make_radmat(non_dark_dyemat, sim_params).astype(
             RadType
         )
+        # debug("non zero", pep_i, output_dyemat.shape)
     else:
         # We could not obtain a full sample after many batches,
         # declare this to be 100% dark.
@@ -568,6 +569,7 @@ def _do_pep_sim(
         output_recall[pep_i] = 0.0
         output_dyemat[pep_i] = np.zeros(non_dark_dyemat.shape, dtype=DyeType)
         output_radmat[pep_i] = np.zeros(non_dark_dyemat.shape, dtype=RadType)
+        # debug("all zero", pep_i, output_dyemat.shape)
 
     compact_flu, remainder_flu = _step_6_compact_flu(
         flu, sim_params.n_edmans, sim_params.n_channels
@@ -646,7 +648,7 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
     (
         train_dyemat,
         train_radmat,
-        train_recalls,
+        train_pep_recalls,
         train_flus,
         train_flu_remainders,
         train_true_pep_iz,
@@ -731,18 +733,37 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
             (test_radmat.shape[0] * test_radmat.shape[1], *test_radmat.shape[2:])
         )
 
+    # REMOVE all-zero rows (EXECPT THE FIRST which is the nul row)
+    assert np.all(train_dyemat[0, :, :] == 0)
+    some_non_zero_row_args = np.argwhere(
+        ~np.all(train_dyemat[:, :, :] == 0, axis=(1, 2))
+    ).flatten()
+    some_non_zero_row_args = np.concatenate(([0], some_non_zero_row_args))
+    train_dyemat = train_dyemat[some_non_zero_row_args]
+    train_radmat = train_radmat[some_non_zero_row_args]
+    train_true_pep_iz = train_true_pep_iz[some_non_zero_row_args]
+
+    assert np.all(test_dyemat[0, :, :] == 0)
+    some_non_zero_row_args = np.argwhere(
+        ~np.all(test_dyemat[:, :, :] == 0, axis=(1, 2))
+    ).flatten()
+    some_non_zero_row_args = np.concatenate(([0], some_non_zero_row_args))
+    test_dyemat = test_dyemat[some_non_zero_row_args]
+    test_radmat = test_radmat[some_non_zero_row_args]
+    test_true_pep_iz = test_true_pep_iz[some_non_zero_row_args]
+
     return SimV1Result(
         params=sim_params,
-        train_true_pep_iz=train_true_pep_iz,
         train_dyemat=train_dyemat,
         train_radmat=train_radmat,
-        train_recalls=train_recalls,
+        train_pep_recalls=train_pep_recalls,
         train_flus=train_flus,
         train_flu_remainders=train_flu_remainders,
-        test_true_pep_iz=test_true_pep_iz,
+        train_true_pep_iz=train_true_pep_iz,
         test_dyemat=test_dyemat,
         test_radmat=test_radmat,
         test_recalls=test_recalls,
         test_flus=test_flus,
+        test_true_pep_iz=test_true_pep_iz,
         test_flu_remainders=test_flu_remainders,
     )
