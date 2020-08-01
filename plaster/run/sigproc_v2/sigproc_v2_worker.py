@@ -104,6 +104,7 @@ import pandas as pd
 from munch import Munch
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
+from plaster.run.ims_import.ims_import_worker import _quality
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
@@ -184,7 +185,10 @@ def _regional_bg_fg_stats(im, mask_radius=2, divs=5, return_ims=False):
     circle = imops.generate_circle_mask(mask_radius).astype(np.uint8)
 
     kern = _kernel()
-    cim = imops.convolve(np.nan_to_num(im, nan=np.nanmedian(im)), kern)
+    #Note: imops.convolve require float64 inputs; im is likely to be float32,
+    #      so we have to cast it to float64.  Alternatively we could investigate
+    #      if imops.convolve really ought to require float64?
+    cim = imops.convolve(np.nan_to_num(im.astype(np.float64), nan=np.nanmedian(im)), kern)
 
     # cim can end up with artifacts around the nans to the nan_mask
     # is dilated and splated as zeros back over the im
@@ -515,7 +519,7 @@ def _calibrate_psf_im(im, divs=5, keep_dist=8, peak_mea=11, locs=None):
     return locs[accepted > 0], reg_psfs
 
 
-def background_estimate(im, divs):
+def _background_estimate(im, divs):
     stats = _regional_bg_fg_stats(im, divs=divs)
     reg_bg_mean = stats[:, :, 0]
     reg_bg_std = stats[:, :, 1]
@@ -524,7 +528,7 @@ def background_estimate(im, divs):
     return reg_bg_mean, reg_bg_std
 
 
-def background_subtraction(im, reg_bg_mean):
+def _background_subtraction(im, reg_bg_mean):
     bg_im = imops.interp(reg_bg_mean, im.shape[-2:])
     diff_im = im - bg_im
     return diff_im
@@ -545,11 +549,13 @@ def add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_z_slices, divs, calib):
     n_fields = flchcy_ims.shape[0]
     regional_stats = np.zeros(
         (n_fields, divs, divs, 2)
-    )  # each region has a mean (0) and std (1)
-    for fl_i in range(0, n_fields):
-        for z_i in range(0, n_z_slices):
-            im = flchcy_ims[fl_i][ch_i][z_i]
-            reg_bg_mean, reg_bg_std = background_estimate(im, divs)
+    )
+    for z_i in range(0, n_z_slices):
+        for fl_i in range(0, n_fields):
+            #see note under arguments about indices positions, they are NOT in the
+            #order that the name "flchcy" would indicate
+            im = flchcy_ims[z_i][ch_i][fl_i]
+            reg_bg_mean, reg_bg_std = _background_estimate(im, divs)
             regional_stats[fl_i, :, :, 0] = reg_bg_mean
             regional_stats[fl_i, :, :, 1] = reg_bg_std
     summary_regional_stats = np.mean(regional_stats, axis=0)
@@ -571,50 +577,105 @@ def add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_z_slices, divs, calib):
     return calib
 
 
-def add_psf_stats_to_calib(
-    flchcy_ims, n_fields, ch_i, n_z_slices, divs, peak_dim, calib
+def _calib_psf_stats_one_channel(
+    fl_zi_ims, n_fields, n_z_slices, calib, divs, peak_dim
 ):
     """
+    Step one of calibration is to get Point Spread Function from
+    a z-stack dataset.  Note that what is normally called 'cycle'
+    is actually z-stack index here.
+
     Arguments:
-        flchcy_ims: frame, channel, cycles ims to be analyzed
-        n_fields: number fields per frame
-        ch_i: channel index we are adding calib stats for
-        n_z_slices: nbr of z slices, in index we normally use for cycle
+        fl_zi_ims: ims to be analyzed
         divs: divisions (in two dims) of image for regional stats
-        calib: Calibration object we are adding stats to
+        peak_dim: shape in pixels of psf
 
     Returns:
-        calib object with background means and stds added for the given ch_i
+        list psf, ready to insert into calib object
     """
     z_and_region_to_psf = np.zeros((n_z_slices, divs, divs, *peak_dim))
-    for fl_i in range(n_fields):
-        for z_i in range(n_z_slices):
-            # Remember: z_i is a pseudo-cycle: it is really a z-slice
-            # with z_depths[cy_i] holding the actual depth
-            # bg_mean, bg_std = background_estimate(flchcy_ims[fl_i][ch_i][z_i], divs)
-            bg_mean = np.array(calib[f"regional_bg_mean.instrument_channel[{ch_i}]"])
-            im_sub = background_subtraction(flchcy_ims[fl_i][ch_i][z_i], bg_mean)
-
+    im_quals = np.zeros((n_fields, n_z_slices))
+    im_focuses = np.zeros((n_fields, n_z_slices))
+    subt_imgs = []
+    for fl_i in range(0,n_fields):
+        subt_imgs.append([])
+        for z_i in range(0,n_z_slices):
+            bg_mean, bg_std = _background_estimate(fl_zi_ims[fl_i][z_i], divs)
+            im_sub = _background_subtraction(fl_zi_ims[fl_i][z_i], bg_mean)
+            subt_imgs[-1].append(im_sub)
+            im_quals[fl_i,z_i] = _quality(im_sub)
+            im_focuses[fl_i,z_i] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
             locs, reg_psfs = _calibrate_psf_im(
-                im_sub, divs=divs, keep_dist=8, peak_mea=11, locs=None
+                im_sub, divs=divs, peak_mea=peak_dim[0]
             )
 
             # ACCUMULATE each field, will normalize at the end
             z_and_region_to_psf[z_i] += reg_psfs
-
+    mean_qual_by_field = np.mean(im_quals,axis=1)
+    #print('mean qual by field',mean_qual_by_field)
+    mean_mean_qual_by_field = np.mean(mean_qual_by_field)
+    #print('mean mean qual by field',mean_mean_qual_by_field)
+    fields_above_avg_qual = np.argwhere(mean_qual_by_field>mean_mean_qual_by_field)
+    #print('good fields',fields_above_avg_qual)
+    mean_focuses = np.mean(im_focuses,axis=0)
+    z_i_best_focus_by_field = np.argmax(im_focuses,axis=1)
+    #print('mean focuses',mean_focuses,z_i_best_focus_by_field)
+    focus_range_by_fl = np.zeros(n_fields)
+    focus_window_radius = 6
+    for fl_i in range(0,n_fields):
+        if z_i_best_focus_by_field[fl_i] <= focus_window_radius:
+            focus_range_by_fl[fl_i] = focus_window_radius
+        elif z_i_best_focus_by_field[fl_i] > (n_z_slices-focus_window_radius):
+            focus_range_by_fl[fl_i] = n_z_slices-focus_window_radius
+        else:
+            focus_range_by_fl[fl_i] = z_i_best_focus_by_field[fl_i]
+    #print('focus range by fl',focus_range_by_fl)
     # NORMALIZE all psfs
     denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
     z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
 
-    calib.add(
-        {
-            f"regional_psf_zstack.instrument_channel[{ch_i}]": z_and_region_to_psf.tolist()
-        }
-    )
+    return z_and_region_to_psf.tolist()
+
+def calibrate_background_stats(calib, flchcy_ims, divs):
+    # despite the "flchcy" name, in calibration the
+    # normally "cycle" index is actually the z_slice index
+    n_z_slices, n_channels = flchcy_ims.shape[0:2]
+    for ch_i in range(0,n_channels):
+        calib = add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_z_slices, divs, calib)
     return calib
 
+def calibrate_psf(ims_import_result,calib,divs=5,peak_mea=11):
+    # the index of 'flchcy' which normally represents cycles, when doing
+    # regional psf z-stack calibration is actually representing z-slice
 
-def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
+    peak_dim = (peak_mea, peak_mea)
+    n_fields, n_channels, n_z_slices = ims_import_result.n_fields_channel_cycles()
+    for ch_i in range(0,n_channels):
+        fl_zi_ims = ims_import_result.ims[:,ch_i,:]
+        cpsoc = _calib_psf_stats_one_channel(
+            fl_zi_ims, \
+            n_fields, \
+            n_z_slices, \
+            calib, \
+            divs, \
+            peak_dim
+        )
+        calib.add(
+            {
+                f"regional_psf_zstack.instrument_channel[{ch_i}]": cpsoc
+            }
+        )
+    return calib
+
+def calibrate_regional_illumination_balance():
+    #TODO: put some code here
+    return calib
+
+def calibrate_dye_brightness(calib):
+    #TODO:
+    return calib
+
+'''def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
     """
     Accumulate calibration data using a set of fields.
 
@@ -647,7 +708,7 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
             flchcy_ims, ch_i, n_z_slices, divs, calib
         )
 
-        calib = add_psf_stats_to_calib(
+        calib = calib_psf_stats_one_channel(
             flchcy_ims, n_fields, ch_i, n_z_slices, divs, peak_dim, calib
         )
 
@@ -656,7 +717,7 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
         # 3) psf estimate (volume normalized so already independent of foreground brightness, but needs background subtraction)
         # 4) radiometry using psf estimate
         # 5) regional balancing using the radiometry
-        ''' FOREGROUND
+         FOREGROUND
         # Runs the standard sigproc_field analysis (without balancing)
         # to get the regional radmats for regional histogram balancing.
         # This requires that the PSF already be estimated so that the
@@ -769,7 +830,7 @@ def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
             {
                 f"regional_illumination_balance.instrument_channel[{ch_i}]": balance.tolist()
             }
-        )'''
+        )
 
     return calib
 
@@ -799,7 +860,7 @@ def calibrate(ims_import_res, n_best_fields=6, divs=5, metadata=None, progress=N
         ims_import_res.ims[best_field_iz, :, :], calib, divs=divs, progress=progress
     )
 
-    return calib
+    return calib'''
 
 
 # Step 1: Order channels, regional balance and channel equalize
