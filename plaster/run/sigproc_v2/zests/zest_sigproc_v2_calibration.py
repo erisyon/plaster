@@ -399,7 +399,8 @@ def zest_sigproc_v2_calibration():
         _compare_fit_params(true_params, fit_params_mean_test_corner)
 
     def it_can_calib_psf_stats_one_channel():
-        n_z_slices = 8
+        n_z_slices = 20
+        n_fields = 1
         z_stack = np.array([])
         calib = Calibration()
         s = synth.Synth(n_cycles=1, overwrite=True)
@@ -413,17 +414,18 @@ def zest_sigproc_v2_calibration():
         templist = []
         center_z = ceil((n_z_slices - 1) / 2)
         # e.g. if n_z_slices=3, z's are [0,1,2], center_z = 1
+        # idea here is to mimic having one z-slice which is most
+        # focused by having its std be smaller, and then z-slices
+        # further away from it have higher std
         for z_i in range(0, n_z_slices):
             std_used = 0.5 * (1 + abs(center_z - z_i))
             peaks.widths_uniform(std_used)
             imgs = s.render_chcy()
-            bg_mean, bg_std = worker._background_estimate(imgs[0, 0], divs)
-            im_sub = worker._background_subtraction(imgs[0, 0], bg_mean)
-            templist.append(im_sub)
+            templist.append(imgs[0][0])
         z_stack = np.array([templist])
         z_and_region_to_psf = np.array(
             worker._calib_psf_stats_one_channel(
-                z_stack, 1, n_z_slices, calib, divs, peak_dim
+                z_stack, n_fields, n_z_slices, calib, divs, peak_dim
             )
         )
         std_min = 0.5
@@ -437,21 +439,21 @@ def zest_sigproc_v2_calibration():
         for x, y in grid_walk(divs):
             fit_params_sum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
             divisor = 0
-            # For each x,y should we be looking at params for just the most
-            # in-focus of the z-slices?  Or the stack of all of them together?
-            for z_i in range(0, n_z_slices):
+            empty_psfs = 0
+            for z_i in range(0, len(z_and_region_to_psf)):
                 if (
                     np.sum(z_and_region_to_psf[z_i, x, y]) == 0
                 ):  # cannot use imops.fit_gauss2 on all-zero psf
+                    empty_psfs += 1
                     continue
                 fit_params, fit_variance = imops.fit_gauss2(
                     z_and_region_to_psf[z_i, x, y]
                 )
                 for fv in fit_variance:
-                    assert fv < 0.01
+                    assert fv < 0.1
                 divisor += 1
                 fit_params_sum += np.array(fit_params)
-            assert (n_z_slices - divisor) <= 2
+            assert empty_psfs <= 2
             fit_params_mean = fit_params_sum / divisor
             _compare_fit_params(true_params, fit_params_mean)
 
@@ -510,7 +512,7 @@ def zest_sigproc_v2_calibration():
         #the correct shape and with the correct keyword
 
         calib = Calibration()
-        n_z_slices = 4
+        n_z_slices = 20
         n_fields = 3
         ims_import_result = result_from_z_stack(n_fields=n_fields,n_cycles=n_z_slices)
         calib = worker.calibrate_psf(ims_import_result, calib)
@@ -518,7 +520,7 @@ def zest_sigproc_v2_calibration():
         check.list_t(calib["regional_psf_zstack.instrument_channel[0]"], list)
         rbm_arr = np.array(calib["regional_psf_zstack.instrument_channel[0]"])
         check.array_t(
-            rbm_arr, shape=(n_z_slices, divs, divs, peak_mea, peak_mea), dtype=np.float64
+            rbm_arr, shape=(None, divs, divs, peak_mea, peak_mea), dtype=np.float64
         )
 
     zest()
