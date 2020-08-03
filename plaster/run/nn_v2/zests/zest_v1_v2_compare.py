@@ -31,7 +31,7 @@ def zest_v1_v2_compare():
             sim_v2_result.test_true_pep_iz == nn_v2_result.test_pred_pep_iz
         )
 
-        assert (n_correct_v1 - n_correct_v2) ** 2 < 100 ** 2
+        assert (n_correct_v1 - n_correct_v2) ** 2 < 200 ** 2
         assert (
             sim_v1_result.test_true_pep_iz.shape == sim_v2_result.test_true_pep_iz.shape
         )

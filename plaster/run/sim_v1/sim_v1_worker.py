@@ -739,6 +739,10 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
         ~np.all(train_dyemat[:, :, :] == 0, axis=(1, 2))
     ).flatten()
     some_non_zero_row_args = np.concatenate(([0], some_non_zero_row_args))
+
+    # TASK: Plucking out the non-zero rows doesn't work well
+    # with Arrtay results -- I need to rethink that.
+    # For now, I'm converting this back to np.ndarray
     train_dyemat = train_dyemat[some_non_zero_row_args]
     train_radmat = train_radmat[some_non_zero_row_args]
     train_true_pep_iz = train_true_pep_iz[some_non_zero_row_args]
