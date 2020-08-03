@@ -213,7 +213,7 @@ def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cyc
     output_true_pep_iz = np.repeat(np.arange(n_peps), n_samples_per_pep)
     output_true_dye_iz = output_true_dye_iz.reshape((n_peps * n_samples_per_pep,))
 
-    # REMOVE all zero-rows (thise that point to the nul dyetrack)
+    # REMOVE all zero-rows (those that point to the nul dyetrack)
     keep_good_tracks = np.argwhere(output_true_dye_iz != 0).flatten()
     output_radmat = output_radmat[keep_good_tracks]
     output_true_pep_iz = output_true_pep_iz[keep_good_tracks]
@@ -344,31 +344,6 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     test_radmat = test_radmat[non_zero_rows]
     test_true_pep_iz = test_true_pep_iz[non_zero_rows]
     test_true_dye_iz = test_true_dye_iz[non_zero_rows]
-
-    """
-    assert np.all(train_dyemat[0, :] == 0)
-    debug(train_dyemat.shape)
-    debug(np.all(train_dyemat[:, :] == 0, axis=1).sum())
-    some_non_zero_row_args = np.argwhere(~np.all(train_dyemat[:, :] == 0, axis=1)).flatten()
-    debug(some_non_zero_row_args.shape)
-    some_non_zero_row_args = np.concatenate(([0], some_non_zero_row_args))
-    train_dyemat = train_dyemat[some_non_zero_row_args]
-    if train_radmat is not None:
-        train_radmat = train_radmat[some_non_zero_row_args]
-    if train_true_pep_iz is not None:
-        train_true_pep_iz = train_true_pep_iz[some_non_zero_row_args]
-    if train_true_dye_iz is not None:
-        train_true_dye_iz = train_true_dye_iz[some_non_zero_row_args]
-
-    if test_dyemat is not None:
-        assert np.all(test_dyemat[0, :] == 0)
-    some_non_zero_row_args = np.argwhere(~np.all(test_dyemat[:, :] == 0, axis=1)).flatten()
-    some_non_zero_row_args = np.concatenate(([0], some_non_zero_row_args))
-    test_dyemat = test_dyemat[some_non_zero_row_args]
-    test_radmat = test_radmat[some_non_zero_row_args]
-    test_true_pep_iz = test_true_pep_iz[some_non_zero_row_args]
-    test_true_dye_iz = test_true_dye_iz[some_non_zero_row_args]
-    """
 
     return SimV2Result(
         params=sim_v2_params,

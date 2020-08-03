@@ -597,7 +597,7 @@ def zest_sim():
             n_peptides = 3
             sim_params = _stub_sim_params(no_error_model, n_samples)
             sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
-            assert sim_result.test_dyemat.shape == (1, n_channels, n_cycles,)
+            assert sim_result.test_dyemat.shape == (0, n_channels, n_cycles,)
             assert sim_result.test_dyemat.dtype == np.uint8
             assert np.all(sim_result.test_dyemat[:] == 0)  # All dark
 

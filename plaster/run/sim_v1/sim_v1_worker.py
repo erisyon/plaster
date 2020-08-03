@@ -748,7 +748,8 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
         some_non_zero_row_args = np.argwhere(
             ~np.all(test_dyemat[:, :, :] == 0, axis=(1, 2))
         ).flatten()
-        some_non_zero_row_args = np.concatenate(([0], some_non_zero_row_args))
+        # DO not add a nul row into the test data
+        # some_non_zero_row_args = np.concatenate(([0], some_non_zero_row_args))
         test_dyemat = test_dyemat[some_non_zero_row_args]
         test_radmat = test_radmat[some_non_zero_row_args]
         test_true_pep_iz = test_true_pep_iz[some_non_zero_row_args]
