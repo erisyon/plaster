@@ -148,7 +148,6 @@ def zest_radmat_from_sampled_pep_dyemat():
     zest()
 
 
-"""
 def zest_radmat_sim():
     ch_params_with_noise = [
         Munch(beta=7500.0, sigma=0.16),
@@ -172,16 +171,17 @@ def zest_radmat_sim():
         [1, 1, 10],
         [1, 2, 5],
         [2, 2, 5],
+        [0, 3, 10],
     ])
     # fmt: on
 
     n_samples_per_pep = 5
     n_channels = 2
     n_cycles = 3
-    n_peps = 3
+    n_peps = 4
 
-    def it_returns_reasonable_radiometry():
-        radiometry, true_pep_iz = sim_v2_worker._radmat_sim(
+    def it_removes_all_zero_rows():
+        radiometry, true_pep_iz, true_dye_iz = sim_v2_worker._radmat_sim(
             dyemat,
             dyepeps,
             ch_params_with_noise,
@@ -189,14 +189,27 @@ def zest_radmat_sim():
             n_channels,
             n_cycles,
         )
-        assert radiometry.shape == (n_peps * n_samples_per_pep, n_channels, n_cycles)
-        assert true_pep_iz.tolist() == [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
+        assert radiometry.shape == (10, n_channels, n_cycles)
+        assert true_pep_iz.tolist() == [1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
+        assert not np.any(np.all(radiometry == 0.0, axis=(1, 2)))
+
+    def it_returns_reasonable_radiometry():
+        radiometry, true_pep_iz, true_dye_iz = sim_v2_worker._radmat_sim(
+            dyemat,
+            dyepeps,
+            ch_params_with_noise,
+            n_samples_per_pep,
+            n_channels,
+            n_cycles,
+        )
+        assert radiometry.shape == (10, n_channels, n_cycles)
+        assert true_pep_iz.tolist() == [1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
         assert np.all(radiometry[radiometry > 0.0] > 1000.0)
 
     def it_returns_correct_radiometry_with_no_noise():
         # By using no noise, we can just compare that radiometry gave back the dyemat
         # but with each peptide repeated
-        radiometry, true_pep_iz = sim_v2_worker._radmat_sim(
+        radiometry, true_pep_iz, true_dye_iz = sim_v2_worker._radmat_sim(
             dyemat,
             dyepeps,
             ch_params_no_noise,
@@ -205,20 +218,24 @@ def zest_radmat_sim():
             n_cycles,
         )
 
-        # HERHE
-        import pudb; pudb.set_trace()
-        assert utils.np_array_same(
-            radiometry[0:n_samples_per_pep], dyemat[0, :].flatten().astype(RadType)
+        assert np.all(radiometry[0:5] == dyemat[1, :].astype(RadType),)
+
+        assert np.all(
+            (
+                (radiometry[5:10] == dyemat[1, :].astype(RadType))
+                | (radiometry[5:10] == dyemat[2, :].astype(RadType))
+            ),
         )
-        assert utils.np_array_same(
-            radiometry[n_samples_per_pep:2*n_samples_per_pep], dyemat[1, :].flatten().astype(RadType)
-            radiometry[15:20], dyemat[2, :].flatten().astype(RadType)
-        )
+
         # fmt: off
-        assert true_pep_iz[0:20].tolist() == [
+        assert true_dye_iz[0:5].tolist() == [1, 1, 1, 1, 1]
+        # fmt: on
+
+        assert np.all((true_dye_iz[5:10] == 1) | (true_dye_iz[5:10] == 2))
+
+        # fmt: off
+        assert true_pep_iz.tolist() == [
             1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1,
-            2, 2, 2, 2, 2,
             2, 2, 2, 2, 2,
         ]
         # fmt: on
@@ -229,14 +246,17 @@ def zest_radmat_sim():
 def zest_sim_v2_worker():
     prep_result = prep_fixtures.result_simple_fixture()
 
-    def _sim(err_kwargs=None):
+    def _sim(err_kwargs=None, _prep_result=None):
+        if _prep_result is None:
+            _prep_result = prep_result
+
         error_model = ErrorModel.no_errors(n_channels=2, **(err_kwargs or {}))
 
         sim_v2_params = SimV2Params.construct_from_aa_list(
             ["A", "B"], error_model=error_model, n_edmans=4
         )
 
-        return sim_v2_worker.sim_v2(sim_v2_params, prep_result), sim_v2_params
+        return sim_v2_worker.sim_v2(sim_v2_params, _prep_result), sim_v2_params
 
     def it_returns_train_dyemat():
         # Because it has no errors, there's only a perfect dyemats
@@ -304,37 +324,21 @@ def zest_sim_v2_worker():
         )
         assert utils.np_array_same(flus[3], np.array([1, 1, 7, 7, 7], dtype=np.uint8))
 
-    # def it_returns_test_fields():
-    #     sim_v2_result, sim_v2_params = _sim(dict())
-    #
-    #     def it_returns_test_radmat():
-    #         test_radmat = sim_v2_result.test_radmat
-    #         n_real_peps = 2
-    #         assert test_radmat.shape == (
-    #             sim_v2_params.n_samples_test * n_real_peps,
-    #             sim_v2_params.n_channels,
-    #             sim_v2_params.n_cycles,
-    #         )
-    #
-    #     def it_returns_test_dyemat():
-    #         # HERHE!
-    #         # import pudb; pudb.set_trace()
-    #         test_dyemat = sim_v2_result.test_dyemat
-    #         n_real_peps = 2
-    #         assert test_dyemat.shape == (
-    #             sim_v2_params.n_samples_test * n_real_peps,
-    #             sim_v2_params.n_channels,
-    #             sim_v2_params.n_cycles,
-    #         )
-    #
-    #     zest()
+    def decoys():
+        prep_with_decoy = prep_fixtures.result_simple_fixture(has_decoy=True)
+        sim_v2_result, sim_v2_params = _sim(dict(), prep_with_decoy)
 
-    # def it_returns_test_radmat_true_pep_iz():
-    #     raise NotImplementedError
+        def it_maintains_decoys_for_train():
+            assert sim_v2_result.train_dyemat.shape == (4, 10)
 
-    # def it_maintains_decoys_for_train():
-    # def it_removes_decoys_for_test():
-    # def it_raises_if_train_and_test_identical():
+        def it_removes_decoys_for_test():
+            # 1000 because the nul-dye track should be removed
+            assert sim_v2_result.test_radmat.shape == (1000, 2, 5)
+
+        zest()
+
+    @zest.skip(reason="Not implemented")
+    def it_raises_if_train_and_test_identical():
+        raise NotImplementedError
 
     zest()
-"""

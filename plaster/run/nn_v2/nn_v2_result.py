@@ -10,19 +10,9 @@ class NNV2Result(BaseResult):
 
     required_props = dict(
         params=NNV2Params,
-        # test_pred_dt_iz=ArrayResult,
-        # test_dt_scores=ArrayResult,
         test_pred_pep_iz=np.ndarray,
+        test_pred_dye_iz=np.ndarray,
         test_scores=np.ndarray,
-        # test_peps_pr=(type(None), pd.DataFrame),
-        # test_peps_pr_abund=(type(None), pd.DataFrame),
-        # Optional: when the testing is also run on training to evaluate overfitting...
-        # train_pred_dt_iz=(type(None), ArrayResult),
-        # train_dt_scores=(type(None), ArrayResult),
-        # train_pred_pep_iz=(type(None), ArrayResult),
-        # train_scores=(type(None), ArrayResult),
-        # train_peps_pr=(type(None), pd.DataFrame),
-        # train_peps_pr_abund=(type(None), pd.DataFrame),
     )
 
     def includes_train_results(self):

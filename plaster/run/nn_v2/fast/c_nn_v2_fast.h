@@ -14,7 +14,10 @@ typedef struct {
     Table test_unit_radmat;  // RadType (Float32)
     Table train_dyetrack_weights;  // WeightType (Float32)
     Table train_dyemat;  // RadType (Float32)
-    Table output_pred_iz;  // Index32
+    Table train_dyepeps;  // (Index * 3)
+    Table train_dye_i_to_dyepep_offset;  // (Index into train_dyepeps)
+    Table output_pred_pep_iz;  // Index32
+    Table output_pred_dye_iz;  // Index32
     Table output_scores;  // Score (Float32)
 
     // The following are internal to the .c file; freed by context_free()

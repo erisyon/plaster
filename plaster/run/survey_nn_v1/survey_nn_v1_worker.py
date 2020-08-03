@@ -29,8 +29,8 @@ def _euc_dist(sim_result):
 
     # the dim of train_dyemat above does not include "dark" peptides,
     # so we'll need to factor that in to create a table for all peps.
-    n_peps = len(sim_result.train_recalls)
-    # dark_pep_mask = sim_result.train_recalls == 0.0
+    n_peps = len(sim_result.train_pep_recalls)
+    # dark_pep_mask = sim_result.train_pep_recalls == 0.0
 
     # we'll store nearest neighbor pep_i and distance
     neighbor_pep_i = np.full([n_peps,], -1)
@@ -42,7 +42,9 @@ def _euc_dist(sim_result):
     return range(n_peps), neighbor_pep_i, neighbor_dist
 
 
-def survey_nn_v1(survey_nn_params, prep_result, sim_result, progress=None, pipeline=None):
+def survey_nn_v1(
+    survey_nn_params, prep_result, sim_result, progress=None, pipeline=None
+):
     """
     Compute a distance between between peptides that exist in prep_result
     using the dye-tracks employed by nearest-neighbor.  Create a DF that

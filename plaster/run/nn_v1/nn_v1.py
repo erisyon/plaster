@@ -97,6 +97,7 @@ from plaster.tools.utils import data, utils
 from plaster.tools.zap import zap
 from plaster.vendor import pyflann
 from scipy.spatial import distance
+from plaster.tools.log.log import debug
 
 
 def _create_flann(dt_mat):
@@ -332,6 +333,7 @@ def _do_nn(
             pdf = determinant_of_sigma ** (-1 / 2) * np.exp(-vdist / 2)
             weighted_pdf = neigh_weights * pdf
             scores = utils.np_safe_divide(weighted_pdf, weighted_pdf.sum())
+            # debug(unit_radrow_flat, neigh_dt_mat, delta, vdist, pdf, neigh_weights, weighted_pdf, weighted_pdf.sum(), scores)
 
         # elif nn_params.dt_score_mode == "gmm_normalized_wpdf_no_inv_var":
         #     delta = unit_radrow_flat - neigh_dt_mat
@@ -372,7 +374,10 @@ def _do_nn(
             raise NotImplementedError()
 
         # PICK highest score
+        # debug(penalty())
         scores *= penalty()
+        # debug(scores)
+
         scores = scores.astype(ScoreType)
         arg_sort = np.argsort(scores)[::-1]
         best_arg = arg_sort[0].astype(int)

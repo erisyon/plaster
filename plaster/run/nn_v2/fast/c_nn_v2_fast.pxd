@@ -36,7 +36,10 @@ cdef extern from "c_nn_v2_fast.h":
         Table test_unit_radmat
         Table train_dyetrack_weights
         Table train_dyemat
-        Table output_pred_iz
+        Table train_dyepeps
+        Table train_dye_i_to_dyepep_offset
+        Table output_pred_pep_iz
+        Table output_pred_dye_iz
         Table output_scores
 
     void context_start(Context *ctx)
