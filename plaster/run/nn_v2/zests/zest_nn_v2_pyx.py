@@ -3,7 +3,6 @@ from plaster.run.nn_v2.fast import nn_v2_fast
 
 
 def zest_fast_nn():
-
     train_dyemat = np.array(
         [[0, 0, 0, 0, 0, 0, 0, 0], [2, 1, 1, 1, 1, 0, 0, 0], [1, 1, 0, 0, 2, 1, 0, 0],],
         dtype=np.uint8,
@@ -27,10 +26,10 @@ def zest_fast_nn():
         dtype=np.float32,
     )
 
-    pred_iz, scores = nn_v2_fast.fast_nn(
+    pred_pep_iz, scores, pred_dye_iz = nn_v2_fast.fast_nn(
         test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors=2
     )
-    assert pred_iz.tolist() == [2, 1]
+    assert pred_pep_iz.tolist() == [2, 1]
 
     # TODO: Assert on scores?
-    # debug(pred_iz, scores)
+    # debug(pred_pep_iz, scores)

@@ -171,13 +171,27 @@ def zest_radmat_sim():
         [1, 1, 10],
         [1, 2, 5],
         [2, 2, 5],
+        [0, 3, 10],
     ])
     # fmt: on
 
     n_samples_per_pep = 5
     n_channels = 2
     n_cycles = 3
-    n_peps = 3
+    n_peps = 4
+
+    def it_removes_all_zero_rows():
+        radiometry, true_pep_iz, true_dye_iz = sim_v2_worker._radmat_sim(
+            dyemat,
+            dyepeps,
+            ch_params_with_noise,
+            n_samples_per_pep,
+            n_channels,
+            n_cycles,
+        )
+        assert radiometry.shape == (10, n_channels, n_cycles)
+        assert true_pep_iz.tolist() == [1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
+        assert not np.any(np.all(radiometry == 0.0, axis=(1, 2)))
 
     def it_returns_reasonable_radiometry():
         radiometry, true_pep_iz, true_dye_iz = sim_v2_worker._radmat_sim(
@@ -188,8 +202,8 @@ def zest_radmat_sim():
             n_channels,
             n_cycles,
         )
-        assert radiometry.shape == (n_peps * n_samples_per_pep, n_channels, n_cycles)
-        assert true_pep_iz.tolist() == [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
+        assert radiometry.shape == (10, n_channels, n_cycles)
+        assert true_pep_iz.tolist() == [1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
         assert np.all(radiometry[radiometry > 0.0] > 1000.0)
 
     def it_returns_correct_radiometry_with_no_noise():
@@ -204,30 +218,23 @@ def zest_radmat_sim():
             n_cycles,
         )
 
-        assert np.all(radiometry[0:n_samples_per_pep] == dyemat[0, :].astype(RadType))
+        assert np.all(radiometry[0:5] == dyemat[1, :].astype(RadType),)
+
         assert np.all(
-            radiometry[n_samples_per_pep : n_samples_per_pep * 2]
-            == dyemat[1, :].astype(RadType),
+            (
+                (radiometry[5:10] == dyemat[1, :].astype(RadType))
+                | (radiometry[5:10] == dyemat[2, :].astype(RadType))
+            ),
         )
 
-        assert true_dye_iz[0 : 2 * n_samples_per_pep].tolist() == [
-            0,
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            1,
-        ]
+        # fmt: off
+        assert true_dye_iz[0:5].tolist() == [1, 1, 1, 1, 1]
+        # fmt: on
 
-        # The third one is split between two dyetrack
+        assert np.all((true_dye_iz[5:10] == 1) | (true_dye_iz[5:10] == 2))
 
         # fmt: off
         assert true_pep_iz.tolist() == [
-            0, 0, 0, 0, 0,
             1, 1, 1, 1, 1,
             2, 2, 2, 2, 2,
         ]
@@ -325,7 +332,8 @@ def zest_sim_v2_worker():
             assert sim_v2_result.train_dyemat.shape == (4, 10)
 
         def it_removes_decoys_for_test():
-            assert sim_v2_result.test_radmat.shape == (2000, 2, 5)
+            # 1000 because the nul-dye track should be removed
+            assert sim_v2_result.test_radmat.shape == (1000, 2, 5)
 
         zest()
 

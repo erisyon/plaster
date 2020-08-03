@@ -636,7 +636,6 @@ def _step_2_create_inverse_variances(dt_mat, channel_i_to_vpd):
     dt_mat[dt_mat == 0] = 0.5
     vpd_broadcast = channel_i_to_vpd[None, :, None]
     spd = np.sqrt(vpd_broadcast)
-    print(f"spd={spd[0,0,0]:4.4f}")
     return 1.0 / np.square(
         spd * dt_mat
     )  # Scaling by the standard deviation per dye by channel

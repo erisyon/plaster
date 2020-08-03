@@ -212,6 +212,13 @@ def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cyc
     )
     output_true_pep_iz = np.repeat(np.arange(n_peps), n_samples_per_pep)
     output_true_dye_iz = output_true_dye_iz.reshape((n_peps * n_samples_per_pep,))
+
+    # REMOVE all zero-rows (thise that point to the nul dyetrack)
+    keep_good_tracks = np.argwhere(output_true_dye_iz != 0).flatten()
+    output_radmat = output_radmat[keep_good_tracks]
+    output_true_pep_iz = output_true_pep_iz[keep_good_tracks]
+    output_true_dye_iz = output_true_dye_iz[keep_good_tracks]
+
     return output_radmat, output_true_pep_iz, output_true_dye_iz
 
 
@@ -334,9 +341,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
 
     # REMOVE all-zero rows (EXECPT THE FIRST which is the nul row)
     non_zero_rows = np.argwhere(test_true_pep_iz != 0).flatten()
-    debug(non_zero_rows.shape, test_radmat.shape)
     test_radmat = test_radmat[non_zero_rows]
-    debug(test_radmat.shape)
     test_true_pep_iz = test_true_pep_iz[non_zero_rows]
     test_true_dye_iz = test_true_dye_iz[non_zero_rows]
 

@@ -13,21 +13,16 @@ from plaster.tools.log.log import debug, prof
 
 def zest_v1_v2_compare():
     with tmp_folder(chdir=True):
-        prof()
         prep_result = prep_fixtures.result_random_fixture(5)
 
         sim_v1_result = sim_v1_fixtures.result_from_prep_fixture(prep_result)
         sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result)
 
         nn_v1_params = NNV1Params()
-        prof()
         nn_v1_result = nn_v1_worker.nn_v1(nn_v1_params, prep_result, sim_v1_result)
-        prof()
 
         nn_v2_params = NNV2Params()
-        prof()
         nn_v2_result = nn_v2_worker.nn_v2(nn_v2_params, sim_v2_result)
-        prof()
 
         n_correct_v1 = np.sum(
             sim_v1_result.test_true_pep_iz == nn_v1_result.test_pred_pep_iz

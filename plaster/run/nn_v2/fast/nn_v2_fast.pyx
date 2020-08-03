@@ -1,3 +1,4 @@
+import sys
 import time
 cimport c_nn_v2_fast as c_nn
 import numpy as np
@@ -16,6 +17,14 @@ def _assert_array_contiguous(arr, dtype, which):
             f"dtype was {arr.dtype} expected {dtype} "
             f"continguous was {arr.flags['C_CONTIGUOUS']}."
         )
+
+
+def _assert_with_trace(condition, message):
+    """
+    Cython assert doesn't produce useful traces
+    """
+    if not condition:
+        raise AssertionError(message)
 
 
 def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
@@ -39,6 +48,7 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
         (pred_pep_iz, scores)
         pred_pep_iz: ndarray((test_unit_radmat.shape[0],), dtype=np.uint32)
         scores: ndarray((test_unit_radmat.shape[0],), dtype=np.float32)
+        output_pred_dye_iz: ndarray((test_unit_radmat.shape[0],), dtype=np.uint32)
     """
     cdef c_nn.RadType [:, ::1] test_unit_radmat_view
     cdef c_nn.DyeType [:, ::1] train_dyemat_view
@@ -54,8 +64,8 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
     check.array_t(test_unit_radmat, ndim=2)
     check.array_t(train_dyemat, ndim=2)
     n_cols = test_unit_radmat.shape[1]
-    assert test_unit_radmat.shape[1] == train_dyemat.shape[1]
-    assert train_dyepeps.ndim == 2 and train_dyepeps.shape[1] == 3
+    _assert_with_trace(test_unit_radmat.shape[1] == train_dyemat.shape[1], "radmat and dyemat have different shapes")
+    _assert_with_trace(train_dyepeps.ndim == 2 and train_dyepeps.shape[1] == 3, "train_dyepeps has wrong shape")
 
     # ALLOCATE output arrays
     output_pred_pep_iz = np.zeros((test_unit_radmat.shape[0],), dtype=np.uint32)
@@ -98,22 +108,23 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
         # CREATE a lookup table to the start of each dyetrack
         train_dyepeps_view = train_dyepeps
 
-        assert train_dyepeps_view[0, 0] > 0
-        last_dye_i = 0  # First dye starts at 1 since 0 is reserved
+        # Set last dye to a huge number so that it will be different on first
+        # comparison with dye_i below.
+        last_dye_i = 0xFFFFFFFFFFFFFFFF
         last_count = 0
         for i in range(dyepep_n_rows):
             dye_i = train_dyepeps_view[i, 0]
-            assert 0 <= dye_i < train_dyemat_n_rows
+            _assert_with_trace(0 <= dye_i < train_dyemat_n_rows, "Bad dye_i index")
             dyetrack_weights_uint64[dye_i] += train_dyepeps_view[i, 2]
 
             # print(f"dye_i={dye_i} pep_i={train_dyepeps_view[i, 1]} count={train_dyepeps_view[i, 2]} last_dye_i={last_dye_i}")
             if dye_i != last_dye_i:
-                assert dye_i == last_dye_i + 1
+                _assert_with_trace(dye_i == last_dye_i + 1 or last_dye_i == 0xFFFFFFFFFFFFFFFF, "Non sequential dye_i")
                 dye_i_to_dyepep_offset[dye_i] = i
             else:
                 # Ensure that this is sorted allows picking
                 # the most likely pep without a search
-                assert train_dyepeps_view[i, 2] <= last_count
+                _assert_with_trace(train_dyepeps_view[i, 2] <= last_count, "train_dyepeps_view not sorted")
 
             last_dye_i = dye_i
             last_count = train_dyepeps_view[i, 2]

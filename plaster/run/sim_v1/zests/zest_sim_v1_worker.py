@@ -572,24 +572,13 @@ def zest_sim():
         with tmp.tmp_folder(chdir=True):
             sim_params = _stub_sim_params(some_error_model, n_samples)
             sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
-            assert sim_result.train_dyemat.shape == (
-                n_peptides * n_samples,
-                n_channels,
-                n_cycles,
-            )
+            assert np.any(sim_result.train_true_pep_iz == 4)
 
     def it_removes_decoys_for_test():
         with tmp.tmp_folder(chdir=True):
             sim_params = _stub_sim_params(some_error_model, n_samples)
             sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
-            assert sim_result.test_dyemat.shape == (
-                n_peptides * n_samples,
-                n_channels,
-                n_cycles,
-            )
-            assert np.all(sim_result.test_dyemat[0] == 0)  # Nul should be all zero
-            assert np.all(sim_result.test_dyemat[4] == 0)  # Decoy should be all zero
-            assert sim_result.test_radmat.dtype == np.float32
+            assert not np.any(sim_result.test_true_pep_iz == 4)
 
     def it_raises_if_train_and_test_identical():
         with tmp.tmp_folder(chdir=True):
@@ -608,19 +597,11 @@ def zest_sim():
             n_peptides = 3
             sim_params = _stub_sim_params(no_error_model, n_samples)
             sim_result = sim_v1_worker.sim_v1(sim_params, prep_result)
-            assert sim_result.test_dyemat.shape == (
-                n_peptides * n_samples,
-                n_channels,
-                n_cycles,
-            )
+            assert sim_result.test_dyemat.shape == (1, n_channels, n_cycles,)
             assert sim_result.test_dyemat.dtype == np.uint8
             assert np.all(sim_result.test_dyemat[:] == 0)  # All dark
 
-            assert sim_result.train_dyemat.shape == (
-                n_peptides * n_samples,
-                n_channels,
-                n_cycles,
-            )
+            assert sim_result.train_dyemat.shape == (1, n_channels, n_cycles,)
             assert sim_result.train_dyemat.dtype == np.uint8
             assert np.all(sim_result.train_pep_recalls[:] == 0.0)
 

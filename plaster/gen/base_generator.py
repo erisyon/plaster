@@ -459,7 +459,9 @@ class BaseGenerator(Munch):
             for param in params:
                 if param[0].startswith("err_"):
                     parts = param[0].split(":")
-                    err_set[parts[0][4:]][int(parts[1])] = param[1]  # The 4: removes the "err_"
+                    err_set[parts[0][4:]][int(parts[1])] = param[
+                        1
+                    ]  # The 4: removes the "err_"
 
             yield protease, label_set, err_set
 
@@ -490,7 +492,7 @@ class BaseGenerator(Munch):
 
     def report_section_first_run_object(self):
         self._report_sections += [
-            ("code", [f'run = job.runs[0]'],),
+            ("code", [f"run = job.runs[0]"],),
         ]
 
     def report_section_job_object(self):
