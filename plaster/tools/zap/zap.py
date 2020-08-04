@@ -653,6 +653,9 @@ def df_groups(fn, df_group, **kwargs):
 
     def _do_get_calls(group, **kwargs):
         # CONVERT the index to a tuple so that it can be hashed
+        # There's a bug that shows up in pandas 1.1.0 with the following copy
+        # ZBS didn't have time to figure out if there's a work around
+        # so I pinned Pandas back to 1.0.5
         return Munch(args=(group.copy(),), _index=tuple(group.index.values), **kwargs)
 
     _work_orders = df_group.apply(_do_get_calls)

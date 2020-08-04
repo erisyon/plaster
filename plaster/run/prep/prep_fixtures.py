@@ -8,7 +8,7 @@ from plaster.run.prep import prep_worker
 from plaster.tools.log.log import debug
 
 
-def result_simple_fixture():
+def result_simple_fixture(has_decoy=False):
     """
     Generate a simple test fixture with some proteins and peptides
     """
@@ -23,37 +23,24 @@ def result_simple_fixture():
     pros = pd.DataFrame(
         dict(
             pro_id=["nul", "pro1", "pro2"],
-            pro_is_decoy=[False, False, False],
+            pro_is_decoy=[False, False, has_decoy],
             pro_i=[0, 1, 2],
             pro_ptm_locs=[None, None, None],
             pro_report=[None, None, None],
         )
     )
 
+    # fmt: off
     pro_seqs = pd.DataFrame(
         dict(
             pro_i=[0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
             aa=[
-                ".",
-                "A",
-                "B",
-                "C",
-                "D",
-                "E",
-                "B",
-                "G",
-                "B",
-                "I",
-                "J",
-                "K",
-                "B",
-                "B",
-                "L",
-                "M",
-                "N",
+                ".", "A", "B", "C", "D", "E", "B","G",
+                "B", "I", "J", "K", "B", "B", "L", "M", "N",
             ],
         )
     )
+    # fmt: on
 
     peps = pd.DataFrame(
         dict(
@@ -64,33 +51,20 @@ def result_simple_fixture():
         )
     )
 
+    # fmt: off
     pep_seqs = pd.DataFrame(
         dict(
             pep_i=[0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3],
             aa=[
-                ".",
-                "A",
-                "B",
-                "C",
-                "D",
-                "E",
-                "B",
-                "G",
-                "B",
-                "I",
-                "J",
-                "K",
-                "B",
-                "B",
-                "L",
-                "M",
-                "N",
+                ".", "A", "B", "C", "D", "E", "B","G",
+                "B", "I", "J", "K", "B", "B", "L", "M", "N",
             ],
             pep_offset_in_pro=[0, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,],
         )
     )
+    # fmt: on
 
-    return cls(
+    return PrepResult(
         params=prep_params,
         _pros=pros,
         _pro_seqs=pro_seqs,

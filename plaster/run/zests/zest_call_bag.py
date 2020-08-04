@@ -33,7 +33,7 @@ def zest_pr_curve_edge_cases():
     """
 
     # first entry is null peptide
-    stub_sim_result = Munch(train_recalls=np.array([-1.0, 1.0, 1.0]))
+    stub_sim_result = Munch(train_pep_recalls=np.array([-1.0, 1.0, 1.0]))
     stub_prep_result = Munch(n_peps=3)
 
     # CallBag: all right / all wrong
@@ -100,7 +100,7 @@ def zest_pr_curve_no_tied_scores():
     """
 
     # first entry is null peptide
-    stub_sim_result = Munch(train_recalls=np.array([-1.0] + [1.0] * 4))
+    stub_sim_result = Munch(train_pep_recalls=np.array([-1.0] + [1.0] * 4))
     stub_prep_result = Munch(n_peps=5)
 
     # pep 1 is predicted correctly 1/4, #2 is 1/2, #3 is 3/4
@@ -310,7 +310,7 @@ def zest_pr_curve_no_tied_scores_mean_recall():
     """
 
     # first entry is null peptide
-    stub_sim_result = Munch(train_recalls=np.array([-1.0, 0.1, 0.2, 0.3]))
+    stub_sim_result = Munch(train_pep_recalls=np.array([-1.0, 0.1, 0.2, 0.3]))
     stub_prep_result = Munch(n_peps=4)
 
     true_pep_iz = np.array([1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3])

@@ -369,8 +369,8 @@ def zest_nn_v1():
                 train_radmat=ArrayResult(
                     "train_radmat", shape=(1,), dtype=RadType, mode="w+"
                 ).arr(),
-                train_recalls=ArrayResult(
-                    "train_recalls", shape=(1,), dtype=RecallType, mode="w+"
+                train_pep_recalls=ArrayResult(
+                    "train_pep_recalls", shape=(1,), dtype=RecallType, mode="w+"
                 ).arr(),
                 train_flus=ArrayResult(
                     "train_flus", shape=(1,), dtype=DyeType, mode="w+"

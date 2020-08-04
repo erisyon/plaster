@@ -38,10 +38,14 @@ Nomenclature
 """
 import math
 import numpy as np
+import pandas as pd
+from scipy.spatial.distance import cdist
 from plaster.run.sim_v2.fast import sim_v2_fast
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.run.sim_v2 import sim_v2_params
 from plaster.tools.log.log import debug
+from plaster.tools.schema import check
+from plaster.tools.utils import data
 
 
 def _rand_lognormals(logs, sigma):
@@ -90,7 +94,7 @@ def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples):
         pep_recalls: ndarray(n_peps)
     """
 
-    # TODO: bleach each channel
+    # TODO: bleach per channel
     dyemat, dyepeps, pep_recalls = sim_v2_fast.sim(
         flus,
         pi_brights,
@@ -126,11 +130,6 @@ def _sample_pep_dyemat(dyepep_group, n_samples_per_pep):
         return np.random.choice(dyepep_group[:, 0], n_samples_per_pep, p=prob)
     else:
         return np.zeros((0,), dtype=int)
-
-
-def _rand_lognormals(logs, sigma):
-    """Mock-point"""
-    return np.random.lognormal(mean=logs, sigma=sigma, size=logs.shape)
 
 
 def _radmat_from_sampled_pep_dyemat(
@@ -173,7 +172,7 @@ def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cyc
 
     # SORT dyepeps by peptide (col 1) first then by count (col 2)
     # Note that np.lexsort puts the primary sort key LAST in the argument
-    sorted_dyepeps = dyepeps[np.lexsort((dyepeps[:, 2], dyepeps[:, 1]))]
+    sorted_dyepeps = dyepeps[np.lexsort((-dyepeps[:, 2], dyepeps[:, 1]))]
 
     # GROUP sorted_dyepeps by peptide using trick described here:
     # https://stackoverflow.com/a/43094244
@@ -186,26 +185,60 @@ def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cyc
         np.cumsum(np.unique(sorted_dyepeps[:, 1], return_counts=True)[1])[:-1],
     )
 
-    n_peps = np.max(dyepeps[:, 1]) + 1
+    if len(dyepeps[:, 1]) > 0:
+        n_peps = int(np.max(dyepeps[:, 1]) + 1)
+    else:
+        n_peps = 0
 
     # TODO: Convert to ArrayResult
     output_radmat = np.zeros(
         (n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=np.float32
     )
+    output_true_dye_iz = np.zeros((n_peps, n_samples_per_pep), dtype=int)
 
-    for dyepep_group in grouped_dyepep_rows:
+    for group_i, dyepep_group in enumerate(grouped_dyepep_rows):
         # All of the pep_iz (column 1) should be the same since that's what a "group" is.
-        pep_i = dyepep_group[0, 1]
-        sampled_dt_iz = _sample_pep_dyemat(dyepep_group, n_samples_per_pep)
-        _radmat_from_sampled_pep_dyemat(
-            dyemat[sampled_dt_iz], ch_params, n_channels, output_radmat, pep_i
-        )
+        if dyepep_group.shape[0] > 0:
+            pep_i = dyepep_group[0, 1]
+            sampled_dye_iz = _sample_pep_dyemat(dyepep_group, n_samples_per_pep)
+            if sampled_dye_iz.shape[0] > 0:
+                output_true_dye_iz[pep_i, :] = sampled_dye_iz
+            _radmat_from_sampled_pep_dyemat(
+                dyemat[sampled_dye_iz], ch_params, n_channels, output_radmat, pep_i
+            )
 
     output_radmat = output_radmat.reshape(
         (n_peps * n_samples_per_pep, n_channels, n_cycles)
     )
-    true_pep_iz = np.repeat(np.arange(n_peps), n_samples_per_pep)
-    return output_radmat, true_pep_iz
+    output_true_pep_iz = np.repeat(np.arange(n_peps), n_samples_per_pep)
+    output_true_dye_iz = output_true_dye_iz.reshape((n_peps * n_samples_per_pep,))
+
+    # REMOVE all zero-rows (those that point to the nul dyetrack)
+    keep_good_tracks = np.argwhere(output_true_dye_iz != 0).flatten()
+    output_radmat = output_radmat[keep_good_tracks]
+    output_true_pep_iz = output_true_pep_iz[keep_good_tracks]
+    output_true_dye_iz = output_true_dye_iz[keep_good_tracks]
+
+    return output_radmat, output_true_pep_iz, output_true_dye_iz
+
+
+def _any_identical_non_zero_rows(a, b):
+    """
+    Checks if two mats a and b are identical in ANY non-zero rows.
+    """
+    check.array_t(a, ndim=2)
+    check.array_t(b, ndim=2)
+
+    arg_sample = data.arg_subsample(a, 100)
+    a = a[arg_sample]
+    b = b[arg_sample]
+
+    zero_rows = np.all(a == 0, axis=1)
+    a = a[~zero_rows]
+    b = b[~zero_rows]
+
+    if a.shape[0] > 0:
+        return np.any(a == b)
 
 
 def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
@@ -215,10 +248,14 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     train_pep_recalls = None
     train_radmat = None
     train_true_pep_iz = None
+    train_true_dye_iz = None
     test_flus = None
     test_dyemat = None
+    test_radmat = None
     test_dyepeps = None
     test_pep_recalls = None
+    test_true_pep_iz = None
+    test_true_dye_iz = None
 
     # Training data
     #   * always includes decoys
@@ -230,10 +267,29 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         sim_v2_params, train_flus, train_pi_brights, sim_v2_params.n_samples_train
     )
 
-    # if sim_v2_params.train_includes_radmat:
-    #     train_radmat,  = _radmat_sim(
-    #         train_dyemat, train_dyepeps
-    #     )
+    # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
+    # Note that np.lexsort puts the primary sort key LAST in the argument
+    train_dyepeps = train_dyepeps[
+        np.lexsort((-train_dyepeps[:, 2], train_dyepeps[:, 0]))
+    ]
+
+    if sim_v2_params.train_includes_radmat:
+        train_radmat, train_true_pep_iz, train_true_dye_iz = _radmat_sim(
+            train_dyemat.reshape(
+                (
+                    train_dyemat.shape[0],
+                    sim_v2_params.n_channels,
+                    sim_v2_params.n_cycles,
+                )
+            ),
+            train_dyepeps,
+            sim_v2_params.by_channel,
+            sim_v2_params.n_samples_train,
+            sim_v2_params.n_channels,
+            sim_v2_params.n_cycles,
+        )
+    else:
+        train_radmat, train_true_pep_iz, train_true_dye_iz = None, None, None
 
     # Test data
     #   * does not include decoys
@@ -249,24 +305,57 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test
         )
 
-        test_radmat, test_true_pep_iz = _radmat_sim(
+        # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
+        # Note that np.lexsort puts the primary sort key LAST in the argument
+        test_dyepeps = test_dyepeps[
+            np.lexsort((-test_dyepeps[:, 2], test_dyepeps[:, 0]))
+        ]
+
+        test_radmat, test_true_pep_iz, test_true_dye_iz = _radmat_sim(
             test_dyemat.reshape(
                 (test_dyemat.shape[0], sim_v2_params.n_channels, sim_v2_params.n_cycles)
             ),
             test_dyepeps,
             sim_v2_params.by_channel,
+            sim_v2_params.n_samples_test,
+            sim_v2_params.n_channels,
+            sim_v2_params.n_cycles,
         )
 
-        if not sim_v2_params.test_includes_dyemat:
-            test_dyemat, test_dyepeps_df = None, None
+        if not sim_v2_params.allow_train_test_to_be_identical:
+            # TASK: Add a dyepeps check
+            # train_dyepeps_df = pd.DataFrame(train_dyepeps, columns=["dye_i", "pep_i", "count"])
+            # test_dyepeps_df = pd.DataFrame(test_dyepeps, columns=["dye_i", "pep_i", "count"])
+            # joined_df = train_dyepeps_df.set_index("pep_i").join(
+            #     test_dyepeps_df.set_index("pep_i")
+            # )
+
+            if train_radmat is not None:
+                check.affirm(
+                    not _any_identical_non_zero_rows(train_radmat, test_radmat),
+                    "Train and test sets are identical. Probably RNG bug.",
+                )
+
+        # if not sim_v2_params.test_includes_dyemat:
+        #     test_dyemat, test_dyepeps_df = None, None
+
+    # REMOVE all-zero rows (EXECPT THE FIRST which is the nul row)
+    non_zero_rows = np.argwhere(test_true_pep_iz != 0).flatten()
+    test_radmat = test_radmat[non_zero_rows]
+    test_true_pep_iz = test_true_pep_iz[non_zero_rows]
+    test_true_dye_iz = test_true_dye_iz[non_zero_rows]
 
     return SimV2Result(
         params=sim_v2_params,
         train_dyemat=train_dyemat,
+        train_radmat=train_radmat,
         train_pep_recalls=train_pep_recalls,
         train_flus=train_flus,
+        train_true_pep_iz=train_true_pep_iz,
+        train_true_dye_iz=train_true_dye_iz,
         train_dyepeps=train_dyepeps,
         test_dyemat=test_dyemat,
         test_radmat=test_radmat,
         test_true_pep_iz=test_true_pep_iz,
+        test_true_dye_iz=test_true_dye_iz,
     )

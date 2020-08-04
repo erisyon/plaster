@@ -18,15 +18,16 @@ class SimV1Result(BaseResult):
 
     required_props = dict(
         params=SimV1Params,
+        # TODO: Convert the following 3 back to ArrayResult; see plucking some_non_zero_row_args in worker
+        train_dyemat=np.ndarray,
+        train_radmat=np.ndarray,
         train_true_pep_iz=np.ndarray,
-        train_dyemat=ArrayResult,  # (n_peps, n_samples, n_channels, n_cycles):uint8
-        train_radmat=ArrayResult,  # (n_peps, n_samples, n_channels, n_cycles):float32
-        train_recalls=ArrayResult,  # (n_peps):float32
+        train_pep_recalls=ArrayResult,
         train_flus=np.ndarray,
         train_flu_remainders=np.ndarray,
+        test_dyemat=(type(None), np.ndarray),
+        test_radmat=(type(None), np.ndarray),
         test_true_pep_iz=(type(None), np.ndarray),
-        test_dyemat=(type(None), ArrayResult),
-        test_radmat=(type(None), ArrayResult),
         test_flus=(type(None), np.ndarray),
         test_flu_remainders=(type(None), np.ndarray),
         test_recalls=(type(None), ArrayResult),

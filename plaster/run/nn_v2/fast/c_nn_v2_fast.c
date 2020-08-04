@@ -6,6 +6,7 @@
 #include "memory.h"
 #include "pthread.h"
 #include "unistd.h"
+#include "math.h"
 #include "c_nn_v2_fast.h"
 
 
@@ -43,15 +44,14 @@ float dist_inv_square(RadType *radrow, RadType *dyerow, Size n_cols) {
 
 void score_weighted_inv_square(
     int n_neighbors,
-    int *neighbor_iz,  // array((n_neighbors,), type=int): indices to dyetrack
+    int *neighbor_dye_iz,  // array((n_neighbors,), type=int): indices to dyetrack
     float *neighbor_dists,  // array((n_neighbors,), type=float): distances computed by FLANN
     RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
     Table *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
     Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
 ) {
-    // scoring funcs take neighbors and distances and return scores for each
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
-        Index neighbor_i = neighbor_iz[nn_i];
+        Index neighbor_i = neighbor_dye_iz[nn_i];
         RadType neighbor_dist = neighbor_dists[nn_i];
         WeightType neighbor_weight = *table_get_row(dyetrack_weights, neighbor_i, WeightType);
 
@@ -63,22 +63,244 @@ void score_weighted_inv_square(
 }
 
 
+void local_trace(const char *fmt, ...) {
+    static FILE *trace_file = (FILE *)0;
+    if(!trace_file) {
+        trace_file = fopen("trace.txt", "wt");
+    }
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(trace_file, fmt, args);
+    fflush(trace_file);
+    va_end(args);
+}
+
+
+void _score_weighted_gaussian_mixture(
+    int n_neighbors,
+    Size n_cols,
+    int *neighbor_dye_iz,  // array((n_neighbors,), type=int): indices to dyetrack
+    Table *train_dyemat,  // arrays((n_dyetracks, n_cols), type=RadType): All dye weights
+    RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
+    Table *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
+    Score *output_scores,  // array((n_neighbors,), type=float): returned scores for each neighbor
+    int mode,
+    char *name
+) {
+    double weights[N_MAX_NEIGHBORS];
+    double weighted_pdf[N_MAX_NEIGHBORS];
+    double weighted_pdf_sum = 0.0;
+    double std_per_dye = sqrt(0.1);
+
+    if(name) {
+        local_trace("%s\n", name);
+    }
+
+    if(mode == 1) {
+        for (Index col_i=0; col_i<n_cols; col_i++) {
+            local_trace("%2.1f ", radrow[col_i]);
+        }
+        local_trace("\n");
+        return;
+    }
+
+    for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
+        Index neighbor_i = neighbor_dye_iz[nn_i];
+        RadType *neighbor_target_dt = table_get_row(train_dyemat, neighbor_i, RadType);
+        WeightType neighbor_weight = *table_get_row(dyetrack_weights, neighbor_i, WeightType);
+        weights[nn_i] = (double)neighbor_weight;
+
+        double vdist = (double)0.0;
+        double det = 1.0;
+        for (Index col_i=0; col_i<n_cols; col_i++) {
+            double target_dt_for_col_i = (double)neighbor_target_dt[col_i];
+            if(mode == 2) {
+                local_trace("%d ", (int)target_dt_for_col_i);
+            }
+
+            double delta = (double)radrow[col_i] - target_dt_for_col_i;
+            if(mode == 3) {
+                local_trace("%2.1f ", delta);
+            }
+
+            double std_units = std_per_dye * (target_dt_for_col_i == 0.0 ? 0.5 : target_dt_for_col_i);
+            double variance = std_units * std_units;
+            ensure_only_in_debug(variance > 0, "Illegal zero variance");
+            det *= variance;
+            vdist += delta * delta / variance;
+        }
+        if(mode == 2 || mode == 3) {
+            local_trace("\n");
+        }
+
+        if(mode == 4) {
+            local_trace("%2.1f ", vdist);
+        }
+
+        ensure_only_in_debug(det > 0, "Illegal zero det");
+        double inv_sqrt_det = 1.0 / sqrt(det);
+        double pdf = inv_sqrt_det * exp(-vdist / 2.0);
+        if(mode == 5) {
+            local_trace("%2.1f ", pdf);
+        }
+        if(mode == 6) {
+            local_trace("%2.1f ", (double)neighbor_weight);
+        }
+
+        double wpdf = (double)neighbor_weight * pdf;
+        weighted_pdf[nn_i] = wpdf;
+        weighted_pdf_sum += wpdf;
+    }
+    if(mode == 2 || mode == 3 || mode == 4 || mode == 5 || mode == 6) {
+        local_trace("\n");
+    }
+
+    if(mode == 7) {
+        local_trace("%2.1f ", (double)weighted_pdf_sum);
+    }
+
+    for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
+        Score penalty = (Score)(1.0 - exp(-0.8 * weights[nn_i]));
+        if(weighted_pdf_sum > 0.0) {
+            Score score_pre_penalty = (Score)(weighted_pdf[nn_i] / weighted_pdf_sum);
+            if(mode == 8) {
+                local_trace("%2.1f ", score_pre_penalty);
+            }
+            output_scores[nn_i] = penalty * score_pre_penalty;
+        }
+        else {
+            output_scores[nn_i] = (Score)0;
+        }
+    }
+
+    if(name) {
+        local_trace("\n");
+    }
+}
+
+
+void score_weighted_gaussian_mixture(
+    int n_neighbors,
+    Size n_cols,
+    int *neighbor_dye_iz,  // array((n_neighbors,), type=int): indices to dyetrack
+    Table *train_dyemat,  // arrays((n_dyetracks, n_cols), type=RadType): All dye weights
+    RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
+    Table *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
+    Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
+) {
+//    double weights[N_MAX_NEIGHBORS];
+//    double weighted_pdf[N_MAX_NEIGHBORS];
+//    double weighted_pdf_sum = 0.0;
+
+    // TODO: std_per_dye should be per channel
+    // TODO: I need to do an experiment to figure out how
+    // to compare lognormal to this model? And ALSO I need to
+    // be sure to set that in the _v1 comparison
+    //double std_per_dye = sqrt(0.1);
+    //local_trace("\nspd = %f\n", std_per_dye);
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        0, NULL
+    );
+
+/*
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        1, "radrow"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        2, "target"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        3, "delta"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        4, "vdist"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        5, "pdf"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        6, "weights"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        7, "weigh sum"
+    );
+
+    _score_weighted_gaussian_mixture(
+        n_neighbors, n_cols, neighbor_dye_iz, train_dyemat, radrow, dyetrack_weights, output_scores,
+        8, "score pre penalty"
+    );
+*/
+    /*
+    for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
+        Index neighbor_i = neighbor_dye_iz[nn_i];
+        RadType *neighbor_target_dt = table_get_row(train_dyemat, neighbor_i, RadType);
+        WeightType neighbor_weight = *table_get_row(dyetrack_weights, neighbor_i, WeightType);
+        weights[nn_i] = (double)neighbor_weight;
+
+        double vdist = (double)0.0;
+        double det = 1.0;
+        for (Index col_i=0; col_i<n_cols; col_i++) {
+            double target_dt_for_col_i = (double)neighbor_target_dt[col_i];
+            double delta = (double)radrow[col_i] - target_dt_for_col_i;
+
+            double std_units = std_per_dye * (target_dt_for_col_i == 0.0 ? 0.5 : target_dt_for_col_i);
+            double variance = std_units * std_units;
+            ensure_only_in_debug(variance > 0, "Illegal zero variance");
+            det *= variance;
+            vdist += delta * delta / variance;
+        }
+        ensure_only_in_debug(det > 0, "Illegal zero det");
+        double inv_sqrt_det = 1.0 / sqrt(det);
+        double wpdf = (double)neighbor_weight * inv_sqrt_det * exp(-vdist / 2.0);
+        weighted_pdf[nn_i] = wpdf;
+        weighted_pdf_sum += wpdf;
+    }
+
+    for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
+        Score penalty = (Score)(1.0 - exp(-0.8 * weights[nn_i]));
+        if(weighted_pdf_sum > 0.0) {
+            output_scores[nn_i] = penalty * (Score)(weighted_pdf[nn_i] / weighted_pdf_sum);
+        }
+        else {
+            output_scores[nn_i] = (Score)0;
+        }
+    }
+    */
+
+}
+
 void context_classify_unit_radrows(
     Context *ctx,
     Table unit_radrows,
-    Table output_pred_iz,
+    Table output_pred_pep_iz,
+    Table output_pred_dye_iz,
     Table output_scores
 ) {
-    // unit_radrows, output_pred_iz, and output_scores are separated so
+    // unit_radrows, output_*_iz, and output_scores are separated so
     // that they can be passed in in batches.
     // FIND neighbor targets via ANN
     Size n_rows = unit_radrows.n_rows;
     const Size n_neighbors = ctx->n_neighbors;
     ensure(n_neighbors <= N_MAX_NEIGHBORS, "n_neighbors exceeds N_MAX_NEIGHBORS");
 
-    int *neighbor_iz = (int *)alloca(n_rows * n_neighbors * sizeof(int));
+    int *neighbor_dye_iz = (int *)alloca(n_rows * n_neighbors * sizeof(int));
     float *neighbor_dists = (float *)alloca(n_rows * n_neighbors * sizeof(float));
-    memset(neighbor_iz, 0, n_rows * n_neighbors * sizeof(int));
+    memset(neighbor_dye_iz, 0, n_rows * n_neighbors * sizeof(int));
     memset(neighbor_dists, 0, n_rows * n_neighbors * sizeof(float));
 
     // FETCH a batch of neighbors from FLANN in one call.
@@ -86,7 +308,7 @@ void context_classify_unit_radrows(
         ctx->flann_index_id,
         table_get_row(&unit_radrows, 0, RadType),
         n_rows,
-        neighbor_iz,
+        neighbor_dye_iz,
         neighbor_dists,
         n_neighbors,
         &ctx->flann_params
@@ -94,20 +316,32 @@ void context_classify_unit_radrows(
 
     for (Index row_i=0; row_i<n_rows; row_i++) {
         RadType *unit_radrow = table_get_row(&unit_radrows, row_i, RadType);
-        int *row_neighbor_iz = &neighbor_iz[row_i * n_neighbors];
-        float *row_neighbor_dists = &neighbor_dists[row_i * n_neighbors];
-
+        int *row_neighbor_dye_iz = &neighbor_dye_iz[row_i * n_neighbors];
         Score _output_scores[N_MAX_NEIGHBORS];
+
+        /*
+        float *row_neighbor_dists = &neighbor_dists[row_i * n_neighbors];
         score_weighted_inv_square(
             n_neighbors,
-            row_neighbor_iz,
+            row_neighbor_dye_iz,
             row_neighbor_dists,
             unit_radrow,
             &ctx->train_dyetrack_weights,
             _output_scores
         );
+        */
 
-        // PICK winner
+        score_weighted_gaussian_mixture(
+            n_neighbors,
+            ctx->n_cols,
+            row_neighbor_dye_iz,
+            &ctx->train_dyemat,
+            unit_radrow,
+            &ctx->train_dyetrack_weights,
+            _output_scores
+        );
+
+        // PICK dyetrack winner
         Score highest_score = (Score)0;
         Score score_sum = (Score)0;
         Index highest_score_i = 0;
@@ -119,9 +353,25 @@ void context_classify_unit_radrows(
             score_sum += _output_scores[nn_i];
         }
 
+        Index most_likely_dye_i = row_neighbor_dye_iz[highest_score_i];
+        Score dye_score = highest_score;
+
+        // PICK peptide winner using Maximum Liklihood
+        // the .pyx asserts that these are sorted by highest
+        // count so we can just pick [0] from the correct dyepep
+        Index dyepeps_offset = *table_get_row(&ctx->train_dye_i_to_dyepep_offset, most_likely_dye_i, Index);
+        Index *dyepeps_block = table_get_row(&ctx->train_dyepeps, dyepeps_offset, Index);
+        ensure_only_in_debug(dyepeps_block[0] == most_likely_dye_i, "dyepeps_block point to wrong block");
+        Index most_likely_pep_i = dyepeps_block[1];
+
+        WeightType weight = *table_get_row(&ctx->train_dyetrack_weights, most_likely_dye_i, WeightType);
+        Score pep_score = (Score)dyepeps_block[2] / (Score)weight;
+        Score score = dye_score * pep_score;
+
         // Set output
-        table_set_row(&output_pred_iz, row_i, &row_neighbor_iz[highest_score_i]);
-        table_set_row(&output_scores, row_i, &highest_score);
+        table_set_row(&output_pred_dye_iz, row_i, &most_likely_dye_i);
+        table_set_row(&output_pred_pep_iz, row_i, &most_likely_pep_i);
+        table_set_row(&output_scores, row_i, &score);
     }
 }
 
@@ -131,6 +381,10 @@ void context_start(Context *ctx) {
     ensure(
         ctx->n_neighbors <= ctx->train_dyemat.n_rows,
         "FLANN does not support requesting more neihbors than there are data points"
+    );
+    ensure(
+        ctx->n_neighbors <= N_MAX_NEIGHBORS,
+        "Too many neighbors requested"
     );
 
     // context_print(ctx);
@@ -157,7 +411,8 @@ void context_start(Context *ctx) {
     context_classify_unit_radrows(
         ctx,
         ctx->test_unit_radmat,
-        ctx->output_pred_iz,
+        ctx->output_pred_pep_iz,
+        ctx->output_pred_dye_iz,
         ctx->output_scores
     );
 }

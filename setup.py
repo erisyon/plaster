@@ -94,7 +94,7 @@ setup(
         "nptyping",
         "numpy",
         "opencv-python",
-        "pandas",
+        "pandas==1.0.5",
         "plumbum",
         # see the comment in plaster/plaster/run/sigproc_v2/synth.py for why this is commented out
         # "psf",
