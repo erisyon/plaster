@@ -20,7 +20,7 @@ from plaster.tools.pipeline.pipeline import Pipeline
 from plaster.tools.utils import utils
 from plaster.tools.utils import tmp
 from plaster.tools.schema import check
-from plaster.tools.log.log import debug, important, colorful_exception, info
+from plaster.tools.log.log import debug, important, colorful_exception, info, prof
 from plaster.tools.zap import zap
 from plaster.run.call_bag import CallBag
 from plaster.run.classify_rf.classify_rf_result import ClassifyRFResult
@@ -47,7 +47,9 @@ from plaster.run.report.report_task import ReportTask
 from plaster.run.survey_nn_v1.survey_nn_v1_task import SurveyNNV1Task
 from plaster.run.survey_nn_v1.survey_nn_v1_result import SurveyNNV1Result
 from plaster.run.nn_v1.nn_v1_task import NNV1Task
+from plaster.run.nn_v2.nn_v2_task import NNV2Task
 from plaster.run.nn_v1.nn_v1_result import NNV1Result
+from plaster.run.nn_v2.nn_v2_result import NNV2Result
 
 
 def find_run_folders(default=None, must_include_plaster_output=True):
@@ -112,6 +114,7 @@ def task_list_from_config(config):
         classify_rf=ClassifyRFTask,
         survey_nn_v1=SurveyNNV1Task,
         nn_v1=NNV1Task,
+        nn_v2=NNV2Task,
         report=ReportTask,
     )
 
@@ -141,6 +144,7 @@ def task_list_from_config(config):
         TestRFTask,
         ClassifyRFTask,
         NNV1Task,
+        NNV2Task,
         ReportTask,
     ]
 
@@ -301,9 +305,9 @@ class RunResult:
         sim_v1=SimV1Result,
         sim_v2=SimV2Result,
         nn_v1=NNV1Result,
+        nn_v2=NNV2Result,
         test_rf=TestRFResult,
         train_rf=TrainRFResult,
-        sim_nn=SimV1Result,  # Example of why it is needed to pull the klass from the run
         survey_nn_v1=SurveyNNV1Result,
     )
 
@@ -382,7 +386,7 @@ class RunResult:
         # Add to these if there are others available, or change the order to
         # determine which is used by default if more than one is available in
         # a RunResult.
-        supported_classifiers_by_preference = ["test_rf", "nn_v1"]
+        supported_classifiers_by_preference = ["test_rf", "nn_v1", "nn_v2"]
         available_classifiers_by_preference = []
         for c in supported_classifiers_by_preference:
             if self.has_result(c):
@@ -430,7 +434,7 @@ class RunResult:
             scores=scores,
             all_class_scores=all_class_scores,
             prep_result=self.prep,
-            sim_v1_result=self.sim_v1,
+            sim_result=self.sim_v1,
             cached_pr=cached_pr,
             cached_pr_abund=cached_pr_abund,
             classifier_name="test_rf",
@@ -470,9 +474,37 @@ class RunResult:
             pred_pep_iz=pred_pep_iz,
             scores=self.nn_v1.test_scores,
             prep_result=self.prep,
-            sim_v1_result=self.sim_v1,
+            sim_result=self.sim_v1,
             cached_pr=cached_pr,
-            classifier_name="nn",
+            classifier_name="nn_v1",
+        )
+
+    def nn_v2_call_bag(self, use_train_data=False):
+        """
+        Get a CallBag for the NN classifier on this plaster.run.
+        use_train_data=True when you want to look at over-fitting.
+        """
+        if use_train_data:
+            true_pep_iz = self.nn_v2.train_true_pep_iz
+            pred_pep_iz = self.nn_v2.train_pred_pep_iz
+            check.affirm(
+                true_pep_iz is not None and pred_pep_iz is not None,
+                "The nn_v1 task was not run with the training_set",
+            )
+            cached_pr = self.nn_v2.train_peps_pr
+        else:
+            true_pep_iz = self.nn_v2.test_true_pep_iz
+            pred_pep_iz = self.nn_v2.test_pred_pep_iz
+            cached_pr = self.nn_v2.test_peps_pr
+
+        return CallBag(
+            true_pep_iz=true_pep_iz,
+            pred_pep_iz=pred_pep_iz,
+            scores=self.nn_v2.test_scores,
+            prep_result=self.prep,
+            sim_result=self.sim_v2,
+            cached_pr=cached_pr,
+            classifier_name="nn_v2",
         )
 
     def peps_prs_report_df(

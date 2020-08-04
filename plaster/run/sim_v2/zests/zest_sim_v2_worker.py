@@ -337,7 +337,7 @@ def zest_sim_v2_worker():
 
         zest()
 
-    @zest.skip(reason="Not implemented")
+    @zest.skip("Not implemented")
     def it_raises_if_train_and_test_identical():
         raise NotImplementedError
 

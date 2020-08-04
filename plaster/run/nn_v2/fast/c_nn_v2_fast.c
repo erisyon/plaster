@@ -291,10 +291,10 @@ void context_classify_unit_radrows(
     Table output_pred_dye_iz,
     Table output_scores
 ) {
-    // unit_radrows, output_*_iz, and output_scores are separated so
-    // that they can be passed in in batches.
     // FIND neighbor targets via ANN
     Size n_rows = unit_radrows.n_rows;
+    ensure(n_rows <= 1024*16, "Too many rows (might overflow stack)");
+
     const Size n_neighbors = ctx->n_neighbors;
     ensure(n_neighbors <= N_MAX_NEIGHBORS, "n_neighbors exceeds N_MAX_NEIGHBORS");
 
@@ -376,6 +376,50 @@ void context_classify_unit_radrows(
 }
 
 
+Index context_work_orders_pop(Context *ctx) {
+    // NOTE: This return +1! So that 0 can be reserved.
+
+    if(ctx->n_threads > 1) {
+        pthread_mutex_lock(&ctx->work_order_lock);
+    }
+
+    Index i = ctx->next_row_i;
+    ctx->next_row_i += ctx->n_rows_per_block;
+
+    if(ctx->n_threads > 1) {
+        pthread_mutex_unlock(&ctx->work_order_lock);
+    }
+
+    if(i < ctx->n_rows) {
+        return i + 1;
+    }
+    return 0;
+}
+
+
+void *context_work_orders_worker(void *_ctx) {
+    // The worker thread. Pops off which pep to work on next
+    // continues until there are no more work orders.
+    Context *ctx = (Context *)_ctx;
+    while(1) {
+        Index row_i_plus_1 = context_work_orders_pop(ctx);
+        if(row_i_plus_1 == 0) {
+            break;
+        }
+        Index row_i = row_i_plus_1 - 1;
+        context_classify_unit_radrows(
+            ctx,
+            table_init_subset(&ctx->test_unit_radmat, row_i, ctx->n_rows_per_block, 1),
+            table_init_subset(&ctx->output_pred_pep_iz, row_i, ctx->n_rows_per_block, 0),
+            table_init_subset(&ctx->output_pred_dye_iz, row_i, ctx->n_rows_per_block, 0),
+            table_init_subset(&ctx->output_scores, row_i, ctx->n_rows_per_block, 0)
+        );
+    }
+    return (void *)0;
+}
+
+
+
 void context_start(Context *ctx) {
     ensure(sanity_check() == 0, "Sanity checks failed");
     ensure(
@@ -393,8 +437,6 @@ void context_start(Context *ctx) {
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
     ctx->flann_index_id = 0;
 
-    // TODO: Filter low count targets?
-
     // CREATE the ANN index
     float speedup = 0.0f;
     ctx->flann_index_id = flann_build_index_float(
@@ -405,16 +447,22 @@ void context_start(Context *ctx) {
         &ctx->flann_params
     );
 
-    // TODO: Create inverse variances?
+    pthread_t ids[256];
+    ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
 
-    // TODO: Thread this into batches
-    context_classify_unit_radrows(
-        ctx,
-        ctx->test_unit_radmat,
-        ctx->output_pred_pep_iz,
-        ctx->output_pred_dye_iz,
-        ctx->output_scores
-    );
+    if(ctx->n_threads > 1) {
+        int ret = pthread_mutex_init(&ctx->work_order_lock, NULL);
+        ensure(ret == 0, "pthread lock create failed");
+    }
+
+    for(Index i=0; i<ctx->n_threads; i++) {
+        int ret = pthread_create(&ids[i], NULL, context_work_orders_worker, ctx);
+        ensure(ret == 0, "Thread not created.");
+    }
+
+    for(Index i=0; i<ctx->n_threads; i++) {
+        pthread_join(ids[i], NULL);
+    }
 }
 
 
@@ -439,78 +487,3 @@ void context_print(Context *ctx) {
         printf("\n");
     }
 }
-
-
-/*
-int test_flann() {
-
-    // TO TEST:
-    // Can I build an index with bytes and search with floats?
-    //   No: The index and search have to be the same -- flann will actually
-    //       run byt it returns bogues results.
-
-    ensure(sanity_check() == 0, "sanity check failed");
-
-    int trows = 2;
-    int rows = 3;
-    int cols = 2;
-
-    typedef Uint8 TarType;
-    TarType *data = (TarType*)calloc(rows * cols, sizeof(TarType));
-    data[0 * cols + 0] = (TarType)1;
-    data[0 * cols + 1] = (TarType)2;
-    data[1 * cols + 0] = (TarType)5;
-    data[1 * cols + 1] = (TarType)6;
-    data[2 * cols + 0] = (TarType)1;
-    data[2 * cols + 1] = (TarType)6;
-
-    TarType *test = (TarType*)calloc(trows * cols, sizeof(TarType));
-    test[0 * cols + 0] = (TarType)1.2;
-    test[0 * cols + 1] = (TarType)5.5;
-    test[1 * cols + 0] = (TarType)4.5;
-    test[1 * cols + 1] = (TarType)5.5;
-
-    int nn = 3;
-    int *result = (int*)calloc(trows * nn, sizeof(int));
-    float *dists = (float*)calloc(trows * nn, sizeof(float));
-
-    struct FLANNParameters p;
-    p = DEFAULT_FLANN_PARAMETERS;
-    p.algorithm = FLANN_INDEX_KDTREE;
-    p.trees = 8;
-    p.log_level = FLANN_LOG_INFO;
-    p.checks = 64;
-
-    printf("Build index.\n");
-    float speedup;
-    flann_index_t index_id = flann_build_index_byte(data, rows, cols, &speedup, &p);
-
-    printf("test.\n");
-    flann_find_nearest_neighbors_index_byte(index_id, test, trows, result, dists, nn, &p);
-
-    printf("dists=\n");
-    for(int i=0; i<trows; i++) {
-        for(int j=0; j<nn; j++) {
-            printf("%f ", dists[i * nn + j]);
-        }
-        printf("\n");
-    }
-
-    printf("result=\n");
-    for(int i=0; i<trows; i++) {
-        for(int j=0; j<nn; j++) {
-            printf("%d ", result[i * nn + j]);
-        }
-        printf("\n");
-    }
-
-    flann_free_index(index_id, &p);
-
-    free(data);
-    free(test);
-    free(result);
-    free(dists);
-
-    return 0;
-}
-*/

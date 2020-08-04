@@ -1,10 +1,12 @@
 from plaster.tools.zplots.zplots import ZPlots
 from plaster.run.plots import plots
+from plaster.tools.log.log import debug, prof, important
 
 # This is taken directly from the same-named fn in plots_dev_mhc.
 # The only difference here is titles and labeling for proteins and not peptides.
 #
 def plot_best_runs_pr(best_pr, all_pr, run_info, filters, **kwargs):
+    prof()
     df = best_pr.sort_values(by=["prec", "recall"], ascending=[False, False])
     z = kwargs.get("_zplots_context", None) or ZPlots()
     title = f"PR curves, protein identification ({len(df.pro_i.unique())} proteins), best runs ({filters.classifier})."
@@ -21,6 +23,13 @@ def plot_best_runs_pr(best_pr, all_pr, run_info, filters, **kwargs):
             group = groups.get_group(run_i)
             if color_by_run:
                 color = z.next()
+
+            if len(group) > 10:
+                important(
+                    "Number of 'elements of interest' is too large to run a full report"
+                )
+                continue
+
             for i, row in group.iterrows():
                 if not color_by_run:
                     color = z.next()

@@ -6,6 +6,7 @@ from plaster.run.plots import plots_dev
 from plaster.tools.ipynb_helpers.displays import hd
 from plaster.tools.utils.utils import json_print, munch_abbreviation_string
 from munch import Munch
+from plaster.tools.log.log import debug, prof
 
 from IPython.display import display  # for display of DataFrames
 
@@ -159,6 +160,7 @@ def plot_best_runs_pr(best_pr, all_pr, run_info, filters, **kwargs):
         f_y_axis_label="precision",
         f_x_axis_label="read recall",
     ):
+        debug(len(df))
         for i, row in df.iterrows():
             run_i = row.run_i
             pep_i = row.pep_i

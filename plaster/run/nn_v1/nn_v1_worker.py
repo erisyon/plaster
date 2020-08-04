@@ -43,7 +43,7 @@ def nn_v1(nn_v1_params, prep_result, sim_v1_result, progress=None, pipeline=None
         pred_pep_iz=test_result.pred_pep_iz.arr(),
         scores=test_result.scores.arr(),
         prep_result=prep_result,
-        sim_v1_result=sim_v1_result,
+        sim_result=sim_v1_result,
     )
 
     if pipeline is not None:
@@ -98,7 +98,7 @@ def nn_v1(nn_v1_params, prep_result, sim_v1_result, progress=None, pipeline=None
             pred_pep_iz=train_result.pred_pep_iz.arr(),
             scores=train_result.scores.arr(),
             prep_result=prep_result,
-            sim_v1_result=sim_v1_result,
+            sim_result=sim_v1_result,
         )
 
         if pipeline is not None:

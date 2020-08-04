@@ -27,7 +27,7 @@ def _assert_with_trace(condition, message):
         raise AssertionError(message)
 
 
-def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
+def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_threads):
     """
     This is the interface to the C implementation of NN.
 
@@ -63,7 +63,7 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
     _assert_array_contiguous(train_dyepeps, np.uint64, "train_dyepeps")
     check.array_t(test_unit_radmat, ndim=2)
     check.array_t(train_dyemat, ndim=2)
-    n_cols = test_unit_radmat.shape[1]
+    n_rows, n_cols =test_unit_radmat.shape
     _assert_with_trace(test_unit_radmat.shape[1] == train_dyemat.shape[1], "radmat and dyemat have different shapes")
     _assert_with_trace(train_dyepeps.ndim == 2 and train_dyepeps.shape[1] == 3, "train_dyepeps has wrong shape")
 
@@ -186,6 +186,11 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors):
             train_dyemat_n_rows * sizeof(c_nn.WeightType),
             sizeof(c_nn.WeightType)
         )
+
+        ctx.n_threads = n_threads
+        ctx.n_rows = n_rows
+        ctx.next_row_i = 0
+        ctx.n_rows_per_block = 1024 * 16
 
         # Handoff to the C code...
         c_nn.context_start(&ctx)
