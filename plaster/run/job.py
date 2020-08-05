@@ -14,6 +14,7 @@ from plaster.run.run import RunResult
 from plaster.run.survey_nn_v1.survey_nn_v1_result import SurveyNNV1Result
 from plaster.tools.schema import check
 from plaster.tools.assets import assets
+from plaster.tools.log.log import debug
 
 
 class JobResult:
@@ -83,13 +84,13 @@ class JobResult:
         [fn(run) for run in self._run_results.values()]
 
     """
-    I'm adding these helpers below so that notebooks contain boilerplate code that 
+    I'm adding these helpers below so that notebooks contain boilerplate code that
     is easy to read and modify by end-users.  Also, I originally thought I'd move
     these out to keep "Job" very clean/sparse as a generic container, but as I work
     on more reporting templates, it becomes clear that you really do want to look
-    at jobs as a whole, and you want lots of easy ways to compare the runs they 
-    contain.  This is the job for something higher level than a run.  It is the 
-    job for ... a JobResult!  
+    at jobs as a whole, and you want lots of easy ways to compare the runs they
+    contain.  This is the job for something higher level than a run.  It is the
+    job for ... a JobResult!
     """
 
     def set_pros_of_interest(self, protein_ids=[]):
@@ -357,7 +358,7 @@ class JobResult:
     @staticmethod
     def get_best_precision_runs_for_pros(all_runs_pr_df, filters):
         """
-        Given a Dataframe containing prs vales for [some,all] peptides across every run,
+        Given a Dataframe containing prs vales for [some, all] peptides across every run,
         select the top_n best runs for identifying proteins.  "Best" means
         best precision available given the filtering conditions passed in filters.
         The "primary" filter is recall, such that we are saying, "I need recall of

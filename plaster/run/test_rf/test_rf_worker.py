@@ -41,7 +41,7 @@ def test_rf(
         scores=test_scores,
         all_class_scores=test_all_class_scores,
         prep_result=prep_result,
-        sim_v1_result=sim_v1_result,
+        sim_result=sim_v1_result,
     )
 
     if pipeline is not None:
@@ -79,7 +79,7 @@ def test_rf(
             scores=train_scores,
             all_class_scores=train_all_class_scores,
             prep_result=prep_result,
-            sim_v1_result=sim_v1_result,
+            sim_result=sim_v1_result,
         )
 
         if pipeline is not None:

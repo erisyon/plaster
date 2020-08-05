@@ -75,6 +75,7 @@ void _trace(const char *fmt, ...);
 // Tables
 Table table_init(Uint8 *base, Size n_bytes, Size n_bytes_per_row);
 Table table_init_readonly(Uint8 *base, Size n_bytes, Size n_bytes_per_row);
+Table table_init_subset(Table *src, Index row_i, Size n_rows, Uint64 is_readonly);
 
 void *_table_get_row(Table *table, Index row);
 #define table_get_row(table, row, type) (type *)_table_get_row(table, row)
@@ -86,6 +87,7 @@ void table_validate(Table *table, void *ptr, char *msg);
 #else
     #define table_validate_only_in_debug(...) ((void)0)
 #endif
+void table_dump(Table *table, char *msg);
 
 
 #endif

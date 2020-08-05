@@ -380,7 +380,7 @@
 #     #     assert 2.0 < slope < 2.75
 #     #     assert -0.1 < intercept < 0.42
 #     #
-#     # @zest.skip("WIP")
+#     # @zest.skip(reason="WIP")
 #     # def characterize_peak_finding_as_focus_changes(self):
 #     #     """As the focus gets worse, the peak finder should adjust its kernel"""
 #     #
@@ -454,7 +454,7 @@
 #     #             # Not found
 #     #             assert x <= 9 or x >= 22
 #     #
-#     # @zest.skip("Symmetry code disabled")
+#     # @zest.skip(reason="Symmetry code disabled")
 #     # def test_characterize_symmetry_detection(self):
 #     #     for a in np.linspace(0.0, math.pi / 4.0, 5):
 #     #         for r in np.linspace(4.0, 0.0, 10):

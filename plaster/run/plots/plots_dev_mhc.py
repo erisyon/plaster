@@ -6,6 +6,7 @@ from plaster.run.plots import plots_dev
 from plaster.tools.ipynb_helpers.displays import hd
 from plaster.tools.utils.utils import json_print, munch_abbreviation_string
 from munch import Munch
+from plaster.tools.log.log import debug, prof
 
 from IPython.display import display  # for display of DataFrames
 

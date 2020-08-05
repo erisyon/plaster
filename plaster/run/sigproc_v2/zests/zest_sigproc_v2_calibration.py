@@ -636,7 +636,7 @@ def zest_sigproc_v2_calibration():
     zest()
 
 
-# @zest.skip("n", "Not ready")
+# @zest.skip(reason="Not ready")
 # @zest.group("integration")
 # def zest_sigproc_v2_calibration():
 #     """

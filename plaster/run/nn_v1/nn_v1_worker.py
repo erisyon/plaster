@@ -32,6 +32,8 @@ def nn_v1(nn_v1_params, prep_result, sim_v1_result, progress=None, pipeline=None
     test_result.true_pep_iz = ArrayResult(
         filename="test_true_pep_iz", shape=(n_rows,), dtype=IndexType, mode="w+",
     )
+    test_result.true_pep_iz[:] = sim_v1_result.test_true_pep_iz
+
     # test_result.true_pep_iz[:] = np.repeat(
     #     np.arange(shape[0]).astype(IndexType), shape[1]
     # )
@@ -43,7 +45,7 @@ def nn_v1(nn_v1_params, prep_result, sim_v1_result, progress=None, pipeline=None
         pred_pep_iz=test_result.pred_pep_iz.arr(),
         scores=test_result.scores.arr(),
         prep_result=prep_result,
-        sim_v1_result=sim_v1_result,
+        sim_result=sim_v1_result,
     )
 
     if pipeline is not None:
@@ -98,7 +100,7 @@ def nn_v1(nn_v1_params, prep_result, sim_v1_result, progress=None, pipeline=None
             pred_pep_iz=train_result.pred_pep_iz.arr(),
             scores=train_result.scores.arr(),
             prep_result=prep_result,
-            sim_v1_result=sim_v1_result,
+            sim_result=sim_v1_result,
         )
 
         if pipeline is not None:

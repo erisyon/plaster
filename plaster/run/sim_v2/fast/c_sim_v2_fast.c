@@ -379,9 +379,18 @@ void context_sim_flu(Context *ctx, Index pep_i) {
     DTR *nul_dtr = (DTR *)alloca(n_dyetrack_bytes);
     memset(nul_dtr, 0, n_dyetrack_bytes);
 
+    // CHECK for unlabelled peptide
+    int has_any_dye = 0;
+    for(Index i=0; i<n_aas; i++) {
+        if(flu[i] != N_MAX_CHANNELS-1) {
+            has_any_dye = 1;
+            break;
+        }
+    }
+
     Size n_dark_samples = 0;
     Size n_non_dark_samples = 0;
-    while(n_non_dark_samples < n_samples) {
+    while(has_any_dye && n_non_dark_samples < n_samples) {
         if(n_dark_samples > 10 * n_samples) {
             // Emergency exit. The recall is so low that we need to
             // just give up and declare that it can't be measured.

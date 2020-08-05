@@ -75,6 +75,22 @@ Table table_init_readonly(Uint8 *base, Size n_bytes, Size n_bytes_per_row) {
 }
 
 
+Table table_init_subset(Table *src, Index row_i, Size n_rows, Uint64 is_readonly) {
+    Index last_row = row_i + n_rows;
+    last_row = last_row < src->n_max_rows ? last_row : src->n_max_rows;
+    n_rows = last_row - row_i;
+    ensure(n_rows >= 0, "table_init_subset has illegal size");
+
+    Table table;
+    table.rows = (Uint8 *)(src->rows + src->n_bytes_per_row * row_i);
+    table.n_bytes_per_row = src->n_bytes_per_row;
+    table.n_max_rows = n_rows;
+    table.n_rows = is_readonly ? n_rows : 0;
+    table.readonly = is_readonly;
+    return table;
+}
+
+
 void *_table_get_row(Table *table, Index row) {
     // Fetch a row from a table with bounds checking if activated
     ensure_only_in_debug(0 <= row && row < table->n_rows, "table get outside bounds");
@@ -119,3 +135,11 @@ void table_validate(Table *table, void *ptr, char *msg) {
 }
 
 
+void table_dump(Table *table, char *msg) {
+    printf("table %s\n", msg);
+    printf("rows=%p\n", table->rows);
+    printf("n_bytes_per_row=%ld\n", table->n_bytes_per_row);
+    printf("n_max_rows=%ld\n", table->n_max_rows);
+    printf("n_rows=%ld\n", table->n_rows);
+    printf("readonly=%ld\n", table->readonly);
+}
