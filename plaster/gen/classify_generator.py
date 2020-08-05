@@ -78,8 +78,8 @@ class ClassifyGenerator(BaseGenerator):
         # Plumbum creates empty lists on list switches. This means
         # that the apply defaults doesn't quite work right.
         # TASK: Find a cleaner solution. For now hard-code
-        # if len(self.dye_beta) == 0:
-        #     self.dye_beta = self.defaults.dye_beta
+        # if len(self.err_dye_beta) == 0:
+        #     self.err_dye_beta = self.defaults.dye_beta
         # if len(self.dye_sigma) == 0:
         #     self.dye_sigma = self.defaults.dye_sigma
         if len(self.report_prec) == 0:
