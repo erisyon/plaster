@@ -32,6 +32,8 @@ def nn_v1(nn_v1_params, prep_result, sim_v1_result, progress=None, pipeline=None
     test_result.true_pep_iz = ArrayResult(
         filename="test_true_pep_iz", shape=(n_rows,), dtype=IndexType, mode="w+",
     )
+    test_result.true_pep_iz[:] = sim_v1_result.test_true_pep_iz
+
     # test_result.true_pep_iz[:] = np.repeat(
     #     np.arange(shape[0]).astype(IndexType), shape[1]
     # )
