@@ -27,7 +27,7 @@ def zest_fast_nn():
     )
 
     pred_pep_iz, scores, pred_dye_iz = nn_v2_fast.fast_nn(
-        test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors=2
+        test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors=2, n_threads=1
     )
     assert pred_pep_iz.tolist() == [2, 1]
 

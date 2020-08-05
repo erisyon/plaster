@@ -38,11 +38,8 @@ def nn_v2(nn_v2_params, prep_result, sim_v2_result):
         sim_result=sim_v2_result,
     )
 
-    prof()
     test_peps_pr = call_bag.pr_curve_by_pep()
-    prof()
     test_peps_pr_abund = call_bag.pr_curve_by_pep_with_abundance()
-    prof()
 
     return NNV2Result(
         params=nn_v2_params,

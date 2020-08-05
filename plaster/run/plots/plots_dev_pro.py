@@ -6,7 +6,6 @@ from plaster.tools.log.log import debug, prof, important
 # The only difference here is titles and labeling for proteins and not peptides.
 #
 def plot_best_runs_pr(best_pr, all_pr, run_info, filters, **kwargs):
-    prof()
     df = best_pr.sort_values(by=["prec", "recall"], ascending=[False, False])
     z = kwargs.get("_zplots_context", None) or ZPlots()
     title = f"PR curves, protein identification ({len(df.pro_i.unique())} proteins), best runs ({filters.classifier})."

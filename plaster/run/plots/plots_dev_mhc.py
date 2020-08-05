@@ -160,7 +160,6 @@ def plot_best_runs_pr(best_pr, all_pr, run_info, filters, **kwargs):
         f_y_axis_label="precision",
         f_x_axis_label="read recall",
     ):
-        debug(len(df))
         for i, row in df.iterrows():
             run_i = row.run_i
             pep_i = row.pep_i
