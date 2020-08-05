@@ -43,7 +43,7 @@ def result_from_z_stack(n_fields=1, n_channels=1, n_cycles=1, uniformity="unifor
         n_fields=n_fields, n_channels=n_channels, n_cycles=n_cycles, overwrite=True
     )
     peaks = (
-        synth.PeaksModelGaussianCircular(n_peaks=400)
+        synth.PeaksModelGaussianCircular(n_peaks=800)
         .locs_randomize()
         .amps_constant(val=10000)
     )
@@ -100,10 +100,7 @@ def zest_sigproc_v2_calibration():
             ["amp", "std_x", "std_y", "pos_x", "pos_y", "rho", "const", "mea",]
         ):
             try:
-                assert (
-                    abs(true_params[parm]["tgt"] - fit_params[ix])
-                    < true_params[parm]["range"]
-                )
+                assert true_params[parm]["range"] > abs(true_params[parm]["tgt"] - fit_params[ix])
             except AssertionError:
                 print(
                     parm,
@@ -428,6 +425,7 @@ def zest_sigproc_v2_calibration():
                 z_stack, n_fields, n_z_slices, calib, divs, peak_dim
             )
         )
+        #TODO: find a more reasoned tgt and range for std
         std_min = 0.5
         std_max = 0.5 * (1 + center_z)
         std_range = 0.5 * (std_max - std_min)
@@ -456,6 +454,100 @@ def zest_sigproc_v2_calibration():
             assert empty_psfs <= 2
             fit_params_mean = fit_params_sum / divisor
             _compare_fit_params(true_params, fit_params_mean)
+
+    def it_can_calibrate_foreground_one_channel():
+        calib = Calibration()
+        n_z_slices = 15
+        n_fields = 2
+        ch_i = 0
+        ims_import_result = result_from_z_stack(n_fields=n_fields,n_cycles=n_z_slices)
+        ims = ims_import_result.ims[:,:,:]
+        calib = worker.calibrate_background_stats(calib, ims, divs)
+        calib = worker.calibrate_psf(calib, ims_import_result,divs,peak_mea)
+        calib.add(
+            {
+                f"regional_illumination_balance.instrument_channel[{ch_i}]": np.ones(
+                    (divs, divs)
+                ).tolist()
+            }
+        )
+        sigproc_params = SigprocV2Params(
+            calibration_file='./bogus/calib/file/location',
+            instrument_subject_id=None,
+            radiometry_channels=dict(ch=ch_i),
+            mode="z_stack",
+        )
+        fl_radmat,fl_loc = worker._calibrate_foreground_one_channel(
+            calib,ims_import_result,n_fields,ch_i,sigproc_params
+        )
+        assert fl_radmat.shape[0] == fl_loc.shape[0] > 100
+        assert fl_radmat.shape[1] == 1
+        assert fl_radmat.shape[2] == n_z_slices
+        assert fl_radmat.shape[3] == fl_loc.shape[1] == n_fields
+
+    def it_can_calibrate_filter_locs():
+        calib = Calibration()
+        n_z_slices = 15
+        n_fields = 2
+        ch_i = 0
+        ims_import_result = result_from_z_stack(n_fields=n_fields,n_cycles=n_z_slices)
+        ims = ims_import_result.ims[:,:,:]
+        calib = worker.calibrate_background_stats(calib, ims, divs)
+        calib = worker.calibrate_psf(calib, ims_import_result,divs,peak_mea)
+        calib.add(
+            {
+                f"regional_illumination_balance.instrument_channel[{ch_i}]": np.ones(
+                    (divs, divs)
+                ).tolist()
+            }
+        )
+        sigproc_params = SigprocV2Params(
+            calibration_file='./bogus/calib/file/location',
+            instrument_subject_id=None,
+            radiometry_channels=dict(ch=ch_i),
+            mode="z_stack",
+        )
+        fl_radmat,fl_loc = worker._calibrate_foreground_one_channel(
+            calib,ims_import_result,n_fields,ch_i,sigproc_params
+        )
+        sig, locs = worker._calibrate_filter_locs(fl_radmat,fl_loc,n_z_slices,ch_i)
+        assert sig.shape[0] == locs.shape[0]
+        assert fl_radmat.shape[0] == fl_loc.shape[0]
+        assert sig.shape[0] < fl_radmat.shape[0]*n_z_slices #i.e. it filtered something
+
+    def it_can_calibrate_balance_calc():
+        calib = Calibration()
+        n_z_slices = 15
+        n_fields = 2
+        ch_i = 0
+        ims_import_result = result_from_z_stack(n_fields=n_fields,n_cycles=n_z_slices)
+        ims = ims_import_result.ims[:,:,:]
+        calib = worker.calibrate_background_stats(calib, ims, divs)
+        calib = worker.calibrate_psf(calib, ims_import_result,divs,peak_mea)
+        calib.add(
+            {
+                f"regional_illumination_balance.instrument_channel[{ch_i}]": np.ones(
+                    (divs, divs)
+                ).tolist()
+            }
+        )
+        sigproc_params = SigprocV2Params(
+            calibration_file='./bogus/calib/file/location',
+            instrument_subject_id=None,
+            radiometry_channels=dict(ch=ch_i),
+            mode="z_stack",
+        )
+        fl_radmat,fl_loc = worker._calibrate_foreground_one_channel(
+            calib,ims_import_result,n_fields,ch_i,sigproc_params
+        )
+        sig, locs = worker._calibrate_filter_locs(
+            fl_radmat,fl_loc,n_z_slices,ch_i
+        )
+        balance = worker._calibrate_balance_calc(
+            ims_import_result,divs,sig,locs
+        )
+        assert np.min(balance) == 1 # the brightest area balanced at value 1
+        assert np.count_nonzero(balance == 1) # i.e. only single spot is brightest
 
     def it_can_add_regional_bg_stats_to_calib():
 
@@ -515,13 +607,31 @@ def zest_sigproc_v2_calibration():
         n_z_slices = 20
         n_fields = 3
         ims_import_result = result_from_z_stack(n_fields=n_fields,n_cycles=n_z_slices)
-        calib = worker.calibrate_psf(ims_import_result, calib)
+        calib = worker.calibrate_psf(calib, ims_import_result,divs,peak_mea)
 
         check.list_t(calib["regional_psf_zstack.instrument_channel[0]"], list)
         rbm_arr = np.array(calib["regional_psf_zstack.instrument_channel[0]"])
         check.array_t(
             rbm_arr, shape=(None, divs, divs, peak_mea, peak_mea), dtype=np.float64
         )
+
+    def it_can_calibrate_regional_illumination_balance():
+        calib = Calibration()
+        n_z_slices = 15
+        n_fields = 2
+        ims_import_result = result_from_z_stack(n_fields=n_fields,n_cycles=n_z_slices)
+        ims = ims_import_result.ims[:,:,:]
+        calib = worker.calibrate_background_stats(calib, ims, divs)
+        calib = worker.calibrate_psf(calib, ims_import_result,divs,peak_mea)
+        calib = worker.calibrate_regional_illumination_balance(
+            calib,ims_import_result,divs,peak_mea
+        )
+        check.list_t(calib["regional_illumination_balance.instrument_channel[0]"], list)
+        rib_arr = np.array(calib["regional_illumination_balance.instrument_channel[0]"])
+        check.array_t(
+            rib_arr, shape=(divs,divs), dtype=np.float64
+        )
+
 
     zest()
 
