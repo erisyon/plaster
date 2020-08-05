@@ -252,3 +252,11 @@ def calib_nn_v1(
             ),
         )
     )
+
+
+def nn_v2(**kws):
+    return Munch(
+        nn_v2=Munch(
+            version="1.0", inputs=Munch(sim_v1="../sim_v2"), parameters=Munch(**kws),
+        )
+    )

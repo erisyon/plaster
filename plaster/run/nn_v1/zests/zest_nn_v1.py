@@ -126,7 +126,7 @@ def zest_nn_v1_step_1_create_neighbors_lookup():
                 true_pep_iz, dyemat[1:], output_dt_mat
             )
 
-    @zest.skip("T", "TODO")
+    @zest.skip(reason="TODO")
     def it_uniqifies_over_blocks():
         raise NotImplementedError
 

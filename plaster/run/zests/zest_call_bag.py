@@ -42,14 +42,14 @@ def zest_pr_curve_edge_cases():
     pred_pep_iz_2 = [2] * 10
     scores = [0.5] * 10
     cb_all_right = CallBag(
-        sim_v1_result=stub_sim_result,
+        sim_result=stub_sim_result,
         prep_result=stub_prep_result,
         true_pep_iz=true_pep_iz,
         pred_pep_iz=pred_pep_iz_1,
         scores=scores,
     )
     cb_all_wrong = CallBag(
-        sim_v1_result=stub_sim_result,
+        sim_result=stub_sim_result,
         prep_result=stub_prep_result,
         true_pep_iz=true_pep_iz,
         pred_pep_iz=pred_pep_iz_2,
@@ -111,7 +111,7 @@ def zest_pr_curve_no_tied_scores():
     )
 
     cb = CallBag(
-        sim_v1_result=stub_sim_result,
+        sim_result=stub_sim_result,
         prep_result=stub_prep_result,
         true_pep_iz=true_pep_iz,
         pred_pep_iz=pred_pep_iz,
@@ -320,7 +320,7 @@ def zest_pr_curve_no_tied_scores_mean_recall():
     )
 
     cb = CallBag(
-        sim_v1_result=stub_sim_result,
+        sim_result=stub_sim_result,
         prep_result=stub_prep_result,
         true_pep_iz=true_pep_iz,
         pred_pep_iz=pred_pep_iz,

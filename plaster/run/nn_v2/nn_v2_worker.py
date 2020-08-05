@@ -1,10 +1,11 @@
 import numpy as np
 from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.nn_v2.fast import nn_v2_fast
+from plaster.run.call_bag import CallBag
 from plaster.tools.log.log import prof
 
 
-def nn_v2(nn_v2_params, sim_v2_result):
+def nn_v2(nn_v2_params, prep_result, sim_v2_result):
     # TODO: This normalization term will need to come from calibration?
     # For now, I'm hard-coding it.
     n_cycles = sim_v2_result.params.n_cycles
@@ -26,10 +27,26 @@ def nn_v2(nn_v2_params, sim_v2_result):
         sim_v2_result.flat_train_dyemat(),
         sim_v2_result.train_dyepeps,
         n_neighbors=nn_v2_params.n_neighbors,
+        n_threads=4,
     )
 
+    call_bag = CallBag(
+        true_pep_iz=sim_v2_result.test_true_pep_iz,
+        pred_pep_iz=test_pred_pep_iz,
+        scores=test_scores,
+        prep_result=prep_result,
+        sim_result=sim_v2_result,
+    )
+
+    test_peps_pr = call_bag.pr_curve_by_pep()
+    test_peps_pr_abund = call_bag.pr_curve_by_pep_with_abundance()
+
     return NNV2Result(
+        params=nn_v2_params,
         test_pred_pep_iz=test_pred_pep_iz,
         test_pred_dye_iz=test_pred_dye_iz,
         test_scores=test_scores,
+        test_true_pep_iz=sim_v2_result.test_true_pep_iz,
+        test_peps_pr=test_peps_pr,
+        test_peps_pr_abund=test_peps_pr_abund,
     )

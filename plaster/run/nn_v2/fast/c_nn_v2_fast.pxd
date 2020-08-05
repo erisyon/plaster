@@ -42,5 +42,11 @@ cdef extern from "c_nn_v2_fast.h":
         Table output_pred_dye_iz
         Table output_scores
 
+        Size n_threads
+        Size n_rows
+        Index next_row_i
+        Size n_rows_per_block
+
+
     void context_start(Context *ctx)
     void context_free(Context *ctx)

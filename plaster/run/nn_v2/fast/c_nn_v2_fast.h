@@ -20,6 +20,12 @@ typedef struct {
     Table output_pred_dye_iz;  // Index32
     Table output_scores;  // Score (Float32)
 
+    Size n_threads;
+    Size n_rows;
+    Index next_row_i;
+    Size n_rows_per_block;
+    pthread_mutex_t work_order_lock;
+
     // The following are internal to the .c file; freed by context_free()
     struct FLANNParameters flann_params;
     flann_index_t flann_index_id;
