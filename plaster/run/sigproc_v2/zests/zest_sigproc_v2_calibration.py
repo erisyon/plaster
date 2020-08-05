@@ -90,7 +90,7 @@ def zest_sigproc_v2_calibration():
             "std_y": {"tgt": None, "range": 0.15},
             "pos_x": {"tgt": midpt, "range": 0.10},
             "pos_y": {"tgt": midpt, "range": 0.10},
-            "rho": {"tgt": 0, "range": 0.05},
+            "rho": {"tgt": 0, "range": 0.07},
             "const": {"tgt": 0, "range": 0.05},
             "mea": {"tgt": peak_mea, "range": 0.1},
         }
@@ -485,69 +485,23 @@ def zest_sigproc_v2_calibration():
         assert fl_radmat.shape[2] == n_z_slices
         assert fl_radmat.shape[3] == fl_loc.shape[1] == n_fields
 
-    def it_can_calibrate_filter_locs():
-        calib = Calibration()
-        n_z_slices = 15
-        n_fields = 2
-        ch_i = 0
-        ims_import_result = result_from_z_stack(n_fields=n_fields,n_cycles=n_z_slices)
-        ims = ims_import_result.ims[:,:,:]
-        calib = worker.calibrate_background_stats(calib, ims, divs)
-        calib = worker.calibrate_psf(calib, ims_import_result,divs,peak_mea)
-        calib.add(
-            {
-                f"regional_illumination_balance.instrument_channel[{ch_i}]": np.ones(
-                    (divs, divs)
-                ).tolist()
-            }
-        )
-        sigproc_params = SigprocV2Params(
-            calibration_file='./bogus/calib/file/location',
-            instrument_subject_id=None,
-            radiometry_channels=dict(ch=ch_i),
-            mode="z_stack",
-        )
-        fl_radmat,fl_loc = worker._calibrate_foreground_one_channel(
-            calib,ims_import_result,n_fields,ch_i,sigproc_params
-        )
-        sig, locs = worker._calibrate_filter_locs(fl_radmat,fl_loc,n_z_slices,ch_i)
-        assert sig.shape[0] == locs.shape[0]
-        assert fl_radmat.shape[0] == fl_loc.shape[0]
-        assert sig.shape[0] < fl_radmat.shape[0]*n_z_slices #i.e. it filtered something
+        def it_can_calibrate_filter_locs_by_snr():
+            sig, locs = worker._calibrate_filter_locs_by_snr(fl_radmat,fl_loc,n_z_slices,ch_i)
+            assert sig.shape[0] == locs.shape[0]
+            assert fl_radmat.shape[0] == fl_loc.shape[0]
+            assert sig.shape[0] < fl_radmat.shape[0]*n_z_slices #i.e. it filtered something
 
-    def it_can_calibrate_balance_calc():
-        calib = Calibration()
-        n_z_slices = 15
-        n_fields = 2
-        ch_i = 0
-        ims_import_result = result_from_z_stack(n_fields=n_fields,n_cycles=n_z_slices)
-        ims = ims_import_result.ims[:,:,:]
-        calib = worker.calibrate_background_stats(calib, ims, divs)
-        calib = worker.calibrate_psf(calib, ims_import_result,divs,peak_mea)
-        calib.add(
-            {
-                f"regional_illumination_balance.instrument_channel[{ch_i}]": np.ones(
-                    (divs, divs)
-                ).tolist()
-            }
-        )
-        sigproc_params = SigprocV2Params(
-            calibration_file='./bogus/calib/file/location',
-            instrument_subject_id=None,
-            radiometry_channels=dict(ch=ch_i),
-            mode="z_stack",
-        )
-        fl_radmat,fl_loc = worker._calibrate_foreground_one_channel(
-            calib,ims_import_result,n_fields,ch_i,sigproc_params
-        )
-        sig, locs = worker._calibrate_filter_locs(
-            fl_radmat,fl_loc,n_z_slices,ch_i
-        )
-        balance = worker._calibrate_balance_calc(
-            ims_import_result,divs,sig,locs
-        )
-        assert np.min(balance) == 1 # the brightest area balanced at value 1
-        assert np.count_nonzero(balance == 1) # i.e. only single spot is brightest
+            def it_can_calibrate_balance_calc():
+
+                balance = worker._calibrate_balance_calc(
+                    ims_import_result,divs,sig,locs
+                )
+                assert np.min(balance) == 1 # the brightest area balanced at value 1
+                assert np.count_nonzero(balance == 1) # i.e. only single spot is brightest
+
+            zest()
+
+        zest()
 
     def it_can_add_regional_bg_stats_to_calib():
 

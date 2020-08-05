@@ -654,7 +654,7 @@ def _calibrate_foreground_one_channel(calib,ims_import_result,n_fields,ch_i,sigp
     fl_loc = np.concatenate(fl_locs)
     return fl_radmat,fl_loc
 
-def _calibrate_filter_locs(fl_radmat,fl_loc,n_z_slices,ch_i):
+def _calibrate_filter_locs_by_snr(fl_radmat,fl_loc,n_z_slices,ch_i):
     # step 1) get signal component of radmat for all fields, this channel,
     # all peaks, 0th element is signal as opposed to 1st element is noise
     sig = np.nan_to_num(fl_radmat[:, ch_i, :, 0].flatten())
@@ -671,6 +671,13 @@ def _calibrate_filter_locs(fl_radmat,fl_loc,n_z_slices,ch_i):
 
 
 def _calibrate_balance_calc(ims_import_result,divs,sig,locs):
+    #There is a potential issue with misaligned cycles, which
+    #we are ignoring for now on the assumption it is a movie,
+    #because in that case the cycles should be well aligned
+    #Therefore we have an assert to make sure this is a safe
+    #assumption to make in this case.
+    if hasattr(ims_import_result,'params'): #i.e. if ims_import_result is not a mock
+        assert ims_import_result.params.is_movie == True
     im_dim = ims_import_result.ims[0,0,0].shape
     y = utils.ispace(0, im_dim[0], divs + 1)
     x = utils.ispace(0, im_dim[1], divs + 1)
@@ -685,14 +692,7 @@ def _calibrate_balance_calc(ims_import_result,divs,sig,locs):
             _sig = sig[loc_mask & bright_mask]
             medians[yi, xi] = np.median(_sig)
     max_regional_fg_est = np.max(medians)
-    balance = np.zeros((divs, divs))
-    for yi in range(len(y) - 1):
-        for xi in range(len(x) - 1):
-            loc_mask = (y[yi] <= locs[:, 0]) & (locs[:, 0] < y[yi + 1])
-            loc_mask &= (x[xi] <= locs[:, 1]) & (locs[:, 1] < x[xi + 1])
-            _sig = sig[loc_mask & bright_mask]
-            median = np.median(_sig)
-            balance[yi, xi] = max_regional_fg_est / median
+    balance = max_regional_fg_est / medians
     return balance
 
 def calibrate_background_stats(calib, flchcy_ims, divs):
@@ -745,7 +745,7 @@ def calibrate_regional_illumination_balance(calib,ims_import_result,divs,peak_me
         fl_radmat,fl_loc = _calibrate_foreground_one_channel(
             calib,ims_import_result,n_fields,ch_i,sigproc_params
         )
-        sig, locs = _calibrate_filter_locs(
+        sig, locs = _calibrate_filter_locs_by_snr(
             fl_radmat,fl_loc,n_z_slices,ch_i
         )
         balance = _calibrate_balance_calc(
