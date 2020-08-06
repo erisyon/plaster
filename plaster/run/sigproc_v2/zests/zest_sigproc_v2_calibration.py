@@ -106,9 +106,11 @@ def zest_sigproc_v2_calibration():
             try:
                 assert true_params[parm]["range"] > abs(true_params[parm]["tgt"] - fit_params[ix])
             except AssertionError:
-                debug(
-                    parm+str(true_params[parm]["tgt"])+' '+str(fit_params[ix])+' '+str(true_params[parm]["range"])
-                )
+                tgt = true_params[parm]["tgt"]
+                actual = fit_params[ix]
+                range = true_params[parm]["range"]
+                debug_statement = f"{parm} {tgt} {actual} {range}"
+                debug(debug_statement)
                 raise
 
     def it_estimates_uniform_background_correctly():
