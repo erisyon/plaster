@@ -249,16 +249,6 @@ def classify_rf(train_relative_path, sigproc_relative_path, sim_relative_path):
     )
 
 
-def classify_nn_v2(nn_v2_relative_path, sigproc_relative_path):
-    return Munch(
-        classify_nn_v2=Munch(
-            version="1.0",
-            inputs=Munch(nn_v2=nn_v2_relative_path, sigproc_v1=sigproc_relative_path,),
-            parameters=Munch(),
-        )
-    )
-
-
 def nn_v1(**kws):
     return Munch(
         nn_v1=Munch(
@@ -289,11 +279,17 @@ def calib_nn_v1(
     )
 
 
-def nn_v2(**kws):
-    return Munch(
+def nn_v2(sigproc_relative_path, **kws):
+    task = Munch(
         nn_v2=Munch(
             version="1.0",
             inputs=Munch(prep="../prep", sim_v2="../sim_v2"),
             parameters=Munch(**kws),
         )
     )
+
+    if sigproc_relative_path is not None:
+        task.nn_v2.inputs.sigproc = sigproc_relative_path
+        task.nn_v2.parameters.include_sigproc = True
+
+    return task

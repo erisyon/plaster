@@ -16,6 +16,9 @@ class NNV2Result(BaseResult):
         test_true_pep_iz=(type(None), np.ndarray),
         test_peps_pr=(type(None), pd.DataFrame),
         test_peps_pr_abund=(type(None), pd.DataFrame),
+        sigproc_pred_pep_iz=(type(None), np.ndarray),
+        sigproc_scores=(type(None), np.ndarray),
+        sigproc_pred_dye_i=(type(None), np.ndarray),
         # Things in nn_v1_result
         # test_dt_mat=np.ndarray,
         # test_dyetracks_df=pd.DataFrame,
