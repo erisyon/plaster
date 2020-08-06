@@ -32,9 +32,6 @@ def zest_nn_v2_worker():
         assert nn_v2_result.shape == (3000,)
 
     def it_classifies_sigproc():
-        import pudb
-
-        pudb.set_trace()
         sigproc_result = simple_sigproc_result_fixture()
         nn_v2_result = nn_v2(
             nn_v2_params, prep_result, sim_v2_result, sigproc_result=sigproc_result
