@@ -23,6 +23,7 @@ from plaster.tools.log.log import debug
 
 
 class MockImsImportResult:
+
     @property
     def ims(self):
         return self.ims_to_return
@@ -35,6 +36,9 @@ class MockImsImportResult:
         self.n_fields = n_fields
         self.n_channels = n_channels
         self.n_cycles = n_cycles
+        self.params = ImsImportParams(
+            is_movie=True,
+        )
 
 
 def result_from_z_stack(n_fields=1, n_channels=1, n_cycles=1, uniformity="uniform"):
@@ -102,13 +106,10 @@ def zest_sigproc_v2_calibration():
             try:
                 assert true_params[parm]["range"] > abs(true_params[parm]["tgt"] - fit_params[ix])
             except AssertionError:
-                print(
-                    parm,
-                    true_params[parm]["tgt"],
-                    fit_params[ix],
-                    true_params[parm]["range"],
+                debug(
+                    parm+str(true_params[parm]["tgt"])+' '+str(fit_params[ix])+' '+str(true_params[parm]["range"])
                 )
-                raise AssertionError
+                raise
 
     def it_estimates_uniform_background_correctly():
         tgt_mean = 200
@@ -395,7 +396,7 @@ def zest_sigproc_v2_calibration():
         true_params["std_y"]["tgt"] = std_test_corner
         _compare_fit_params(true_params, fit_params_mean_test_corner)
 
-    def it_can_calib_psf_stats_one_channel():
+    def it_can_calib_psf_stats_one_channel_one_cycle():
         n_z_slices = 20
         n_fields = 1
         z_stack = np.array([])
