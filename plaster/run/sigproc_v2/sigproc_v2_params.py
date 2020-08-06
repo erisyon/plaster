@@ -1,26 +1,23 @@
 import re
-from plaster.tools.schema.schema import Schema as s, Params
-from plaster.tools.utils import utils
+
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.log.log import debug
+from plaster.tools.schema.schema import Params
+from plaster.tools.schema.schema import Schema as s
+from plaster.tools.utils import utils
+from plumbum import local
 
 
 class SigprocV2Params(Params):
-    defaults = dict(
-        radiometry_channels=None,
-        n_fields_limit=None,
-        save_full_signal_radmat_npy=False,
-        # use_cycle_zero_psfs_only=False,
-    )
+    defaults = dict()
 
     schema = s(
         s.is_kws_r(
-            radiometry_channels=s.is_dict(noneable=True),
-            n_fields_limit=s.is_int(noneable=True),
-            save_full_signal_radmat_npy=s.is_bool(),
-            calibration=s.is_dict(),
+            calibration_file=s.is_str(),
             instrument_subject_id=s.is_str(noneable=True),
-            # use_cycle_zero_psfs_only=s.is_bool(),
+            mode=s.is_str(options=["dye_calib", "analyze", "z_stack"]),
+            # radiometry_channels=s.is_dict(noneable=True),
+            # save_full_signal_radmat_npy=s.is_bool(),
         )
     )
 
@@ -29,26 +26,28 @@ class SigprocV2Params(Params):
         self.schema.apply_defaults(self.defaults, apply_to=self, override_nones=False)
         self.schema.validate(self, context=self.__class__.__name__)
 
-        self.calibration = Calibration(self.calibration)
-        if self.instrument_subject_id is not None:
+        if self.mode == "analyze":
+            self.calibration = Calibration.load(self.calibration_file)
             self.calibration.filter_subject_ids(self.instrument_subject_id)
             if len(self.calibration.keys()) == 0:
                 raise ValueError(
                     f"All calibration records removed after filter_subject_ids on subject_id '{self.instrument_subject_id}'"
                 )
+        else:
+            if local.path(self.calibration_file).exists():
+                raise ValueError("Calibration file cannot already exist")
+                # TODO: handle this more intelligently someday, for now this is safest
 
-        assert not self.calibration.has_subject_ids()
-
-        if self.radiometry_channels is not None:
-            pat = re.compile(r"[0-9a-z_]+")
-            for name, channel_i in self.radiometry_channels.items():
-                self._validate(
-                    pat.fullmatch(name),
-                    "radiometry_channels name must be lower-case alphanumeric (including underscore)",
-                )
-                self._validate(
-                    isinstance(channel_i, int), "channel_i must be an integer"
-                )
+        # if self.radiometry_channels is not None:
+        #     pat = re.compile(r"[0-9a-z_]+")
+        #     for name, channel_i in self.radiometry_channels.items():
+        #         self._validate(
+        #             pat.fullmatch(name),
+        #             "radiometry_channels name must be lower-case alphanumeric (including underscore)",
+        #         )
+        #         self._validate(
+        #             isinstance(channel_i, int), "channel_i must be an integer"
+        #         )
 
     def set_radiometry_channels_from_input_channels_if_needed(self, n_channels):
         if self.radiometry_channels is None:

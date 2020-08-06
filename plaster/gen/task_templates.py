@@ -15,7 +15,11 @@ from plaster.tools.aaseq.aaseq import aa_list_to_str
 from plaster.run.sim_v1.sim_v1_params import SimV1Params
 from plaster.run.sim_v2.sim_v2_params import SimV2Params
 from plaster.run.error_model import ErrorModel
+from plaster.run.sim_v1.sim_v1_params import SimV1Params
+from plaster.tools.aaseq.aaseq import aa_list_to_str
 from plaster.tools.log.log import debug
+from plaster.tools.schema import check
+from plaster.tools.utils import utils
 
 
 def erisyon(generator_name="", sample="", run_name="", **kwargs):
@@ -57,13 +61,18 @@ def sigproc_v1():
     )
 
 
-def sigproc_v2(calibration=None, instrument_subject_id=None):
+def sigproc_v2(mode, calibration_file, instrument_subject_id):
+    assert mode in ["dye_calib", "analyze", "z_stack"]
+    assert calibration_file is not None
+    assert instrument_subject_id is not None
     return Munch(
         sigproc_v2=Munch(
             version="1.0",
             inputs=Munch(ims_import="../ims_import"),
             parameters=Munch(
-                calibration=calibration, instrument_subject_id=instrument_subject_id,
+                calibration_file=calibration_file,
+                instrument_subject_id=instrument_subject_id,
+                mode=mode,
             ),
         )
     )
