@@ -90,8 +90,9 @@ class BaseGenerator(Munch):
 
     classify_schema = s(
         s.is_kws_r(
-            classify_skip_nn=s.is_bool(help="Skips Nearest Neighbor classifier if set"),
-            classify_skip_rf=s.is_bool(help="Skips Random Forest classifier if set"),
+            nn_v1=s.is_bool(help="Include nn_v1 classifier", noneable=True),
+            nn_v2=s.is_bool(help="Include nn_v2 classifier", noneable=True),
+            rf=s.is_bool(help="Include rf classifier", noneable=True),
             report_prec=s.is_list(
                 elems=s.is_float(bounds=(0.001, 0.999)),
                 help="The precision for classifier reporting",

@@ -133,7 +133,9 @@ def zest_radmat_from_sampled_pep_dyemat():
         expected = 10.0 * sampled_dyemat.astype(np.float32)
         diff = output_radmat[1, :, :, :] - expected
         diff = utils.np_safe_divide(diff, expected) ** 2
-        assert np.all((diff ** 2 < 0.1 ** 2) | np.isnan(diff))
+        if not (np.all((diff ** 2 < 0.15 ** 2) | np.isnan(diff))):
+            debug(diff)
+        assert np.all((diff ** 2 < 0.15 ** 2) | np.isnan(diff))
 
     def it_handles_empty_dyemat():
         empty_dyemat = np.zeros((0, n_channels, n_cycles), dtype=np.uint8)

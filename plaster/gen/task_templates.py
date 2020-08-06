@@ -13,6 +13,7 @@ from plaster.tools.utils import utils
 from plaster.tools.schema import check
 from plaster.tools.aaseq.aaseq import aa_list_to_str
 from plaster.run.sim_v1.sim_v1_params import SimV1Params
+from plaster.run.sim_v2.sim_v2_params import SimV2Params
 from plaster.run.error_model import ErrorModel
 from plaster.tools.log.log import debug
 
@@ -147,6 +148,30 @@ def sim_v1(aa_list, err_set, **sim_kws):
     )
 
 
+def sim_v2(aa_list, err_set, **sim_kws):
+    if isinstance(err_set, ErrorModel):
+        error_model = err_set
+    else:
+        error_model = ErrorModel.from_err_set(err_set)
+    assert sim_kws.get("n_edmans", 0) > 1
+    n_pres = sim_kws.get("n_pres", 0)
+    n_mocks = sim_kws.get("n_mocks", 0)
+    assert (
+        n_pres + n_mocks >= 1
+    ), "You must include at least 1 pre or mock cycle to capture the initial image"
+    return Munch(
+        sim_v2=Munch(
+            version="1.0",
+            inputs=Munch(prep="../prep"),
+            parameters=Munch(
+                **SimV2Params.construct_from_aa_list(
+                    aa_list, error_model=error_model, include_dfs=False, **sim_kws
+                )
+            ),
+        )
+    )
+
+
 def survey_nn_v1():
     return Munch(
         survey_nn_v1=Munch(
@@ -224,6 +249,16 @@ def classify_rf(train_relative_path, sigproc_relative_path, sim_relative_path):
     )
 
 
+def classify_nn_v2(nn_v2_relative_path, sigproc_relative_path):
+    return Munch(
+        classify_nn_v2=Munch(
+            version="1.0",
+            inputs=Munch(nn_v2=nn_v2_relative_path, sigproc_v1=sigproc_relative_path,),
+            parameters=Munch(),
+        )
+    )
+
+
 def nn_v1(**kws):
     return Munch(
         nn_v1=Munch(
@@ -257,6 +292,8 @@ def calib_nn_v1(
 def nn_v2(**kws):
     return Munch(
         nn_v2=Munch(
-            version="1.0", inputs=Munch(sim_v1="../sim_v2"), parameters=Munch(**kws),
+            version="1.0",
+            inputs=Munch(prep="../prep", sim_v2="../sim_v2"),
+            parameters=Munch(**kws),
         )
     )
