@@ -188,16 +188,6 @@ class ClassifyGenerator(BaseGenerator):
                         )
 
                 if self.nn_v1:
-                    sim_v1_task = task_templates.sim_v1(
-                        list(aa_list),
-                        err_set,
-                        n_pres=self.n_pres,
-                        n_mocks=self.n_mocks,
-                        n_edmans=self.n_edmans,
-                        n_samples_train=self.n_samples_train,
-                        n_samples_test=self.n_samples_test,
-                    )
-                    sim_v1_task.sim_v1.parameters.random_seed = self.random_seed
                     # note: same seed is used to generate decoys
                     nn_v1_task = task_templates.nn_v1()
 
@@ -218,6 +208,18 @@ class ClassifyGenerator(BaseGenerator):
                             nn_v2_relative_path="../nn_v2",
                             sigproc_relative_path=f"../sigproc_v1",
                         )
+
+                if self.nn_v1 or self.rf:
+                    sim_v1_task = task_templates.sim_v1(
+                        list(aa_list),
+                        err_set,
+                        n_pres=self.n_pres,
+                        n_mocks=self.n_mocks,
+                        n_edmans=self.n_edmans,
+                        n_samples_train=self.n_samples_train,
+                        n_samples_test=self.n_samples_test,
+                    )
+                    sim_v1_task.sim_v1.parameters.random_seed = self.random_seed
 
                 lnfit_task = self.lnfits()
 

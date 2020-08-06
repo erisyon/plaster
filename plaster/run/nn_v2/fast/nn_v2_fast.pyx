@@ -89,13 +89,24 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
     cdef c_nn.Size train_dyemat_n_rows = train_dyemat.shape[0]
     cdef c_nn.Size train_dyemat_n_elems = train_dyemat_n_rows * n_cols
     cdef c_nn.Size dyepep_n_rows = train_dyepeps.shape[0]
-    cdef c_nn.RadType *train_dyemat_as_radtype = <c_nn.RadType *>calloc(train_dyemat_n_elems, sizeof(c_nn.RadType))
-    cdef c_nn.Uint64 *dyetrack_weights_uint64 = <c_nn.Uint64 *>calloc(train_dyemat_n_rows, sizeof(c_nn.Uint64))
-    cdef c_nn.WeightType *dyetrack_weights_float = <c_nn.WeightType *>calloc(train_dyemat_n_rows, sizeof(c_nn.WeightType))
-
-    # dyepep_n_rows is the worst case: one dyepep per peptide
-    cdef c_nn.Index *dye_i_to_dyepep_offset = <c_nn.Index *>calloc(dyepep_n_rows, sizeof(c_nn.Index))
     cdef c_nn.Context ctx
+    cdef c_nn.RadType *train_dyemat_as_radtype
+    cdef c_nn.Uint64 *dyetrack_weights_uint64
+    cdef c_nn.WeightType *dyetrack_weights_float
+    cdef c_nn.Index *dye_i_to_dyepep_offset
+
+    # COUNT dyetracks (ie, largest dyetrack index + 1)
+    train_dyepeps_view = train_dyepeps
+    n_dyetracks = 0
+    for i in range(dyepep_n_rows):
+        n_dyetracks = max(train_dyepeps_view[i, 0], n_dyetracks)
+    n_dyetracks += 1  # Because we want a count not max.
+
+    # ALLOCATE arrays
+    train_dyemat_as_radtype = <c_nn.RadType *>calloc(train_dyemat_n_elems, sizeof(c_nn.RadType))
+    dyetrack_weights_uint64 = <c_nn.Uint64 *>calloc(train_dyemat_n_rows, sizeof(c_nn.Uint64))
+    dyetrack_weights_float = <c_nn.WeightType *>calloc(train_dyemat_n_rows, sizeof(c_nn.WeightType))
+    dye_i_to_dyepep_offset = <c_nn.Index *>calloc(n_dyetracks, sizeof(c_nn.Index))
 
     try:
         # CONVERT train_dyemat to floats
@@ -106,7 +117,6 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
 
         # SUM dyepep counts to get weights. Sum to Uint64 then downcast to Float32 to maintain precision
         # CREATE a lookup table to the start of each dyetrack
-        train_dyepeps_view = train_dyepeps
 
         # Set last dye to a huge number so that it will be different on first
         # comparison with dye_i below.
@@ -120,6 +130,7 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
             # print(f"dye_i={dye_i} pep_i={train_dyepeps_view[i, 1]} count={train_dyepeps_view[i, 2]} last_dye_i={last_dye_i}")
             if dye_i != last_dye_i:
                 _assert_with_trace(dye_i == last_dye_i + 1 or last_dye_i == 0xFFFFFFFFFFFFFFFF, "Non sequential dye_i")
+                _assert_with_trace(0 <= dye_i < n_dyetracks, f"Illegal dye_i {dye_i} when setting dye_i_to_dyepep_offset")
                 dye_i_to_dyepep_offset[dye_i] = i
             else:
                 # Ensure that this is sorted allows picking
@@ -128,8 +139,6 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
 
             last_dye_i = dye_i
             last_count = train_dyepeps_view[i, 2]
-
-        n_dyetracks = <c_nn.Size>(last_dye_i + 1)
 
         # DOWNCAST weights to Float32
         for i in range(train_dyemat_n_rows):
