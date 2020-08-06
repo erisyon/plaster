@@ -116,12 +116,4 @@ def zest_v2_stress_like_e2e():
     sim_v2_result._generate_flu_info(prep_result)
 
     nn_v2_params = NNV2Params()
-    nn_v2_result = nn_v2_worker.nn_v2(nn_v2_params, prep_result, sim_v2_result)
-
-    n_correct_v2 = np.sum(
-        sim_v2_result.test_true_pep_iz == nn_v2_result.test_pred_pep_iz
-    )
-
-    frac_correct = n_correct_v2 / sim_v2_result.test_true_pep_iz.shape
-
-    debug(frac_correct)
+    nn_v2_worker.nn_v2(nn_v2_params, prep_result, sim_v2_result)
