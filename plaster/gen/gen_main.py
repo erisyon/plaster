@@ -347,7 +347,7 @@ def add_switches_to_cli_application_from_schema(app, schema, reserved_field_name
 
             is_bool = field_type is bool
             if is_bool:
-                switch = cli.Flag([f"--{field_name}"], help=field_help)
+                switch = cli.Flag([f"--{field_name}"], help=field_help, default=None)
             else:
                 switch = cli.SwitchAttr(
                     [f"--{field_name}"], field_type, help=field_help, list=is_list

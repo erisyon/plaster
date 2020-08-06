@@ -118,10 +118,13 @@ def zest_zap_work_orders():
                 results = zap.work_orders(
                     work_orders, _process_mode=True, _progress=progress
                 )
-                assert progress.calls == [
-                    ((1, 2, True), {}),
-                    ((2, 2, True), {}),
-                ]
+
+                # fmt: off
+                assert (
+                    progress.calls == [((1, 2, True), {}), ((2, 2, True), {})]
+                    or progress.calls == [((2, 2, True), {}), ((1, 2, True), {})]
+                )
+                # fmt: on
 
         zest()
 
