@@ -84,7 +84,7 @@ def _gen_flus(sim_v2_params, pep_seq_df):
     return flus, pi_brights
 
 
-def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples):
+def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples, progress=None):
     """
     Run via the C fast_sim module a dyemat sim.
 
@@ -106,6 +106,7 @@ def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples):
         sim_v2_params.error_model.p_edman_failure,
         n_threads=1,  # TODO, tune
         rng_seed=sim_v2_params.random_seed,
+        progress=progress,
     )
 
     return dyemat, dyepeps, pep_recalls
@@ -153,7 +154,7 @@ def _radmat_from_sampled_pep_dyemat(
             output_radmat[pep_i, :, ch_i, :] = np.nan_to_num(ch_radiometry)
 
 
-def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cycles):
+def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cycles, progress):
     """
     Generate a radmat with equal number of samples per peptide.
 
@@ -196,8 +197,11 @@ def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cyc
     )
     output_true_dye_iz = np.zeros((n_peps, n_samples_per_pep), dtype=int)
 
+    n_groups = len(grouped_dyepep_rows)
     for group_i, dyepep_group in enumerate(grouped_dyepep_rows):
         # All of the pep_iz (column 1) should be the same since that's what a "group" is.
+        if progress is not None:
+            progress(group_i, n_groups, 0)
         if dyepep_group.shape[0] > 0:
             pep_i = dyepep_group[0, 1]
             sampled_dye_iz = _sample_pep_dyemat(dyepep_group, n_samples_per_pep)
@@ -257,14 +261,25 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     test_true_pep_iz = None
     test_true_dye_iz = None
 
+    phase_i = 0
+    n_phases = 1
+    if sim_v2_params.train_includes_radmat:
+        n_phases += 1
+    if not sim_v2_params.is_survey:
+        n_phases += 2
+
     # Training data
     #   * always includes decoys
     #   * may include radiometry
     # -----------------------------------------------------------------------
     train_flus, train_pi_brights = _gen_flus(sim_v2_params, prep_result.pepseqs())
 
+    if pipeline:
+        pipeline.set_phase(phase_i, n_phases)
+        phase_i += 1
+
     train_dyemat, train_dyepeps, train_pep_recalls = _dyemat_sim(
-        sim_v2_params, train_flus, train_pi_brights, sim_v2_params.n_samples_train
+        sim_v2_params, train_flus, train_pi_brights, sim_v2_params.n_samples_train, progress
     )
 
     # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
@@ -274,6 +289,10 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     ]
 
     if sim_v2_params.train_includes_radmat:
+        if pipeline:
+            pipeline.set_phase(phase_i, n_phases)
+            phase_i += 1
+
         train_radmat, train_true_pep_iz, train_true_dye_iz = _radmat_sim(
             train_dyemat.reshape(
                 (
@@ -287,6 +306,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params.n_samples_train,
             sim_v2_params.n_channels,
             sim_v2_params.n_cycles,
+            progress
         )
     else:
         train_radmat, train_true_pep_iz, train_true_dye_iz = None, None, None
@@ -301,8 +321,13 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         test_flus, test_pi_brights = _gen_flus(
             sim_v2_params, prep_result.pepseqs__no_decoys()
         )
+
+        if pipeline:
+            pipeline.set_phase(phase_i, n_phases)
+            phase_i += 1
+
         test_dyemat, test_dyepeps, test_pep_recalls = _dyemat_sim(
-            sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test
+            sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test, progress
         )
 
         # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
@@ -310,6 +335,10 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         test_dyepeps = test_dyepeps[
             np.lexsort((-test_dyepeps[:, 2], test_dyepeps[:, 0]))
         ]
+
+        if pipeline:
+            pipeline.set_phase(phase_i, n_phases)
+            phase_i += 1
 
         test_radmat, test_true_pep_iz, test_true_dye_iz = _radmat_sim(
             test_dyemat.reshape(
@@ -320,6 +349,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params.n_samples_test,
             sim_v2_params.n_channels,
             sim_v2_params.n_cycles,
+            progress
         )
 
         if not sim_v2_params.allow_train_test_to_be_identical:

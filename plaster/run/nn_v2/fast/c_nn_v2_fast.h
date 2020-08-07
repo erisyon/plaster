@@ -25,6 +25,7 @@ typedef struct {
     Index next_row_i;
     Size n_rows_per_block;
     pthread_mutex_t work_order_lock;
+    ProgressFn progress_fn;
 
     // The following are internal to the .c file; freed by context_free()
     struct FLANNParameters flann_params;
