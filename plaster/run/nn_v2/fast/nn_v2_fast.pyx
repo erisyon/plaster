@@ -66,6 +66,7 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
     n_rows, n_cols =test_unit_radmat.shape
     _assert_with_trace(test_unit_radmat.shape[1] == train_dyemat.shape[1], "radmat and dyemat have different shapes")
     _assert_with_trace(train_dyepeps.ndim == 2 and train_dyepeps.shape[1] == 3, "train_dyepeps has wrong shape")
+    _assert_with_trace(np.all(train_dyemat[0, :] == 0.0), "nul row not found in train_dyemat")
 
     # ALLOCATE output arrays
     output_pred_pep_iz = np.zeros((test_unit_radmat.shape[0],), dtype=np.uint32)

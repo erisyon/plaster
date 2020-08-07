@@ -217,6 +217,14 @@ class SigprocV1Result(BaseResult):
         """
         return self._load_ndarray_prop_from_all_fields("signal_radmat")
 
+    def flat_radmat(self):
+        """
+        Returns ndarray(n_peaks, n_channels * n_cycles)
+        """
+        arr = self._load_ndarray_prop_from_all_fields("signal_radmat")
+        assert arr.ndim == 3
+        return arr.reshape((arr.shape[0], arr.shape[1] * arr.shape[2]))
+
     def noise_radmat_for_field(self, field_i):
         return self._load_field_prop(field_i, "noise_radmat")
 

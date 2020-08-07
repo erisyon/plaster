@@ -175,7 +175,6 @@ class ClassifyGenerator(BaseGenerator):
                 nn_v1_task = {}
                 nn_v2_task = {}
                 classify_rf_task = {}
-                classify_nn_v2_task = {}
 
                 if self.rf:
                     train_rf_task = task_templates.train_rf()
@@ -202,12 +201,13 @@ class ClassifyGenerator(BaseGenerator):
                         n_samples_test=self.n_samples_test,
                     )
                     sim_v2_task.sim_v2.parameters.random_seed = self.random_seed
-                    nn_v2_task = task_templates.nn_v2()
+                    sigproc_relative_path = None
                     if sigproc_v1_task:
-                        classify_nn_v2_task = task_templates.classify_nn_v2(
-                            nn_v2_relative_path="../nn_v2",
-                            sigproc_relative_path=f"../sigproc_v1",
-                        )
+                        sigproc_relative_path = f"../sigproc_v1"
+
+                    nn_v2_task = task_templates.nn_v2(
+                        sigproc_relative_path=sigproc_relative_path,
+                    )
 
                 if self.nn_v1 or self.rf:
                     sim_v1_task = task_templates.sim_v1(
@@ -246,7 +246,6 @@ class ClassifyGenerator(BaseGenerator):
                     **sigproc_v1_task,
                     **lnfit_task,
                     **classify_rf_task,
-                    **classify_nn_v2_task,
                 )
                 run_descs += [run_desc]
 

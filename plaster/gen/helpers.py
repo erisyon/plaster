@@ -7,7 +7,7 @@ If the method is only needed by GENERATORS then it should be added to
 the BaseGenerator class.
 """
 
-import re
+import time
 import pandas as pd
 import numpy as np
 from plaster.tools.utils.simple_http import http_method
@@ -167,7 +167,12 @@ def protein_csv_df(csv_string):
         # Using the UniprotAC as the Seq column
         _protein_csv_info(f"Requesting ACs from uniprot, this may take a while")
         dst_df = pd.DataFrame(dict(id=src_df.UniprotAC, seqstr=""))
+        start_time = time.time()
         for i, ac in enumerate(dst_df.id):
+            if time.time() - start_time > 10.0:
+                info(
+                    f"{i} of {len(dst_df.id)}. If it blocks, consider a ^C and restart."
+                )
             seqs = _uniprot_lookup(ac)
             n_seqs = len(seqs)
             seqstr = None
