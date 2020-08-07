@@ -154,7 +154,7 @@ def _radmat_from_sampled_pep_dyemat(
             output_radmat[pep_i, :, ch_i, :] = np.nan_to_num(ch_radiometry)
 
 
-def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cycles, progress):
+def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cycles, progress=None):
     """
     Generate a radmat with equal number of samples per peptide.
 
