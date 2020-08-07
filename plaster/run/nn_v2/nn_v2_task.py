@@ -13,7 +13,7 @@ class NNV2Task(PipelineTask):
         sigproc_result = None
         if nn_v2_params.include_sigproc:
             sigproc_result = SigprocV1Result.load_from_folder(
-                self.inputs.sigproc_v1, prop_list=["n_cycles", "n_channels"]
+                self.inputs.sigproc, prop_list=["n_cycles", "n_channels"]
             )
 
         prep_result = PrepResult.load_from_folder(self.inputs.prep)

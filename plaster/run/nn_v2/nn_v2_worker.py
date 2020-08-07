@@ -3,6 +3,7 @@ from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.nn_v2.fast import nn_v2_fast
 from plaster.run.call_bag import CallBag
 from plaster.tools.log.log import prof
+from plaster.run.sim_v1.sim_v1_result import RadType
 
 
 def nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result):
@@ -43,7 +44,9 @@ def nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result):
     # RUN NN on sigproc_result if available
     # -----------------------------------------------------------------------
     if sigproc_result is not None:
-        sigproc_unit_radmat = sigproc_result.flat_radmat() / radmat_normalization
+        sigproc_unit_radmat = (
+            sigproc_result.flat_radmat().astype(RadType) / radmat_normalization
+        )
         sigproc_pred_pep_iz, sigproc_scores, sigproc_pred_dye_iz = nn_v2_fast.fast_nn(
             sigproc_unit_radmat,
             sim_v2_result.flat_train_dyemat(),
