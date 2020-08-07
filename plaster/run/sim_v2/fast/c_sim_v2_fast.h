@@ -48,6 +48,7 @@ typedef struct {
     Uint64 rng_seed;
     pthread_mutex_t work_order_lock;
     pthread_mutex_t table_lock;
+    ProgressFn progress_fn;
 } Context;
 
 

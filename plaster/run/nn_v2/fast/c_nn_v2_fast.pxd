@@ -29,6 +29,8 @@ cdef extern from "c_nn_v2_fast.h":
         Index dtr_i
         Index pep_i
 
+    ctypedef void (*ProgressFn)(int complete, int total, int retry)
+
     ctypedef struct Context:
         Size n_neighbors
         Size n_cols
@@ -41,6 +43,7 @@ cdef extern from "c_nn_v2_fast.h":
         Table output_pred_pep_iz
         Table output_pred_dye_iz
         Table output_scores
+        ProgressFn progress_fn
 
         Size n_threads
         Size n_rows

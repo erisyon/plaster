@@ -27,7 +27,15 @@ def _assert_with_trace(condition, message):
         raise AssertionError(message)
 
 
-def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_threads):
+global_progress_callback = None
+
+cdef void _progress(int complete, int total, int retry):
+    # print(f"progress {complete} {total} {retry}", file=sys.stderr)
+    if global_progress_callback is not None:
+        global_progress_callback(complete, total, retry)
+
+
+def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_threads, progress=None):
     """
     This is the interface to the C implementation of NN.
 
@@ -67,6 +75,9 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
     _assert_with_trace(test_unit_radmat.shape[1] == train_dyemat.shape[1], "radmat and dyemat have different shapes")
     _assert_with_trace(train_dyepeps.ndim == 2 and train_dyepeps.shape[1] == 3, "train_dyepeps has wrong shape")
     _assert_with_trace(np.all(train_dyemat[0, :] == 0.0), "nul row not found in train_dyemat")
+
+    global global_progress_callback
+    global_progress_callback = progress
 
     # ALLOCATE output arrays
     output_pred_pep_iz = np.zeros((test_unit_radmat.shape[0],), dtype=np.uint32)
@@ -148,6 +159,7 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
         # SETUP ctx
         ctx.n_neighbors = n_neighbors
         ctx.n_cols = n_cols
+        ctx.progress_fn = <c_nn.ProgressFn>_progress
 
         ctx.test_unit_radmat = c_nn.table_init_readonly(
             <c_nn.Uint8 *>&test_unit_radmat_view[0, 0],

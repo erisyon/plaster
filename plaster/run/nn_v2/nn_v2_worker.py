@@ -6,7 +6,12 @@ from plaster.tools.log.log import prof
 from plaster.run.sim_v1.sim_v1_result import RadType
 
 
-def nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result):
+def nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result, progress=None, pipeline=None):
+    phase_i = 0
+    n_phases = 3
+    if sigproc_result is not None:
+        n_phases += 1
+
     n_cycles = sim_v2_result.params.n_cycles
     n_channels = sim_v2_result.params.n_channels
     radmat_normalization = np.zeros((n_channels * n_cycles), np.float32)
@@ -22,12 +27,17 @@ def nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result):
     # -----------------------------------------------------------------------
     unit_radmat = sim_v2_result.flat_test_radmat() / radmat_normalization
 
+    if pipeline:
+        pipeline.set_phase(phase_i, n_phases)
+        phase_i += 1
+
     test_pred_pep_iz, test_scores, test_pred_dye_iz = nn_v2_fast.fast_nn(
         unit_radmat,
         sim_v2_result.flat_train_dyemat(),
         sim_v2_result.train_dyepeps,
         n_neighbors=nn_v2_params.n_neighbors,
         n_threads=4,
+        progress=progress
     )
 
     call_bag = CallBag(
@@ -38,8 +48,17 @@ def nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result):
         sim_result=sim_v2_result,
     )
 
-    test_peps_pr = call_bag.pr_curve_by_pep()
-    test_peps_pr_abund = call_bag.pr_curve_by_pep_with_abundance()
+    if pipeline:
+        pipeline.set_phase(phase_i, n_phases)
+        phase_i += 1
+
+    test_peps_pr = call_bag.pr_curve_by_pep(progress=progress)
+
+    if pipeline:
+        pipeline.set_phase(phase_i, n_phases)
+        phase_i += 1
+
+    test_peps_pr_abund = call_bag.pr_curve_by_pep_with_abundance(progress=progress)
 
     # RUN NN on sigproc_result if available
     # -----------------------------------------------------------------------
@@ -47,12 +66,18 @@ def nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result):
         sigproc_unit_radmat = (
             sigproc_result.flat_radmat().astype(RadType) / radmat_normalization
         )
+
+        if pipeline:
+            pipeline.set_phase(phase_i, n_phases)
+            phase_i += 1
+
         sigproc_pred_pep_iz, sigproc_scores, sigproc_pred_dye_iz = nn_v2_fast.fast_nn(
             sigproc_unit_radmat,
             sim_v2_result.flat_train_dyemat(),
             sim_v2_result.train_dyepeps,
             n_neighbors=nn_v2_params.n_neighbors,
             n_threads=4,
+            progress=progress
         )
     else:
         sigproc_pred_pep_iz = None

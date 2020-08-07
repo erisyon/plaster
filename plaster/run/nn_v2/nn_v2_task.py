@@ -19,6 +19,6 @@ class NNV2Task(PipelineTask):
         prep_result = PrepResult.load_from_folder(self.inputs.prep)
         sim_v2_result = SimV2Result.load_from_folder(self.inputs.sim_v2)
 
-        nn_v2_result = nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result)
+        nn_v2_result = nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result, progress=self.progress, pipeline=self)
 
         nn_v2_result.save()

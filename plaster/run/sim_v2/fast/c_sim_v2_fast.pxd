@@ -38,6 +38,8 @@ cdef extern from "c_sim_v2_fast.h":
         Index dtr_i
         Index pep_i
 
+    ctypedef void (*ProgressFn)(int complete, int total, int retry)
+
     ctypedef struct Context:
         Size n_peps
         Size n_cycles
@@ -60,6 +62,7 @@ cdef extern from "c_sim_v2_fast.h":
         RecallType *pep_recalls
         Size n_threads
         Uint64 rng_seed
+        ProgressFn progress_fn
 
     int setup_sanity_checks(Size n_channels, Size n_cycles)
     Uint64 prob_to_p_i(double p)
