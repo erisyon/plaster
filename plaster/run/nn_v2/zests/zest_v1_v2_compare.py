@@ -28,7 +28,9 @@ def zest_v1_v2_compare():
         nn_v1_result = nn_v1_worker.nn_v1(nn_v1_params, prep_result, sim_v1_result)
 
         nn_v2_params = NNV2Params()
-        nn_v2_result = nn_v2_worker.nn_v2(nn_v2_params, prep_result, sim_v2_result)
+        nn_v2_result = nn_v2_worker.nn_v2(
+            nn_v2_params, prep_result, sim_v2_result, None
+        )
 
         n_correct_v1 = np.sum(
             sim_v1_result.test_true_pep_iz == nn_v1_result.test_pred_pep_iz
@@ -116,4 +118,4 @@ def zest_v2_stress_like_e2e():
     sim_v2_result._generate_flu_info(prep_result)
 
     nn_v2_params = NNV2Params()
-    nn_v2_worker.nn_v2(nn_v2_params, prep_result, sim_v2_result)
+    nn_v2_worker.nn_v2(nn_v2_params, prep_result, sim_v2_result, None)
