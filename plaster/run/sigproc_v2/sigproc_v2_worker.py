@@ -185,10 +185,12 @@ def _regional_bg_fg_stats(im, mask_radius=2, divs=5, return_ims=False):
     circle = imops.generate_circle_mask(mask_radius).astype(np.uint8)
 
     kern = _kernel()
-    #Note: imops.convolve require float64 inputs; im is likely to be float32,
+    # Note: imops.convolve require float64 inputs; im is likely to be float32,
     #      so we have to cast it to float64.  Alternatively we could investigate
     #      if imops.convolve really ought to require float64?
-    cim = imops.convolve(np.nan_to_num(im.astype(np.float64), nan=np.nanmedian(im)), kern)
+    cim = imops.convolve(
+        np.nan_to_num(im.astype(np.float64), nan=np.nanmedian(im)), kern
+    )
 
     # cim can end up with artifacts around the nans to the nan_mask
     # is dilated and splated as zeros back over the im
@@ -548,14 +550,12 @@ def add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_ims_per_ch, divs, calib):
         calib object with background means and stds added for the given ch_i
     """
     n_fields = flchcy_ims.shape[0]
-    regional_stats = np.zeros(
-        (n_fields, divs, divs, 2)
-    )
+    regional_stats = np.zeros((n_fields, divs, divs, 2))
     for im_i in range(0, n_ims_per_ch):
         for fl_i in range(0, n_fields):
-            #see note under arguments about indices positions, they are NOT in the
-            #order that the name "flchcy" would indicate
-            im = flchcy_ims[im_i,ch_i,fl_i]
+            # see note under arguments about indices positions, they are NOT in the
+            # order that the name "flchcy" would indicate
+            im = flchcy_ims[im_i, ch_i, fl_i]
             reg_bg_mean, reg_bg_std = _background_estimate(im, divs)
             regional_stats[fl_i, :, :, 0] = reg_bg_mean
             regional_stats[fl_i, :, :, 1] = reg_bg_std
@@ -599,60 +599,61 @@ def _calib_psf_stats_one_channel(
     Returns:
         list psf, ready to insert into calib object
     """
-    
-    z_and_region_to_psf = np.zeros((1+2*focus_window_radius, divs, divs, *peak_dim))
+
+    z_and_region_to_psf = np.zeros((1 + 2 * focus_window_radius, divs, divs, *peak_dim))
     im_quals = np.zeros((n_fields, n_z_slices))
     im_focuses = np.zeros((n_fields, n_z_slices))
-    
-    # DECIDE which fields are best by computing 
+
+    # DECIDE which fields are best by computing
     # the median of the mean-quality (ie mean quality over the cycles of each field).
-    for fl_i in range(0,n_fields):
-        for z_i in range(0,n_z_slices):
+    for fl_i in range(0, n_fields):
+        for z_i in range(0, n_z_slices):
             bg_mean, bg_std = _background_estimate(fl_zi_ims[fl_i][z_i], divs)
             im_sub = _background_subtraction(fl_zi_ims[fl_i][z_i], bg_mean)
-            im_quals[fl_i,z_i] = _quality(im_sub)
-            im_focuses[fl_i,z_i] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
-    mean_qual_by_field = np.mean(im_quals,axis=1)
+            im_quals[fl_i, z_i] = _quality(im_sub)
+            im_focuses[fl_i, z_i] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
+    mean_qual_by_field = np.mean(im_quals, axis=1)
     median_mean_qual_by_field = np.median(mean_qual_by_field)
-    fields_above_avg_qual = np.argwhere(mean_qual_by_field>=median_mean_qual_by_field)
-    
+    fields_above_avg_qual = np.argwhere(mean_qual_by_field >= median_mean_qual_by_field)
+
     # DECIDE which z-slices are best for us to use
-    mean_focuses = np.mean(im_focuses,axis=0)
-    z_i_best_focus_by_field = np.argmax(im_focuses,axis=1)
+    mean_focuses = np.mean(im_focuses, axis=0)
+    z_i_best_focus_by_field = np.argmax(im_focuses, axis=1)
     focus_range_by_fl = list(range(n_fields))
-    for fl_i in range(0,n_fields):
+    for fl_i in range(0, n_fields):
         if fl_i not in fields_above_avg_qual:
             focus_range_by_fl[fl_i] = None
         if z_i_best_focus_by_field[fl_i] <= focus_window_radius:
             focus_range_by_fl[fl_i] = focus_window_radius
-        elif z_i_best_focus_by_field[fl_i] > (n_z_slices-focus_window_radius):
-            focus_range_by_fl[fl_i] = n_z_slices-focus_window_radius
+        elif z_i_best_focus_by_field[fl_i] > (n_z_slices - focus_window_radius):
+            focus_range_by_fl[fl_i] = n_z_slices - focus_window_radius
         else:
             focus_range_by_fl[fl_i] = z_i_best_focus_by_field[fl_i]
-    
+
     # AVERAGE across the fields and z-slices we have decided to use,
     # to generate the PSF
-    for fl_i in range(0,n_fields):
+    for fl_i in range(0, n_fields):
         if fl_i not in fields_above_avg_qual:
             continue
         start_slice = focus_range_by_fl[fl_i] - 6
         end_slice = focus_range_by_fl[fl_i] + 6
-        for z_i in range(start_slice,end_slice):
+        for z_i in range(start_slice, end_slice):
             bg_mean, bg_std = _background_estimate(fl_zi_ims[fl_i][z_i], divs)
             im_sub = _background_subtraction(fl_zi_ims[fl_i][z_i], bg_mean)
-            locs, reg_psfs = _calibrate_psf_im(
-                im_sub, divs=divs, peak_mea=peak_dim[0]
-            )
-            
+            locs, reg_psfs = _calibrate_psf_im(im_sub, divs=divs, peak_mea=peak_dim[0])
+
             # ACCUMULATE each field, will normalize at the end
-            z_and_region_to_psf[z_i-start_slice] += reg_psfs
-    
+            z_and_region_to_psf[z_i - start_slice] += reg_psfs
+
     # NORMALIZE all psfs
     denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
     z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
     return z_and_region_to_psf.tolist()
 
-def _calibrate_foreground_one_channel(calib,ims_import_result,n_fields,ch_i,sigproc_params):
+
+def _calibrate_foreground_one_channel(
+    calib, ims_import_result, n_fields, ch_i, sigproc_params
+):
     """
     This function is part of the calibration, and yet will need to
     call sigproc_field() (normally an entrypoint) in order to solve
@@ -669,7 +670,7 @@ def _calibrate_foreground_one_channel(calib,ims_import_result,n_fields,ch_i,sigp
     fl_radmats = []
     fl_locs = []
     for fl_i in range(n_fields):
-        chcy_ims = ims_import_result.ims[fl_i,ch_i : (ch_i + 1),:]
+        chcy_ims = ims_import_result.ims[fl_i, ch_i : (ch_i + 1), :]
         (chcy_ims, locs, radmat, aln_offsets, aln_scores,) = sigproc_field(
             chcy_ims, sigproc_params, calibration=calib
         )
@@ -677,17 +678,18 @@ def _calibrate_foreground_one_channel(calib,ims_import_result,n_fields,ch_i,sigp
         fl_locs += [locs]
     fl_radmat = np.concatenate(fl_radmats)
     fl_loc = np.concatenate(fl_locs)
-    return fl_radmat,fl_loc
+    return fl_radmat, fl_loc
 
-def _calibrate_filter_locs_by_snr(fl_radmat,fl_loc,n_z_slices,ch_i):
-    
+
+def _calibrate_filter_locs_by_snr(fl_radmat, fl_loc, n_z_slices, ch_i):
+
     # GET signal component of radmat for all fields, this channel,
     # all peaks, 0th element is signal as opposed to 1st element is noise
     sig = np.nan_to_num(fl_radmat[:, ch_i, :, 0].flatten())
     noi = fl_radmat[:, ch_i, :, 1].flatten()
     snr = np.nan_to_num(sig / noi)
-    
-    # FILTER out peaks which are too close to each other.  Tile 
+
+    # FILTER out peaks which are too close to each other.  Tile
     # is to get the locs repeated so that dims match for later mask
     locs = np.tile(fl_loc, (1, n_z_slices)).reshape((-1, 2))
     snr_mask = snr > 10  # 10 is an empirically determined number for snr
@@ -696,14 +698,14 @@ def _calibrate_filter_locs_by_snr(fl_radmat,fl_loc,n_z_slices,ch_i):
     return sig, locs
 
 
-def _calibrate_balance_calc(ims_import_result,divs,sig,locs):
-    #There is a potential issue with misaligned cycles, which
-    #we are ignoring for now on the assumption it is a movie,
-    #because in that case the cycles should be well aligned
-    #Therefore we have an assert to make sure this is a safe
-    #assumption to make in this case.
+def _calibrate_balance_calc(ims_import_result, divs, sig, locs):
+    # There is a potential issue with misaligned cycles, which
+    # we are ignoring for now on the assumption it is a movie,
+    # because in that case the cycles should be well aligned
+    # Therefore we have an assert to make sure this is a safe
+    # assumption to make in this case.
     assert ims_import_result.params.is_movie == True
-    im_dim = ims_import_result.ims[0,0,0].shape
+    im_dim = ims_import_result.ims[0, 0, 0].shape
     y = utils.ispace(0, im_dim[0], divs + 1)
     x = utils.ispace(0, im_dim[1], divs + 1)
     medians = np.zeros((divs, divs))
@@ -720,41 +722,37 @@ def _calibrate_balance_calc(ims_import_result,divs,sig,locs):
     balance = max_regional_fg_est / medians
     return balance
 
+
 def calibrate_background_stats(calib, flchcy_ims, divs):
     # despite the "flchcy" name, in calibration the
     # normally "cycle" index is actually the z_slice index
     n_z_slices, n_channels = flchcy_ims.shape[0:2]
-    for ch_i in range(0,n_channels):
-        calib = add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_z_slices, divs, calib)
+    for ch_i in range(0, n_channels):
+        calib = add_regional_bg_stats_to_calib(
+            flchcy_ims, ch_i, n_z_slices, divs, calib
+        )
     return calib
 
-def calibrate_psf(calib,ims_import_result,divs,peak_mea):
+
+def calibrate_psf(calib, ims_import_result, divs, peak_mea):
     # the index of 'flchcy' which normally represents cycles, when doing
     # regional psf z-stack calibration is actually representing z-slice
 
     peak_dim = (peak_mea, peak_mea)
     n_fields, n_channels, n_z_slices = ims_import_result.n_fields_channel_cycles()
-    for ch_i in range(0,n_channels):
-        fl_zi_ims = ims_import_result.ims[:,ch_i,:]
+    for ch_i in range(0, n_channels):
+        fl_zi_ims = ims_import_result.ims[:, ch_i, :]
         cpsoc = _calib_psf_stats_one_channel(
-            fl_zi_ims,
-            n_fields,
-            n_z_slices,
-            calib,
-            divs,
-            peak_dim
+            fl_zi_ims, n_fields, n_z_slices, calib, divs, peak_dim
         )
-        calib.add(
-            {
-                f"regional_psf_zstack.instrument_channel[{ch_i}]": cpsoc
-            }
-        )
+        calib.add({f"regional_psf_zstack.instrument_channel[{ch_i}]": cpsoc})
     return calib
 
-def calibrate_regional_illumination_balance(calib,ims_import_result,divs,peak_mea):
+
+def calibrate_regional_illumination_balance(calib, ims_import_result, divs, peak_mea):
     n_fields, n_channels, n_z_slices = ims_import_result.n_fields_channel_cycles()
-    for ch_i in range(0,n_channels):
-        
+    for ch_i in range(0, n_channels):
+
         # ADD a default (all-ones) regional balance, to allow us to call sigproc_field
         # inside _calibrate_foreground_one_channel.  This is part of a "chicken-and-egg"
         # issue where we need calibration data in order to find field radmat and locs,
@@ -770,28 +768,24 @@ def calibrate_regional_illumination_balance(calib,ims_import_result,divs,peak_me
             }
         )
         sigproc_params = SigprocV2Params(
-            calibration_file='./bogus/calib/file/location',
+            calibration_file="./bogus/calib/file/location",
             instrument_subject_id=None,
             radiometry_channels=dict(ch=ch_i),
             mode="z_stack",
         )
-        
-        #FIND field radmat and locs using assumption of even balance (all 1's)
-        fl_radmat,fl_loc = _calibrate_foreground_one_channel(
-            calib,ims_import_result,n_fields,ch_i,sigproc_params
+
+        # FIND field radmat and locs using assumption of even balance (all 1's)
+        fl_radmat, fl_loc = _calibrate_foreground_one_channel(
+            calib, ims_import_result, n_fields, ch_i, sigproc_params
         )
-        
-        #FILTER for locs with good signal-to-noise ratio
-        sig, locs = _calibrate_filter_locs_by_snr(
-            fl_radmat,fl_loc,n_z_slices,ch_i
-        )
-        
-        #CALCULATE the regional balance using only filtered sig,locs
-        balance = _calibrate_balance_calc(
-            ims_import_result,divs,sig,locs
-        )
-        
-        #REPLACE the all-ones values with real balance factors
+
+        # FILTER for locs with good signal-to-noise ratio
+        sig, locs = _calibrate_filter_locs_by_snr(fl_radmat, fl_loc, n_z_slices, ch_i)
+
+        # CALCULATE the regional balance using only filtered sig,locs
+        balance = _calibrate_balance_calc(ims_import_result, divs, sig, locs)
+
+        # REPLACE the all-ones values with real balance factors
         calib.add(
             {
                 f"regional_illumination_balance.instrument_channel[{ch_i}]": balance.tolist()
@@ -800,10 +794,10 @@ def calibrate_regional_illumination_balance(calib,ims_import_result,divs,peak_me
 
     return calib
 
-def calibrate_dye_brightness(calib):
-    #TODO:
-    return calib
 
+def calibrate_dye_brightness(calib):
+    # TODO:
+    return calib
 
 
 '''def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
@@ -1002,7 +996,7 @@ def calibrate(ims_import_res, n_best_fields=6, divs=5, metadata=None, progress=N
 # -------------------------------------------------------------------------------
 
 
-def _compute_channel_weights(sigproc_params,calibration=None):
+def _compute_channel_weights(sigproc_params, calibration=None):
     """
     Import channels and order them into the output order
     (every input channel is not necessarily used).
@@ -1045,7 +1039,7 @@ def _import_balanced_images(chcy_ims, sigproc_params, calib):
 
     chcy_ims = _regional_balance_chcy_ims(chcy_ims, calib)
 
-    channel_weights = _compute_channel_weights(sigproc_params,calib)
+    channel_weights = _compute_channel_weights(sigproc_params, calib)
     chcy_ims = utils.np_fn_along(np.multiply, chcy_ims, channel_weights, axis=0)
 
     return chcy_ims
