@@ -89,5 +89,6 @@ void table_validate(Table *table, void *ptr, char *msg);
 #endif
 void table_dump(Table *table, char *msg);
 
+typedef void (*ProgressFn)(int complete, int total, int retry);
 
 #endif

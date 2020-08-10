@@ -586,7 +586,11 @@ void *context_work_orders_worker(void *_ctx) {
         }
         Index pep_i = pep_i_plus_1 - 1;
         context_sim_flu(ctx, pep_i);
+        if(pep_i % 10 == 0) {
+            ctx->progress_fn(pep_i, ctx->n_peps, 0);
+        }
     }
+    ctx->progress_fn(ctx->n_peps, ctx->n_peps, 0);
     return (void *)0;
 }
 

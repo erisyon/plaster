@@ -1,3 +1,4 @@
+import sys
 import time
 cimport c_sim_v2_fast as csim
 import numpy as np
@@ -27,6 +28,14 @@ def prob_to_p_i(prob):
     return csim.prob_to_p_i(prob)
 
 
+global_progress_callback = None
+
+cdef void _progress(int complete, int total, int retry):
+    # print(f"progress {complete} {total} {retry}", file=sys.stderr)
+    if global_progress_callback is not None:
+        global_progress_callback(complete, total, retry)
+
+
 # Wrapper for sim that prepares buffers for csim
 def sim(
     pep_flus,
@@ -39,6 +48,7 @@ def sim(
     p_edman_fail,
     n_threads=1,
     rng_seed=None,
+    progress=None,
 ):
     """
     Run the Virtual Fluoro Sequence Monte-Carlo simulator via Cython to
@@ -101,10 +111,14 @@ def sim(
     cdef csim.PIType **pi_brights = <csim.PIType **>calloc(ctx.n_peps, sizeof(csim.PIType *))
     cdef csim.Size *n_aas = <csim.Size *>calloc(ctx.n_peps, sizeof(csim.Size))
 
+    global global_progress_callback
+    global_progress_callback = progress
+
     try:
         ctx.flus = flus
         ctx.pi_brights = pi_brights
         ctx.n_aas = n_aas
+        ctx.progress_fn = <csim.ProgressFn>_progress
 
         pep_recalls = np.zeros((ctx.n_peps), dtype=RecallType)
         pep_recalls_view = pep_recalls

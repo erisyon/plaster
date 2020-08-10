@@ -250,6 +250,11 @@ void *context_work_orders_worker(void *_ctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
     Context *ctx = (Context *)_ctx;
+    Size n_chunks = ctx->n_rows / ctx->n_rows_per_block;
+    if(ctx->n_rows % ctx->n_rows_per_block != 0) {
+        n_chunks++;
+    }
+    Size n_chunks_complete = 0;
     while(1) {
         Index row_i_plus_1 = context_work_orders_pop(ctx);
         if(row_i_plus_1 == 0) {
@@ -263,7 +268,10 @@ void *context_work_orders_worker(void *_ctx) {
             table_init_subset(&ctx->output_pred_dye_iz, row_i, ctx->n_rows_per_block, 0),
             table_init_subset(&ctx->output_scores, row_i, ctx->n_rows_per_block, 0)
         );
+        n_chunks_complete++;
+        ctx->progress_fn(n_chunks_complete, n_chunks, 0);
     }
+    ctx->progress_fn(n_chunks, n_chunks, 0);
     return (void *)0;
 }
 
