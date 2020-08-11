@@ -65,6 +65,9 @@ cdef extern from "c_sim_v2_fast.h":
         Table pcbs
         Table pep_i_to_pcb_i
         RecallType *pep_recalls
+        Size count_only
+        Size output_n_dtrs
+        Size output_n_dyepeps
         Size n_threads
         Uint64 rng_seed
         ProgressFn progress_fn

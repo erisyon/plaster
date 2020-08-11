@@ -34,6 +34,12 @@ typedef struct {
 
 
 typedef struct {
+    Size n_new_dtrs;
+    Size n_new_dyepeps;
+} Counts;
+
+
+typedef struct {
     Size n_peps;
     Size n_cycles;
     Size n_samples;
@@ -50,6 +56,9 @@ typedef struct {
     Table pep_i_to_pcb_i;
     RecallType *pep_recalls;
     Index next_pep_i;
+    Size count_only;
+    Size output_n_dtrs;
+    Size output_n_dyepeps;
     Size n_threads;
     Uint64 rng_seed;
     pthread_mutex_t work_order_lock;

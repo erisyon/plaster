@@ -345,9 +345,10 @@ void dyepep_dump_all(Table *dyepeps) {
 // sim
 //=========================================================================================
 
-void context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
+Counts context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
     // Runs the Monte-Carlo simulation of one peptide flu over n_samples
     // See algorithm described at top of file.
+    // Returns the number of NEW dtrs
 
     // Make local copies of inner-loop variables
     DyeType ch_sums[N_MAX_CHANNELS];
@@ -363,6 +364,18 @@ void context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
     Hash dtr_hash = ctx->dtr_hash;
     Hash dyepep_hash = ctx->dyepep_hash;
     Size n_flu_bytes = sizeof(DyeType) * n_aas;
+    Size n_new_dtrs = 0;
+    Size n_new_dyepeps = 0;
+
+    if(ctx->count_only) {
+        // Add one record to both dtr and dyepeps
+        if(dtrs->n_rows == 0) {
+            table_add(dtrs, 0, 0);
+        }
+        if(dyepeps->n_rows == 0) {
+            table_add(dyepeps, 0, 0);
+        }
+    }
 
     DyeType *flu = (DyeType *)alloca(n_flu_bytes);
     DyeType *working_flu = (DyeType *)alloca(n_flu_bytes);
@@ -493,7 +506,11 @@ void context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
         ensure(dtr_hash_rec != (HashRec*)0, "dtr_hash full");
         if(dtr_hash_rec->key == 0) {
             // New record
-            Index dtr_i = table_add(dtrs, working_dtr, ctx->n_threads > 1 ? &ctx->table_lock : 0);
+            n_new_dtrs ++;
+            Index dtr_i = 0;
+            if( ! ctx->count_only) {
+                dtr_i = table_add(dtrs, working_dtr, ctx->n_threads > 1 ? &ctx->table_lock : 0);
+            }
             dtr = table_get_row(dtrs, dtr_i, DTR);
             dtr_hash_rec->key = dtr_hashkey;
             dtr->count++;
@@ -520,7 +537,11 @@ void context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
         if(dyepep_hash_rec->key == 0) {
             // New record
             // If this were used multi-threaded, this would be a race condition
-            Index dyepep_i = table_add(dyepeps, 0, ctx->n_threads > 1 ? &ctx->table_lock : 0);
+            n_new_dyepeps ++;
+            Index dyepep_i = 0;
+            if( ! ctx->count_only ) {
+                dyepep_i = table_add(dyepeps, 0, ctx->n_threads > 1 ? &ctx->table_lock : 0);
+            }
             DyePepRec *dyepep = table_get_row(dyepeps, dyepep_i, DyePepRec);
             dyepep_hash_rec->key = dyepep_hashkey;
             dyepep->dtr_i = dtr->dtr_i;
@@ -543,6 +564,11 @@ void context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
     else {
         ctx->pep_recalls[pep_i] = (double)0.0;
     }
+
+    Counts counts;
+    counts.n_new_dtrs = n_new_dtrs;
+    counts.n_new_dyepeps = n_new_dyepeps;
+    return counts;
 }
 
 
@@ -570,6 +596,13 @@ void *context_work_orders_worker(void *_ctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
     Context *ctx = (Context *)_ctx;
+    if(ctx->count_only) {
+        ensure(ctx->n_threads == 1, "n_therads must be 1 when counting");
+        trace("Counting n_dtrs and n_dyepeps for %ld peps\n", ctx->n_peps);
+        trace("pep_i, n_dtrs, n_dyepeps\n");
+    }
+    Size n_dtrs = 0;
+    Size n_dyepeps = 0;
     while(1) {
         Index pep_i_plus_1 = context_work_orders_pop(ctx);
         if(pep_i_plus_1 == 0) {
@@ -580,12 +613,19 @@ void *context_work_orders_worker(void *_ctx) {
         Index pcb_i_plus_1 = *table_get_row(&ctx->pep_i_to_pcb_i, pep_i + 1, Index);
         Size n_aas = pcb_i_plus_1 - pcb_i;
         Table pcb_block = table_init_subset(&ctx->pcbs, pcb_i, n_aas, 1);
-        context_sim_flu(ctx, pep_i, &pcb_block, n_aas);
+        Counts counts = context_sim_flu(ctx, pep_i, &pcb_block, n_aas);
+        n_dtrs += counts.n_new_dtrs;
+        n_dyepeps += counts.n_new_dyepeps;
+        if(ctx->count_only && pep_i % 100 == 0) {
+            trace("%ld, %ld, %ld\n", pep_i, n_dtrs, n_dyepeps);
+        }
         if(pep_i % 10 == 0) {
             ctx->progress_fn(pep_i, ctx->n_peps, 0);
         }
     }
     ctx->progress_fn(ctx->n_peps, ctx->n_peps, 0);
+    ctx->output_n_dtrs = n_dtrs;
+    ctx->output_n_dyepeps = n_dyepeps;
     return (void *)0;
 }
 

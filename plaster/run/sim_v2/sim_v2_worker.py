@@ -285,11 +285,10 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         pipeline.set_phase(phase_i, n_phases)
         phase_i += 1
 
+    pepseqs = prep_result.pepseqs__with_decoys()
+    pcbs = sim_v2_params.pcbs(pepseqs)
     train_dyemat, train_dyepeps, train_pep_recalls = _dyemat_sim(
-        sim_v2_params,
-        sim_v2_params.pcbs(prep_result.pepseqs__with_decoys()),
-        sim_v2_params.n_samples_train,
-        progress,
+        sim_v2_params, pcbs, sim_v2_params.n_samples_train, progress,
     )
 
     # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)

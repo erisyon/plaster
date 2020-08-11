@@ -33,7 +33,6 @@ def prob_to_p_i(prob):
 global_progress_callback = None
 
 cdef void _progress(int complete, int total, int retry):
-    # print(f"progress {complete} {total} {retry}", file=sys.stderr)
     if global_progress_callback is not None:
         global_progress_callback(complete, total, retry)
 
@@ -72,7 +71,10 @@ def sim(
     cdef csim.DyeType *dyetrack
     cdef csim.DyePepRec *dyepeprec
     cdef csim.Size n_peps, n_cycles, n_channels, n_samples
+    cdef csim.Size n_max_dtrs, n_max_dtr_hash_recs
+    cdef csim.Size n_max_dyepeps, n_max_dyepep_hash_recs
     cdef csim.Context ctx
+    cdef csim.Size count_only = 0  # Set to 1 to use the counting mechanisms
 
     # Views
     cdef csim.Float64 [:, ::1] pcbs_view
@@ -98,10 +100,58 @@ def sim(
     n_samples = _n_samples
 
     cdef csim.Size n_dtr_row_bytes = csim.dtr_n_bytes(n_channels, n_cycles)
-    cdef csim.Size n_max_dtrs = <csim.Size>(0.8 * n_peps * n_samples)
-    cdef csim.Size n_max_dtr_hash_recs = int(1.5 * n_max_dtrs)
-    cdef csim.Size n_max_dyepeps = int(1.5 * n_max_dtrs)
-    cdef csim.Size n_max_dyepep_hash_recs = int(1.5 * n_max_dyepeps)
+
+    # How many dyetrack records are needed?
+    # I need to run some experiments to find out where I don't allocate
+
+    if count_only == 1:
+        n_max_dtrs = <csim.Size>1
+        n_max_dtr_hash_recs = 100_000_000
+        n_max_dyepeps = 1
+        n_max_dyepep_hash_recs = 100_000_000
+    else:
+        # Based on experiments using the count_only option above
+        # I found that n_dtrs and n_max_dyepeps grow linearly w/ n_peps
+        # I ran experiments over n_channels @ 5000 samples
+        #
+        # n_ch    |  n_dtr/pep |  n_dyepeps/pep
+        # --------|------------|---------------
+        #       1 |          4 |             64
+        #       2 |          4 |             64
+        #       3 |         16 |             97
+        #       4 |         87 |            248
+        #       5 |        233 |            425
+        #
+        # After some fidding and fiddling I think the following
+
+        # So, for 5 channels, 15 cycles, 750_000 peptides:
+        #   DTRs = (8 + 8 + 5 * 15) = 91 * 250 * 750_000 = 17_062_500_000 = 17GB
+        #   DyePepRec = (8 + 8 + 8) = 24 * 450 * 750_000 = 8_100_000_000 = 8GB
+        #   Total = 25 GB
+        #
+        # So, that's a lot, but that's an extreme case...
+        # I could bring it down in several ways:
+        # I could store all as 32-bit which would make it:
+        #   DTRs = (4 + 4 + 5 * 15) = 91 * 250 * 750_000 = 15_562_500_000 = 15GB
+        #   DyePepRec = (4 + 4 + 4) = 12 * 450 * 750_000 = 4_050_000_000 = 4GB
+        #   Total = 19GB
+        #
+        # Or, I could stochasitcally remove low-count dyecounts
+        # which would be a sort of garbage collection operation
+        # which would probably better than half memory but at more compute time.
+        #
+        # For now, a channel counts I'm likely to run I don't think it will be a problem.
+
+        n_channels_to_n_max_dtr_per_pep = [4, 4, 16, 87, 233]
+        n_channels_to_n_max_dyepep_per_pep = [64, 64, 97, 248, 425]
+        extra_factor = 1.2
+        hash_factor = 1.5
+        n_max_dtrs = <csim.Size>(extra_factor * n_channels_to_n_max_dtr_per_pep[n_channels] * n_peps)
+        n_max_dtr_hash_recs = int(hash_factor * n_max_dtrs)
+        n_max_dyepeps = <csim.Size>(extra_factor * n_channels_to_n_max_dyepep_per_pep[n_channels] * n_peps)
+        n_max_dyepep_hash_recs = int(hash_factor * n_max_dyepeps)
+        print(f"dtrs_buf = {n_max_dtrs * n_dtr_row_bytes / 1024**2:4.1f} MB")
+        print(f"dyepeps_buf = {n_max_dyepeps * sizeof(csim.DyePepRec) / 1024**2:4.1f} MB")
 
     # Memory
     cdef csim.Uint8 *dtrs_buf = <csim.Uint8 *>calloc(n_max_dtrs, n_dtr_row_bytes)
@@ -122,6 +172,7 @@ def sim(
         ctx.n_cycles = cycles.shape[0]
         ctx.n_samples = n_samples
         ctx.n_channels = n_channels
+        ctx.count_only = count_only
         ctx.pi_bleach = csim.prob_to_p_i(p_bleach)
         ctx.pi_detach = csim.prob_to_p_i(p_detach)
         ctx.pi_edman_success = csim.prob_to_p_i(1.0 - p_edman_fail)
@@ -149,6 +200,10 @@ def sim(
 
         # Now do the work in the C file
         csim.context_work_orders_start(&ctx)
+        if count_only:
+            print(f"n_dtrs={ctx.output_n_dtrs}")
+            print(f"n_dyepeps={ctx.output_n_dyepeps}")
+            return None, None, None
 
         # The results are in ctx.dtrs and ctx.dyepeps
         # So now allocate the numpy arrays that will be returned

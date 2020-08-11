@@ -19,7 +19,7 @@ from plaster.run.prep.prep_worker import prep
 
 def zest_v1_v2_compare():
     with tmp_folder(chdir=True):
-        prep_result = prep_fixtures.result_random_fixture(5)
+        prep_result = prep_fixtures.result_random_fixture(20)
 
         sim_v1_result = sim_v1_fixtures.result_from_prep_fixture(prep_result)
         sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result)
@@ -119,3 +119,11 @@ def zest_v2_stress_like_e2e():
 
     nn_v2_params = NNV2Params()
     nn_v2_worker.nn_v2(nn_v2_params, prep_result, sim_v2_result, None)
+
+
+def zest_v2_count():
+    with tmp_folder(chdir=True):
+        prep_result = prep_fixtures.result_random_fixture(5000)
+
+        sim_v2_fixtures.result_from_prep_fixture(prep_result, n_labels=3, n_edmans=15)
+    zest()
