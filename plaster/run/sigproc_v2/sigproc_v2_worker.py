@@ -532,6 +532,7 @@ def _background_estimate(im, divs):
 
 def _background_subtraction(im, reg_bg_mean):
     bg_im = imops.interp(reg_bg_mean, im.shape[-2:])
+
     diff_im = im - bg_im
     return diff_im
 
@@ -1194,7 +1195,11 @@ def _peak_radiometry(
     assert psf_kernel.shape == center_weighted_mask.shape
 
     if not allow_non_unity_psf_kernel:
-        assert 1.0 - np.sum(psf_kernel) < 1e-6
+        try:
+            assert 1.0 - np.sum(psf_kernel) < 1e-6
+        except AssertionError:
+            debug('np.sum(pdf_kernel)',np.sum(pdf_kernel))
+            raise
 
     # Weight the peak_im by the centering_kernel to eliminate
     # noise from neighbors during COM calculations
