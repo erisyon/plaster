@@ -549,6 +549,7 @@ def add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_ims_per_ch, divs, calib):
     Returns:
         calib object with background means and stds added for the given ch_i
     """
+    assert len(flchcy_ims.shape)==5 #fields, divs, divs, x and y of images
     n_fields = flchcy_ims.shape[0]
     regional_stats = np.zeros((n_fields, divs, divs, 2))
     for im_i in range(0, n_ims_per_ch):
