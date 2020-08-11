@@ -6,6 +6,7 @@ cimport numpy as np
 from cython.view cimport array as cvarray
 from libc.stdlib cimport calloc, free
 from libc.string cimport memcpy
+from plaster.tools.log.log import important
 
 
 # Local helpers
@@ -141,17 +142,21 @@ def sim(
         # which would probably better than half memory but at more compute time.
         #
         # For now, a channel counts I'm likely to run I don't think it will be a problem.
-
-        n_channels_to_n_max_dtr_per_pep = [4, 4, 16, 87, 233]
-        n_channels_to_n_max_dyepep_per_pep = [64, 64, 97, 248, 425]
+        #
+        # Actually this turns out to be pretty dependent on the form of the
+        # labels and others. So fo now I'm coverting it to a constant.
+        #n_channels_to_n_max_dtr_per_pep = [0, 8, 8, 16, 100, 250]
+        #n_channels_to_n_max_dyepep_per_pep = [0, 100, 100, 100, 250, 425]
         extra_factor = 1.2
         hash_factor = 1.5
-        n_max_dtrs = <csim.Size>(extra_factor * n_channels_to_n_max_dtr_per_pep[n_channels] * n_peps)
+        n_max_dtrs = <csim.Size>(extra_factor * 250 * n_peps)
         n_max_dtr_hash_recs = int(hash_factor * n_max_dtrs)
-        n_max_dyepeps = <csim.Size>(extra_factor * n_channels_to_n_max_dyepep_per_pep[n_channels] * n_peps)
+        n_max_dyepeps = <csim.Size>(extra_factor * 425 * n_peps)
         n_max_dyepep_hash_recs = int(hash_factor * n_max_dyepeps)
-        print(f"dtrs_buf = {n_max_dtrs * n_dtr_row_bytes / 1024**2:4.1f} MB")
-        print(f"dyepeps_buf = {n_max_dyepeps * sizeof(csim.DyePepRec) / 1024**2:4.1f} MB")
+        dtr_mb = n_max_dtrs * n_dtr_row_bytes / 1024**2
+        dyepep_mb = n_max_dyepeps * sizeof(csim.DyePepRec) / 1024**2
+        if dtr_mb + dyepep_mb > 1000:
+            important(f"Warning: sim_v2 buffers consuming more than 1 GB ({dtr_mb + dyepep_mb:4.1f} MB)")
 
     # Memory
     cdef csim.Uint8 *dtrs_buf = <csim.Uint8 *>calloc(n_max_dtrs, n_dtr_row_bytes)

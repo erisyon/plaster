@@ -275,6 +275,20 @@ def _do_work_orders_debug_mode(zap):
     return results, timings
 
 
+def get_cpu_limit(_cpu_limit=None):
+    if _cpu_limit is None:
+        _cpu_limit = global_cpu_limit
+
+    if _cpu_limit is None:
+        _cpu_limit = _cpu_count()
+
+    if _cpu_limit < 0:
+        _cpu_limit = _cpu_count() + _cpu_limit + 1  # eg: 4 cpu + (-1) + 1 is 4
+
+    assert _cpu_limit > 0
+    return _cpu_limit
+
+
 def work_orders(
     _work_orders,
     _process_mode=True,
@@ -333,14 +347,7 @@ def work_orders(
     if _progress is None:
         _progress = global_progress
 
-    if _cpu_limit is None:
-        _cpu_limit = global_cpu_limit
-
-    if _cpu_limit is None:
-        _cpu_limit = -1
-
-    if _cpu_limit < 0:
-        _cpu_limit = _cpu_count() + _cpu_limit + 1  # eg: 4 cpu + (-1) + 1 is 4
+    _cpu_limit = get_cpu_limit(_cpu_limit)
 
     zap = _set_zap(
         work_orders=_work_orders,

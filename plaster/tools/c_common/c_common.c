@@ -98,7 +98,7 @@ void *_table_get_row(Table *table, Index row) {
 }
 
 
-Index table_add(Table *table, void *src, pthread_mutex_t *lock) {
+Index table_add(Table *table, void *src, pthread_mutex_t *lock, char *table_name) {
     // Add a row to the table and halt on overflow.
     // Optionally copies src into place if it isn't NULL.
     // Returns the row_i where the data was written (or will be written)
@@ -108,7 +108,7 @@ Index table_add(Table *table, void *src, pthread_mutex_t *lock) {
     table->n_rows ++;
     if(lock) pthread_mutex_unlock(lock);
     ensure_only_in_debug(!table->readonly, "Attempting to write to a readonly table");
-    ensure(0 <= row_i && row_i < table->n_max_rows, "Table overflow");
+    ensure(row_i < table->n_max_rows, "Table overflow on %s. max_rows=%ld", table_name, table->n_max_rows);
     if(src != 0) {
         memcpy(table->rows + table->n_bytes_per_row * row_i, src, table->n_bytes_per_row);
     }

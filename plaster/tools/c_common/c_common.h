@@ -87,7 +87,7 @@ void *_table_get_row(Table *table, Index row);
 
 void table_set_row(Table *table, Index row_i, void *src);
 
-Index table_add(Table *table, void *src, pthread_mutex_t *lock);
+Index table_add(Table *table, void *src, pthread_mutex_t *lock, char *table_name);
 
 void table_validate(Table *table, void *ptr, char *msg);
 #ifdef DEBUG

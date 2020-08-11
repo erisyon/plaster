@@ -370,10 +370,10 @@ Counts context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) 
     if(ctx->count_only) {
         // Add one record to both dtr and dyepeps
         if(dtrs->n_rows == 0) {
-            table_add(dtrs, 0, 0);
+            table_add(dtrs, 0, 0, "dtrs");
         }
         if(dyepeps->n_rows == 0) {
-            table_add(dyepeps, 0, 0);
+            table_add(dyepeps, 0, 0, "dyepeps");
         }
     }
 
@@ -509,7 +509,7 @@ Counts context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) 
             n_new_dtrs ++;
             Index dtr_i = 0;
             if( ! ctx->count_only) {
-                dtr_i = table_add(dtrs, working_dtr, ctx->n_threads > 1 ? &ctx->table_lock : 0);
+                dtr_i = table_add(dtrs, working_dtr, ctx->n_threads > 1 ? &ctx->table_lock : 0, "dtrs");
             }
             dtr = table_get_row(dtrs, dtr_i, DTR);
             dtr_hash_rec->key = dtr_hashkey;
@@ -540,7 +540,7 @@ Counts context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) 
             n_new_dyepeps ++;
             Index dyepep_i = 0;
             if( ! ctx->count_only ) {
-                dyepep_i = table_add(dyepeps, 0, ctx->n_threads > 1 ? &ctx->table_lock : 0);
+                dyepep_i = table_add(dyepeps, 0, ctx->n_threads > 1 ? &ctx->table_lock : 0, "dyepeps");
             }
             DyePepRec *dyepep = table_get_row(dyepeps, dyepep_i, DyePepRec);
             dyepep_hash_rec->key = dyepep_hashkey;
@@ -619,7 +619,7 @@ void *context_work_orders_worker(void *_ctx) {
         if(ctx->count_only && pep_i % 100 == 0) {
             trace("%ld, %ld, %ld\n", pep_i, n_dtrs, n_dyepeps);
         }
-        if(pep_i % 10 == 0) {
+        if(pep_i % 100 == 0) {
             ctx->progress_fn(pep_i, ctx->n_peps, 0);
         }
     }
@@ -648,7 +648,7 @@ void context_work_orders_start(Context *ctx) {
     ensure(dtr_hash_rec->key == 0, "dtr hash should not have found nul row");
 
     Table *dtrs = &ctx->dtrs;
-    Index nul_i = table_add(dtrs, nul_rec, (void*)0);
+    Index nul_i = table_add(dtrs, nul_rec, (void*)0, "dtrs");
     DTR *nul_dtr = table_get_row(dtrs, nul_i, DTR);
     dtr_hash_rec->key = dtr_hashkey;
     nul_dtr->count++;

@@ -46,6 +46,7 @@ from plaster.run.sim_v2 import sim_v2_params
 from plaster.tools.log.log import debug, prof
 from plaster.tools.schema import check
 from plaster.tools.utils import data
+from plaster.tools.zap.zap import get_cpu_limit
 
 
 def _rand_lognormals(logs, sigma):
@@ -107,7 +108,7 @@ def _dyemat_sim(sim_v2_params, pcbs, n_samples, progress=None):
         sim_v2_params.error_model.dyes[0].p_bleach_per_cycle,
         sim_v2_params.error_model.p_detach,
         sim_v2_params.error_model.p_edman_failure,
-        n_threads=1,  # TODO, tune
+        n_threads=1,  # get_cpu_limit(),  Currently getting: Fatal Python error: PyThreadState_Get: no current thread
         rng_seed=sim_v2_params.random_seed,
         progress=progress,
     )
@@ -392,7 +393,6 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         train_dyemat=train_dyemat,
         train_radmat=train_radmat,
         train_pep_recalls=train_pep_recalls,
-        train_flus=train_flus,
         train_true_pep_iz=train_true_pep_iz,
         train_true_dye_iz=train_true_dye_iz,
         train_dyepeps=train_dyepeps,

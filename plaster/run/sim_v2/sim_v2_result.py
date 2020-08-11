@@ -13,7 +13,6 @@ class SimV2Result(BaseResult):
         params=SimV2Params,
         train_dyemat=np.ndarray,
         train_pep_recalls=np.ndarray,
-        train_flus=list,
         train_dyepeps=np.ndarray,
         train_radmat=(type(None), np.ndarray),
         train_true_pep_iz=(type(None), np.ndarray),
