@@ -90,7 +90,7 @@ def sim(
     # BUILD a map from pep_i to pcb_i.
     #   Note, this map needs to be one longer than n_peps so that we
     #   can subtract each offset to get the pcb length for each pep_i
-    pep_i_to_pcb_i = np.unique(pcbs, return_index=1)[1]
+    pep_i_to_pcb_i = np.unique(pcbs[:, 0], return_index=1)[1].astype(np.uint64)
     pep_i_to_pcb_i_view = pep_i_to_pcb_i
     n_peps = pep_i_to_pcb_i.shape[0]
     n_cycles = cycles.shape[0]
@@ -131,7 +131,7 @@ def sim(
         pcbs_view = pcbs
         ctx.pcbs = csim.table_init_readonly(<csim.Uint8 *>&pcbs_view[0, 0], pcbs.nbytes, sizeof(csim.PCB))
 
-        memcpy(&pep_i_to_pcb_i_buf, <const void *>&pep_i_to_pcb_i_view[0], sizeof(csim.Index) * n_peps);
+        memcpy(pep_i_to_pcb_i_buf, <const void *>&pep_i_to_pcb_i_view[0], sizeof(csim.Index) * n_peps);
         pep_i_to_pcb_i_buf[n_peps] = pcbs.shape[0]
         ctx.pep_i_to_pcb_i = csim.table_init_readonly(<csim.Uint8 *>pep_i_to_pcb_i_buf, (n_peps + 1) * sizeof(csim.Index), sizeof(csim.Index));
 
@@ -146,15 +146,6 @@ def sim(
         ctx.dyepeps = csim.table_init(dyepeps_buf, n_max_dyepeps * sizeof(csim.DyePepRec), sizeof(csim.DyePepRec))
         ctx.dtr_hash = csim.hash_init(dtr_hash_buf, n_max_dtr_hash_recs)
         ctx.dyepep_hash = csim.hash_init(dyepep_hash_buf, n_max_dyepep_hash_recs)
-
-        # for i, (flu, pi_bright) in enumerate(zip(pep_flus, pep_pi_brights)):
-        #     _assert_array_contiguous(flu, DyeType)
-        #     flu_view = flu
-        #     ctx.flus[i] = &flu_view[0]
-        #     ctx.n_aas[i] = <csim.Uint64>flu.shape[0]
-        #     _assert_array_contiguous(pi_bright, PIType)
-        #     pi_bright_view = pi_bright
-        #     ctx.pi_brights[i] = &pi_bright_view[0]
 
         # Now do the work in the C file
         csim.context_work_orders_start(&ctx)

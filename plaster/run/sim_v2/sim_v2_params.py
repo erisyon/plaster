@@ -283,3 +283,23 @@ class SimV2Params(Params):
             cycles[i] = self.CYCLE_TYPE_EDMAN
             i += 1
         return cycles
+
+    def pcbs(self, pep_seq_df):
+        """
+        pcbs stands for (p)ep_i, (c)hannel_i, (b)right_probability
+        """
+        labelled_pep_df = pep_seq_df.join(
+            self.df.set_index("amino_acid"), on="aa", how="left"
+        )
+
+        # p_bright = is the product of (1.0 - ) all the ways the dye can fail to be visible.
+        labelled_pep_df["p_bright"] = (
+            (1.0 - labelled_pep_df.p_failure_to_attach_to_dye)
+            * (1.0 - labelled_pep_df.p_failure_to_bind_amino_acid)
+            * (1.0 - labelled_pep_df.p_non_fluorescent)
+        )
+
+        labelled_pep_df.sort_values(by=["pep_i", "pep_offset_in_pro"], inplace=True)
+        return np.ascontiguousarray(
+            labelled_pep_df[["pep_i", "ch_i", "p_bright"]].values
+        )

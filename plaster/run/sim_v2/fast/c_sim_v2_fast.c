@@ -370,13 +370,16 @@ void context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
     for(Index aa_i=0; aa_i<n_aas; aa_i++) {
         PCB *pcb_row = table_get_row(pcb_block, aa_i, PCB);
 
-        ensure_only_in_debug((Index)pcb_row->pep_i == pep_i, "Mismatching pep_i in pcb_row");
+        ensure_only_in_debug((Index)pcb_row->pep_i == pep_i, "Mismatching pep_i in pcb_row pep_i=%ld row_pep_i=%ld aa_i=%ld", pep_i, (Index)pcb_row->pep_i, aa_i);
 
         Float64 f_ch_i = isnan(pcb_row->ch_i) ? (Float64)(N_MAX_CHANNELS - 1) : (pcb_row->ch_i);
         ensure_only_in_debug(0 <= f_ch_i && f_ch_i < N_MAX_CHANNELS, "f_ch_i out of bounds");
         flu[aa_i] = (DyeType)f_ch_i;
 
-        pi_bright[aa_i] = prob_to_p_i(pcb_row->p_bright);
+        Float64 p_bright = pcb_row->p_bright;
+        p_bright = isnan(p_bright) ? 0.0 : p_bright;
+        ensure_only_in_debug(0.0 <= p_bright && p_bright <= 1.0, "p_bright out of range pep_i=%ld aa_i=%ld %f", pep_i, aa_i, p_bright);
+        pi_bright[aa_i] = prob_to_p_i(p_bright);
 
         working_flu[aa_i] = (DyeType)0;
     }

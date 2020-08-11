@@ -88,7 +88,7 @@ def _gen_flus(sim_v2_params, pep_seq_df):
 """
 
 
-def _dyemat_sim(sim_v2_params, pep_seq_df, pi_brights, n_samples, progress=None):
+def _dyemat_sim(sim_v2_params, pcbs, n_samples, progress=None):
     """
     Run via the C fast_sim module a dyemat sim.
 
@@ -98,24 +98,9 @@ def _dyemat_sim(sim_v2_params, pep_seq_df, pi_brights, n_samples, progress=None)
         pep_recalls: ndarray(n_peps)
     """
 
-    labelled_pep_df = pep_seq_df.join(
-        sim_v2_params.df.set_index("amino_acid"), on="aa", how="left"
-    )
-
-    # p_bright = is the product of (1.0 - ) all the ways the dye can fail to be visible.
-    labelled_pep_df["p_bright"] = (
-        (1.0 - labelled_pep_df.p_failure_to_attach_to_dye)
-        * (1.0 - labelled_pep_df.p_failure_to_bind_amino_acid)
-        * (1.0 - labelled_pep_df.p_non_fluorescent)
-    )
-
-    labelled_pep_df.sort_values(by=["pep_i", "pep_offset_in_pro"], inplace=True)
-    pcbs = labelled_pep_df[["pep_i", "ch_i", "p_bright"]].values
-
     # TODO: bleach per channel
     dyemat, dyepeps, pep_recalls = sim_v2_fast.sim(
         pcbs,
-        pi_brights,
         n_samples,
         sim_v2_params.n_channels,
         sim_v2_params.cycles_array(),
@@ -302,8 +287,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
 
     train_dyemat, train_dyepeps, train_pep_recalls = _dyemat_sim(
         sim_v2_params,
-        train_flus,
-        train_pi_brights,
+        sim_v2_params.pcbs(prep_result.pepseqs__with_decoys()),
         sim_v2_params.n_samples_train,
         progress,
     )
@@ -344,9 +328,9 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     #   * skipped if is_survey
     # -----------------------------------------------------------------------
     if not sim_v2_params.is_survey:
-        test_flus, test_pi_brights = _gen_flus(
-            sim_v2_params, prep_result.pepseqs__no_decoys()
-        )
+        # test_flus, test_pi_brights = _gen_flus(
+        #     sim_v2_params, prep_result.pepseqs__no_decoys()
+        # )
 
         if pipeline:
             pipeline.set_phase(phase_i, n_phases)
@@ -354,8 +338,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
 
         test_dyemat, test_dyepeps, test_pep_recalls = _dyemat_sim(
             sim_v2_params,
-            test_flus,
-            test_pi_brights,
+            sim_v2_params.pcbs(prep_result.pepseqs__no_decoys()),
             sim_v2_params.n_samples_test,
             progress,
         )

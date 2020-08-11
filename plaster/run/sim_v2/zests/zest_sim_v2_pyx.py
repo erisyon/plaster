@@ -27,16 +27,7 @@ def zest_pyx_runs():
     """
     pep_seq_df = pd.read_csv(StringIO(csv))
 
-    labelled_pep_df = pd.merge(
-        left=pep_seq_df,
-        right=sim_params.df,
-        left_on="aa",
-        right_on="amino_acid",
-        how="left",
-    )
-
-    labelled_pep_df.sort_values(by=["pep_i", "pep_offset_in_pro"], inplace=True)
-    pcbs = labelled_pep_df[["pep_i", "ch_i", "p_bright"]].values
+    pcbs = sim_params.pcbs(pep_seq_df)
 
     # flus = []
     # pep_pi_brights = []
