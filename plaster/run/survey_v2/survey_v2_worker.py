@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from plaster.run.survey_nn_v1.survey_nn_v1_result import SurveyNNV1Result
+from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
 from plaster.tools.aaseq.aaseq import aa_str_to_list
 from plaster.tools.schema import check
 from scipy.spatial.distance import cdist
@@ -8,21 +8,26 @@ from scipy.spatial.distance import cdist
 
 def _euc_dist(sim_result):
     """
-    Computes euclidean distance between all dye-tracks produced by a simulation.
-    Returns three parallel arrays:
-        pep_iz: pep indices
-        nn_pep_iz: pep indices corresponding to nearest neighbor of pep_i
-        nn_dist: distance from pep_i it's nearest neighbor nn_pep_i
+    Compute euclidean distance between all dye-tracks produced by a simulation.
 
-    Notes: here we always compute all-vs-all distances.  But if there are
-    proteins-of-interest, we could compute only the distances from those
-    to the set of all, and have a much-reduced problem-size.  At the moment,
-    this protein-of-interest filter is applied during the reports.
+    Returns:
+        pep_iz: array: pep indices
+        nn_pep_iz: array: pep indices corresponding to nearest neighbor of pep_i
+        nn_dist: array: distance from pep_i it's nearest neighbor nn_pep_i
+
+    Notes:
+        We currently compute all-vs-all distances. But if there are
+        proteins-of-interest, we could compute only the distances from those
+        to the set of all, and have a much-reduced problem-size.  At the moment,
+        this protein-of-interest filter is applied during the reports.
+
+        This would be much better using FLANN
     """
 
-    check.array_t(sim_result.train_dyemat, ndim=3)
-    shape = sim_result.train_dyemat.shape
-    dyemat = sim_result.train_dyemat.reshape((shape[0], shape[1] * shape[2]))
+    dyemat = sim_result.train_dyemat
+    check.array_t(dyemat, ndim=2)
+
+    # COMPUTE all-by-all distances (expensive)
     d = cdist(dyemat, dyemat)
     np.fill_diagonal(d, np.nan)
     nn_dist_args = np.nanargmin(d, axis=1)
@@ -42,9 +47,7 @@ def _euc_dist(sim_result):
     return range(n_peps), neighbor_pep_i, neighbor_dist
 
 
-def survey_nn_v1(
-    survey_nn_params, prep_result, sim_result, progress=None, pipeline=None
-):
+def survey_v2(survey_v2_params, prep_result, sim_result, progress=None, pipeline=None):
     """
     Compute a distance between between peptides that exist in prep_result
     using the dye-tracks employed by nearest-neighbor.  Create a DF that
@@ -55,7 +58,6 @@ def survey_nn_v1(
     Notes:
         - We are not including decoys.  If you want to include decoys (assuming they
           were used in the simulation) use the test dyemat rather than train.
-
     """
 
     # get simple euclidean nearest-neighbor info & store in Dataframe
@@ -95,6 +97,6 @@ def survey_nn_v1(
         .join(peps__flus.set_index("pep_i"), how="left")
         .join(pepstrs.set_index("pep_i"), how="left")
         .reset_index()
-    )[SurveyNNV1Result.survey_columns]
+    )[SurveyV2Result.survey_columns]
 
-    return SurveyNNV1Result(params=survey_nn_params, _survey=df)
+    return SurveyV2Result(params=survey_v2_params, _survey=df)

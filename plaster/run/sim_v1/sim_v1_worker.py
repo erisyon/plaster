@@ -733,7 +733,7 @@ def sim_v1(sim_params, prep_result, progress=None, pipeline=None):
             (test_radmat.shape[0] * test_radmat.shape[1], *test_radmat.shape[2:])
         )
 
-    # REMOVE all-zero rows (EXECPT THE FIRST which is the nul row)
+    # REMOVE all-zero rows (EXCEPT THE FIRST which is the nul row)
     assert np.all(train_dyemat[0, :, :] == 0)
     some_non_zero_row_args = np.argwhere(
         ~np.all(train_dyemat[:, :, :] == 0, axis=(1, 2))

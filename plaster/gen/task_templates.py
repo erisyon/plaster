@@ -181,11 +181,11 @@ def sim_v2(aa_list, err_set, **sim_kws):
     )
 
 
-def survey_nn_v1():
+def survey_v2():
     return Munch(
-        survey_nn_v1=Munch(
+        survey_v2=Munch(
             version="1.0",
-            inputs=Munch(prep="../prep", sim_v1="../sim_v1"),
+            inputs=Munch(prep="../prep", sim_v2="../sim_v2"),
             parameters=Munch(),
         )
     )

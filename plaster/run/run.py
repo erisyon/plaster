@@ -44,8 +44,8 @@ from plaster.run.train_rf.train_rf_task import TrainRFTask
 from plaster.run.classify_rf.classify_rf_task import ClassifyRFTask
 from plaster.run.prep.prep_task import PrepTask
 from plaster.run.report.report_task import ReportTask
-from plaster.run.survey_nn_v1.survey_nn_v1_task import SurveyNNV1Task
-from plaster.run.survey_nn_v1.survey_nn_v1_result import SurveyNNV1Result
+from plaster.run.survey_v2.survey_v2_task import SurveyV2Task
+from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
 from plaster.run.nn_v1.nn_v1_task import NNV1Task
 from plaster.run.nn_v2.nn_v2_task import NNV2Task
 from plaster.run.nn_v1.nn_v1_result import NNV1Result
@@ -112,7 +112,7 @@ def task_list_from_config(config):
         train_rf=TrainRFTask,
         test_rf=TestRFTask,
         classify_rf=ClassifyRFTask,
-        survey_nn_v1=SurveyNNV1Task,
+        survey_v2=SurveyV2Task,
         nn_v1=NNV1Task,
         nn_v2=NNV2Task,
         report=ReportTask,
@@ -139,7 +139,7 @@ def task_list_from_config(config):
         PrepTask,
         SimV1Task,
         SimV2Task,
-        SurveyNNV1Task,
+        SurveyV2Task,
         TrainRFTask,
         TestRFTask,
         ClassifyRFTask,
@@ -308,7 +308,7 @@ class RunResult:
         nn_v2=NNV2Result,
         test_rf=TestRFResult,
         train_rf=TrainRFResult,
-        survey_nn_v1=SurveyNNV1Result,
+        survey_v2=SurveyV2Result,
     )
 
     def __init__(self, run_folder, include_manifest=True):

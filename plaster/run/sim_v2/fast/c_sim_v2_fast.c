@@ -82,7 +82,7 @@ int rand64(Uint64 p_i) {
 }
 
 
-Uint64 prob_to_p_i(double p) {
+PIType prob_to_p_i(double p) {
     // Convert p (double 0-1) into a 64 bit integer
     ensure(0.0 <= p && p <= 1.0, "probability out of range");
     long double w = floorl( (long double)p * (long double)(UINT64_MAX) );
@@ -345,7 +345,7 @@ void dyepep_dump_all(Table *dyepeps) {
 // sim
 //=========================================================================================
 
-void context_sim_flu(Context *ctx, Index pep_i) {
+void context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
     // Runs the Monte-Carlo simulation of one peptide flu over n_samples
     // See algorithm described at top of file.
 
@@ -354,9 +354,6 @@ void context_sim_flu(Context *ctx, Index pep_i) {
     Size n_cycles = ctx->n_cycles;
     Size n_samples = ctx->n_samples;
     Size n_channels = ctx->n_channels;
-    DyeType *flu = ctx->flus[pep_i];
-    PIType *pi_bright = ctx->pi_brights[pep_i];
-    Size n_aas = ctx->n_aas[pep_i];
     CycleKindType *cycles = ctx->cycles;
     Uint64 pi_bleach = ctx->pi_bleach;
     Uint64 pi_detach = ctx->pi_detach;
@@ -365,11 +362,24 @@ void context_sim_flu(Context *ctx, Index pep_i) {
     Table *dyepeps = &ctx->dyepeps;
     Hash dtr_hash = ctx->dtr_hash;
     Hash dyepep_hash = ctx->dyepep_hash;
+    Size n_flu_bytes = sizeof(DyeType) * n_aas;
 
-    // working_flu is volatile stack copy of the incoming flu
-    Size n_working_flu_bytes = sizeof(DyeType) * n_aas;
-    DyeType *working_flu = (DyeType *)alloca(n_working_flu_bytes);
-    memset(working_flu, 0, n_working_flu_bytes);
+    DyeType *flu = (DyeType *)alloca(n_flu_bytes);
+    DyeType *working_flu = (DyeType *)alloca(n_flu_bytes);
+    PIType *pi_bright = (PIType *)alloca(sizeof(PIType) * n_aas);
+    for(Index aa_i=0; aa_i<n_aas; aa_i++) {
+        PCB *pcb_row = table_get_row(pcb_block, aa_i, PCB);
+
+        ensure_only_in_debug((Index)pcb_row->pep_i == pep_i, "Mismatching pep_i in pcb_row");
+
+        Float64 f_ch_i = isnan(pcb_row->ch_i) ? (Float64)(N_MAX_CHANNELS - 1) : (pcb_row->ch_i);
+        ensure_only_in_debug(0 <= f_ch_i && f_ch_i < N_MAX_CHANNELS, "f_ch_i out of bounds");
+        flu[aa_i] = (DyeType)f_ch_i;
+
+        pi_bright[aa_i] = prob_to_p_i(pcb_row->p_bright);
+
+        working_flu[aa_i] = (DyeType)0;
+    }
 
     // working_dtr is volatile stack copy of the out-going DTR
     Size n_dyetrack_bytes = dtr_n_bytes(ctx->n_channels, ctx->n_cycles);
@@ -401,7 +411,7 @@ void context_sim_flu(Context *ctx, Index pep_i) {
 
         // GENERATE the working_dyetrack sample (Monte Carlo)
         //-------------------------------------------------------
-        memcpy(working_flu, flu, n_working_flu_bytes);
+        memcpy(working_flu, flu, n_flu_bytes);
         dtr_clear(working_dtr, n_channels, n_cycles);
 
         // MODEL dark-dyes (dyes dark before the first image)
@@ -533,28 +543,6 @@ void context_sim_flu(Context *ctx, Index pep_i) {
 }
 
 
-void _context_generate_test_pepflus(Context *ctx) {
-    // Mock flues for testing purposes
-    ctx->flus = (DyeType **)calloc(sizeof(DyeType *), ctx->n_peps);
-    ctx->n_aas = (Size *)calloc(sizeof(Size), ctx->n_peps);
-    Size n_channels = ctx->n_channels;
-    for(Index pep_i=0; pep_i<ctx->n_peps; pep_i++) {
-        Size n_aa = 5 + rand() % 20;
-        ctx->n_aas[pep_i] = n_aa;
-        ctx->flus[pep_i] = (DyeType *)calloc(sizeof(DyeType), n_aa);
-        for(Index i=0; i<n_aa; i++) {
-            ctx->flus[pep_i][i] = NO_LABEL;
-            for(Index ch_i=(rand() % n_channels); ch_i<n_channels; ch_i++) {
-                if(!(rand() % 4)) {
-                    ctx->flus[pep_i][i] = (DyeType)(ch_i % n_channels);
-                    break;
-                }
-            }
-        }
-    }
-}
-
-
 Index context_work_orders_pop(Context *ctx) {
     // NOTE: This return +1! So that 0 can be reserved.
     if(ctx->n_threads > 1) {
@@ -585,7 +573,11 @@ void *context_work_orders_worker(void *_ctx) {
             break;
         }
         Index pep_i = pep_i_plus_1 - 1;
-        context_sim_flu(ctx, pep_i);
+        Index pcb_i = *table_get_row(&ctx->pep_i_to_pcb_i, pep_i, Index);
+        Index pcb_i_plus_1 = *table_get_row(&ctx->pep_i_to_pcb_i, pep_i + 1, Index);
+        Size n_aas = pcb_i_plus_1 - pcb_i;
+        Table pcb_block = table_init_subset(&ctx->pcbs, pcb_i, n_aas, 1);
+        context_sim_flu(ctx, pep_i, &pcb_block, n_aas);
         if(pep_i % 10 == 0) {
             ctx->progress_fn(pep_i, ctx->n_peps, 0);
         }
@@ -679,6 +671,28 @@ void context_dump(Context *ctx) {
 
 
 /*
+void _context_generate_test_pepflus(Context *ctx) {
+    // Mock flues for testing purposes
+    ctx->flus = (DyeType **)calloc(sizeof(DyeType *), ctx->n_peps);
+    ctx->n_aas = (Size *)calloc(sizeof(Size), ctx->n_peps);
+    Size n_channels = ctx->n_channels;
+    for(Index pep_i=0; pep_i<ctx->n_peps; pep_i++) {
+        Size n_aa = 5 + rand() % 20;
+        ctx->n_aas[pep_i] = n_aa;
+        ctx->flus[pep_i] = (DyeType *)calloc(sizeof(DyeType), n_aa);
+        for(Index i=0; i<n_aa; i++) {
+            ctx->flus[pep_i][i] = NO_LABEL;
+            for(Index ch_i=(rand() % n_channels); ch_i<n_channels; ch_i++) {
+                if(!(rand() % 4)) {
+                    ctx->flus[pep_i][i] = (DyeType)(ch_i % n_channels);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+
 int main() {
     // Tests (not run by production code, see fast_sim.pyx)
     // Setup context

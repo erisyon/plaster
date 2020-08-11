@@ -35,17 +35,20 @@ def zest_pyx_runs():
         how="left",
     )
 
-    flus = []
-    pep_pi_brights = []
-    for pep_i, group in labelled_pep_df.groupby("pep_i"):
-        flu_float = group.ch_i.values
-        flu = np.nan_to_num(flu_float, nan=sim_v2_fast.NO_LABEL).astype(
-            sim_v2_fast.DyeType
-        )
-        flus += [flu]
-        pep_pi_brights += [
-            np.full((len(flu_float)), 0xFFFFFFFFFFFFFFFF, dtype=np.uint64)
-        ]
+    labelled_pep_df.sort_values(by=["pep_i", "pep_offset_in_pro"], inplace=True)
+    pcbs = labelled_pep_df[["pep_i", "ch_i", "p_bright"]].values
+
+    # flus = []
+    # pep_pi_brights = []
+    # for pep_i, group in labelled_pep_df.groupby("pep_i"):
+    #     flu_float = group.ch_i.values
+    #     flu = np.nan_to_num(flu_float, nan=sim_v2_fast.NO_LABEL).astype(
+    #         sim_v2_fast.DyeType
+    #     )
+    #     flus += [flu]
+    #     pep_pi_brights += [
+    #         np.full((len(flu_float)), 0xFFFFFFFFFFFFFFFF, dtype=np.uint64)
+    #     ]
 
     cycles = np.zeros((sim_params.n_cycles,), dtype=sim_v2_fast.CycleKindType)
     i = 0
@@ -61,8 +64,7 @@ def zest_pyx_runs():
 
     # TODO: bleach each channel
     dyetracks, dyepeps, pep_recalls = sim_v2_fast.sim(
-        flus,
-        pep_pi_brights,
+        pcbs,
         sim_params.n_samples_train,
         sim_params.n_channels,
         cycles,

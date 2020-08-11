@@ -1,6 +1,7 @@
 cdef extern from "c_sim_v2_fast.h":
     ctypedef unsigned char Uint8
     ctypedef unsigned long Uint64
+    ctypedef double Float64
     ctypedef unsigned long Size
     ctypedef unsigned long Index
     ctypedef unsigned long HashKey
@@ -40,6 +41,11 @@ cdef extern from "c_sim_v2_fast.h":
 
     ctypedef void (*ProgressFn)(int complete, int total, int retry)
 
+    ctypedef struct PCB:
+        Float64 pep_i
+        Float64 ch_i
+        Float64 p_bright
+
     ctypedef struct Context:
         Size n_peps
         Size n_cycles
@@ -56,9 +62,8 @@ cdef extern from "c_sim_v2_fast.h":
         Hash dtr_hash
         Table dyepeps
         Hash dyepep_hash
-        DyeType **flus
-        PIType **pi_brights
-        Size *n_aas
+        Table pcbs
+        Table pep_i_to_pcb_i
         RecallType *pep_recalls
         Size n_threads
         Uint64 rng_seed
@@ -68,6 +73,7 @@ cdef extern from "c_sim_v2_fast.h":
     Uint64 prob_to_p_i(double p)
     Size dtr_n_bytes(Size n_channels, Size n_cycles)
     Table table_init(Uint8 *base, Size n_bytes, Size n_bytes_per_row)
+    Table table_init_readonly(Uint8 *base, Size n_bytes, Size n_bytes_per_row)
     Hash hash_init(HashRec *buffer, Size n_max_recs)
     void context_work_orders_start(Context *ctx)
     Index context_dtr_get_count(Context *ctx, Index dtr_i)

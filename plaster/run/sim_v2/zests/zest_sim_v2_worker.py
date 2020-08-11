@@ -262,6 +262,9 @@ def zest_sim_v2_worker():
 
     def it_returns_train_dyemat():
         # Because it has no errors, there's only a perfect dyemats
+        import pudb
+
+        pudb.set_trace()
         sim_v2_result, sim_v2_params = _sim()
         assert sim_v2_result.train_dyemat.shape == (4, 5 * 2)  # 5 cycles, 2 channels
         assert utils.np_array_same(

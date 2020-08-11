@@ -27,6 +27,13 @@ typedef struct {
 
 
 typedef struct {
+    Float64 pep_i;
+    Float64 ch_i;
+    Float64 p_bright;
+} PCB;  // PCB = (p)ep_i, (c)h_i, (b)right_probability
+
+
+typedef struct {
     Size n_peps;
     Size n_cycles;
     Size n_samples;
@@ -39,9 +46,8 @@ typedef struct {
     Hash dtr_hash;
     Table dyepeps;
     Hash dyepep_hash;
-    DyeType **flus;
-    PIType **pi_brights;
-    Size *n_aas;
+    Table pcbs;
+    Table pep_i_to_pcb_i;
     RecallType *pep_recalls;
     Index next_pep_i;
     Size n_threads;

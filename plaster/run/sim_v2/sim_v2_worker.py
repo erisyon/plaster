@@ -53,6 +53,7 @@ def _rand_lognormals(logs, sigma):
     return np.random.lognormal(mean=logs, sigma=sigma, size=logs.shape)
 
 
+"""
 def _gen_flus(sim_v2_params, pep_seq_df):
     flus = []
     pi_brights = []
@@ -68,6 +69,8 @@ def _gen_flus(sim_v2_params, pep_seq_df):
         * (1.0 - labelled_pep_df.p_non_fluorescent)
     )
 
+    # labelled_pep_df[["pep_i", "pep_offset_in_pro", "ch_i", "p_bright"]].values
+
     for pep_i, group in labelled_pep_df.groupby("pep_i"):
         flu_float = group.ch_i.values
         flu = np.nan_to_num(flu_float, nan=sim_v2_fast.NO_LABEL).astype(
@@ -82,9 +85,10 @@ def _gen_flus(sim_v2_params, pep_seq_df):
         pi_brights += [pi_bright]
 
     return flus, pi_brights
+"""
 
 
-def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples, progress=None):
+def _dyemat_sim(sim_v2_params, pep_seq_df, pi_brights, n_samples, progress=None):
     """
     Run via the C fast_sim module a dyemat sim.
 
@@ -94,9 +98,23 @@ def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples, progress=None):
         pep_recalls: ndarray(n_peps)
     """
 
+    labelled_pep_df = pep_seq_df.join(
+        sim_v2_params.df.set_index("amino_acid"), on="aa", how="left"
+    )
+
+    # p_bright = is the product of (1.0 - ) all the ways the dye can fail to be visible.
+    labelled_pep_df["p_bright"] = (
+        (1.0 - labelled_pep_df.p_failure_to_attach_to_dye)
+        * (1.0 - labelled_pep_df.p_failure_to_bind_amino_acid)
+        * (1.0 - labelled_pep_df.p_non_fluorescent)
+    )
+
+    labelled_pep_df.sort_values(by=["pep_i", "pep_offset_in_pro"], inplace=True)
+    pcbs = labelled_pep_df[["pep_i", "ch_i", "p_bright"]].values
+
     # TODO: bleach per channel
     dyemat, dyepeps, pep_recalls = sim_v2_fast.sim(
-        flus,
+        pcbs,
         pi_brights,
         n_samples,
         sim_v2_params.n_channels,
@@ -154,7 +172,9 @@ def _radmat_from_sampled_pep_dyemat(
             output_radmat[pep_i, :, ch_i, :] = np.nan_to_num(ch_radiometry)
 
 
-def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cycles, progress=None):
+def _radmat_sim(
+    dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cycles, progress=None
+):
     """
     Generate a radmat with equal number of samples per peptide.
 
@@ -272,14 +292,20 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     #   * always includes decoys
     #   * may include radiometry
     # -----------------------------------------------------------------------
-    train_flus, train_pi_brights = _gen_flus(sim_v2_params, prep_result.pepseqs())
+    # debug("gen flus")
+    # train_flus, train_pi_brights = _gen_flus(sim_v2_params, prep_result.pepseqs())
+    # debug("gen flus done")
 
     if pipeline:
         pipeline.set_phase(phase_i, n_phases)
         phase_i += 1
 
     train_dyemat, train_dyepeps, train_pep_recalls = _dyemat_sim(
-        sim_v2_params, train_flus, train_pi_brights, sim_v2_params.n_samples_train, progress
+        sim_v2_params,
+        train_flus,
+        train_pi_brights,
+        sim_v2_params.n_samples_train,
+        progress,
     )
 
     # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
@@ -306,7 +332,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params.n_samples_train,
             sim_v2_params.n_channels,
             sim_v2_params.n_cycles,
-            progress
+            progress,
         )
     else:
         train_radmat, train_true_pep_iz, train_true_dye_iz = None, None, None
@@ -327,7 +353,11 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             phase_i += 1
 
         test_dyemat, test_dyepeps, test_pep_recalls = _dyemat_sim(
-            sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test, progress
+            sim_v2_params,
+            test_flus,
+            test_pi_brights,
+            sim_v2_params.n_samples_test,
+            progress,
         )
 
         # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
@@ -349,7 +379,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params.n_samples_test,
             sim_v2_params.n_channels,
             sim_v2_params.n_cycles,
-            progress
+            progress,
         )
 
         if not sim_v2_params.allow_train_test_to_be_identical:
@@ -369,11 +399,11 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         # if not sim_v2_params.test_includes_dyemat:
         #     test_dyemat, test_dyepeps_df = None, None
 
-    # REMOVE all-zero rows (EXECPT THE FIRST which is the nul row)
-    non_zero_rows = np.argwhere(test_true_pep_iz != 0).flatten()
-    test_radmat = test_radmat[non_zero_rows]
-    test_true_pep_iz = test_true_pep_iz[non_zero_rows]
-    test_true_dye_iz = test_true_dye_iz[non_zero_rows]
+        # REMOVE all-zero rows (EXCEPT THE FIRST which is the nul row)
+        non_zero_rows = np.argwhere(test_true_pep_iz != 0).flatten()
+        test_radmat = test_radmat[non_zero_rows]
+        test_true_pep_iz = test_true_pep_iz[non_zero_rows]
+        test_true_dye_iz = test_true_dye_iz[non_zero_rows]
 
     return SimV2Result(
         params=sim_v2_params,

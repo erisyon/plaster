@@ -11,7 +11,7 @@ This module organizes all-run results.
 import pandas as pd
 from plumbum import local
 from plaster.run.run import RunResult
-from plaster.run.survey_nn_v1.survey_nn_v1_result import SurveyNNV1Result
+from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
 from plaster.tools.schema import check
 from plaster.tools.assets import assets
 from plaster.tools.log.log import debug
@@ -452,7 +452,7 @@ class JobResult:
         remember, just look in the JobResult to see what it can do.
         """
 
-        filters = filters or SurveyNNV1Result.defaults
+        filters = filters or SurveyV2Result.defaults
 
         def _filter_runs(df):
             # A last minute addition to survey is the ability to include
@@ -482,7 +482,7 @@ class JobResult:
             # peps to include in the returned df.
 
             df = self.all_dfs(
-                lambda r: r.survey_nn_v1.max_nn_dist_peps(prep=r.prep, filters=filters)
+                lambda r: r.survey_v2.max_nn_dist_peps(prep=r.prep, filters=filters)
             )
 
             df = _filter_runs(df)
@@ -528,7 +528,7 @@ class JobResult:
             # peptides with unique fluorosequences.  In this case we'll return
             # stats for each run (one row per run) sorted by coverage.
             stats = self.all_lists(
-                lambda r: r.survey_nn_v1.nn_stats(r.prep, filters=filters)
+                lambda r: r.survey_v2.nn_stats(r.prep, filters=filters)
             )
             run_info = [(i, r.run_name) for i, r in enumerate(self.runs)]
             df = pd.DataFrame(

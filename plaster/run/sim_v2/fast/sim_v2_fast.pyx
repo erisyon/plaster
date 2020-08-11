@@ -5,6 +5,7 @@ import numpy as np
 cimport numpy as np
 from cython.view cimport array as cvarray
 from libc.stdlib cimport calloc, free
+from libc.string cimport memcpy
 
 
 # Local helpers
@@ -18,6 +19,7 @@ CycleKindType = np.uint8
 Size = np.uint64
 PIType = np.uint64
 RecallType = np.float64
+PCBType = np.float64
 NO_LABEL = csim.NO_LABEL
 CYCLE_TYPE_PRE = csim.CYCLE_TYPE_PRE
 CYCLE_TYPE_MOCK = csim.CYCLE_TYPE_MOCK
@@ -38,10 +40,9 @@ cdef void _progress(int complete, int total, int retry):
 
 # Wrapper for sim that prepares buffers for csim
 def sim(
-    pep_flus,
-    pep_pi_brights,
-    n_samples,
-    n_channels,
+    pcbs,  # pcb = (p)ep_i, (c)h_i, (b)right_prob
+    _n_samples,
+    _n_channels,
     cycles,
     p_bleach,
     p_detach,
@@ -54,6 +55,10 @@ def sim(
     Run the Virtual Fluoro Sequence Monte-Carlo simulator via Cython to
     the C implemntation in csim_v2_fast.c.
 
+    pcbs: ndarray[n,3] is a table of derived from a dataframe.values (float64)
+    with columns (pep_i, ch_i, p_bright). These have been sorted
+    and we can therefore operate on groups.
+
     Returns:
         dyetracks: ndarray(shape=(n_uniq_dyetracks, n_channels * n_cycles))
         dyepeps: ndarray(shape=(n_dyepep_rows, 3))
@@ -62,42 +67,38 @@ def sim(
                 3 columns are: dtr_i, pep_i, count
     """
     cdef csim.Uint64 i, j, n_chcy
-    cdef csim.Uint8 [::1] flu_view
-    cdef csim.Uint64 [::1] pi_bright_view
-    cdef csim.RecallType [::1] pep_recalls_view
     cdef csim.DTR dtr
     cdef csim.Index dtr_count
     cdef csim.DyeType *dyetrack
     cdef csim.DyePepRec *dyepeprec
+    cdef csim.Size n_peps, n_cycles, n_channels, n_samples
+    cdef csim.Context ctx
 
+    # Views
+    cdef csim.Float64 [:, ::1] pcbs_view
+    cdef csim.Index [::1] pep_i_to_pcb_i_view
+    cdef csim.RecallType [::1] pep_recalls_view
     cdef csim.Uint8 [:, ::1] dyetracks_view
     cdef csim.Uint64 [:, ::1] dyepeps_view
 
     # Checks
     _assert_array_contiguous(cycles, CycleKindType)
-    assert isinstance(pep_flus, list)
-    assert isinstance(pep_pi_brights, list)
+    _assert_array_contiguous(pcbs, PCBType)
     assert np.dtype(CycleKindType).itemsize == sizeof(csim.CycleKindType)
     assert np.dtype(DyeType).itemsize == sizeof(csim.DyeType)
-    assert len(pep_flus) == len(pep_pi_brights)
 
-    cdef csim.Context ctx
-    if rng_seed is None:
-        rng_seed = time.time() * 1_000_000
-    ctx.rng_seed = <csim.Uint64>rng_seed
-    ctx.n_threads = n_threads
-    ctx.n_peps = len(pep_flus)
-    ctx.n_cycles = cycles.shape[0]
-    ctx.n_samples = n_samples
-    ctx.n_channels = n_channels
-    ctx.pi_bleach = csim.prob_to_p_i(p_bleach)
-    ctx.pi_detach = csim.prob_to_p_i(p_detach)
-    ctx.pi_edman_success = csim.prob_to_p_i(1.0 - p_edman_fail)
-    for i in range(ctx.n_cycles):
-        ctx.cycles[i] = cycles[i]
+    # BUILD a map from pep_i to pcb_i.
+    #   Note, this map needs to be one longer than n_peps so that we
+    #   can subtract each offset to get the pcb length for each pep_i
+    pep_i_to_pcb_i = np.unique(pcbs, return_index=1)[1]
+    pep_i_to_pcb_i_view = pep_i_to_pcb_i
+    n_peps = pep_i_to_pcb_i.shape[0]
+    n_cycles = cycles.shape[0]
+    n_channels = _n_channels
+    n_samples = _n_samples
 
-    cdef csim.Size n_dtr_row_bytes = csim.dtr_n_bytes(ctx.n_channels, ctx.n_cycles)
-    cdef csim.Size n_max_dtrs = <csim.Size>(0.8 * ctx.n_peps * ctx.n_samples)
+    cdef csim.Size n_dtr_row_bytes = csim.dtr_n_bytes(n_channels, n_cycles)
+    cdef csim.Size n_max_dtrs = <csim.Size>(0.8 * n_peps * n_samples)
     cdef csim.Size n_max_dtr_hash_recs = int(1.5 * n_max_dtrs)
     cdef csim.Size n_max_dyepeps = int(1.5 * n_max_dtrs)
     cdef csim.Size n_max_dyepep_hash_recs = int(1.5 * n_max_dyepeps)
@@ -105,19 +106,35 @@ def sim(
     # Memory
     cdef csim.Uint8 *dtrs_buf = <csim.Uint8 *>calloc(n_max_dtrs, n_dtr_row_bytes)
     cdef csim.Uint8 *dyepeps_buf = <csim.Uint8 *>calloc(n_max_dyepeps, sizeof(csim.DyePepRec))
-    cdef csim.HashRec *dtr_hash_buffer = <csim.HashRec *>calloc(n_max_dtr_hash_recs, sizeof(csim.HashRec))
-    cdef csim.HashRec *dyepep_hash_buffer = <csim.HashRec *>calloc(n_max_dyepep_hash_recs, sizeof(csim.HashRec))
-    cdef csim.DyeType **flus = <csim.DyeType **>calloc(ctx.n_peps, sizeof(csim.DyeType *))
-    cdef csim.PIType **pi_brights = <csim.PIType **>calloc(ctx.n_peps, sizeof(csim.PIType *))
-    cdef csim.Size *n_aas = <csim.Size *>calloc(ctx.n_peps, sizeof(csim.Size))
+    cdef csim.HashRec *dtr_hash_buf = <csim.HashRec *>calloc(n_max_dtr_hash_recs, sizeof(csim.HashRec))
+    cdef csim.HashRec *dyepep_hash_buf = <csim.HashRec *>calloc(n_max_dyepep_hash_recs, sizeof(csim.HashRec))
+    cdef csim.Index *pep_i_to_pcb_i_buf = <csim.Index *>calloc(n_peps + 1, sizeof(csim.Index))  # Why +1? see above
 
     global global_progress_callback
     global_progress_callback = progress
 
     try:
-        ctx.flus = flus
-        ctx.pi_brights = pi_brights
-        ctx.n_aas = n_aas
+        if rng_seed is None:
+            rng_seed = time.time() * 1_000_000
+        ctx.rng_seed = <csim.Uint64>rng_seed
+        ctx.n_threads = n_threads
+        ctx.n_peps = n_peps
+        ctx.n_cycles = cycles.shape[0]
+        ctx.n_samples = n_samples
+        ctx.n_channels = n_channels
+        ctx.pi_bleach = csim.prob_to_p_i(p_bleach)
+        ctx.pi_detach = csim.prob_to_p_i(p_detach)
+        ctx.pi_edman_success = csim.prob_to_p_i(1.0 - p_edman_fail)
+        for i in range(ctx.n_cycles):
+            ctx.cycles[i] = cycles[i]
+
+        pcbs_view = pcbs
+        ctx.pcbs = csim.table_init_readonly(<csim.Uint8 *>&pcbs_view[0, 0], pcbs.nbytes, sizeof(csim.PCB))
+
+        memcpy(&pep_i_to_pcb_i_buf, <const void *>&pep_i_to_pcb_i_view[0], sizeof(csim.Index) * n_peps);
+        pep_i_to_pcb_i_buf[n_peps] = pcbs.shape[0]
+        ctx.pep_i_to_pcb_i = csim.table_init_readonly(<csim.Uint8 *>pep_i_to_pcb_i_buf, (n_peps + 1) * sizeof(csim.Index), sizeof(csim.Index));
+
         ctx.progress_fn = <csim.ProgressFn>_progress
 
         pep_recalls = np.zeros((ctx.n_peps), dtype=RecallType)
@@ -127,18 +144,17 @@ def sim(
         # See sim.c for table and hash definitions
         ctx.dtrs = csim.table_init(dtrs_buf, n_max_dtrs * n_dtr_row_bytes, n_dtr_row_bytes)
         ctx.dyepeps = csim.table_init(dyepeps_buf, n_max_dyepeps * sizeof(csim.DyePepRec), sizeof(csim.DyePepRec))
-        ctx.dtr_hash = csim.hash_init(dtr_hash_buffer, n_max_dtr_hash_recs)
-        ctx.dyepep_hash = csim.hash_init(dyepep_hash_buffer, n_max_dyepep_hash_recs)
+        ctx.dtr_hash = csim.hash_init(dtr_hash_buf, n_max_dtr_hash_recs)
+        ctx.dyepep_hash = csim.hash_init(dyepep_hash_buf, n_max_dyepep_hash_recs)
 
-        for i, (flu, pi_bright) in enumerate(zip(pep_flus, pep_pi_brights)):
-            _assert_array_contiguous(flu, DyeType)
-            flu_view = flu
-            ctx.flus[i] = &flu_view[0]
-            ctx.n_aas[i] = <csim.Uint64>flu.shape[0]
-
-            _assert_array_contiguous(pi_bright, PIType)
-            pi_bright_view = pi_bright
-            ctx.pi_brights[i] = &pi_bright_view[0]
+        # for i, (flu, pi_bright) in enumerate(zip(pep_flus, pep_pi_brights)):
+        #     _assert_array_contiguous(flu, DyeType)
+        #     flu_view = flu
+        #     ctx.flus[i] = &flu_view[0]
+        #     ctx.n_aas[i] = <csim.Uint64>flu.shape[0]
+        #     _assert_array_contiguous(pi_bright, PIType)
+        #     pi_bright_view = pi_bright
+        #     ctx.pi_brights[i] = &pi_bright_view[0]
 
         # Now do the work in the C file
         csim.context_work_orders_start(&ctx)
@@ -173,7 +189,6 @@ def sim(
     finally:
         free(dtrs_buf)
         free(dyepeps_buf)
-        free(dtr_hash_buffer)
-        free(dyepep_hash_buffer)
-        free(flus)
-        free(n_aas)
+        free(dtr_hash_buf)
+        free(dyepep_hash_buf)
+        free(pep_i_to_pcb_i_buf)
