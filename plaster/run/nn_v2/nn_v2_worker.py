@@ -3,10 +3,17 @@ from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.nn_v2.fast import nn_v2_fast
 from plaster.run.call_bag import CallBag
 from plaster.tools.log.log import prof
-from plaster.run.sim_v1.sim_v1_result import RadType
+from plaster.run.sim_v2.sim_v2_result import RadType
 
 
-def nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result, progress=None, pipeline=None):
+def nn_v2(
+    nn_v2_params,
+    prep_result,
+    sim_v2_result,
+    sigproc_result,
+    progress=None,
+    pipeline=None,
+):
     phase_i = 0
     n_phases = 3
     if sigproc_result is not None:
@@ -37,7 +44,7 @@ def nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result, progress=Non
         sim_v2_result.train_dyepeps,
         n_neighbors=nn_v2_params.n_neighbors,
         n_threads=4,
-        progress=progress
+        progress=progress,
     )
 
     call_bag = CallBag(
@@ -77,7 +84,7 @@ def nn_v2(nn_v2_params, prep_result, sim_v2_result, sigproc_result, progress=Non
             sim_v2_result.train_dyepeps,
             n_neighbors=nn_v2_params.n_neighbors,
             n_threads=4,
-            progress=progress
+            progress=progress,
         )
     else:
         sigproc_pred_pep_iz = None

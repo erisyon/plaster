@@ -8,7 +8,7 @@ def zest_survey_integration():
     Show that a survey gen and run can execute
     """
 
-    csv_file = "/tmp/zest_survey_integration.csv"
+    csv_file = "/tmp/__zest_survey_integration.csv"
 
     utils.save(
         csv_file,
@@ -38,9 +38,9 @@ def zest_survey_integration():
         "--n_mocks=0",
         "--n_edmans=15",
         "--force",
-        "--job=./jobs_folder/zest_survey_integration",
+        "--job=./jobs_folder/__zest_survey_integration",
     ] & FG
 
-    local["p"]["run", "./jobs_folder/zest_survey_integration"] & FG
+    local["p"]["run", "./jobs_folder/__zest_survey_integration"] & FG
 
     zest()

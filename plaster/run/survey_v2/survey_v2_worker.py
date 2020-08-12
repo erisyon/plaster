@@ -1,53 +1,92 @@
 import numpy as np
 import pandas as pd
+from plaster.run.sim_v2.sim_v2_result import RadType
 from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
 from plaster.tools.aaseq.aaseq import aa_str_to_list
 from plaster.tools.schema import check
-from scipy.spatial.distance import cdist
+from plaster.vendor import pyflann
+from plaster.tools.log.log import debug
 
 
-def _euc_dist(sim_result):
+def dist_to_closest_neighbors(dyemat, dyepeps):
     """
-    Compute euclidean distance between all dye-tracks produced by a simulation.
+    Compute euclidean distance to the closest neighbor of
+    all dye-tracks produced by a simulation.
 
     Returns:
-        pep_iz: array: pep indices
-        nn_pep_iz: array: pep indices corresponding to nearest neighbor of pep_i
-        nn_dist: array: distance from pep_i it's nearest neighbor nn_pep_i
-
-    Notes:
-        We currently compute all-vs-all distances. But if there are
-        proteins-of-interest, we could compute only the distances from those
-        to the set of all, and have a much-reduced problem-size.  At the moment,
-        this protein-of-interest filter is applied during the reports.
-
-        This would be much better using FLANN
+        DataFrame( "pep_i", "collision_metric" )
+        A low value of collision_metric means that the peptide is
+        well isolated from other peptides (ie good)
     """
 
-    dyemat = sim_result.train_dyemat
-    check.array_t(dyemat, ndim=2)
+    import pudb
 
-    # COMPUTE all-by-all distances (expensive)
-    d = cdist(dyemat, dyemat)
-    np.fill_diagonal(d, np.nan)
-    nn_dist_args = np.nanargmin(d, axis=1)
+    pudb.set_trace()
 
-    # the dim of train_dyemat above does not include "dark" peptides,
-    # so we'll need to factor that in to create a table for all peps.
-    n_peps = len(sim_result.train_pep_recalls)
-    # dark_pep_mask = sim_result.train_pep_recalls == 0.0
+    pyflann.set_distance_type("euclidean")
+    flann = pyflann.FLANN()
+    flann.build_index(dyemat, algorithm="kdtree_simple")
 
-    # we'll store nearest neighbor pep_i and distance
-    neighbor_pep_i = np.full([n_peps,], -1)
-    neighbor_dist = np.full([n_peps,], -1)
+    dye_nn_iz, dye_nn_dists = flann.nn_index(dyemat, num_neighbors=2)
 
-    neighbor_pep_i = sim_result.train_true_pep_iz[nn_dist_args]
-    neighbor_dist = d[np.arange(d.shape[0]), nn_dist_args]
+    dyepep_df = pd.DataFrame(dyepeps, columns=["dye_i", "pep_i", "n_reads"])
+    dye_nn_df = pd.DataFrame(
+        dict(
+            dye_i=np.arange(dye_nn_iz.shape[0]),
+            dye_nn_i=dye_nn_iz[:, 1],  # 1 because col 0 is always the point itself
+            dist=np.sqrt(dye_nn_dists[:, 1]),
+        )
+    )
 
-    return range(n_peps), neighbor_pep_i, neighbor_dist
+    df = (
+        dyepep_df.set_index("dye_i")
+        .join(dye_nn_df.set_index("dye_i"), how="left")
+        .reset_index()
+        .sort_values(by="pep_i")
+    )
+
+    group = df.groupby("pep_i")
+
+    sums = group.n_reads.transform(np.sum)
+    df["collision_metric"] = df.n_reads * sums / df.dist
+
+    # df is now combining the pep_i, dye_i, n_reads with the nn_i and a distance.
+    # We seek to judge each peptide for "how well spaced it is from others".
+    # For each of the dyetracks that compose a peptide we scale the distances
+    # by the fraction of each dyetrack is contributing to that peptide
+    #
+    # Example:
+    #   pep1 comes from dye3 10 times and dye5 20 times.
+    #   dye3's closest neighbor is 2 units away
+    #   dye5's closest neighbor is 1 unit away
+    #   10 / 2 + 20 / 1 = 5 + 20 = 25
+    # Compare to:
+    #   pep2 comes from dye5 10 times and dye7 20 times.
+    #   dye5's closest neighbor is (still) 1 unit away
+    #   dye7's closest neighbor is 1 units away
+    #   10 / 1 + 20 / 1 = 10 + 20 = 30
+    #
+    # Note that we're adding all of the terms for each contributing
+    # dyetrack and the more we add the more we "muddled" we consider
+    # this dyetrack. By adding the inverses the lowest number
+    # becomes the most well separated peptide.
+
+    # We really want to know the distance to the closest dyetrack that is NOT this peptide
+
+    pep_df = pd.DataFrame(group.collision_metric.sum()).reset_index()
+
+    np.save("dyemat.npy", dyemat)
+    dyepep_df.to_pickle("dyepep_df.pkl")
+    dye_nn_df.to_pickle("dye_nn_df.pkl")
+    df.to_pickle("df.pkl")
+    pep_df.to_pickle("pep_df.pkl")
+
+    return pep_df
 
 
-def survey_v2(survey_v2_params, prep_result, sim_result, progress=None, pipeline=None):
+def survey_v2(
+    survey_v2_params, prep_result, sim_v2_result, progress=None, pipeline=None
+):
     """
     Compute a distance between between peptides that exist in prep_result
     using the dye-tracks employed by nearest-neighbor.  Create a DF that
@@ -56,16 +95,12 @@ def survey_v2(survey_v2_params, prep_result, sim_result, progress=None, pipeline
     suited to some informatics objective, such as identifying a protein(s).
 
     Notes:
-        - We are not including decoys.  If you want to include decoys (assuming they
-          were used in the simulation) use the test dyemat rather than train.
+        - We are including decoys if present.
     """
 
-    # get simple euclidean nearest-neighbor info & store in Dataframe
-    pep_iz, nn_pep_iz, nn_dist = _euc_dist(sim_result)
-    df = pd.DataFrame()
-    df["pep_i"] = pep_iz
-    df["nn_pep_i"] = nn_pep_iz
-    df["nn_dist"] = nn_dist
+    pep_collision_df = dist_to_closest_neighbors(
+        sim_v2_result.train_dyemat, sim_v2_result.train_dyepeps
+    )
 
     # Join this to some flu information so we have it all in one place, especially
     # info about degeneracy (when more than one pep has the same dyetrack)
@@ -78,7 +113,7 @@ def survey_v2(survey_v2_params, prep_result, sim_result, progress=None, pipeline
     # be able to change at report time, like what PTMs you're interested in
     # if this survey involves PTMs.
     #
-    peps__flus = sim_result.peps__flus(prep_result)
+    peps__flus = sim_v2_result.peps__flus(prep_result)
     peps__flus["pep_len"] = peps__flus.apply(
         lambda x: x.pep_stop - x.pep_start - 1, axis=1
     )

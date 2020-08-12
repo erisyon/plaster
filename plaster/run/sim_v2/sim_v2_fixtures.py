@@ -7,8 +7,11 @@ def result_from_prep_fixture(prep_result, n_labels=1, n_edmans=5, error_model=No
     if error_model is None:
         error_model = ErrorModel.from_defaults(n_labels)
 
+    import pudb
+
+    pudb.set_trace()
     sim_v2_params = SimV2Params.construct_from_aa_list(
-        [chr(ord("A") + i) for i in range(n_labels)],
+        ["DE", "C", "Y", "K", "H"][0:n_labels],
         error_model=error_model,
         n_pres=1,
         n_mocks=0,

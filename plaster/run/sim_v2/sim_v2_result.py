@@ -4,6 +4,13 @@ from plaster.tools.utils import utils
 from plaster.run.base_result import BaseResult, ArrayResult
 from plaster.run.sim_v2.sim_v2_params import SimV2Params
 
+DyeType = np.uint8
+DyeWeightType = np.float32
+RadType = np.float32
+IndexType = np.uint32
+RecallType = np.float32
+ScoreType = np.float32
+
 
 class SimV2Result(BaseResult):
     name = "sim_v2"
@@ -11,9 +18,9 @@ class SimV2Result(BaseResult):
 
     required_props = dict(
         params=SimV2Params,
-        train_dyemat=np.ndarray,
+        train_dyemat=np.ndarray,  # unique (n_rows, n_channels * n_cycles)
         train_pep_recalls=np.ndarray,
-        train_dyepeps=np.ndarray,
+        train_dyepeps=np.ndarray,  # (n, 3) where 3 are: (dtr_i, pep_i, count)
         train_radmat=(type(None), np.ndarray),
         train_true_pep_iz=(type(None), np.ndarray),
         train_true_dye_iz=(type(None), np.ndarray),
