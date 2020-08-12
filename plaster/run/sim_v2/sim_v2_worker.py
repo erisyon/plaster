@@ -154,7 +154,9 @@ def _radmat_from_sampled_pep_dyemat(
             output_radmat[pep_i, :, ch_i, :] = np.nan_to_num(ch_radiometry)
 
 
-def _radmat_sim(dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cycles, progress=None):
+def _radmat_sim(
+    dyemat, dyepeps, ch_params, n_samples_per_pep, n_channels, n_cycles, progress=None
+):
     """
     Generate a radmat with equal number of samples per peptide.
 
@@ -279,7 +281,11 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         phase_i += 1
 
     train_dyemat, train_dyepeps, train_pep_recalls = _dyemat_sim(
-        sim_v2_params, train_flus, train_pi_brights, sim_v2_params.n_samples_train, progress
+        sim_v2_params,
+        train_flus,
+        train_pi_brights,
+        sim_v2_params.n_samples_train,
+        progress,
     )
 
     # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
@@ -306,7 +312,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params.n_samples_train,
             sim_v2_params.n_channels,
             sim_v2_params.n_cycles,
-            progress
+            progress,
         )
     else:
         train_radmat, train_true_pep_iz, train_true_dye_iz = None, None, None
@@ -327,7 +333,11 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             phase_i += 1
 
         test_dyemat, test_dyepeps, test_pep_recalls = _dyemat_sim(
-            sim_v2_params, test_flus, test_pi_brights, sim_v2_params.n_samples_test, progress
+            sim_v2_params,
+            test_flus,
+            test_pi_brights,
+            sim_v2_params.n_samples_test,
+            progress,
         )
 
         # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
@@ -349,7 +359,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params.n_samples_test,
             sim_v2_params.n_channels,
             sim_v2_params.n_cycles,
-            progress
+            progress,
         )
 
         if not sim_v2_params.allow_train_test_to_be_identical:
