@@ -82,10 +82,31 @@ void context_measure_peptide_isolation(
     Multiply f(dist) * frac_of_reads_to_this_dyt
     Add all those up and that's the isolation metric. A big number is better.
     */
+
+    Index contention_pep_i = 0;
+    Float32 contention_pep_dist = 0;
     for (Index i=0; i<n_dyts; i++) {
+
+        Make a per row lookup for below
+        table_
+
         for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
-            neighbor_dye_iz[nn_i]
-            dyt_i_to_mlpep_i
+            Index nn_dye_i = neighbor_dye_iz[nn_i];
+            ensure_only_in_debug(0 <= nn_dye_i && nn_dye_i < n_dyts);
+
+            mlpep_i = dyt_i_to_mlpep_i[nn_dye_i];
+            ensure_only_in_debug(0 <= mlpep_i && mlpep_i < n_peps);
+
+            if(ml_pep_i != pep_i) {
+                // Found the first dyt with a ML peptide that isn't this peptide
+                Record it's distance
+                contention_pep_i = ml_pep_i;
+                contention_pep_dist = neighbor_dists[]
+                break
+            }
+        }
+        if(nn_i == n_neighbors) {
+            // Got to end without finding another peptide in the neighbor list
         }
     }
 }
