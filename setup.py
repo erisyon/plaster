@@ -61,6 +61,27 @@ extensions = [
             # "-DNDEBUG",
         ],
     ),
+    Extension(
+        name="plaster.run.survey_v2.fast.survey_v2_fast",
+        sources=[
+            "./plaster/run/survey_v2/fast/survey_v2_fast.pyx",
+            "./plaster/run/survey_v2/fast/c_survey_v2_fast.c",
+            "./plaster/tools/c_common/c_common.c",
+        ],
+        include_dirs=[
+            "./plaster/run/survey_v2/fast",
+            "./plaster/tools/c_common",
+            "/flann/src/cpp/flann/",
+            numpy.get_include(),
+        ],
+        libraries=["flann"],
+        library_dirs=["/flann/lib"],
+        extra_compile_args=[
+            "-DNPY_NO_DEPRECATED_API",
+            "-DDEBUG",
+            # "-DNDEBUG",
+        ],
+    ),
 ]
 
 

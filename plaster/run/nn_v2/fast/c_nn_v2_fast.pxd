@@ -1,3 +1,4 @@
+# TODO: DRY this with similar in other fast
 cdef extern from "c_nn_v2_fast.h":
     ctypedef unsigned char Uint8
     ctypedef unsigned long Uint64
@@ -25,9 +26,9 @@ cdef extern from "c_nn_v2_fast.h":
     void table_set_row(Table *table, Index row_i, void *src)
 
     ctypedef struct DyePepRec:
-        Size count
         Index dtr_i
         Index pep_i
+        Size count
 
     ctypedef void (*ProgressFn)(int complete, int total, int retry)
 

@@ -27,7 +27,67 @@ def survey(
     dyemat,
     dyepeps,
     n_threads=1,
-    rng_seed=None,
     progress=None,
 ):
+    # Views
+    cdef csurvey.DyeType [:, ::1] dyemat_view
+    cdef csurvey.Index [:, ::1] dyepeps_view
+    cdef csurvey.Index [::1] pep_i_to_dyepep_row_i_view
+    cdef csurvey.Index [::1] dyt_i_to_mlpep_i_view
+    cdef csurvey.IsolationType [::1] pep_i_to_isolation_metric_view
 
+    # Vars
+    cdef csurvey.Index n_peps
+    cdef csurvey.Index *pep_i_to_dyepep_row_i_buf
+    cdef csurvey.Context ctx
+
+    pep_column_in_dyepeps = 1
+
+    # BUILD a LUT from dyt_i to most-likely peptide i (mlpep_i)
+    dyepep_df = pd.DataFrame(dyepeps, columns=["dye_i", "pep_i", "n_reads"])
+    dyt_i_to_mlpep_i = dyepep_df.loc[dyepep_df.groupby(["dye_i"])["n_reads"].idxmax()].set_index("dye_i").values
+    dyt_i_to_mlpep_i_view = dyt_i_to_mlpep_i
+    ctx.dyt_i_to_mlpep_i = table_init_readonly(&dyt_i_to_mlpep_i_view[0], dyt_i_to_mlpep_i.nbytes, sizeof(csurvey.Index))
+
+    # SORT by pep_i
+    # TODO: This might be quite expensive and unnecsssary?
+    dyepeps = dyepeps[dyepeps[:, pep_column_in_dyepeps].argsort()]
+
+    dyemat_view = dyemat
+    dyepeps_view = dyepeps
+
+    ctx.dyemat = csurvey.table_init_readonly(<csim.Uint8 *>&dyemat_view[0, 0], dyemat.nbytes, dyemat.shape[1] * sizeof(csurvey.DyeType))
+    ctx.dyepeps = csim.table_init_readonly(&dyepeps_view[0, 0], dyepeps.nbytes, sizeof(csurvey.DyePepRec))
+
+    # CREATE an index into the dyepeps records for each peptide block
+    # TODO?: DRY with identical logic for pep_i_to_pcb_i in sim_v2
+    # Same issue of allocating an extra position so that the last span can be accounted for
+    pep_i_to_dyepep_row_i = np.unique(
+        dyepeps[:, pep_column_in_dyepeps],
+        return_index=1
+    )[1].astype(np.uint64)
+    pep_i_to_dyepep_row_i_view = pep_i_to_dyepep_row_i
+
+    n_peps = pep_i_to_dyepep_row_i.shape[0]
+    pep_i_to_dyepep_row_i_buf = <csim.Index *>calloc(n_peps + 1, sizeof(csim.Index))  # Why +1? see above
+    try:
+        memcpy(pep_i_to_dyepep_row_i_buf, <const void *>&pep_i_to_dyepep_row_i_view[0], sizeof(csim.Index) * n_peps);
+        pep_i_to_dyepep_row_i_buf[n_peps] = dyepeps.shape[0]
+        ctx.pep_i_to_dyepep_row_i = csurvey.table_init_readonly(<csim.Uint8 *>pep_i_to_dyepep_row_i_buf, (n_peps + 1) * sizeof(csim.Index), sizeof(csim.Index));
+
+        ctx.n_threads = n_threads
+        ctx.n_peps = n_peps
+        ctx.n_neighbors = 20
+        ctx.n_dyts = dyemat.shape[0]
+        ctx.n_dyt_cols = dyemat.shape[1]
+        ctx.distance_to_assign_an_isolated_pep = 10 # TODO: Find this by sampling.
+
+        pep_i_to_isolation_metric = np.zeros((n_peps,), dtype=IsolationNPType)
+        pep_i_to_isolation_metric_view = pep_i_to_isolation_metric
+        ctx.output_pep_i_to_isolation_metric = table_init(&pep_i_to_isolation_metric_view[0], pep_i_to_isolation_metric.nbytes, sizeof(csurvey.IsolationType))
+
+        csurvey.context_start(&ctx)
+
+        return pep_i_to_isolation_metric
+    finally:
+        free(pep_i_to_dyepep_row_i_buf)

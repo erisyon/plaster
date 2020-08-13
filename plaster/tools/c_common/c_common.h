@@ -48,9 +48,9 @@ typedef struct {
 
 
 typedef struct {
-    Size count;
     Index dtr_i;
     Index pep_i;
+    Size n_reads;
 } DyePepRec;
 
 

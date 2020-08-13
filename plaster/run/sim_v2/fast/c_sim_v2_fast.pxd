@@ -35,9 +35,9 @@ cdef extern from "c_sim_v2_fast.h":
         Index dtr_i
 
     ctypedef struct DyePepRec:
-        Size count
         Index dtr_i
         Index pep_i
+        Size count
 
     ctypedef void (*ProgressFn)(int complete, int total, int retry)
 

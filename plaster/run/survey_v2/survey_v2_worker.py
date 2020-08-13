@@ -2,12 +2,13 @@ import numpy as np
 import pandas as pd
 from plaster.run.sim_v2.sim_v2_result import RadType
 from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
+from plaster.run.survey_v2.fast import survey_v2_fast
 from plaster.tools.aaseq.aaseq import aa_str_to_list
 from plaster.tools.schema import check
 from plaster.vendor import pyflann
 from plaster.tools.log.log import debug
 
-
+'''
 def dist_to_closest_neighbors(dyemat, dyepeps):
     """
     Compute euclidean distance to the closest neighbor of
@@ -78,6 +79,7 @@ def dist_to_closest_neighbors(dyemat, dyepeps):
     pep_df.to_pickle("pep_df.pkl")
 
     return pep_df
+'''
 
 
 def survey_v2(
@@ -94,8 +96,11 @@ def survey_v2(
         - We are including decoys if present.
     """
 
-    pep_collision_df = dist_to_closest_neighbors(
-        sim_v2_result.train_dyemat, sim_v2_result.train_dyepeps
+    survey_v2_fast.survey(
+        sim_v2_result.train_dyemat,
+        sim_v2_result.train_dyepeps,
+        n_threads=1,
+        progress=progress,
     )
 
     # Join this to some flu information so we have it all in one place, especially
