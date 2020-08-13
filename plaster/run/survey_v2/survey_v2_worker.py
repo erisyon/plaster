@@ -19,10 +19,6 @@ def dist_to_closest_neighbors(dyemat, dyepeps):
         well isolated from other peptides (ie good)
     """
 
-    import pudb
-
-    pudb.set_trace()
-
     pyflann.set_distance_type("euclidean")
     flann = pyflann.FLANN()
     flann.build_index(dyemat, algorithm="kdtree_simple")
