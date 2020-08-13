@@ -13,6 +13,8 @@ cdef extern from "c_survey_v2_fast.h":
     ctypedef float RadType
     ctypedef float Score
     ctypedef float WeightType
+    ctypedef float Float32
+    ctypedef float IsolationType
 
     ctypedef struct Table:
         Uint8 *rows
@@ -29,6 +31,8 @@ cdef extern from "c_survey_v2_fast.h":
         Index pep_i
         Size count
 
+    ctypedef void (*ProgressFn)(int complete, int total, int retry)
+
     ctypedef struct Context:
         Table dyemat
         Table dyepeps
@@ -42,7 +46,6 @@ cdef extern from "c_survey_v2_fast.h":
         Size n_dyt_cols
         Table output_pep_i_to_isolation_metric
         Float32 distance_to_assign_an_isolated_pep
+        ProgressFn progress_fn
 
-
-    ctypedef void (*ProgressFn)(int complete, int total, int retry)
-    void context_work_orders_start(Context *ctx)
+    void context_start(Context *ctx)

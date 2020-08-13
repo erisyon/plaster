@@ -34,34 +34,36 @@ for each peptide (parallel)
         Add all those up and that's the isolation metric. A big number is better.
 */
 
-void context_pep_measure_isolation(
-    Context *ctx,
-    Index pep_i,
-) {
+void context_pep_measure_isolation(Context *ctx, Index pep_i) {
     /*
     TODO.
     A large value of isolation means the peptide is well separated.
     */
 
     int n_neighbors = ctx->n_neighbors;
-    int dyt_row_n_bytes = ctx->dyemat->n_bytes_per_row;
+    int dyt_row_n_bytes = ctx->dyemat.n_bytes_per_row;
+    int n_dyt_cols = ctx->n_dyt_cols;
+    ensure(n_dyt_cols > 0, "no n_dyt_cols");
 
     // SETUP a local table for the dyepeps of this peptide.
-    Index dyepeps_offset_start_of_this_pep = *table_get_row(&ctx->pep_i_to_dyepep_row_i, pep_i);
-    Index dyepeps_offset_start_of_next_pep = *table_get_row(&ctx->pep_i_to_dyepep_row_i, pep_i + 1);
+    Index dyepeps_offset_start_of_this_pep = *table_get_row(&ctx->pep_i_to_dyepep_row_i, pep_i, Index);
+    Index dyepeps_offset_start_of_next_pep = *table_get_row(&ctx->pep_i_to_dyepep_row_i, pep_i + 1, Index);
     Size n_dyts = dyepeps_offset_start_of_next_pep - dyepeps_offset_start_of_this_pep;
-    Table dyepeps = table_init_subset(&ctx->dyepeps, dyepeps_offset_start, n_dyts, 1);
+    ensure(n_dyts > 0, "no dyts pep_i=%ld (%ld %ld)", pep_i, dyepeps_offset_start_of_next_pep, dyepeps_offset_start_of_this_pep);
+    Table dyepeps = table_init_subset(&ctx->dyepeps, dyepeps_offset_start_of_this_pep, n_dyts, 1);
 
+    // TODO: This table_init_readonly in the following contexts is a minomer,
+    //   I need to rename it. What I mean is that the table isn't going to GROW
     // ALLOC a dyemat for all of the dyts of this peptide
-    DyeType *local_dyemat_buffer = (DyeType *)alloca(dyt_row_n_bytes * n_dyts);
-    Table local_dyemat = table_init(local_dyemat_buffer, dyt_row_n_bytes * n_dyts, dyt_row_n_bytes);
+    RadType *local_dyemat_buffer = (RadType *)alloca(n_dyts * n_dyt_cols * sizeof(DyeType));
+    Table local_dyemat = table_init_readonly(local_dyemat_buffer, n_dyts * n_dyt_cols * sizeof(DyeType), n_dyt_cols * sizeof(DyeType));
 
     // LOAD the local dyemat table by copying using the dyt_iz in dyepeps
     for(Index i=0; i<n_dyts; i++) {
         DyePepRec *dyepep_row = table_get_row(&dyepeps, i, DyePepRec);
 
         DyeType *src = table_get_row(&ctx->dyemat, dyepep_row->dtr_i, DyeType);
-        DyeType *dst = table_get_row(local_dyemat, i, DyeType);
+        DyeType *dst = table_get_row(&local_dyemat, i, DyeType);
         memcpy(dst, src, dyt_row_n_bytes);
     }
 
@@ -73,19 +75,20 @@ void context_pep_measure_isolation(
     memset(nn_dyt_iz_buf, 0, n_dyts * nn_dyt_iz_row_n_bytes);
     memset(nn_dists_buf, 0, n_dyts * nn_dists_row_n_bytes);
 
-    Table nn_dyt_iz = table_init(nn_dyt_iz_buf, n_dyts * nn_dyt_iz_row_n_bytes, nn_dyt_iz_row_n_bytes);
-    Table nn_dists = table_init(nn_dists_buf, n_dyts * nn_dists_row_n_bytes, nn_dists_row_n_bytes);
+    Table nn_dyt_iz = table_init_readonly(nn_dyt_iz_buf, n_dyts * nn_dyt_iz_row_n_bytes, nn_dyt_iz_row_n_bytes);
+    Table nn_dists = table_init_readonly(nn_dists_buf, n_dyts * nn_dists_row_n_bytes, nn_dists_row_n_bytes);
 
     // FETCH a batch of neighbors from FLANN in one call.
-    flann_find_nearest_neighbors_index_float(
+    int ret = flann_find_nearest_neighbors_index_byte(
         ctx->flann_index_id,
-        table_get_row(local_dyemat, 0, DyeType),
+        table_get_row(&local_dyemat, 0, DyeType),
         n_dyts,
         nn_dyt_iz_buf,
         nn_dists_buf,
         n_neighbors,
         &ctx->flann_params
     );
+    ensure(ret == 0, "flann returned error code");
 
     /*
     replace each value in that table with a LUT from dyt_to_mlpep
@@ -101,31 +104,39 @@ void context_pep_measure_isolation(
     // is NOT this smae peptide we call the most-in-contention peptide (mic_pep_i).
     // The distance to that micpep is a distance of interest.
 
+    Size n_neighbors_u = (Size)n_neighbors;
     Size n_reads_total = 0;
-    IsolationType isolation_metric = (ContentionType)0;
+    IsolationType isolation_metric = (IsolationType)0;
     for (Index i=0; i<n_dyts; i++) {
         DyePepRec *dyepep_row = table_get_row(&dyepeps, i, DyePepRec);
 
-        Index mic_pep_i = 0;
         Float32 mic_pep_dist = (Float32)0;
         Index *nn_dyt_row_i = table_get_row(&nn_dyt_iz, i, Index);
         float *nn_dists_row_i = table_get_row(&nn_dists, i, float);
-        for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
+
+        Index nn_i = 0;
+        for (nn_i=0; nn_i<n_neighbors_u; nn_i++) {
             Index dyt_i = nn_dyt_row_i[nn_i];
-            ensure_only_in_debug(0 <= dyt_i && dyt_i < ctx->dyemat.n_rows, "Illegal dyt in nn lookup");
+            if(!(0 <= dyt_i && dyt_i < ctx->dyemat.n_rows)) {
+                for (int j=0; j<n_neighbors; j++) {
+                    printf("%ld ", nn_dyt_row_i[j]);
+                }
+                printf("\n");
+            }
+            ensure_only_in_debug(0 <= dyt_i && dyt_i < ctx->dyemat.n_rows, "Illegal dyt in nn lookup %ld %ld", dyt_i, ctx->dyemat.n_rows);
 
             // LOOKUP the mlpep for this dyt
             Index mlpep_i = *table_get_row(&ctx->dyt_i_to_mlpep_i, dyt_i, Index);
-            ensure_only_in_debug(0 <= mlpep_i && mlpep_i < ctx->n_peps);
+            ensure_only_in_debug(0 <= mlpep_i && mlpep_i < ctx->n_peps, "mlpep_i out of bounds");
 
             if(mlpep_i != pep_i) {
                 // Found the first neighbor dyetrack with a Max-Liklihood peptide that isn't the current peptide
-                mic_pep_i = mlpep_i;
                 mic_pep_dist = nn_dists_row_i[nn_i];
-                break
+                break;
             }
         }
-        if(nn_i == n_neighbors) {
+
+        if(nn_i == n_neighbors_u) {
             // Got to the end without finding another peptide in the neighbor list
             // We say that this peptide has no contention but this is a problem because
             // we sum the contributions of each distance to the mlpep and a
@@ -176,8 +187,6 @@ void *context_work_orders_worker(void *_ctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
     Context *ctx = (Context *)_ctx;
-    Size n_dtrs = 0;
-    Size n_dyepeps = 0;
     while(1) {
         Index pep_i_plus_1 = context_work_orders_pop(ctx);
         if(pep_i_plus_1 == 0) {
@@ -185,15 +194,13 @@ void *context_work_orders_worker(void *_ctx) {
         }
         Index pep_i = pep_i_plus_1 - 1;
 
-        context_measure_peptide_isolation(ctx, pep_i);
+        context_pep_measure_isolation(ctx, pep_i);
 
         if(pep_i % 100 == 0) {
             ctx->progress_fn(pep_i, ctx->n_peps, 0);
         }
     }
     ctx->progress_fn(ctx->n_peps, ctx->n_peps, 0);
-    ctx->output_n_dtrs = n_dtrs;
-    ctx->output_n_dyepeps = n_dyepeps;
     return (void *)0;
 }
 
@@ -208,18 +215,15 @@ void context_start(Context *ctx) {
         ctx->n_neighbors <= ctx->dyemat.n_rows,
         "FLANN does not support requesting more neihbors than there are data points"
     );
-    ensure(
-        ctx->n_neighbors <= N_MAX_NEIGHBORS,
-        "Too many neighbors requested"
-    );
 
     // CLEAR internally controlled elements
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
     ctx->flann_index_id = 0;
 
     // CREATE the ANN index
+    // TODO: DRY with NN
     float speedup = 0.0f;
-    ctx->flann_index_id = flann_build_index_float(
+    ctx->flann_index_id = flann_build_index_byte(
         table_get_row(&ctx->dyemat, 0, DyeType),
         ctx->dyemat.n_rows,
         ctx->n_dyt_cols,
@@ -234,9 +238,6 @@ void context_start(Context *ctx) {
     if(ctx->n_threads > 1) {
         int ret = pthread_mutex_init(&ctx->work_order_lock, NULL);
         ensure(ret == 0, "pthread lock create failed");
-
-        ret = pthread_mutex_init(&ctx->table_lock, NULL);
-        ensure(ret == 0, "pthread lock create failed");
     }
 
     for(Index i=0; i<ctx->n_threads; i++) {
@@ -247,6 +248,4 @@ void context_start(Context *ctx) {
     for(Index i=0; i<ctx->n_threads; i++) {
         pthread_join(ids[i], NULL);
     }
-
 }
-

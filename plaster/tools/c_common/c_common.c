@@ -47,12 +47,13 @@ void _trace(const char *fmt, ...) {
 // Table
 //=========================================================================================
 
-Table table_init(Uint8 *base, Size n_bytes, Size n_bytes_per_row) {
+Table table_init(void *base, Size n_bytes, Size n_bytes_per_row) {
     // Wrap an externally allocated memory buffer ptr as a Table.
-    ensure(n_bytes_per_row % 4 == 0, "Mis-aligned table row size");
-    ensure((Uint64)base % 8 == 0, "Mis-aligned table");
+    // TODO: Put these checks by in optionally with a param (maybe add a table name too)
+    // ensure(n_bytes_per_row % 4 == 0, "Mis-aligned table row size");
+    // ensure((Uint64)base % 8 == 0, "Mis-aligned table");
     Table table;
-    table.rows = base;
+    table.rows = (Uint8 *)base;
     table.n_rows = 0;
     table.n_bytes_per_row = n_bytes_per_row;
     table.n_max_rows = n_bytes / n_bytes_per_row;
@@ -62,12 +63,13 @@ Table table_init(Uint8 *base, Size n_bytes, Size n_bytes_per_row) {
 }
 
 
-Table table_init_readonly(Uint8 *base, Size n_bytes, Size n_bytes_per_row) {
+Table table_init_readonly(void *base, Size n_bytes, Size n_bytes_per_row) {
     // Wrap an externally allocated memory buffer ptr as a Table.
-    ensure(n_bytes_per_row % 4 == 0, "Mis-aligned table row size");
-    ensure((Uint64)base % 8 == 0, "Mis-aligned table");
+    // TODO: Put these checks by in optionally with a param (maybe add a table name too)
+    // ensure(n_bytes_per_row % 4 == 0, "Mis-aligned table row size");
+    // ensure((Uint64)base % 8 == 0, "Mis-aligned table");
     Table table;
-    table.rows = base;
+    table.rows = (Uint8 *)base;
     table.n_bytes_per_row = n_bytes_per_row;
     table.n_max_rows = n_bytes / n_bytes_per_row;
     table.n_rows = table.n_max_rows;

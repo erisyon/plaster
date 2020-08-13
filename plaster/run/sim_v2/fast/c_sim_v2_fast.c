@@ -330,7 +330,7 @@ HashKey dyepep_get_hashkey(HashKey dtr_hashkey, Index pep_i) {
 
 void dyepep_dump_one(DyePepRec *dyepep) {
     // Debugging
-    printf("%4ld %4ld %4ld\n", dyepep->dtr_i, dyepep->pep_i, dyepep->count);
+    printf("%4ld %4ld %4ld\n", dyepep->dtr_i, dyepep->pep_i, dyepep->n_reads);
 }
 
 
@@ -546,7 +546,7 @@ Counts context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) 
             dyepep_hash_rec->key = dyepep_hashkey;
             dyepep->dtr_i = dtr->dtr_i;
             dyepep->pep_i = pep_i;
-            dyepep->count++;
+            dyepep->n_reads++;
             dyepep_hash_rec->val = dyepep;
         }
         else {
@@ -554,7 +554,7 @@ Counts context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) 
             // Same argument as above
             DyePepRec *dpr = (DyePepRec *)dyepep_hash_rec->val;
             table_validate_only_in_debug(dyepeps, dpr, "dyepep hash inc");
-            dpr->count++;
+            dpr->n_reads++;
         }
     }
 

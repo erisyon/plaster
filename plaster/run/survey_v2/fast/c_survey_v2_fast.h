@@ -5,6 +5,9 @@
 #include "flann.h"
 
 
+typedef Float32 IsolationType;
+
+
 typedef struct {
     Table dyemat;
     Table dyepeps;
@@ -18,9 +21,10 @@ typedef struct {
     Size n_dyt_cols;
     Table output_pep_i_to_isolation_metric;
     Float32 distance_to_assign_an_isolated_pep;
-
+    pthread_mutex_t work_order_lock;
     struct FLANNParameters flann_params;
     flann_index_t flann_index_id;
+    ProgressFn progress_fn;
 } Context;
 
 

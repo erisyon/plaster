@@ -73,8 +73,8 @@ void _trace(const char *fmt, ...);
 #endif
 
 // Tables
-Table table_init(Uint8 *base, Size n_bytes, Size n_bytes_per_row);
-Table table_init_readonly(Uint8 *base, Size n_bytes, Size n_bytes_per_row);
+Table table_init(void *base, Size n_bytes, Size n_bytes_per_row);
+Table table_init_readonly(void *base, Size n_bytes, Size n_bytes_per_row);
 Table table_init_subset(Table *src, Index row_i, Size n_rows, Uint64 is_readonly);
 
 void *_table_get_row(Table *table, Index row);

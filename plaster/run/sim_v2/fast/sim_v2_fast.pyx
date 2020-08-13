@@ -233,7 +233,7 @@ def sim(
             dyepeprec = csim.context_dyepep(&ctx, i)
             dyepeps_view[i, 0] = dyepeprec.dtr_i
             dyepeps_view[i, 1] = dyepeprec.pep_i
-            dyepeps_view[i, 2] = dyepeprec.count
+            dyepeps_view[i, 2] = dyepeprec.n_reads
 
         return dyetracks, dyepeps, pep_recalls
 
