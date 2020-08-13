@@ -1021,7 +1021,7 @@ def _compute_channel_weights(sigproc_params, calibration=None):
     return channel_weights
 
 
-def _import_balanced_images(chcy_ims, sigproc_params, calib):
+def _import_balanced_images(chcy_ims, sigproc_params, calibration=None):
     """
     Import channels and order them into the output order
     (evert input channel is not necessarily used).
@@ -1032,6 +1032,11 @@ def _import_balanced_images(chcy_ims, sigproc_params, calib):
         Because the background is subtracted, the returned
         images may contain negative values.
     """
+    if sigproc_params.mode == "analyze":
+        calib = Calibration(sigproc_params.calibration)
+    else:
+        assert calibration is not None
+        calib = calibration
     n_out_channels = sigproc_params.n_output_channels
     dst_chcy_ims = np.zeros((n_out_channels, *chcy_ims.shape[-3:]))
     for out_ch in range(n_out_channels):
