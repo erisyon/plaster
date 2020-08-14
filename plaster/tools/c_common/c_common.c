@@ -83,6 +83,87 @@ void _trace(const char *fmt, ...) {
 // Table
 //=========================================================================================
 
+/*
+
+TODO
+
+Come up with better patterns for tables
+Goals:
+    Bound checked table access
+    Easy passing around table with row sizes, etc
+    Easy debugging with __LINE__ and __FILE__ macros
+    NON DEBUG version that remove bound checking
+    Clear readonly versus growable
+
+    tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int growable)
+    tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, int growable)
+    tab_subset(void *base, Index start, Size n_rows)
+    tab_validate(Table *tab)
+    tab_dump(Table *tab)
+    tab_get(Table *tab, Index row_i)
+    tab_set(Table *tab, Index row_i, void *src)
+    tab_add(Table *tab, void *src, pthread_mutex_t *lock)
+    tab_tests()
+
+typedef struct {
+    void *base;
+    Uint64 n_bytes_per_row;
+    Uint64 n_max_rows;
+    Uint64 n_rows;
+    int b_growable;
+} Tab;
+
+Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int b_growable) {
+    Tab tab;
+    tab.base = base;
+    tab.n_bytes_per_row = n_bytes_per_row;
+    tab.n_max_rows = n_bytes / n_bytes_per_row;
+    tab.b_growable = b_growable;
+    if(b_growable) {
+        memset(tab.base, 0, n_bytes);
+        tab.n_rows = 0;
+    }
+    else {
+        tab.n_rows = tab.n_max_rows;
+    }
+    return tab;
+}
+
+Tab tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, int b_growable) {
+    return tab_by_size(base, n_rows * n_bytes_per_row, n_bytes_per_row, b_growable);
+}
+
+
+void *_tab_get_debug(Table *tab, Index row_i, char *file, int line) {
+}
+
+#define TAB_NOT_GROWABLE (0)
+#define TAB_GROWABLE (1)
+#define tab_row(tab, row_i) _tab_get_debug(tab, row_i, __FILE__, __LINE__)
+#define tab_var(tab, row_i, typ, var) typ *var = (typ *)_tab_get_debug(tab, row_i, __FILE__, __LINE__)
+
+void tab_tests() {
+    int buf[100];
+    for(int i=0; i<100; i++) {
+        buf[i] = i;
+    }
+    Tab a = tab_by_n_rows(buf, 10, 5 * sizeof(int), TAB_NOT_GROWABLE);
+    printf("%d\n", tab_get(&a, 0));
+}
+
+
+
+*/
+
+
+
+
+
+
+
+
+
+
 Table table_init(void *base, Size n_bytes, Size n_bytes_per_row) {
     // Wrap an externally allocated memory buffer ptr as a Table.
     // TODO: Put these checks by in optionally with a param (maybe add a table name too)
@@ -181,3 +262,4 @@ void table_dump(Table *table, char *msg) {
     printf("n_rows=%ld\n", table->n_rows);
     printf("readonly=%ld\n", table->readonly);
 }
+
