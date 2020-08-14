@@ -44,6 +44,42 @@ void _trace(const char *fmt, ...) {
 }
 
 
+//Table rle_index_init(Index *src, Size n_src, Index *dst, Size n_dst) {
+//    // n_dst is +1 of the expected largest in src
+//
+//    Index minus_one = 0xFFFFFFFFFFFFFFFF;
+//
+//    Index last_i = minus_one;
+//    Index dst_i = 0;
+//    for(Index dst_i=0; dst_i<n_dst; dst_i++) {
+//        dst[dst_i] = minus_one;
+//    }
+//    dst_i = 0;
+//    for(Index src_i=0; src_i<n_src; src_i++) {
+//        ensure(src[src_i] >= last_i || last_i == minus_one, "Illegal non sequential rle");
+//        if (src[src_i] != last_i) {
+//            dst[dst_i] = src_i;
+//            dst_i++;
+//            ensure(dst_i < n_dst-1);
+//            last_i = src[src_i];
+//        }
+//    }
+//    ensure(n_dst == dst_i)
+//    dst[dst_i] = n_src;
+//    return table_init_readonly(dst, sizeof(Index) * n_dst, sizeof(Index));
+//}
+//
+//
+//RLEBlock rle_index_get(Table *rle_table, Index pos) {
+//    Index start = *table_get_row(rle_table, pos, Index);
+//    Index stop = *table_get_row(rle_table, pos+1, Index);
+//    ensure(start != minus_one && stop != minus_one, "rle accessing unknown block");
+//    RLEBlock block;
+//    block.i = start;
+//    block.n = stop - start;
+//    return block;
+//}
+
 // Table
 //=========================================================================================
 

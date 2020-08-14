@@ -229,10 +229,11 @@ def zest_sim_v2_worker():
         sim_v2_result, sim_v2_params = _sim()
         assert sim_v2_result.train_dyemat.shape == (4, 5 * 2)  # 5 cycles, 2 channels
         assert utils.np_array_same(
-            sim_v2_result.train_dyemat[1:, :],
+            sim_v2_result.train_dyemat,
             np.array(
                 [
-                    [1, 0, 0, 0, 0, 1, 1, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0, 2, 1, 1, 0, 0],
                     [0, 0, 0, 0, 0, 2, 1, 0, 0, 0],
                 ],

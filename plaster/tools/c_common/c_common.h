@@ -54,6 +54,11 @@ typedef struct {
 } DyePepRec;
 
 
+typedef struct {
+    Index i;
+    Size n;
+} RLEBlock;
+
 Uint64 now();
 
 // Ensure
@@ -97,6 +102,9 @@ void table_validate(Table *table, void *ptr, char *msg);
 #endif
 
 void table_dump(Table *table, char *msg);
+
+//Table rle_index_init(Index *src, Size n_src, Index *dst, Size n_dst);
+//RLEBlock rle_index_get(Table *rle_table, Index pos);
 
 typedef void (*ProgressFn)(int complete, int total, int retry);
 

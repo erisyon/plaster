@@ -3,6 +3,7 @@ from plumbum import local, FG
 from zest import zest
 
 
+@zest.skip(reason="WIP")
 def zest_survey_integration():
     """
     Show that a survey gen and run can execute

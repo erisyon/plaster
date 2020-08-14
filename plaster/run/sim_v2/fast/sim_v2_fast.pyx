@@ -205,6 +205,7 @@ def sim(
 
         # Now do the work in the C file
         csim.context_work_orders_start(&ctx)
+
         if count_only:
             print(f"n_dtrs={ctx.output_n_dtrs}")
             print(f"n_dyepeps={ctx.output_n_dyepeps}")
@@ -216,7 +217,9 @@ def sim(
         # much larger arrays that were used during the context_work_orders_start()
         n_chcy = ctx.n_channels * ctx.n_cycles
         dyetracks = np.zeros((ctx.dtrs.n_rows, n_chcy), dtype=DyeType)
-        dyepeps = np.zeros((ctx.dyepeps.n_rows, 3), dtype=Size)
+
+        # We need a special record at 0 for nul so we need to add one here
+        dyepeps = np.zeros((ctx.dyepeps.n_rows + 1, 3), dtype=Size)
         _assert_array_contiguous(dyetracks, DyeType)
         _assert_array_contiguous(dyepeps, Size)
 
@@ -229,11 +232,15 @@ def sim(
             for j in range(n_chcy):
                 dyetracks_view[i, j] = dyetrack[j]
 
+        # nul record
+        dyepeps_view[0, 0] = 0
+        dyepeps_view[0, 1] = 0
+        dyepeps_view[0, 2] = 0
         for i in range(ctx.dyepeps.n_rows):
             dyepeprec = csim.context_dyepep(&ctx, i)
-            dyepeps_view[i, 0] = dyepeprec.dtr_i
-            dyepeps_view[i, 1] = dyepeprec.pep_i
-            dyepeps_view[i, 2] = dyepeprec.n_reads
+            dyepeps_view[i+1, 0] = dyepeprec.dtr_i
+            dyepeps_view[i+1, 1] = dyepeprec.pep_i
+            dyepeps_view[i+1, 2] = dyepeprec.n_reads
 
         return dyetracks, dyepeps, pep_recalls
 

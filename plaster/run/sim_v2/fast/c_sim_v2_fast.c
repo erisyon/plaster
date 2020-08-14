@@ -613,7 +613,9 @@ void *context_work_orders_worker(void *_ctx) {
         Index pcb_i_plus_1 = *table_get_row(&ctx->pep_i_to_pcb_i, pep_i + 1, Index);
         Size n_aas = pcb_i_plus_1 - pcb_i;
         Table pcb_block = table_init_subset(&ctx->pcbs, pcb_i, n_aas, 1);
+
         Counts counts = context_sim_flu(ctx, pep_i, &pcb_block, n_aas);
+
         n_dtrs += counts.n_new_dtrs;
         n_dyepeps += counts.n_new_dyepeps;
         if(ctx->count_only && pep_i % 100 == 0) {
