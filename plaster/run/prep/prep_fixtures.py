@@ -33,11 +33,14 @@ def result_simple_fixture(has_decoy=False):
     # fmt: off
     pro_seqs = pd.DataFrame(
         dict(
-            pro_i=[0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+            pro_i=[
+                0,
+                1, 1, 1, 1, 1,
+                2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
             aa=[
                 ".",
-                "A", "D", "C", "D", "E",
-                "B", "G", "B", "E", "J", "K", "B", "B", "L", "D", "N",
+                "A", "B", "C", "D", "E",
+                "B", "G", "B", "I", "J", "K", "B", "B", "L", "M", "N",
             ],
         )
     )
@@ -55,12 +58,23 @@ def result_simple_fixture(has_decoy=False):
     # fmt: off
     pep_seqs = pd.DataFrame(
         dict(
-            pep_i=[0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3],
-            aa=[
-                ".", "A", "D", "C", "D", "E", "B","G",
-                "B", "E", "J", "K", "B", "B", "L", "D", "N",
+            pep_i=[
+                0,
+                1, 1, 1, 1, 1,
+                2, 2, 2, 2, 2, 2,
+                3, 3, 3, 3, 3
             ],
-            pep_offset_in_pro=[0, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,],
+            aa=[
+                ".",
+                "A", "B", "C", "D", "E",
+                "B", "G", "B", "I", "J", "K",
+                "B", "B", "L", "M", "N",
+            ],
+            pep_offset_in_pro=[
+                0,
+                0, 1, 2, 3, 4,
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+            ],
         )
     )
     # fmt: on

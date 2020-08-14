@@ -72,6 +72,9 @@ def survey(
     # Note, all pep_i must occur in this.
     dyepeps = dyepeps[dyepeps[:, pep_column_in_dyepeps].argsort()]
     pep_i_column = dyepeps[:, pep_column_in_dyepeps]
+    if np.unique(pep_i_column).tolist() != list(range(n_peps)):
+        print(np.unique(pep_i_column).tolist())
+        print(list(range(n_peps)))
     assert np.unique(pep_i_column).tolist() == list(range(n_peps))
     _assert_array_contiguous(dyepeps, np.uint64)
     dyepeps_view = dyepeps
