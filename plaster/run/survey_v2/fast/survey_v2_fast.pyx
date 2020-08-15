@@ -25,6 +25,9 @@ cdef void _progress(int complete, int total, int retry):
 
 IsolationNPType = np.float32
 
+def tab_tests():
+    csurvey.tab_tests()
+
 
 # Wrapper for survey that prepares buffers for csurvey
 def survey(

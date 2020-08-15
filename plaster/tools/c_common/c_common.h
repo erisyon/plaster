@@ -108,4 +108,6 @@ void table_dump(Table *table, char *msg);
 
 typedef void (*ProgressFn)(int complete, int total, int retry);
 
+void tab_tests();
+
 #endif

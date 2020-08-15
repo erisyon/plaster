@@ -49,3 +49,5 @@ cdef extern from "c_survey_v2_fast.h":
         ProgressFn progress_fn
 
     void context_start(Context *ctx)
+
+    void tab_tests()

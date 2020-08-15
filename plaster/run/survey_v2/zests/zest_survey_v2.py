@@ -6,6 +6,8 @@ from plaster.run.survey_v2.fast import survey_v2_fast
 from plaster.run.survey_v2.survey_v2_params import SurveyV2Params
 from plaster.tools.log.log import debug
 
+def zest_tab_tests():
+    survey_v2_fast.tab_tests()
 
 def zest_survey_v2_pyx():
     prep_result = prep_fixtures.result_simple_fixture(True)
