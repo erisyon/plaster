@@ -621,25 +621,21 @@ def _calib_psf_stats_one_channel(
     # DECIDE which z-slices are best for us to use
     mean_focuses = np.mean(im_focuses, axis=0)
     z_i_best_focus_by_field = np.argmax(im_focuses, axis=1)
-    focus_range_by_fl = list(range(n_fields))
-    for fl_i in range(0, n_fields):
-        if fl_i not in fields_above_avg_qual:
-            focus_range_by_fl[fl_i] = None
-        if z_i_best_focus_by_field[fl_i] <= focus_window_radius:
-            focus_range_by_fl[fl_i] = focus_window_radius
-        elif z_i_best_focus_by_field[fl_i] > (n_z_slices - focus_window_radius):
-            focus_range_by_fl[fl_i] = n_z_slices - focus_window_radius
-        else:
-            focus_range_by_fl[fl_i] = z_i_best_focus_by_field[fl_i]
 
     # AVERAGE across the fields and z-slices we have decided to use,
-    # to generate the PSF
+    # to generate the PSF.  The best slice will always be in the center
+    # of the window, so if it is close to the edge of our z-stack, we
+    # may need to fill one or more slices with NaN's.
     for fl_i in range(0, n_fields):
         if fl_i not in fields_above_avg_qual:
             continue
-        start_slice = focus_range_by_fl[fl_i] - 6
-        end_slice = focus_range_by_fl[fl_i] + 6
-        for z_i in range(start_slice, end_slice):
+        start_slice = z_i_best_focus_by_field[fl_i] - focus_window_radius #could be less than 0
+        end_slice = z_i_best_focus_by_field[fl_i] + focus_window_radius #could be greater than z-stack
+        for z_i in range(start_slice, end_slice+1):
+            if z_i < 0 or z_i >= n_z_slices:
+                z_and_region_to_psf[z_i - start_slice] = np.empty(peak_dim)
+                z_and_region_to_psf[z_i - start_slice] = np.NaN
+                continue
             bg_mean, bg_std = _background_estimate(fl_zi_ims[fl_i][z_i], divs)
             im_sub = _background_subtraction(fl_zi_ims[fl_i][z_i], bg_mean)
             locs, reg_psfs = _calibrate_psf_im(im_sub, divs=divs, peak_mea=peak_dim[0])
@@ -648,7 +644,7 @@ def _calib_psf_stats_one_channel(
             z_and_region_to_psf[z_i - start_slice] += reg_psfs
 
     # NORMALIZE all psfs
-    denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
+    denominator = np.nansum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
     z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
     return z_and_region_to_psf.tolist()
 
