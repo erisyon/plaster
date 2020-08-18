@@ -106,7 +106,7 @@ def zest_sigproc_v2_calibration():
             const=Munch(tgt=0, range=0.05),
             mea=Munch(tgt=peak_mea, range=0.1),
         )
-
+    
     def background_stats():
         true_bg_mean = 200
         true_bg_std = 15
@@ -126,7 +126,7 @@ def zest_sigproc_v2_calibration():
                 else:
                     ims = s.render_chcy()[0,0]
             return ims
-
+        
         def common_bg_stats():
             im = _synth(true_bg_std,howmanydims=1)
 
@@ -249,9 +249,9 @@ def zest_sigproc_v2_calibration():
                 check.array_t(rbs_arr, shape=(divs, divs), dtype=np.float64)
 
             zest()
-
+    
         zest()
-
+    
     def _compare_fit_params(true_params, fit_params):
         for ix, parm in enumerate(true_params.keys()):
             try:
@@ -264,7 +264,7 @@ def zest_sigproc_v2_calibration():
                 range_ = true_params[parm]["range"]
                 debug(parm, tgt, actual, range_)
                 raise
-
+    
     def psf_stats():
         true_bg_mean = 200
         true_bg_std = 15
@@ -399,7 +399,7 @@ def zest_sigproc_v2_calibration():
             _compare_fit_params(true_params, fit_params_mean_test_corner)
 
         zest()
-
+    
     def it_can_calib_psf_stats_one_channel_one_cycle():
         #CREATE a set of peaks which will appear in all images
         n_z_slices = 20
@@ -462,7 +462,7 @@ def zest_sigproc_v2_calibration():
         true_params["std_y"]["tgt"] = std_min
         true_params["std_y"]["range"] = std_range
         _compare_fit_params(true_params, fit_params_mean)
-
+    
     def it_can_calibrate_foreground_one_channel():
         #MOCK a z_stack ImsImportResult
         calib = Calibration()
@@ -491,11 +491,15 @@ def zest_sigproc_v2_calibration():
         fl_radmat, fl_loc = worker._calibrate_foreground_one_channel(
             calib, ims_import_result, n_fields, ch_i, sigproc_params
         )
-        assert fl_radmat.shape[0] == fl_loc.shape[0] > 100 #found at least 100 locs
+        try:
+            assert fl_radmat.shape[0] == fl_loc.shape[0] > 100 #found at least 100 locs
+        except AssertionError:
+            debug('did not find enough locs',fl_loc.shape[0])
+            raise
         assert fl_radmat.shape[1] == 1
         assert fl_radmat.shape[2] == n_z_slices
         assert fl_radmat.shape[3] == fl_loc.shape[1] == n_fields
-
+        
         def it_can_calibrate_filter_locs_by_snr():
             #REUSE radmat and locs from previous test
             sig, locs = worker._calibrate_filter_locs_by_snr(
@@ -507,20 +511,21 @@ def zest_sigproc_v2_calibration():
                 sig.shape[0] < fl_radmat.shape[0] * n_z_slices
             )  # i.e. it filtered something
 
-            def it_can_calibrate_balance_calc():
-                #REUSE ImsImportResult and filtered sig, locs from previous test
-                balance = worker._calibrate_balance_calc(
-                    ims_import_result, divs, sig, locs
-                )
-                assert np.min(balance) == 1  # the brightest area balanced at value 1
-                assert np.count_nonzero(
-                    balance == 1
-                )  # i.e. only single spot is brightest
+            # def it_can_calibrate_balance_calc():
+            #     #REUSE ImsImportResult and filtered sig, locs from previous test
+            #     balance = worker._calibrate_balance_calc(
+            #         ims_import_result, divs, sig, locs
+            #     )
+            #     assert np.min(balance) == 1  # the brightest area balanced at value 1
+            #     assert np.count_nonzero(
+            #         balance == 1
+            #     )  # i.e. only single spot is brightest
 
             zest()
 
+        
         zest()
-
+    
     def it_can_calibrate_psfs():
         # other tests for the lower level functions called by calibrate_psf()
         # are checking for the ability to return accurate measures of std,
@@ -539,7 +544,7 @@ def zest_sigproc_v2_calibration():
         check.array_t(
             rbm_arr, shape=(None, divs, divs, peak_mea, peak_mea), dtype=np.float64
         )
-
+    
     def it_can_calibrate_regional_illumination_balance():
         #CREATE calib and ImsImportResult 
         calib = Calibration()
@@ -563,12 +568,13 @@ def zest_sigproc_v2_calibration():
             if nbr_failures > 1 or nbr_successes > 5*nbr_failures:
                 break
         assert nbr_failures < 2
+
         #VERIFY that calibrate_regional_illumination_balance() puts data of the right
         # type and shape into the right place in the calib object.  Other tests will
         # test the lower level functions.
         check.list_t(calib["regional_illumination_balance.instrument_channel[0]"], list)
         rib_arr = np.array(calib["regional_illumination_balance.instrument_channel[0]"])
         check.array_t(rib_arr, shape=(divs, divs), dtype=np.float64)
-
+    
     zest()
-
+    
