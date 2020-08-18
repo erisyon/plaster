@@ -668,12 +668,10 @@ def _calibrate_foreground_one_channel(
     fl_radmats = []
     fl_locs = []
     for fl_i in range(n_fields):
-        debug('fl_i ',fl_i)
         chcy_ims = ims_import_result.ims[fl_i, ch_i : (ch_i + 1), :]
         (chcy_ims, locs, radmat, aln_offsets, aln_scores,) = sigproc_field(
             chcy_ims, sigproc_params, calibration=calib
         )
-        debug('locs count',len(locs))
         fl_radmats += [radmat]
         fl_locs += [locs]
     fl_radmat = np.concatenate(fl_radmats)
@@ -1268,7 +1266,6 @@ def _radiometry(chcy_ims, locs, ch_z_reg_psfs, cycle_to_z_index):
     for ch_i in range(n_channels):
         for cy_i in range(n_cycles):
             reg_psfs = ch_z_reg_psfs[ch_i, cycle_to_z_index[cy_i]]
-
             im = chcy_ims[ch_i, cy_i]
             nbr_mt_kernels = 0
             for loc_i, loc in enumerate(locs):
@@ -1299,11 +1296,6 @@ def _radiometry(chcy_ims, locs, ch_z_reg_psfs, cycle_to_z_index):
                     peak_im, psf_kernel, center_weighted_mask=center_weighted_mask
                 )
                 radmat[loc_i, ch_i, cy_i, :] = (signal, noise)
-            # if nbr_mt_kernels == len(locs):
-            #     debug('empty cycle/z-slice',cy_i)
-            #     continue
-            # else:
-            #     debug('mt kernels: ',nbr_mt_kernels,' out of ',len(locs))
             assert nbr_mt_kernels < len(locs)
     return radmat
 
@@ -1355,13 +1347,12 @@ def sigproc_field(chcy_ims, sigproc_params, snr_thresh=None, calibration=None):
     # a single values for fg_thresh and bg_thresh.
     ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
     locs = _peak_find(ch_mean_of_cy0_im)
-    debug('nbr locs after _peak_find in sigproc_field ',len(locs))
 
     # Step 6: Radiometry over each channel, cycle
     # TASK: Eventually this will examine each cycle and decide
     # which z-depth of the PSFs is best fit to that cycle.
     # The result will be a per-cycle index into the chcy_regional_psfs
-    # Until then the index is hard-coded to the zero-th index of regional_psf_zstack
+    # Until then the index is hard-coded to the middle index of regional_psf_zstack
     ch_z_reg_psfs = np.stack(
         [
             np.array(
@@ -1374,30 +1365,18 @@ def sigproc_field(chcy_ims, sigproc_params, snr_thresh=None, calibration=None):
         axis=0,
     )
     assert ch_z_reg_psfs.shape[0] == n_out_channels
-    cycle_to_z_index = np.zeros((n_cycles,)).astype(int)
+    default_z_index = np.floor(chcy_ims.shape[1]/2).astype(int)
+    cycle_to_z_index = np.ones((n_cycles,)).astype(int) * default_z_index
     radmat = _radiometry(chcy_ims, locs, ch_z_reg_psfs, cycle_to_z_index)
-    debug('radmat shape in sigproc_field ',radmat.shape)
     # Step 7: Remove empties
     # Keep any loc that has a signal > 20 times the minimum bg std in any channel
     # The 20 was found somewhat empirically and may need to be adjusted
     sig_limit = 20
     keep_mask = np.zeros((radmat.shape[0],)) > 0
     for out_ch_i in range(n_out_channels):
-        while True:
-            in_ch_i = sigproc_params.output_channel_to_input_channel(out_ch_i)
-            bg_std = np.min(calib[f"regional_bg_std.instrument_channel[{in_ch_i}]"])
-            keep_mask = keep_mask | np.any(radmat[:, out_ch_i, :, 0] > sig_limit * bg_std, axis=1)
-            debug('sum keep mask ',np.sum(keep_mask),keep_mask.shape)
-            if len(locs[keep_mask]) > 0:
-                debug('finally some locs passed, ',len(locs[keep_mask]),sig_limit)
-                break
-            elif sig_limit < .00000001:
-                break
-            else:
-                #debug('locs after keep_mask in sigproc_field ',len(locs[keep_mask]),sig_limit)
-                sig_limit = sig_limit/2
-        debug('out chi',out_ch_i,'bg std sum ',np.sum(bg_std))
-
+        in_ch_i = sigproc_params.output_channel_to_input_channel(out_ch_i)
+        bg_std = np.min(calib[f"regional_bg_std.instrument_channel[{in_ch_i}]"])
+        keep_mask = keep_mask | np.any(radmat[:, out_ch_i, :, 0] > sig_limit * bg_std, axis=1)
 
     if snr_thresh is not None:
         snr = radmat[:, :, :, 0] / radmat[:, :, :, 1]
