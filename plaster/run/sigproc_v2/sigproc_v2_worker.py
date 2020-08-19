@@ -771,21 +771,14 @@ def _calibrate_step_1_background_stats(calib, ims_import_result, sigproc_v2_para
     _, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
     for ch_i in range(0, n_channels):
         reg_bg_mean, reg_bg_std = _background_stats_ims(
-            ims_import_result.ims[:, ch_i, :],
-            sigproc_v2_params.divs,
+            ims_import_result.ims[:, ch_i, :], sigproc_v2_params.divs,
         )
 
         calib.add(
-            {
-                f"regional_bg_mean.instrument_channel[{ch_i}]": reg_bg_mean.tolist()
-            }
+            {f"regional_bg_mean.instrument_channel[{ch_i}]": reg_bg_mean.tolist()}
         )
 
-        calib.add(
-            {
-                f"regional_bg_std.instrument_channel[{ch_i}]": reg_bg_std.tolist()
-            }
-        )
+        calib.add({f"regional_bg_std.instrument_channel[{ch_i}]": reg_bg_std.tolist()})
 
     return calib
 
@@ -1083,7 +1076,38 @@ def _analyze_step_6a_peak_radiometry(
     return signal, noise
 
 
-def _analyze_step_6_radiometry(chcy_ims, locs, ch_z_reg_psfs, cycle_to_z_index):
+# TODO: Name z_reg_psf  (13, 5, 5, 11, 11) => is always most focused at index 6
+
+
+def _fit_focus(z_reg_psfs, locs, im):
+    """
+    Each image may have a slightly different focus due to drift of the z-axis on
+    the instrument.
+
+    During calibration we generated a regional-PSF as a function of z.
+    This is called the "z_reg_psf" and has shape like:
+    (13, 5, 5, 11, 11) where:
+        (13) is the 13 z-slices where slice 6 is the most-in-focus.
+        (5, 5) is the regionals divs
+        (11, 11) are the pixels of the PSF peaks
+
+    Here we sub-sample peaks locs on im to decide which
+    PSF z-slice best describes this images.
+
+    Note, if the instrument was perfect at mainrtaining the z-focus
+    then this function would ALWAYS return 6.
+    """
+
+    # TODO: randomly sample a sub-set of locs and pick the correct
+    # regional PSF and fit every z-stack to the sample.
+    # For each randomly sanpled loc we will have a best
+    # z-index. Then we take the plurality vote of that.
+
+    # Until then:
+    return 6
+
+
+def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     """
     Use the PSFs to compute the Area-Under-Curve of the data in chcy_ims
     for each peak location of locs.
@@ -1098,27 +1122,28 @@ def _analyze_step_6_radiometry(chcy_ims, locs, ch_z_reg_psfs, cycle_to_z_index):
     """
     check.array_t(chcy_ims, ndim=4)
     check.array_t(locs, ndim=2, shape=(None, 2))
-    check.array_t(
-        ch_z_reg_psfs, shape=(chcy_ims.shape[0], None, None, None, None, None)
-    )
-    check.array_t(cycle_to_z_index, shape=(chcy_ims.shape[1],))
 
     n_locs = len(locs)
     n_channels, n_cycles = chcy_ims.shape[0:2]
-    psf_divs = ch_z_reg_psfs.shape[2]
-    assert psf_divs == ch_z_reg_psfs.shape[3]
-    psf_dim = ch_z_reg_psfs.shape[-2:]
-    psf_mea = psf_dim[0]
-    assert psf_mea == psf_dim[1]
 
     radmat = np.full((n_locs, n_channels, n_cycles, 2), np.nan)  # 2 is (sig, noi)
 
     center_weighted_mask = imops.generate_center_weighted_tanh(psf_mea, radius=2.0)
 
     for ch_i in range(n_channels):
+        z_reg_psfs = np.array(calib[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
+        psf_dim = z_reg_psfs.shape[-2:]
+        psf_mea = psf_dim[0]
+        assert psf_mea == psf_dim[1]
+        psf_divs = z_reg_psfs.shape[1]
+        assert psf_divs == z_reg_psfs.shape[2]  # Assert divs is square
+
         for cy_i in range(n_cycles):
-            reg_psfs = ch_z_reg_psfs[ch_i, cycle_to_z_index[cy_i]]
             im = chcy_ims[ch_i, cy_i]
+
+            best_focus_zslice_i = _fit_focus(z_reg_psfs, locs, im)
+
+            reg_psfs = z_reg_psfs[best_focus_zslice_i, :, :, :, :]
             nbr_mt_kernels = 0
             for loc_i, loc in enumerate(locs):
                 peak_im = imops.crop(im, off=YX(loc), dim=HW(psf_dim), center=True)
@@ -1129,6 +1154,8 @@ def _analyze_step_6_radiometry(chcy_ims, locs, ch_z_reg_psfs, cycle_to_z_index):
                 if np.any(np.isnan(peak_im)):
                     # Skip nan collisions
                     continue
+
+                # TODO: Funcuaizlzie? "Give me the best PSF you can"
 
                 # There is a small issue here -- when the regional PSFs
                 # are computed they divide up the image over the full width
@@ -1230,21 +1257,7 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True):
     # which z-depth of the PSFs is best fit to that cycle.
     # The result will be a per-cycle index into the chcy_regional_psfs
     # Until then the index is hard-coded to the middle index of regional_psf_zstack
-    ch_z_reg_psfs = np.stack(
-        [
-            np.array(
-                calib[
-                    f"regional_psf_zstack.instrument_channel[{sigproc_v2_params.output_channel_to_input_channel(out_ch_i)}]"
-                ]
-            )
-            for out_ch_i in range(n_out_channels)
-        ],
-        axis=0,
-    )
-    assert ch_z_reg_psfs.shape[0] == n_out_channels
-    default_z_index = np.floor(chcy_ims.shape[1] / 2).astype(int)
-    cycle_to_z_index = np.ones((n_cycles,)).astype(int) * default_z_index
-    radmat = _analyze_step_6_radiometry(chcy_ims, locs, ch_z_reg_psfs, cycle_to_z_index)
+    radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib)
 
     keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params)
 
