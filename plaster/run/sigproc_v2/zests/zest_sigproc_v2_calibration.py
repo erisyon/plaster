@@ -214,7 +214,7 @@ def zest_sigproc_v2_calibration():
             def it_adds_regional_bg_stats_to_calib_correctly():
                 ims = _synth(true_bg_std,howmanydims=3)
                 calib = Calibration()
-                calib = worker.add_regional_bg_stats_to_calib(ims, 0, 1, divs, calib)
+                calib = worker._add_regional_bg_stats_to_calib(ims, 0, 1, divs, calib)
 
                 est_bg_mean = np.array(calib["regional_bg_mean.instrument_channel[0]"])
                 assert len(est_bg_mean.shape) == 2
@@ -238,7 +238,7 @@ def zest_sigproc_v2_calibration():
                 ims = _synth(true_bg_std,howmanydims=3)
 
                 calib = Calibration()
-                calib = worker.calibrate_background_stats(calib, ims, divs)
+                calib = worker._calibrate_background_stats(calib, ims, divs)
 
                 check.list_t(calib["regional_bg_mean.instrument_channel[0]"], list)
                 rbm_arr = np.array(calib["regional_bg_mean.instrument_channel[0]"])
@@ -470,10 +470,10 @@ def zest_sigproc_v2_calibration():
         n_fields = 2
         ch_i = 0
         ims_import_result = result_from_z_stack(n_fields=n_fields, n_cycles=n_z_slices)
-        ims = ims_import_result.ims[:, :, :]
+
         #CREATE a calib object already partly made
-        calib = worker.calibrate_background_stats(calib, ims, divs)
-        calib = worker.calibrate_psf(calib, ims_import_result, divs, peak_mea)
+        calib = worker._calibrate_step_1_background_stats(calib, ims_import_result, divs)
+        calib = worker._calibrate_step_2_psf(calib, ims_import_result, divs, peak_mea)
         calib.add(
             {
                 f"regional_illumination_balance.instrument_channel[{ch_i}]": np.ones(
@@ -537,7 +537,7 @@ def zest_sigproc_v2_calibration():
         n_z_slices = 20
         n_fields = 3
         ims_import_result = result_from_z_stack(n_fields=n_fields, n_cycles=n_z_slices)
-        calib = worker.calibrate_psf(calib, ims_import_result, divs, peak_mea)
+        calib = worker._calibrate_psf(calib, ims_import_result.ims, divs, peak_mea)
         #VERIFY that the calib object got the right kinds of things added to it
         check.list_t(calib["regional_psf_zstack.instrument_channel[0]"], list)
         rbm_arr = np.array(calib["regional_psf_zstack.instrument_channel[0]"])
@@ -552,13 +552,13 @@ def zest_sigproc_v2_calibration():
         n_fields = 2
         ims_import_result = result_from_z_stack(n_fields=n_fields, n_cycles=n_z_slices)
         ims = ims_import_result.ims[:, :, :]
-        calib = worker.calibrate_background_stats(calib, ims, divs)
-        calib = worker.calibrate_psf(calib, ims_import_result, divs, peak_mea)
+        calib = worker._calibrate_background_stats(calib, ims, divs)
+        calib = worker._calibrate_psf(calib, ims_import_result.ims, divs, peak_mea)
         nbr_failures = 0
         nbr_successes = 0
         while True:
             try:
-                calib = worker.calibrate_regional_illumination_balance(
+                calib = worker._calibrate_regional_illumination_balance(
                     calib, ims_import_result, divs, peak_mea
                 )
             except AssertionError:
@@ -569,7 +569,7 @@ def zest_sigproc_v2_calibration():
                 break
         assert nbr_failures < 2
 
-        #VERIFY that calibrate_regional_illumination_balance() puts data of the right
+        #VERIFY that _calibrate_regional_illumination_balance() puts data of the right
         # type and shape into the right place in the calib object.  Other tests will
         # test the lower level functions.
         check.list_t(calib["regional_illumination_balance.instrument_channel[0]"], list)

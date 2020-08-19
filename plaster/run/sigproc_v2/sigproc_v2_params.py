@@ -21,7 +21,8 @@ class SigprocV2Params(Params):
 
     schema = s(
         s.is_kws_r(
-            calibration_file=s.is_str(), mode=s.is_str(options=common.SIGPROC_V2_MODES),
+            calibration_file=s.is_str(),
+            mode=s.is_str(options=common.SIGPROC_V2_MODES),
         )
     )
 
@@ -40,11 +41,13 @@ class SigprocV2Params(Params):
         elif self.mode == common.SIGPROC_V2_INSTRUMENT_ANALYZE:
             self.calibration = Calibration.load(self.calibration_file)
 
-    # def set_radiometry_channels_from_input_channels_if_needed(self, n_channels):
-    #     if self.radiometry_channels is None:
-    #         # Assume channels from nd2 manifest
-    #         channels = list(range(n_channels))
-    #         self.radiometry_channels = {f"ch_{ch}": ch for ch in channels}
+    def set_radiometry_channels_from_input_channels_if_needed(self, n_channels):
+        assert n_channels == 1
+        self.radiometry_channels = { f"ch_0": 0 }
+        # if self.radiometry_channels is None:
+        #     # Assume channels from nd2 manifest
+        #     channels = list(range(n_channels))
+        #     self.radiometry_channels = {f"ch_{ch}": ch for ch in channels}
 
     @property
     def n_output_channels(self):

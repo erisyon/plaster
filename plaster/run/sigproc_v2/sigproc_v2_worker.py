@@ -537,7 +537,7 @@ def _background_subtraction(im, reg_bg_mean):
     return diff_im
 
 
-def add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_ims_per_ch, divs, calib):
+def _add_regional_bg_stats_to_calib(flchcy_ims, ch_i, n_ims_per_ch, divs, calib):
     """
     Arguments:
         flchcy_ims: frame, channel, cycles ims to be analyzed
@@ -654,7 +654,7 @@ def _calibrate_foreground_one_channel(
 ):
     """
     This function is part of the calibration, and yet will need to
-    call sigproc_field() (normally an entrypoint) in order to solve
+    call _sigproc_field() (normally an entrypoint) in order to solve
     a "chicken-and-egg" problem wherein we need to know the calibration
     to accurately find locs, but need to know the locs to create the
     calibration.
@@ -669,7 +669,7 @@ def _calibrate_foreground_one_channel(
     fl_locs = []
     for fl_i in range(n_fields):
         chcy_ims = ims_import_result.ims[fl_i, ch_i : (ch_i + 1), :]
-        (chcy_ims, locs, radmat, aln_offsets, aln_scores,) = sigproc_field(
+        (chcy_ims, locs, radmat, aln_offsets, aln_scores,) = _sigproc_field(
             chcy_ims, sigproc_params, calibration=calib
         )
         fl_radmats += [radmat]
@@ -697,11 +697,22 @@ def _calibrate_filter_locs_by_snr(fl_radmat, fl_loc, n_z_slices, ch_i):
 
 
 def _calibrate_balance_calc(ims_import_result, divs, sig, locs):
-    # There is a potential issue with misaligned cycles, which
-    # we are ignoring for now on the assumption it is a movie,
-    # because in that case the cycles should be well aligned
-    # Therefore we have an assert to make sure this is a safe
-    # assumption to make in this case.
+    """
+    Unit-testable logic of _calibrate_regional_illumination_balance().
+    Use the regional medians to build a balance matrix.
+
+    Returns:
+        Balance matrix where the brightest element in the (divs, divs)
+        matrix is set to 1.0 and all dimmer regions are > 1.0 so that
+        you can multiply an image by this matrix and get a balanced image.
+
+    Notes:
+        There is a potential issue with misaligned cycles, which
+        we are ignoring for now on the assumption it is a movie,
+        because in that case the cycles should be well aligned
+        Therefore we have an assert to make sure this is a safe
+        assumption to make in this case.
+    """
     assert ims_import_result.params.is_movie == True
     im_dim = ims_import_result.ims[0, 0, 0].shape
     y = utils.ispace(0, im_dim[0], divs + 1)
@@ -721,18 +732,22 @@ def _calibrate_balance_calc(ims_import_result, divs, sig, locs):
     return balance
 
 
-def calibrate_background_stats(calib, flchcy_ims, divs):
+# STEPS of instrument calibration
+# See sigproc_instrument_calib for the entrypoint
+# ------------------------------------------------------------------------------
+
+def _calibrate_step_1_background_stats(calib, ims_import_result, divs):
     # despite the "flchcy" name, in calibration the
     # normally "cycle" index is actually the z_slice index
-    n_z_slices, n_channels = flchcy_ims.shape[0:2]
+    _, n_channels, n_z_slices = ims_import_result.n_fields_channel_cycles()
     for ch_i in range(0, n_channels):
-        calib = add_regional_bg_stats_to_calib(
-            flchcy_ims, ch_i, n_z_slices, divs, calib
+        calib = _add_regional_bg_stats_to_calib(
+            ims_import_result.ims[:, ch_i, :], ch_i, n_z_slices, divs, calib
         )
     return calib
 
 
-def calibrate_psf(calib, ims_import_result, divs, peak_mea):
+def _calibrate_step_2_psf(calib, ims_import_result, divs, peak_mea):
     # the index of 'flchcy' which normally represents cycles, when doing
     # regional psf z-stack calibration is actually representing z-slice
 
@@ -747,11 +762,11 @@ def calibrate_psf(calib, ims_import_result, divs, peak_mea):
     return calib
 
 
-def calibrate_regional_illumination_balance(calib, ims_import_result, divs, peak_mea):
+def _calibrate_step_3_regional_illumination_balance(calib, ims_import_result, divs, peak_mea):
     n_fields, n_channels, n_z_slices = ims_import_result.n_fields_channel_cycles()
     for ch_i in range(0, n_channels):
 
-        # ADD a default (all-ones) regional balance, to allow us to call sigproc_field
+        # ADD a default (all-ones) regional balance, to allow us to call _sigproc_field
         # inside _calibrate_foreground_one_channel.  This is part of a "chicken-and-egg"
         # issue where we need calibration data in order to find field radmat and locs,
         # but need to find those in order to calculate foreground balance which is part
@@ -790,11 +805,6 @@ def calibrate_regional_illumination_balance(calib, ims_import_result, divs, peak
             }
         )
 
-    return calib
-
-
-def calibrate_dye_brightness(calib):
-    # TODO:
     return calib
 
 
@@ -845,7 +855,7 @@ def calibrate_dye_brightness(calib):
         # 4) radiometry using psf estimate
         # 5) regional balancing using the radiometry
          FOREGROUND
-        # Runs the standard sigproc_field analysis (without balancing)
+        # Runs the standard _sigproc_field analysis (without balancing)
         # to get the regional radmats for regional histogram balancing.
         # This requires that the PSF already be estimated so that the
         # radiometry can run.
@@ -873,7 +883,7 @@ def calibrate_dye_brightness(calib):
             if progress is not None:
                 progress(fl_i, n_fields)
             chcy_ims = flchcy_ims[fl_i, ch_i : (ch_i + 1), :]
-            (chcy_ims, locs, radmat, aln_offsets, aln_scores,) = sigproc_field(
+            (chcy_ims, locs, radmat, aln_offsets, aln_scores,) = _sigproc_field(
                 chcy_ims, sigproc_params
             )
             fl_radmats += [radmat]
@@ -1305,25 +1315,28 @@ def _radiometry(chcy_ims, locs, ch_z_reg_psfs, cycle_to_z_index):
     return radmat
 
 
-# Entrypoint
-# -------------------------------------------------------------------------------
 
-
-def sigproc_field(chcy_ims, sigproc_params, snr_thresh=None, calibration=None):
+def _sigproc_field(chcy_ims, sigproc_params, calibration, snr_thresh=None):
     """
-    Analyze one field and return values (do not save)
+    Analyze one field --
+        * Regional and channel balance
+        * remove anomalies
+        * Align cycles, Composite aligned (if in analyze mode)
+        * Peak find
+        * Radiometry
+        * Filtering
+
+
 
     Arguments:
         chcy_ims: In input order (from ims_import_result)
         sigproc_params: The SigprocParams
         snr_thresh: if non-None keeps only locs with S/R > snr_thresh
             This is useful for debugging.
+
+    Returns:
+
     """
-    if sigproc_params.mode == "analyze":
-        calib = Calibration(sigproc_params.calibration)
-    else:
-        assert calibration is not None
-        calib = calibration
 
     # Step 1: Load the images in output channel order, balance, equalize
     chcy_ims = _import_balanced_images(chcy_ims, sigproc_params, calib)
@@ -1339,12 +1352,15 @@ def sigproc_field(chcy_ims, sigproc_params, snr_thresh=None, calibration=None):
     for ch_i, cy_ims in enumerate(chcy_ims):
         chcy_ims[ch_i] = imops.stack_map(cy_ims, _mask_anomalies_im)
 
-    # Step 3: Find alignment offsets
-    aln_offsets, aln_scores = _align(np.mean(chcy_ims, axis=0))
+    if sigproc_params.mode == common.SIGPROC_V2_INSTRUMENT_ANALYZE:
+        # Step 3: Find alignment offsets
+        aln_offsets, aln_scores = _align(np.mean(chcy_ims, axis=0))
 
-    # Step 4: Composite with alignment
-    chcy_ims = _composite_with_alignment_offsets_chcy_ims(chcy_ims, aln_offsets)
-    # chcy_ims is now only the intersection region so it may be smaller than the original
+        # Step 4: Composite with alignment
+        chcy_ims = _composite_with_alignment_offsets_chcy_ims(chcy_ims, aln_offsets)
+        # chcy_ims is now only the intersection region so it may be smaller than the original
+    else:
+        aln_offsets, aln_scores = None, None
 
     # Step 5: Peak find on combined channels
     # The goal of previous channel equalization and regional balancing is that
@@ -1373,6 +1389,7 @@ def sigproc_field(chcy_ims, sigproc_params, snr_thresh=None, calibration=None):
     default_z_index = np.floor(chcy_ims.shape[1]/2).astype(int)
     cycle_to_z_index = np.ones((n_cycles,)).astype(int) * default_z_index
     radmat = _radiometry(chcy_ims, locs, ch_z_reg_psfs, cycle_to_z_index)
+
     # Step 7: Remove empties
     # Keep any loc that has a signal > 20 times the minimum bg std in any channel
     # The 20 was found somewhat empirically and may need to be adjusted
@@ -1390,6 +1407,8 @@ def sigproc_field(chcy_ims, sigproc_params, snr_thresh=None, calibration=None):
     return chcy_ims, locs[keep_mask], radmat[keep_mask], aln_offsets, aln_scores
 
 
+
+'''
 def _do_sigproc_field(ims_import_result, sigproc_params, field_i, sigproc_result):
     """
     Analyze AND SAVE one field.
@@ -1434,25 +1453,25 @@ def _do_sigproc_field(ims_import_result, sigproc_params, field_i, sigproc_result
     )
 
 
-def sigproc(sigproc_params, ims_import_result, progress=None):
+def sigproc(sigproc_v2_params, ims_import_result, progress=None):
     """
     Analyze all fields
     """
-    calib = Calibration(sigproc_params.calibration)
+    calib = Calibration.load(sigproc_v2_params.calibration_file)
     assert not calib.is_empty()
 
     channel_weights = _compute_channel_weights(sigproc_params)
 
     sigproc_result = SigprocV2Result(
-        params=sigproc_params,
+        params=sigproc_v2_params,
         n_input_channels=ims_import_result.n_channels,
-        n_channels=sigproc_params.n_output_channels,
+        n_channels=sigproc_v2_params.n_output_channels,
         n_cycles=ims_import_result.n_cycles,
         channel_weights=channel_weights,
     )
 
     n_fields = ims_import_result.n_fields
-    n_fields_limit = sigproc_params.n_fields_limit
+    n_fields_limit = sigproc_v2_params.n_fields_limit
     if n_fields_limit is not None and n_fields_limit < n_fields:
         n_fields = n_fields_limit
 
@@ -1461,7 +1480,7 @@ def sigproc(sigproc_params, ims_import_result, progress=None):
             Munch(
                 fn=_do_sigproc_field,
                 ims_import_result=ims_import_result,
-                sigproc_params=sigproc_params,
+                sigproc_params=sigproc_v2_params,
                 field_i=field_i,
                 sigproc_result=sigproc_result,
             )
@@ -1472,3 +1491,33 @@ def sigproc(sigproc_params, ims_import_result, progress=None):
     )
 
     return sigproc_result
+'''
+
+
+# Entrypoints
+# -------------------------------------------------------------------------------
+def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
+    """
+    Entrypoint for instrument calibration.
+
+    It will take the 1-count 1-channel (future multi-channel) ims_import_result
+    and it generates a PSF and Regional Illumination Balance calibration
+    into sigproc_v2_params.calibration_file.
+    """
+    divs = 5
+
+    calib = Calibration()
+    calib = _calibrate_background_stats(calib=calib, flchcy_ims=ims_import_result.ims, divs=divs)
+    calib = _calibrate_psf(calib=calib, flchcy_ims=ims_import_result.ims, divs=divs, peak_mea)
+
+
+
+def sigproc_analyze(sigproc_v2_params, ims_import_result, progress):
+    """
+    Entrypoint for analysis of (ie generate radiometry).
+    Requires a calibration_file previously generated by sigproc_instrument_calib()
+    that is refered to in sigproc_v2_params.calibration_file
+    """
+    raise NotImplementedError
+
+

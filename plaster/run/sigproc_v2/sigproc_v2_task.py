@@ -5,21 +5,34 @@ from plaster.tools.utils import utils
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.run.sigproc_v2.sigproc_v2_worker import sigproc
 from plaster.run.ims_import.ims_import_result import ImsImportResult
+from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.tools.log.log import debug
 
 
 class SigprocV2Task(PipelineTask):
     def start(self):
-        sigproc_params = SigprocV2Params(**self.config.parameters)
+        sigproc_v2_params = SigprocV2Params(**self.config.parameters)
 
         ims_import_result = ImsImportResult.load_from_folder(self.inputs.ims_import)
 
-        sigproc_params.set_radiometry_channels_from_input_channels_if_needed(
+        sigproc_v2_params.set_radiometry_channels_from_input_channels_if_needed(
             ims_import_result.n_channels
         )
 
-        sigproc_result = sigproc(sigproc_params, ims_import_result, self.progress)
+        if sigproc_v2_params.mode == common.SIGPROC_V2_INSTRUMENT_CALIB:
+            sigproc_v2_instrument_calib_result = sigproc_instrument_calib(
+                sigproc_v2_params,
+                ims_import_result,
+                self.progress
+            )
+            sigproc_v2_instrument_calib_result.save()
 
-        sigproc_result.save(
-            save_full_signal_radmat_npy=sigproc_params.save_full_signal_radmat_npy
-        )
+        elif sigproc_v2_params.mode == common.SIGPROC_V2_INSTRUMENT_ANALYZE:
+            sigproc_v2_result = sigproc_analyze(
+                sigproc_v2_params,
+                ims_import_result,
+                self.progress
+            )
+            sigproc_v2_result.save()
+        else:
+            raise ValueError("Unknown sigproc_v2 mode")
