@@ -17,7 +17,7 @@ class SigprocV2Params(Params):
         For now, we're going to load all records from the calibration file
     """
 
-    defaults = dict(divs=5, peak_mea=11, sig_limit=20, snr_thresh=2,)
+    defaults = dict(divs=5, peak_mea=11, sig_limit=20.0, snr_thresh=2.0,)
 
     schema = s(
         s.is_kws_r(
@@ -25,6 +25,7 @@ class SigprocV2Params(Params):
             mode=s.is_str(options=common.SIGPROC_V2_MODES),
             divs=s.is_int(),
             peak_mea=s.is_int(),
+            sig_limit=s.is_float(),
             snr_thresh=s.is_float(),
         )
     )

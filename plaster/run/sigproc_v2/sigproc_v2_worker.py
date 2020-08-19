@@ -477,30 +477,26 @@ def _background_estimate_im(im, divs):
     return reg_bg_mean, reg_bg_std
 
 
-def _background_stats_ims(flchcy_ims, ch_i, n_ims_per_ch, divs):
+def _background_stats_ims(flzl_ims, divs):
     """
     Loops over ims calling _background_stats_im
 
     Arguments:
-        flchcy_ims: frame, channel, cycles ims to be analyzed
-        ch_i: channel index we are adding calib stats for
-        n_ims_per_ch: nbr of imgs per channel, in index we normally
-          use for cycle but sometimes for z-slices instead
+        flzl_ims: frame, zslices ims to be analyzed (one channel)
         divs: divisions (in two dims) of image for regional stats
 
     Returns:
         bg_mean, bg_std averaged over all fields
     """
-    assert len(flchcy_ims.shape) == 5  # fields, divs, divs, x and y of images
-    n_fields = flchcy_ims.shape[0]
+    check.array_t(flzl_ims, ndim=4)
+    n_fields, n_zslices = flzl_ims.shape[0:2]
+
     fl_reg_bg_mean = np.zeros((n_fields, divs, divs))
     fl_reg_bg_std = np.zeros((n_fields, divs, divs))
-    for im_i in range(0, n_ims_per_ch):
-        for fl_i in range(0, n_fields):
-            # see note under arguments about indices positions, they are NOT in the
-            # order that the name "flchcy" would indicate
-            im = flchcy_ims[im_i, ch_i, fl_i]
-            reg_bg_mean, reg_bg_std = _background_estimate_im(im, divs)
+
+    for fl_i in range(n_fields):
+        for z_i in range(n_zslices):
+            reg_bg_mean, reg_bg_std = _background_estimate_im(flzl_ims[fl_i, z_i], divs)
             fl_reg_bg_mean[fl_i, :, :] = reg_bg_mean
             fl_reg_bg_std[fl_i, :, :] = reg_bg_std
 
@@ -762,32 +758,32 @@ def _foreground_balance(ims_import_result, divs, sig, locs):
 def _calibrate_step_1_background_stats(calib, ims_import_result, sigproc_v2_params):
     """
     Gather and record the background stats into calib.
+
+    This assumes these are from a movie of z-slices
+
+    Notes:
+        Expects ims_import_result is from a movie-based ims_import where the
+        "frames" are "zstacks"
     """
 
-    # cycles = z_slice
-    _, n_channels, n_z_slices = ims_import_result.n_fields_channel_cycles()
+    assert ims_import_result.params.is_movie is True
+
+    _, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
     for ch_i in range(0, n_channels):
-        summary_regional_stats = _background_stats_ims(
+        reg_bg_mean, reg_bg_std = _background_stats_ims(
             ims_import_result.ims[:, ch_i, :],
-            ch_i,
-            n_z_slices,
             sigproc_v2_params.divs,
-            calib,
         )
 
         calib.add(
             {
-                f"regional_bg_mean.instrument_channel[{ch_i}]": summary_regional_stats[
-                    :, :, 0
-                ].tolist()
+                f"regional_bg_mean.instrument_channel[{ch_i}]": reg_bg_mean.tolist()
             }
         )
 
         calib.add(
             {
-                f"regional_bg_std.instrument_channel[{ch_i}]": summary_regional_stats[
-                    :, :, 1
-                ].tolist()
+                f"regional_bg_std.instrument_channel[{ch_i}]": reg_bg_std.tolist()
             }
         )
 
@@ -801,7 +797,7 @@ def _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params):
 
     # the index of 'flchcy' which normally represents cycles, when doing
     # regional psf z-stack calibration is actually representing z-slice
-    n_fields, n_channels, n_z_slices = ims_import_result.n_fields_channel_cycles()
+    n_fields, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
 
     for ch_i in range(0, n_channels):
         fl_zi_ims = ims_import_result.ims[:, ch_i, :]
@@ -809,7 +805,7 @@ def _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params):
         psf_stats_ch = _psf_stats_one_channel(
             fl_zi_ims,
             n_fields,
-            n_z_slices,
+            n_zslices,
             sigproc_v2_params.divs,
             peak_dim=(sigproc_v2_params.peak_mea, sigproc_v2_params.peak_mea),
         )
@@ -827,7 +823,7 @@ def _calibrate_step_3_regional_illumination_balance(
 
     """
 
-    n_fields, n_channels, n_z_slices = ims_import_result.n_fields_channel_cycles()
+    n_fields, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
     for ch_i in range(0, n_channels):
         # FIND field radmat and locs using assumption of even balance (all 1's)
         fl_radmat, fl_loc = _foreground_stats(
@@ -835,7 +831,7 @@ def _calibrate_step_3_regional_illumination_balance(
         )
 
         # FILTER for locs with good signal-to-noise ratio
-        sig, locs = _foreground_filter_locs_by_snr(fl_radmat, fl_loc, n_z_slices, ch_i)
+        sig, locs = _foreground_filter_locs_by_snr(fl_radmat, fl_loc, n_zslices, ch_i)
 
         # CALCULATE the regional balance using only filtered sig,locs
         balance = _foreground_balance(
@@ -1355,13 +1351,19 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
     """
     calib = Calibration()
 
+    progress(0, 3, False)
     calib = _calibrate_step_1_background_stats(
         calib, ims_import_result, sigproc_v2_params
     )
+    progress(1, 3, False)
+
     calib = _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params)
+    progress(2, 3, False)
+
     calib = _calibrate_step_3_regional_illumination_balance(
         calib, ims_import_result, sigproc_v2_params
     )
+    progress(3, 3, False)
 
     return calib
 
