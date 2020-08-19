@@ -2,6 +2,7 @@ import re
 
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.log.log import debug
+from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.tools.schema.schema import Params
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
@@ -9,15 +10,18 @@ from plumbum import local
 
 
 class SigprocV2Params(Params):
+    """
+    About Calibration:
+        The long term goal of the calibration files is to dissociate
+        the name of the file from the records (subjects) in the file.
+        For now, we're going to load all records from the calibration file
+    """
+
     defaults = dict()
 
     schema = s(
         s.is_kws_r(
-            calibration_file=s.is_str(),
-            instrument_subject_id=s.is_str(noneable=True),
-            mode=s.is_str(options=["dye_calib", "analyze", "z_stack"]),
-            # radiometry_channels=s.is_dict(noneable=True),
-            # save_full_signal_radmat_npy=s.is_bool(),
+            calibration_file=s.is_str(), mode=s.is_str(options=common.SIGPROC_V2_MODES),
         )
     )
 
@@ -26,34 +30,21 @@ class SigprocV2Params(Params):
         self.schema.apply_defaults(self.defaults, apply_to=self, override_nones=False)
         self.schema.validate(self, context=self.__class__.__name__)
 
-        if self.mode == "analyze":
+        if self.mode == common.SIGPROC_V2_INSTRUMENT_CALIB:
+            assert not local.path(
+                self.calibration_file
+            ).exists(), (
+                "Calibration file cannot already exist when creating a new calib file"
+            )
+
+        elif self.mode == common.SIGPROC_V2_INSTRUMENT_ANALYZE:
             self.calibration = Calibration.load(self.calibration_file)
-            self.calibration.filter_subject_ids(self.instrument_subject_id)
-            if len(self.calibration.keys()) == 0:
-                raise ValueError(
-                    f"All calibration records removed after filter_subject_ids on subject_id '{self.instrument_subject_id}'"
-                )
-        else:
-            if local.path(self.calibration_file).exists():
-                raise ValueError("Calibration file cannot already exist")
-                # TODO: handle this more intelligently someday, for now this is safest
 
-        # if self.radiometry_channels is not None:
-        #     pat = re.compile(r"[0-9a-z_]+")
-        #     for name, channel_i in self.radiometry_channels.items():
-        #         self._validate(
-        #             pat.fullmatch(name),
-        #             "radiometry_channels name must be lower-case alphanumeric (including underscore)",
-        #         )
-        #         self._validate(
-        #             isinstance(channel_i, int), "channel_i must be an integer"
-        #         )
-
-    def set_radiometry_channels_from_input_channels_if_needed(self, n_channels):
-        if self.radiometry_channels is None:
-            # Assume channels from nd2 manifest
-            channels = list(range(n_channels))
-            self.radiometry_channels = {f"ch_{ch}": ch for ch in channels}
+    # def set_radiometry_channels_from_input_channels_if_needed(self, n_channels):
+    #     if self.radiometry_channels is None:
+    #         # Assume channels from nd2 manifest
+    #         channels = list(range(n_channels))
+    #         self.radiometry_channels = {f"ch_{ch}": ch for ch in channels}
 
     @property
     def n_output_channels(self):
