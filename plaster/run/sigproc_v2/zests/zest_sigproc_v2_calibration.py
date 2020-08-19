@@ -106,7 +106,7 @@ def zest_sigproc_v2_calibration():
             const=Munch(tgt=0, range=0.05),
             mea=Munch(tgt=peak_mea, range=0.1),
         )
-    
+
     def background_stats():
         true_bg_mean = 200
         true_bg_std = 15
@@ -119,18 +119,18 @@ def zest_sigproc_v2_calibration():
                     .amps_constant(val=10000)
                 )
                 synth.CameraModel(bias=true_bg_mean, std=_true_bg_std)
-                if howmanydims==3:
+                if howmanydims == 3:
                     ims = s.render_flchcy()
                 elif howmanydims == 2:
                     ims = s.render_chcy()
                 else:
-                    ims = s.render_chcy()[0,0]
+                    ims = s.render_chcy()[0, 0]
             return ims
-        
-        def common_bg_stats():
-            im = _synth(true_bg_std,howmanydims=1)
 
-            est_bg_mean, est_bg_std = worker._background_estimate(im, divs)
+        def common_bg_stats():
+            im = _synth(true_bg_std, howmanydims=1)
+
+            est_bg_mean, est_bg_std = worker._background_estimate_im(im, divs)
 
             def it_estimates_uniform_background_correctly():
                 # Bounds here are empirical
@@ -142,51 +142,64 @@ def zest_sigproc_v2_calibration():
                 # is because when we background subtract the mean should be
                 # close to zero.  Could use a better way to set bounds
                 im_sub = worker._background_subtraction(im, est_bg_mean)
-                new_est_bg_mean, new_est_bg_std = worker._background_estimate(
+                new_est_bg_mean, new_est_bg_std = worker._background_estimate_im(
                     im_sub, divs
                 )
                 assert np_within(np.mean(new_est_bg_mean), 0, (1 / true_bg_std))
 
             def it_estimates_nonuniform_bg_mean_correctly():
                 # MAKE the outside border half as light, width of one div
-                im = _synth(true_bg_std,howmanydims=1)
+                im = _synth(true_bg_std, howmanydims=1)
                 border = int(im.shape[0] / divs)
 
                 ys, xs = np.meshgrid(np.arange(im.shape[0]), np.arange(im.shape[1]))
-                dist_to_edge = np.minimum(np.minimum(xs, im.shape[1] - xs - 1), np.minimum(ys, im.shape[0] - ys - 1))
+                dist_to_edge = np.minimum(
+                    np.minimum(xs, im.shape[1] - xs - 1),
+                    np.minimum(ys, im.shape[0] - ys - 1),
+                )
                 scale_factor = np.ones_like(im)
                 scale_factor[dist_to_edge < border] = 0.5
                 im_sc = im * scale_factor
 
                 # ESTIMATE mean and std, check that it got nonuniformity of means
-                est_bg_mean, est_bg_std = worker._background_estimate(im_sc, divs)
+                est_bg_mean, est_bg_std = worker._background_estimate_im(im_sc, divs)
                 for y, x in grid_walk(divs):
-                    if x in [0, divs - 1] or y in [0, divs - 1]: #i.e. near the edge
-                        assert np_within((true_bg_mean * 0.5), est_bg_mean[y, x], true_bg_std)
-                        assert np_within((true_bg_std * 0.5), est_bg_std[y, x], true_bg_std / 3)
+                    if x in [0, divs - 1] or y in [0, divs - 1]:  # i.e. near the edge
+                        assert np_within(
+                            (true_bg_mean * 0.5), est_bg_mean[y, x], true_bg_std
+                        )
+                        assert np_within(
+                            (true_bg_std * 0.5), est_bg_std[y, x], true_bg_std / 3
+                        )
                     else:
                         assert np_within(true_bg_mean, est_bg_mean[y, x], true_bg_std)
                         try:
-                            assert np_within(true_bg_std, est_bg_std[y, x], true_bg_std / 3)
+                            assert np_within(
+                                true_bg_std, est_bg_std[y, x], true_bg_std / 3
+                            )
                         except AssertionError:
                             debug(true_bg_std, est_bg_std[y, x], true_bg_std / 3)
                             raise
 
             def it_estimates_nonuniform_bg_std_correctly():
-                im = _synth(true_bg_std,howmanydims=1)
+                im = _synth(true_bg_std, howmanydims=1)
                 # CREATE second image with larger std, to use for border region
-                true_bg_std2 = 2*true_bg_std
-                im2 = _synth(true_bg_std2,howmanydims=1)
+                true_bg_std2 = 2 * true_bg_std
+                im2 = _synth(true_bg_std2, howmanydims=1)
                 # MERGE the two images into one image with a nonuniform std
                 border = int(im.shape[0] / divs)
                 ys, xs = np.meshgrid(np.arange(im.shape[0]), np.arange(im.shape[1]))
-                dist_to_edge = np.minimum(np.minimum(xs, im.shape[0] - xs), np.minimum(ys, im.shape[1] - ys))
-                im3 = np.where(dist_to_edge < border,im2,im)
-                est_bg_mean, est_bg_std = worker._background_estimate(im3, divs)
+                dist_to_edge = np.minimum(
+                    np.minimum(xs, im.shape[0] - xs), np.minimum(ys, im.shape[1] - ys)
+                )
+                im3 = np.where(dist_to_edge < border, im2, im)
+                est_bg_mean, est_bg_std = worker._background_estimate_im(im3, divs)
                 # ESTIMATE mean and std, check that it got nonuniformity of means
                 for y, x in grid_walk(divs):
-                    if x in [0, divs - 1] or y in [0, divs - 1]: #i.e. near the edge
-                        assert np_within(est_bg_std[x][y], true_bg_std2, true_bg_std2 / 2)
+                    if x in [0, divs - 1] or y in [0, divs - 1]:  # i.e. near the edge
+                        assert np_within(
+                            est_bg_std[x][y], true_bg_std2, true_bg_std2 / 2
+                        )
                         assert np_within(est_bg_mean[x][y], true_bg_mean, true_bg_std2)
                     else:
                         assert np_within(est_bg_std[x][y], true_bg_std, true_bg_std / 2)
@@ -194,17 +207,20 @@ def zest_sigproc_v2_calibration():
 
             def it_subtracts_nonuniform_bg_mean_correctly():
                 # MAKE the outside border half as light, width of one div
-                im = _synth(true_bg_std,(0,0))
+                im = _synth(true_bg_std, (0, 0))
                 border = int(im.shape[0] / divs)
                 ys, xs = np.meshgrid(np.arange(im.shape[0]), np.arange(im.shape[1]))
-                dist_to_edge = np.minimum(np.minimum(xs, im.shape[1] - xs - 1), np.minimum(ys, im.shape[0] - ys - 1))
+                dist_to_edge = np.minimum(
+                    np.minimum(xs, im.shape[1] - xs - 1),
+                    np.minimum(ys, im.shape[0] - ys - 1),
+                )
                 scale_factor = np.ones_like(im)
-                scale_factor[dist_to_edge < border] = 1 - (1/border)
+                scale_factor[dist_to_edge < border] = 1 - (1 / border)
                 im_sc = im * scale_factor
                 # ESTIMATE mean and std, check that it gets new bg mean close to 0
-                est_bg_mean, est_bg_std = worker._background_estimate(im_sc, divs)
+                est_bg_mean, est_bg_std = worker._background_estimate_im(im_sc, divs)
                 im_sub = worker._background_subtraction(im_sc, est_bg_mean)
-                new_mean, new_std = worker._background_estimate(im_sub, divs)
+                new_mean, new_std = worker._background_estimate_im(im_sub, divs)
                 try:
                     assert np_within(np.mean(new_mean), 0, true_bg_std)
                 except AssertionError:
@@ -212,21 +228,21 @@ def zest_sigproc_v2_calibration():
                     raise
 
             def it_adds_regional_bg_stats_to_calib_correctly():
-                ims = _synth(true_bg_std,howmanydims=3)
+                ims = _synth(true_bg_std, howmanydims=3)
                 calib = Calibration()
-                calib = worker._add_regional_bg_stats_to_calib(ims, 0, 1, divs, calib)
+                calib = worker._background_stats_ims(ims, 0, 1, divs, calib)
 
                 est_bg_mean = np.array(calib["regional_bg_mean.instrument_channel[0]"])
                 assert len(est_bg_mean.shape) == 2
-                allow_err = true_bg_mean/5
-                assert np_within(true_bg_mean,est_bg_mean.max(),allow_err)
-                assert np_within(true_bg_mean,est_bg_mean.min(),allow_err)
+                allow_err = true_bg_mean / 5
+                assert np_within(true_bg_mean, est_bg_mean.max(), allow_err)
+                assert np_within(true_bg_mean, est_bg_mean.min(), allow_err)
 
                 est_bg_std = np.array(calib["regional_bg_std.instrument_channel[0]"])
                 assert len(est_bg_std.shape) == 2
-                allow_err = true_bg_std/3
-                assert np_within(true_bg_std,est_bg_std.max(),allow_err)
-                assert np_within(true_bg_std,est_bg_std.min(),allow_err)
+                allow_err = true_bg_std / 3
+                assert np_within(true_bg_std, est_bg_std.max(), allow_err)
+                assert np_within(true_bg_std, est_bg_std.min(), allow_err)
 
             def it_can_calibrate_background_stats():
                 # other tests for the lower level functions called by
@@ -235,7 +251,7 @@ def zest_sigproc_v2_calibration():
                 # in the image, etc.  This test is just checking that the
                 # data returned is getting put into the calibration objects
                 # with the right shape, and using the right keyword
-                ims = _synth(true_bg_std,howmanydims=3)
+                ims = _synth(true_bg_std, howmanydims=3)
 
                 calib = Calibration()
                 calib = worker._calibrate_background_stats(calib, ims, divs)
@@ -249,9 +265,9 @@ def zest_sigproc_v2_calibration():
                 check.array_t(rbs_arr, shape=(divs, divs), dtype=np.float64)
 
             zest()
-    
+
         zest()
-    
+
     def _compare_fit_params(true_params, fit_params):
         for ix, parm in enumerate(true_params.keys()):
             try:
@@ -264,12 +280,12 @@ def zest_sigproc_v2_calibration():
                 range_ = true_params[parm]["range"]
                 debug(parm, tgt, actual, range_)
                 raise
-    
+
     def psf_stats():
         true_bg_mean = 200
         true_bg_std = 15
 
-        def _synth_psf(_true_bg_std,_true_psf_std,howmanydims=1):
+        def _synth_psf(_true_bg_std, _true_psf_std, howmanydims=1):
             with synth.Synth(overwrite=True) as s:
                 peaks = (
                     synth.PeaksModelGaussianCircular(n_peaks=400)
@@ -278,23 +294,23 @@ def zest_sigproc_v2_calibration():
                 )
                 synth.CameraModel(bias=true_bg_mean, std=_true_bg_std)
                 peaks.widths_uniform(_true_psf_std)
-                if howmanydims==3:
+                if howmanydims == 3:
                     ims = s.render_flchcy()
                 elif howmanydims == 2:
                     ims = s.render_chcy()
                 else:
-                    ims = s.render_chcy()[0,0]
+                    ims = s.render_chcy()[0, 0]
             return ims
 
         def it_can_calibrate_psf_uniform_im():
-            #CREATE image with known PSF std
+            # CREATE image with known PSF std
             true_psf_std = 0.5
-            img = _synth_psf(true_bg_std,true_psf_std,howmanydims=1)
-            #ESTIMATE locs and psfs for this image
-            est_bg_mean, est_bg_std = worker._background_estimate(img, divs)
+            img = _synth_psf(true_bg_std, true_psf_std, howmanydims=1)
+            # ESTIMATE locs and psfs for this image
+            est_bg_mean, est_bg_std = worker._background_estimate_im(img, divs)
             im_sub = worker._background_subtraction(img, est_bg_mean)
-            locs, reg_psfs = worker._calibrate_psf_im(im_sub, divs=divs, peak_mea=peak_mea)
-            #CALCULATE psfs using fit_gauss2()
+            locs, reg_psfs = worker._psf_extract(im_sub, divs=divs, peak_mea=peak_mea)
+            # CALCULATE psfs using fit_gauss2()
             fit_params_sum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
             blank_regions = 0
             for x, y in grid_walk(divs):
@@ -306,21 +322,21 @@ def zest_sigproc_v2_calibration():
                     assert fv < 0.01
                 fit_params_sum += np.array(fit_params)
             assert blank_regions <= 2
-            #COMPARE fitted parameters to targets
+            # COMPARE fitted parameters to targets
             fit_params_mean = fit_params_sum / ((divs * divs) - blank_regions)
             true_params["std_x"]["tgt"] = true_psf_std
             true_params["std_y"]["tgt"] = true_psf_std
             _compare_fit_params(true_params, fit_params_mean)
 
         def it_can_calibrate_psf_uniform_im_w_large_psf_std():
-            #CREATE image with known PSF std, much larger than in previous test
+            # CREATE image with known PSF std, much larger than in previous test
             true_psf_std = 2.5
-            img = _synth_psf(true_bg_std,true_psf_std,howmanydims=1)
-            #ESTIMATE locs and psfs for this image
-            est_bg_mean, est_bg_std = worker._background_estimate(img, divs)
+            img = _synth_psf(true_bg_std, true_psf_std, howmanydims=1)
+            # ESTIMATE locs and psfs for this image
+            est_bg_mean, est_bg_std = worker._background_estimate_im(img, divs)
             im_sub = worker._background_subtraction(img, est_bg_mean)
-            locs, reg_psfs = worker._calibrate_psf_im(im_sub, divs=divs, peak_mea=peak_mea)
-            #CALCULATE psfs using fit_gauss2()
+            locs, reg_psfs = worker._psf_extract(im_sub, divs=divs, peak_mea=peak_mea)
+            # CALCULATE psfs using fit_gauss2()
             fit_params_sum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
             blank_regions = 0
             for x, y in grid_walk(divs):
@@ -332,44 +348,46 @@ def zest_sigproc_v2_calibration():
                     assert fv < 0.01
                 fit_params_sum += np.array(fit_params)
             assert blank_regions <= 2
-            #COMPARE fitted parameters to targets
+            # COMPARE fitted parameters to targets
             fit_params_mean = fit_params_sum / ((divs * divs) - blank_regions)
             true_params["std_x"]["tgt"] = true_psf_std
             true_params["std_y"]["tgt"] = true_psf_std
             _compare_fit_params(true_params, fit_params_mean)
-        
+
         def it_can_calibrate_psf_im_nonuniform():
-            #CREATE image with known small PSF std
+            # CREATE image with known small PSF std
             true_sm_psf_std = 0.5
-            img1 = _synth_psf(true_bg_std,true_sm_psf_std,howmanydims=1)
-            est_bg_mean, est_bg_std = worker._background_estimate(img1, divs)
+            img1 = _synth_psf(true_bg_std, true_sm_psf_std, howmanydims=1)
+            est_bg_mean, est_bg_std = worker._background_estimate_im(img1, divs)
             im_most = worker._background_subtraction(img1, est_bg_mean)
-            #CREATE second image with known large PSF std
+            # CREATE second image with known large PSF std
             true_lg_psf_std = 2.5
-            img2 = _synth_psf(true_bg_std,true_lg_psf_std,howmanydims=1)
-            est_bg_mean, est_bg_std = worker._background_estimate(img2, divs)
+            img2 = _synth_psf(true_bg_std, true_lg_psf_std, howmanydims=1)
+            est_bg_mean, est_bg_std = worker._background_estimate_im(img2, divs)
             im_corner = worker._background_subtraction(img2, est_bg_mean)
-            #CREATE hybrid with large PSF std in one corner
+            # CREATE hybrid with large PSF std in one corner
             corner_divs = 2
-            corner_size = corner_divs*int(im_most.shape[0]/divs)
-            ys, xs = np.meshgrid(np.arange(im_most.shape[0]), np.arange(im_most.shape[1]))
+            corner_size = corner_divs * int(im_most.shape[0] / divs)
+            ys, xs = np.meshgrid(
+                np.arange(im_most.shape[0]), np.arange(im_most.shape[1])
+            )
             dist_to_corner = np.maximum(xs, ys)
-            im3 = np.where(dist_to_corner < corner_size,im_corner,im_most)
-            #VERIFY that at least 1 loc is within our corner with higher std,
+            im3 = np.where(dist_to_corner < corner_size, im_corner, im_most)
+            # VERIFY that at least 1 loc is within our corner with higher std,
             # otherwise some of the later code will error out anyway and this
             # should make the problem easier to debug
-            locs, reg_psfs = worker._calibrate_psf_im(
-                im3, divs=divs, peak_mea=peak_mea
-            )
+            locs, reg_psfs = worker._psf_extract(im3, divs=divs, peak_mea=peak_mea)
             nbr_in_test_corner_field = 0
             for x, y in locs:
                 if (x < corner_size) and (y < corner_size):
                     nbr_in_test_corner_field += 1
             assert nbr_in_test_corner_field > 0
-            #VERIFY that our params for "most" of the image, and the other
+            # VERIFY that our params for "most" of the image, and the other
             # part in the corner (with higher std) are close to the true answer
             fit_params_sum_most = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-            fit_params_sum_test_corner = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            fit_params_sum_test_corner = np.array(
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            )
             divisor_most = 0
             divisor_test_corner = 0
             for x, y in grid_walk(divs):
@@ -388,7 +406,9 @@ def zest_sigproc_v2_calibration():
                     fit_params_sum_most += np.array(fit_params)
             assert ((divs * divs) - divisor_most - divisor_test_corner) <= 2
             fit_params_mean_most = fit_params_sum_most / divisor_most
-            fit_params_mean_test_corner = fit_params_sum_test_corner / divisor_test_corner
+            fit_params_mean_test_corner = (
+                fit_params_sum_test_corner / divisor_test_corner
+            )
             true_params["std_x"]["tgt"] = true_sm_psf_std
             true_params["std_y"]["tgt"] = true_sm_psf_std
             true_params["std_x"]["range"] = 1
@@ -399,9 +419,9 @@ def zest_sigproc_v2_calibration():
             _compare_fit_params(true_params, fit_params_mean_test_corner)
 
         zest()
-    
+
     def it_can_calib_psf_stats_one_channel_one_cycle():
-        #CREATE a set of peaks which will appear in all images
+        # CREATE a set of peaks which will appear in all images
         n_z_slices = 20
         n_fields = 1
         z_stack = np.array([])
@@ -413,7 +433,7 @@ def zest_sigproc_v2_calibration():
             .amps_constant(val=10000)
         )
         synth.CameraModel(bias=bg_mean, std=bg_std)
-        #GENERATE a z-stack of images with the same peaks, different psf stds
+        # GENERATE a z-stack of images with the same peaks, different psf stds
         templist = []
         center_z = ceil((n_z_slices - 1) / 2)
         # e.g. if n_z_slices=3, z's are [0,1,2], center_z = 1
@@ -424,18 +444,16 @@ def zest_sigproc_v2_calibration():
         std_max = std_min
         for z_i in range(0, n_z_slices):
             std_used = std_min * (1 + abs(center_z - z_i))
-            std_max = max(std_used,std_max)
+            std_max = max(std_used, std_max)
             peaks.widths_uniform(std_used)
             imgs = s.render_chcy()
             templist.append(imgs[0][0])
         z_stack = np.array([templist])
-        #MEASURE the psf stats using this z-stack
+        # MEASURE the psf stats using this z-stack
         z_and_region_to_psf = np.array(
-            worker._calib_psf_stats_one_channel(
-                z_stack, n_fields, n_z_slices, calib, divs, peak_dim
-            )
+            worker._psf_stats_one_channel(z_stack, n_fields, n_z_slices, divs, peak_dim)
         )
-        #DETERMINE if we measured things successfully
+        # DETERMINE if we measured things successfully
         fit_params_sum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         divisor = 0
         for x, y in grid_walk(divs):
@@ -462,17 +480,19 @@ def zest_sigproc_v2_calibration():
         true_params["std_y"]["tgt"] = std_min
         true_params["std_y"]["range"] = std_range
         _compare_fit_params(true_params, fit_params_mean)
-    
+
     def it_can_calibrate_foreground_one_channel():
-        #MOCK a z_stack ImsImportResult
+        # MOCK a z_stack ImsImportResult
         calib = Calibration()
         n_z_slices = 15
         n_fields = 2
         ch_i = 0
         ims_import_result = result_from_z_stack(n_fields=n_fields, n_cycles=n_z_slices)
 
-        #CREATE a calib object already partly made
-        calib = worker._calibrate_step_1_background_stats(calib, ims_import_result, divs)
+        # CREATE a calib object already partly made
+        calib = worker._calibrate_step_1_background_stats(
+            calib, ims_import_result, divs
+        )
         calib = worker._calibrate_step_2_psf(calib, ims_import_result, divs, peak_mea)
         calib.add(
             {
@@ -487,22 +507,24 @@ def zest_sigproc_v2_calibration():
             radiometry_channels=dict(ch=ch_i),
             mode="z_stack",
         )
-        #FIND radmat and locs
-        fl_radmat, fl_loc = worker._calibrate_foreground_one_channel(
+        # FIND radmat and locs
+        fl_radmat, fl_loc = worker._foreground_stats(
             calib, ims_import_result, n_fields, ch_i, sigproc_params
         )
         try:
-            assert fl_radmat.shape[0] == fl_loc.shape[0] > 100 #found at least 100 locs
+            assert (
+                fl_radmat.shape[0] == fl_loc.shape[0] > 100
+            )  # found at least 100 locs
         except AssertionError:
-            debug('did not find enough locs',fl_loc.shape[0])
+            debug("did not find enough locs", fl_loc.shape[0])
             raise
         assert fl_radmat.shape[1] == 1
         assert fl_radmat.shape[2] == n_z_slices
         assert fl_radmat.shape[3] == fl_loc.shape[1] == n_fields
-        
+
         def it_can_calibrate_filter_locs_by_snr():
-            #REUSE radmat and locs from previous test
-            sig, locs = worker._calibrate_filter_locs_by_snr(
+            # REUSE radmat and locs from previous test
+            sig, locs = worker._foreground_filter_locs_by_snr(
                 fl_radmat, fl_loc, n_z_slices, ch_i
             )
             assert sig.shape[0] == locs.shape[0]
@@ -523,30 +545,29 @@ def zest_sigproc_v2_calibration():
 
             zest()
 
-        
         zest()
-    
+
     def it_can_calibrate_psfs():
         # other tests for the lower level functions called by calibrate_psf()
         # are checking for the ability to return accurate measures of std,
         # handle nonuniform images, etc.  This test is just checking that
         # the data received is getting put into the calibration object in
         # the correct shape and with the correct keyword
-        #CREATE mock calib and ims_import_result objects
+        # CREATE mock calib and ims_import_result objects
         calib = Calibration()
         n_z_slices = 20
         n_fields = 3
         ims_import_result = result_from_z_stack(n_fields=n_fields, n_cycles=n_z_slices)
         calib = worker._calibrate_psf(calib, ims_import_result.ims, divs, peak_mea)
-        #VERIFY that the calib object got the right kinds of things added to it
+        # VERIFY that the calib object got the right kinds of things added to it
         check.list_t(calib["regional_psf_zstack.instrument_channel[0]"], list)
         rbm_arr = np.array(calib["regional_psf_zstack.instrument_channel[0]"])
         check.array_t(
             rbm_arr, shape=(None, divs, divs, peak_mea, peak_mea), dtype=np.float64
         )
-    
+
     def it_can_calibrate_regional_illumination_balance():
-        #CREATE calib and ImsImportResult 
+        # CREATE calib and ImsImportResult
         calib = Calibration()
         n_z_slices = 15
         n_fields = 2
@@ -565,16 +586,15 @@ def zest_sigproc_v2_calibration():
                 nbr_failures += 1
             else:
                 nbr_successes += 1
-            if nbr_failures > 1 or nbr_successes > 5*nbr_failures:
+            if nbr_failures > 1 or nbr_successes > 5 * nbr_failures:
                 break
         assert nbr_failures < 2
 
-        #VERIFY that _calibrate_regional_illumination_balance() puts data of the right
+        # VERIFY that _calibrate_regional_illumination_balance() puts data of the right
         # type and shape into the right place in the calib object.  Other tests will
         # test the lower level functions.
         check.list_t(calib["regional_illumination_balance.instrument_channel[0]"], list)
         rib_arr = np.array(calib["regional_illumination_balance.instrument_channel[0]"])
         check.array_t(rib_arr, shape=(divs, divs), dtype=np.float64)
-    
+
     zest()
-    

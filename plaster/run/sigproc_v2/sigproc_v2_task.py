@@ -3,7 +3,7 @@ from munch import Munch
 from plaster.tools.pipeline.pipeline import PipelineTask
 from plaster.tools.utils import utils
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
-from plaster.run.sigproc_v2.sigproc_v2_worker import sigproc
+from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.ims_import.ims_import_result import ImsImportResult
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.tools.log.log import debug
@@ -20,18 +20,14 @@ class SigprocV2Task(PipelineTask):
         )
 
         if sigproc_v2_params.mode == common.SIGPROC_V2_INSTRUMENT_CALIB:
-            sigproc_v2_instrument_calib_result = sigproc_instrument_calib(
-                sigproc_v2_params,
-                ims_import_result,
-                self.progress
+            sigproc_v2_instrument_calib_result = worker.sigproc_instrument_calib(
+                sigproc_v2_params, ims_import_result, self.progress
             )
             sigproc_v2_instrument_calib_result.save()
 
         elif sigproc_v2_params.mode == common.SIGPROC_V2_INSTRUMENT_ANALYZE:
-            sigproc_v2_result = sigproc_analyze(
-                sigproc_v2_params,
-                ims_import_result,
-                self.progress
+            sigproc_v2_result = worker.sigproc_analyze(
+                sigproc_v2_params, ims_import_result, self.progress
             )
             sigproc_v2_result.save()
         else:

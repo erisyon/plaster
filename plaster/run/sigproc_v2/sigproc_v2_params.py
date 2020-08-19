@@ -17,12 +17,15 @@ class SigprocV2Params(Params):
         For now, we're going to load all records from the calibration file
     """
 
-    defaults = dict()
+    defaults = dict(divs=5, peak_mea=11, sig_limit=20, snr_thresh=2,)
 
     schema = s(
         s.is_kws_r(
             calibration_file=s.is_str(),
             mode=s.is_str(options=common.SIGPROC_V2_MODES),
+            divs=s.is_int(),
+            peak_mea=s.is_int(),
+            snr_thresh=s.is_float(),
         )
     )
 
@@ -43,7 +46,7 @@ class SigprocV2Params(Params):
 
     def set_radiometry_channels_from_input_channels_if_needed(self, n_channels):
         assert n_channels == 1
-        self.radiometry_channels = { f"ch_0": 0 }
+        self.radiometry_channels = {f"ch_0": 0}
         # if self.radiometry_channels is None:
         #     # Assume channels from nd2 manifest
         #     channels = list(range(n_channels))
