@@ -17,7 +17,6 @@ ims_imports
     schema = s(
         s.is_kws_r(
             **BaseGenerator.sigproc_v2_schema.schema(),
-            **BaseGenerator.sigproc_v2_instrument_calib_schema.schema(),
         )
     )
 

@@ -581,7 +581,7 @@ def _psf_extract(im, divs=5, keep_dist=8, peak_mea=11, locs=None):
     return locs[accepted > 0], reg_psfs
 
 
-def do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
+def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
     n_src_zslices = zi_ims.shape[0]
     divs = sigproc_v2_params.divs
     peak_dim = (sigproc_v2_params.peak_mea, sigproc_v2_params.peak_mea)
@@ -614,10 +614,13 @@ def do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
 
     return z_and_region_to_psf
 
+# TODO: Write a test that definitely has the focus in the center of the src stack
+# and make sure we get the whole zslices filled in
 
+# TODO: Attach progress
 def _psf_stats_one_channel(fl_zi_ims, sigproc_v2_params):
     z_and_region_to_psf_per_field = zap.arrays(
-        do_psf_stats_one_field_one_channel,
+        _do_psf_stats_one_field_one_channel,
         dict(zi_ims=fl_zi_ims),
         sigproc_v2_params=sigproc_v2_params,
         _stack=True,
@@ -1292,21 +1295,24 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True):
     return chcy_ims, locs[keep_mask], radmat[keep_mask], aln_offsets, aln_scores
 
 
-'''
-def _do_sigproc_field(ims_import_result, sigproc_params, field_i, sigproc_result):
+def _do_sigproc_field(field_i, ims_import_result, sigproc_v2_params, sigproc_v2_result, calib):
     """
     Analyze AND SAVE one field.
     """
-    chcy_ims = ims_import_result.field_chcy_ims(field_i)
-
-    chcy_ims, locs, radmat, aln_offsets, aln_scores = sigproc_field(
-        chcy_ims, sigproc_params
-    )
-
+    chcy_ims = ims_import_result.ims[field_i]
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
+    chcy_ims, locs, radmat, aln_offsets, aln_scores = _sigproc_field(
+        chcy_ims, sigproc_v2_params, calib
+    )
+
+    # Assign 0 peak_i in the following because that is the GLOBAL peak_i
+    # which is not computable until all fields are processed.
     peak_df = pd.DataFrame(
-        [(0, field_i, peak_i, loc[0], loc[1]) for peak_i, loc in enumerate(locs)],
+        [
+            (0, field_i, peak_i, loc[0], loc[1])
+            for peak_i, loc in enumerate(locs)
+        ],
         columns=list(SigprocV2Result.peak_df_schema.keys()),
     )
 
@@ -1328,7 +1334,7 @@ def _do_sigproc_field(ims_import_result, sigproc_params, field_i, sigproc_result
 
     assert len(radmat) == len(peak_df)
 
-    sigproc_result.save_field(
+    sigproc_v2_result.save_field(
         field_i,
         peak_df=peak_df,
         field_df=field_df,
@@ -1336,46 +1342,6 @@ def _do_sigproc_field(ims_import_result, sigproc_params, field_i, sigproc_result
         _aln_chcy_ims=chcy_ims,
     )
 
-
-def sigproc(sigproc_v2_params, ims_import_result, progress=None):
-    """
-    Analyze all fields
-    """
-    calib = Calibration.load(sigproc_v2_params.calibration_file)
-    assert not calib.is_empty()
-
-    channel_weights = _compute_channel_weights(sigproc_params)
-
-    sigproc_result = SigprocV2Result(
-        params=sigproc_v2_params,
-        n_input_channels=ims_import_result.n_channels,
-        n_channels=sigproc_v2_params.n_output_channels,
-        n_cycles=ims_import_result.n_cycles,
-        channel_weights=channel_weights,
-    )
-
-    n_fields = ims_import_result.n_fields
-    n_fields_limit = sigproc_v2_params.n_fields_limit
-    if n_fields_limit is not None and n_fields_limit < n_fields:
-        n_fields = n_fields_limit
-
-    zap.work_orders(
-        [
-            Munch(
-                fn=_do_sigproc_field,
-                ims_import_result=ims_import_result,
-                sigproc_params=sigproc_v2_params,
-                field_i=field_i,
-                sigproc_result=sigproc_result,
-            )
-            for field_i in range(n_fields)
-        ],
-        _trap_exceptions=False,
-        _progress=progress,
-    )
-
-    return sigproc_result
-'''
 
 
 # Entrypoints
@@ -1395,13 +1361,11 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
     progress(0, 3, False)
     # 1:40 on val_calib. Probably don't need to sample every image...
     # low-hanging-fruit would be to sub-sample the images
-    # calib = _calibrate_step_1_background_stats(
-    #     calib, ims_import_result, sigproc_v2_params
-    # )
-    # progress(1, 3, False)
-    calib = Calibration.load("step1.calib")
+    calib = _calibrate_step_1_background_stats(
+        calib, ims_import_result, sigproc_v2_params
+    )
+    progress(1, 3, False)
 
-    # 3:00 
     calib = _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params)
     progress(2, 3, False)
 
@@ -1412,6 +1376,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
     )
     progress(3, 3, False)
 
+    calib.save(sigproc_v2_params.calibration_file)
     return SigprocV2Result(
         params=sigproc_v2_params,
         n_input_channels=None,
@@ -1428,4 +1393,37 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress):
     Requires a calibration_file previously generated by sigproc_instrument_calib()
     that is refered to in sigproc_v2_params.calibration_file
     """
-    raise NotImplementedError
+
+    calib = Calibration.load(sigproc_v2_params.calibration_file)
+    assert not calib.is_empty()
+
+    sigproc_v2_result = SigprocV2Result(
+        params=sigproc_v2_params,
+        n_input_channels=ims_import_result.n_channels,
+        n_channels=sigproc_v2_params.n_output_channels,
+        n_cycles=ims_import_result.n_cycles,
+        calib=calib,
+    )
+
+    n_fields = ims_import_result.n_fields
+    n_fields_limit = sigproc_v2_params.n_fields_limit
+    if n_fields_limit is not None and n_fields_limit < n_fields:
+        n_fields = n_fields_limit
+
+    zap.work_orders(
+        [
+            Munch(
+                fn=_do_sigproc_field,
+                field_i=field_i,
+                ims_import_result=ims_import_result,
+                sigproc_v2_params=sigproc_v2_params,
+                sigproc_v2_result=sigproc_v2_result,
+                calib=calib,
+            )
+            for field_i in range(n_fields)
+        ],
+        _trap_exceptions=False,
+        _progress=progress,
+    )
+
+    return sigproc_v2_result

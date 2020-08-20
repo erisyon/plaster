@@ -43,7 +43,6 @@ class SigprocV2Result(BaseResult):
         n_input_channels=(type(None), int),
         n_channels=(type(None), int),
         n_cycles=(type(None), int),
-        channel_weights=(type(None), np.ndarray),
         calib=Calibration,
     )
 
