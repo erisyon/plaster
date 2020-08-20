@@ -161,6 +161,7 @@ void tab_dump(Tab *tab, char *msg) {
 
 #define tab_row(tab, row_i) _tab_get(tab, row_i, __FILE__, __LINE__)
 #define tab_var(typ, var, tab, row_i) typ *var = (typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
+#define tab_ptr(typ, tab, row_i) (typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
 #define tab_get(typ, tab, row_i) *(typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
 #define tab_set(tab, row_i, src) _tab_set(tab, row_i, src, __FILE__, __LINE__)
 #define tab_add(tab, src, lock) _tab_add(tab, src, lock, __FILE__, __LINE__)
@@ -168,45 +169,61 @@ void tab_dump(Tab *tab, char *msg) {
 
 
 void tab_tests() {
-    int buf[100];
-    for(int i=0; i<100; i++) {
-        buf[i] = i;
+    #define N_ROWS (5)
+    #define N_COLS (3)
+
+    int buf[N_ROWS * N_COLS];
+    for(int r=0; r<N_ROWS; r++) {
+        for(int c=0; c<N_COLS; c++) {
+            buf[r * N_COLS + c] = r<<16 | c;
+        }
     }
 
-    for(int i=0; i<10; i++) {
-        printf("%u ", buf[i]);
-    }
-
-    Tab tab_a = tab_by_n_rows(buf, 10, 5 * sizeof(int), TAB_NOT_GROWABLE);
-    printf("a=%d\n", *(int *)tab_row(&tab_a, 0));
+    Tab tab_a = tab_by_n_rows(buf, N_ROWS * N_COLS, N_COLS * sizeof(int), TAB_NOT_GROWABLE);
+    ensure(*(int *)tab_row(&tab_a, 0) == (0), "tab_row[0,0] wrong");
+    ensure(*(int *)tab_row(&tab_a, 1) == (1<<16 | 0), "tab_row[1,1] wrong");
+    ensure(((int *)tab_row(&tab_a, 1))[1] == (1<<16 | 1), "tab_row[1,1] wrong");
 
     tab_var(int, b, &tab_a, 1);
-    printf("b=%d\n", *b);
+    ensure(b[0] == (1<<16 | 0), "tab_var[1,0] wrong");
+    ensure(b[1] == (1<<16 | 1), "tab_var[1,1] wrong");
 
-    //tab_var(int, c, &tab_a, 20);
-    //printf("c=%d\n", *c);
+    tab_var(int, row_1, &tab_a, 1);
+    tab_set(&tab_a, 4, row_1);
+    tab_var(int, row_4, &tab_a, 1);
+    ensure(row_4[0] == (1<<16 | 0), "tab_var[4,0] wrong after copy");
+    ensure(row_4[2] == (1<<16 | 2), "tab_var[4,2] wrong after copy");
 
-    int val = 0xF000BEE5;
-    tab_set(&tab_a, 1, &val);
-    printf("c=%x\n", *(int *)tab_row(&tab_a, 1));
+    // RESET to zeros
+    memset(buf, 0, N_ROWS * N_COLS * sizeof(int));
 
-//    tab_set(&tab_a, 10, &buf[1]);
+    Tab tab_b = tab_by_n_rows(buf, N_ROWS, N_COLS * sizeof(int), TAB_GROWABLE);
+    ensure(tab_b.n_rows == 0, "n_rows wrong after reset");
+    ensure(tab_b.n_max_rows == N_ROWS, "n_max_rows wrong after reset");
 
-    Tab tab_b = tab_by_n_rows(buf, 10, 5 * sizeof(int), TAB_GROWABLE);
-    tab_add(&tab_b, &val, TAB_NO_LOCK);
-    printf("adedd n_rows=%lu d=%x\n", tab_b.n_rows, tab_get(int, &tab_b, 0));
+    int row[N_COLS] = { 0, 1, 2 };
+    tab_add(&tab_b, row, TAB_NO_LOCK);
+    tab_var(int, c, &tab_b, 0);
+    ensure(c[0] == 0, "c[0] wrong");
+    ensure(c[1] == 1, "c[1] wrong");
+    ensure(c[2] == 2, "c[2] wrong");
+    ensure(tab_b.n_rows == 1, "tab_b.n_rows wrong");
 
-    tab_validate(&tab_a, &buf[1]);
-    tab_dump(&tab_a, "my dump");
-
-    // This is not right
-    for(int i=0; i<10; i++) {
-        printf("%u ", buf[i]);
+    // RESET to original
+    for(int r=0; r<N_ROWS; r++) {
+        for(int c=0; c<N_COLS; c++) {
+            buf[r * N_COLS + c] = r<<16 | c;
+        }
     }
-    printf("\n");
-    Tab tab_s = tab_subset(&tab_a, 2, 4);
-    printf("s0 %d \n", tab_get(int, &tab_a, 0));
-    printf("s=%d\n", tab_get(int, &tab_s, 0));
+    Tab tab_s = tab_subset(&tab_a, 2, 2);
+    tab_var(int, s, &tab_s, 0);
+    ensure(s[0] == (2<<16 | 0), "s[0] wrong");
+    ensure(s[1] == (2<<16 | 1), "s[0] wrong");
+    ensure(s[2] == (2<<16 | 2), "s[0] wrong");
+    s = tab_ptr(int, &tab_s, 1);
+    ensure(s[0] == (3<<16 | 0), "s[1] wrong");
+    ensure(s[1] == (3<<16 | 1), "s[1] wrong");
+    ensure(s[2] == (3<<16 | 2), "s[1] wrong");
 }
 
 
