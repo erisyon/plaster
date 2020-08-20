@@ -19,16 +19,6 @@ from plaster.tools.log.log import debug
 from plaster.tools.calibration.calibration import Calibration
 
 
-class SigprocV2InstrumentCalibResult(BaseResult):
-    name = "sigproc_v2_instrument_calib"
-    filename = "sigproc_v2_instrument_calib.pkl"
-    required_props = Munch(
-        # Note that these do not include props in the save_field
-        params=SigprocV2Params,
-    )
-
-
-
 class SigprocV2Result(BaseResult):
     """
     Understanding alignment coordinates
@@ -50,10 +40,11 @@ class SigprocV2Result(BaseResult):
     required_props = OrderedDict(
         # Note that these do not include props in the save_field
         params=SigprocV2Params,
-        n_input_channels=int,
-        n_channels=int,
-        n_cycles=int,
-        channel_weights=np.ndarray,
+        n_input_channels=(type(None), int),
+        n_channels=(type(None), int),
+        n_cycles=(type(None), int),
+        channel_weights=(type(None), np.ndarray),
+        calib=Calibration,
     )
 
     peak_df_schema = OrderedDict(

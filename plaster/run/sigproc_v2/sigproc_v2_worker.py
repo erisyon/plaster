@@ -97,7 +97,7 @@ TASKS:
 """
 
 from enum import IntEnum
-
+import math
 import cv2
 import numpy as np
 import pandas as pd
@@ -581,77 +581,109 @@ def _psf_extract(im, divs=5, keep_dist=8, peak_mea=11, locs=None):
     return locs[accepted > 0], reg_psfs
 
 
-def _psf_stats_one_channel(
-    fl_zi_ims, n_fields, n_z_slices, divs, peak_dim, focus_window_radius=6
-):
+def do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
+    n_src_zslices = zi_ims.shape[0]
+    divs = sigproc_v2_params.divs
+    peak_dim = (sigproc_v2_params.peak_mea, sigproc_v2_params.peak_mea)
+    n_dst_zslices = 1 + 2 * sigproc_v2_params.focus_window_radius
+    z_and_region_to_psf = np.zeros((n_dst_zslices, divs, divs, *peak_dim))
+
+    src_z_iz = utils.ispace(0, n_src_zslices, n_dst_zslices)
+    dst_z_per_src_z = n_src_zslices / n_dst_zslices
+
+    im_focuses = np.zeros((n_src_zslices,))
+    for src_zi in range(n_src_zslices):
+        bg_mean, _ = _background_estimate_im(zi_ims[src_zi], divs)
+        im_sub = _background_subtraction(zi_ims[src_zi], bg_mean)
+        im_focuses[src_zi] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
+
+    src_zi_best_focus = np.argmax(im_focuses)
+
+    for dst_zi in range(n_dst_zslices):
+        src_zi0 = math.floor(0.5 + ((dst_zi-0.5) - n_dst_zslices//2) * dst_z_per_src_z + src_zi_best_focus)
+        src_zi1 = math.floor(0.5 + ((dst_zi+0.5) - n_dst_zslices//2) * dst_z_per_src_z + src_zi_best_focus)
+
+        for src_zi in range(src_zi0, src_zi1):
+            if 0 <= src_zi < n_src_zslices:
+                # Only if the source is inside the source range, accum to dst.
+                # TODO: Possible optimization: save the bg results from above
+                bg_mean, bg_std = _background_estimate_im(zi_ims[src_zi], divs)
+                im_sub = _background_subtraction(zi_ims[src_zi], bg_mean)
+                _, reg_psfs = _psf_extract(im_sub, divs=divs, peak_mea=peak_dim[0])
+                z_and_region_to_psf[dst_zi] += reg_psfs
+
+    return z_and_region_to_psf
+
+
+def _psf_stats_one_channel(fl_zi_ims, sigproc_v2_params):
+    z_and_region_to_psf_per_field = zap.arrays(
+        do_psf_stats_one_field_one_channel,
+        dict(zi_ims=fl_zi_ims),
+        sigproc_v2_params=sigproc_v2_params,
+        _stack=True,
+    )
+
+    # SUM over fields
+    z_and_region_to_psf = np.sum(z_and_region_to_psf_per_field, axis=0)
+
+    # The z_and_region_to_psf can have all-zero elements thus we use np_safe_divide below
+    denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
+    z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
+    return z_and_region_to_psf.tolist()
+
+
+'''
+def _psf_stats_one_channel(fl_zi_ims, sigproc_v2_params):
     """
     Step one of calibration is to get Point Spread Function from
     a z-stack dataset.  Note that what is normally called 'cycle'
     is actually z-stack index here.
 
-    Arguments:
-        fl_zi_ims: ims to be analyzed
-        n_fields: number of fields per channel*z-slice
-        divs: divisions (in two dims) of image for regional stats
-        peak_dim: shape in pixels of psf
-        focus_window_radius: how many z-slices (on each side of the
-        highest quality slice) we will average across (e.g. for radius
-        6 we will average across 1+2*6=13 slices)
-
     Returns:
         list psf, ready to insert into calib object
     """
 
-    z_and_region_to_psf = np.zeros((1 + 2 * focus_window_radius, divs, divs, *peak_dim))
-    im_quals = np.zeros((n_fields, n_z_slices))
-    im_focuses = np.zeros((n_fields, n_z_slices))
+    n_fields, n_src_zslices = fl_zi_ims.shape[0:2]
+    divs = sigproc_v2_params.divs
+    peak_dim = (sigproc_v2_params.peak_mea, sigproc_v2_params.peak_mea)
+    n_dst_zslices = 1 + 2 * sigproc_v2_params.focus_window_radius
+    z_and_region_to_psf = np.zeros((n_dst_zslices, divs, divs, *peak_dim))
 
-    # DECIDE which fields are best by computing
-    # the median of the mean-quality (ie mean quality over the cycles of each field).
+    dst_z_per_src_z = n_src_zslices / n_dst_zslices
+
+    # TODO: zap this...
     for fl_i in range(0, n_fields):
-        for z_i in range(0, n_z_slices):
-            bg_mean, bg_std = _background_estimate_im(fl_zi_ims[fl_i][z_i], divs)
-            im_sub = _background_subtraction(fl_zi_ims[fl_i][z_i], bg_mean)
-            im_quals[fl_i, z_i] = _quality(im_sub)
-            im_focuses[fl_i, z_i] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
-    mean_qual_by_field = np.mean(im_quals, axis=1)
-    median_mean_qual_by_field = np.median(mean_qual_by_field)
-    fields_above_avg_qual = np.argwhere(mean_qual_by_field >= median_mean_qual_by_field)
 
-    # DECIDE which z-slices are best for us to use
-    mean_focuses = np.mean(im_focuses, axis=0)
-    z_i_best_focus_by_field = np.argmax(im_focuses, axis=1)
+        # COMPUTE focus for the entire zstack
+        # (might be much greater than focus_window_radius)
+        im_focuses = np.zeros((n_src_zslices,))
+        for src_zi in range(n_src_zslices):
+            bg_mean, _ = _background_estimate_im(fl_zi_ims[fl_i][src_zi], divs)
+            im_sub = _background_subtraction(fl_zi_ims[fl_i][src_zi], bg_mean)
+            im_focuses[src_zi] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
 
-    # AVERAGE across the fields and z-slices we have decided to use,
-    # to generate the PSF.  The best slice will always be in the center
-    # of the window, so if it is close to the edge of our z-stack, we
-    # may need to fill one or more slices with NaN's.
-    for fl_i in range(0, n_fields):
-        if fl_i not in fields_above_avg_qual:
-            continue
-        start_slice = (
-            z_i_best_focus_by_field[fl_i] - focus_window_radius
-        )  # could be less than 0
-        end_slice = (
-            z_i_best_focus_by_field[fl_i] + focus_window_radius
-        )  # could be greater than z-stack
-        for z_i in range(start_slice, end_slice + 1):
-            if z_i < 0 or z_i >= n_z_slices:
-                z_and_region_to_psf[z_i - start_slice] = np.empty(peak_dim)
-                z_and_region_to_psf[z_i - start_slice] = np.NaN
-                continue
-            bg_mean, bg_std = _background_estimate_im(fl_zi_ims[fl_i][z_i], divs)
-            im_sub = _background_subtraction(fl_zi_ims[fl_i][z_i], bg_mean)
-            locs, reg_psfs = _psf_extract(im_sub, divs=divs, peak_mea=peak_dim[0])
+        src_zi_best_focus = np.argmax(im_focuses)
+        debug(fl_i, src_zi_best_focus)
 
-            # ACCUMULATE each field, will normalize at the end
-            z_and_region_to_psf[z_i - start_slice] += reg_psfs
+        for dst_zi in range(n_dst_zslices):
+            src_zi0 = math.floor(0.5 + ((dst_zi-0.5) - n_dst_zslices//2) * dst_z_per_src_z + src_zi_best_focus)
+            src_zi1 = math.floor(0.5 + ((dst_zi+0.5) - n_dst_zslices//2) * dst_z_per_src_z + src_zi_best_focus)
+
+            for src_zi in range(src_zi0, src_zi1):
+                if 0 <= src_zi < n_src_zslices:
+                    # Only if the source is inside the source range, accum to dst.
+                    # TODO: Possible optimization: save the bg results from above
+                    bg_mean, bg_std = _background_estimate_im(fl_zi_ims[fl_i][src_zi], divs)
+                    im_sub = _background_subtraction(fl_zi_ims[fl_i][src_zi], bg_mean)
+                    _, reg_psfs = _psf_extract(im_sub, divs=divs, peak_mea=peak_dim[0])
+                    z_and_region_to_psf[dst_zi] += reg_psfs
 
     # NORMALIZE all psfs
-    denominator = np.nansum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
+    # The z_and_region_to_psf can have all-zero elements thus we use np_safe_divide below
+    denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
     z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
     return z_and_region_to_psf.tolist()
-
+'''
 
 # Foreground functions
 # -------------------------------------------------------------------------------
@@ -795,13 +827,7 @@ def _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params):
     for ch_i in range(0, n_channels):
         fl_zi_ims = ims_import_result.ims[:, ch_i, :]
 
-        psf_stats_ch = _psf_stats_one_channel(
-            fl_zi_ims,
-            n_fields,
-            n_zslices,
-            sigproc_v2_params.divs,
-            peak_dim=(sigproc_v2_params.peak_mea, sigproc_v2_params.peak_mea),
-        )
+        psf_stats_ch = _psf_stats_one_channel(fl_zi_ims, sigproc_v2_params)
 
         calib.add({f"regional_psf_zstack.instrument_channel[{ch_i}]": psf_stats_ch})
 
@@ -1028,6 +1054,10 @@ def _analyze_step_6a_peak_radiometry(
     Returns:
         signal: The area under the kernel (always >= 0)
         noise: The standard deviation of the residuals (always >= 0)
+
+    Notes:
+        I think that allow_non_unity_psf_kernel is no longer needed. It only
+        seems to be referenced in a (probably old) notebook.
     """
     check.array_t(peak_im, ndim=2, is_square=True)
     check.array_t(psf_kernel, ndim=2, is_square=True)
@@ -1107,7 +1137,7 @@ def _fit_focus(z_reg_psfs, locs, im):
     return 6
 
 
-def _analyze_step_6_radiometry(chcy_ims, locs, calib):
+def _analyze_step_6_radiometry(chcy_ims, locs, calib, sigproc_v2_params):
     """
     Use the PSFs to compute the Area-Under-Curve of the data in chcy_ims
     for each peak location of locs.
@@ -1115,7 +1145,7 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     Arguments:
         chcy_ims: (n_output_channels, n_cycles, width, height)
         locs: (n_peaks, 2). The second dimension is in (y, x) order
-        ch_z_reg_psfs: (n_output_channels, n_z_slices, divs, divs, psf_mea, psf_mea)
+        ch_z_reg_psfs: (n_output_channels, n_z_slices, divs, divs, peak_mea, peak_mea)
         cycle_to_z_index: (n_cycles).
             This is the best z-slice of the ch_z_reg_psfs to use for
             each cycle determined by a focal fit.
@@ -1128,15 +1158,16 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
 
     radmat = np.full((n_locs, n_channels, n_cycles, 2), np.nan)  # 2 is (sig, noi)
 
-    center_weighted_mask = imops.generate_center_weighted_tanh(psf_mea, radius=2.0)
+    center_weighted_mask = imops.generate_center_weighted_tanh(sigproc_v2_params.peak_mea, radius=2.0)
 
     for ch_i in range(n_channels):
         z_reg_psfs = np.array(calib[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
         psf_dim = z_reg_psfs.shape[-2:]
-        psf_mea = psf_dim[0]
-        assert psf_mea == psf_dim[1]
-        psf_divs = z_reg_psfs.shape[1]
-        assert psf_divs == z_reg_psfs.shape[2]  # Assert divs is square
+
+        assert z_reg_psfs.shape[1] == sigproc_v2_params.divs
+        assert z_reg_psfs.shape[2] == sigproc_v2_params.divs
+        assert z_reg_psfs.shape[3] == sigproc_v2_params.peak_mea
+        assert z_reg_psfs.shape[4] == sigproc_v2_params.peak_mea
 
         for cy_i in range(n_cycles):
             im = chcy_ims[ch_i, cy_i]
@@ -1144,7 +1175,6 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
             best_focus_zslice_i = _fit_focus(z_reg_psfs, locs, im)
 
             reg_psfs = z_reg_psfs[best_focus_zslice_i, :, :, :, :]
-            nbr_mt_kernels = 0
             for loc_i, loc in enumerate(locs):
                 peak_im = imops.crop(im, off=YX(loc), dim=HW(psf_dim), center=True)
                 if peak_im.shape != psf_dim:
@@ -1155,7 +1185,7 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
                     # Skip nan collisions
                     continue
 
-                # TODO: Funcuaizlzie? "Give me the best PSF you can"
+                # TODO: Functionalizing? "Give me the best PSF you can"
 
                 # There is a small issue here -- when the regional PSFs
                 # are computed they divide up the image over the full width
@@ -1164,28 +1194,25 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
                 # cause problems if alignment is very poor but is probably
                 # too small of an effect to worry about in typical operations.
                 psf_kernel = reg_psfs[
-                    int(psf_divs * loc[0] / im.shape[0]),
-                    int(psf_divs * loc[1] / im.shape[1]),
+                    int(sigproc_v2_params.divs * loc[0] / im.shape[0]),
+                    int(sigproc_v2_params.divs * loc[1] / im.shape[1]),
                 ]
+
                 if np.sum(psf_kernel) == 0.0:
-                    nbr_mt_kernels += 1
-                    radmat[loc_i, ch_i, cy_i, :] = (
-                        0.001,
-                        20,
-                    )  # i.e. throw this one away
-                    continue
-                signal, noise = _analyze_step_6a_peak_radiometry(
-                    peak_im, psf_kernel, center_weighted_mask=center_weighted_mask
-                )
+                    signal, noise = np.nan, np.nan
+                else:
+                    signal, noise = _analyze_step_6a_peak_radiometry(
+                        peak_im, psf_kernel, center_weighted_mask=center_weighted_mask
+                    )
+
                 radmat[loc_i, ch_i, cy_i, :] = (signal, noise)
-            assert nbr_mt_kernels < len(locs)
     return radmat
 
 
 def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
-    keep_mask = np.ones_like(radmat, dtype=bool)
+    keep_mask = np.ones((radmat.shape[0],), dtype=bool)
 
-    for out_ch_i in range(sigproc_v2_params.n_out_channels):
+    for out_ch_i in range(sigproc_v2_params.n_output_channels):
         in_ch_i = sigproc_v2_params.output_channel_to_input_channel(out_ch_i)
         bg_std = np.min(calib[f"regional_bg_std.instrument_channel[{in_ch_i}]"])
         keep_mask = keep_mask | np.any(
@@ -1194,8 +1221,9 @@ def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
 
     if sigproc_v2_params.snr_thresh is not None:
         snr = radmat[:, :, :, 0] / radmat[:, :, :, 1]
+        # Note: comparison (other than !=) in numpy of nan is always False
         keep_mask = keep_mask & np.any(
-            np.nan_to_num(snr) > sigproc_v2_params.snr_thresh, axis=(1, 2)
+            snr > sigproc_v2_params.snr_thresh, axis=(1, 2)
         )
 
     return keep_mask
@@ -1257,9 +1285,9 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True):
     # which z-depth of the PSFs is best fit to that cycle.
     # The result will be a per-cycle index into the chcy_regional_psfs
     # Until then the index is hard-coded to the middle index of regional_psf_zstack
-    radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib)
+    radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib, sigproc_v2_params)
 
-    keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params)
+    keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
 
     return chcy_ims, locs[keep_mask], radmat[keep_mask], aln_offsets, aln_scores
 
@@ -1365,20 +1393,33 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
     calib = Calibration()
 
     progress(0, 3, False)
-    calib = _calibrate_step_1_background_stats(
-        calib, ims_import_result, sigproc_v2_params
-    )
-    progress(1, 3, False)
+    # 1:40 on val_calib. Probably don't need to sample every image...
+    # low-hanging-fruit would be to sub-sample the images
+    # calib = _calibrate_step_1_background_stats(
+    #     calib, ims_import_result, sigproc_v2_params
+    # )
+    # progress(1, 3, False)
+    calib = Calibration.load("step1.calib")
 
+    # 3:00 
     calib = _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params)
     progress(2, 3, False)
 
+    # TODO: Probably subsampling like the _calibrate_step_1_background_stats
+    # would be fine.
     calib = _calibrate_step_3_regional_illumination_balance(
         calib, ims_import_result, sigproc_v2_params
     )
     progress(3, 3, False)
 
-    return calib
+    return SigprocV2Result(
+        params=sigproc_v2_params,
+        n_input_channels=None,
+        n_channels=None,
+        n_cycles=None,
+        channel_weights=None,
+        calib=calib
+    )
 
 
 def sigproc_analyze(sigproc_v2_params, ims_import_result, progress):
