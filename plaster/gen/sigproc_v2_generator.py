@@ -16,51 +16,47 @@ class SigprocV2Generator(BaseGenerator):
 
     schema = s(
         s.is_kws_r(
-            **BaseGenerator.job_setup_schema.schema(),
-            **BaseGenerator.lnfit_schema.schema(),
-            **BaseGenerator.sigproc_source_schema.schema(),
             **BaseGenerator.sigproc_v2_schema.schema(),
         )
     )
 
-    defaults = Munch(
-        lnfit_name=None,
-        lnfit_params=None,
-        lnfit_dye_on_threshold=None,
-        movie=False,
-        n_frames_limit=None,
-    )
-
     def generate(self):
-        run_descs = []
+        runs = []
 
-        assert len(self.sigproc_source) == 1
+        if len(self.sigproc_source) != 1:
+            raise ValueError(f"Sigproc_v2 can have only one sigproc_source")
 
-        ims_import_task = task_templates.ims_import(self.sigproc_source, is_movie=False)
-        sigproc_task = task_templates.sigproc_v2_analyze(self.calibration_file)
+        ims_import_task = task_templates.ims_import(
+            self.sigproc_source[0], is_movie=False
+        )
 
-        run_name = f"sigproc_v2_analyze"
+        sigproc_v2_task = task_templates.sigproc_v2_analyze(
+            self.calibration_file
+        )
+
+        run = Munch(
+            run_name=f"sigproc_v2",
+            **ims_import_task,
+            **sigproc_v2_task,
+        )
+
         if self.force_run_name is not None:
-            run_name = self.force_run_name
+            run.run_name = self.force_run_name
 
-        run_desc = Munch(run_name=run_name, **ims_import_task, **sigproc_task,)
+        self.report_section_run_object(run)
+        template = "sigproc_v2_analyze_template.ipynb"
+        self.report_section_from_template(template)
 
-        self.report_section_markdown(f"# RUN {run_desc.run_name}\n")
-        self.report_section_run_object(run_desc)
+        runs += [run]
 
-        sigproc_template = "sigproc_v2_analyze_template.ipynb"
-        self.report_section_from_template(sigproc_template)
-
-        run_descs += [run_desc]
-
-        n_run_descs = len(run_descs)
+        n_runs = len(runs)
         self.report_preamble(
             utils.smart_wrap(
                 f"""
-                # Signal Processing Overview
-                ## {n_run_descs} run(s) processed.
+                # Sigproc V2 Analyze
+                ## {n_runs} run(s) processed.
             """
             )
         )
 
-        return run_descs
+        return runs

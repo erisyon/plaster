@@ -122,10 +122,11 @@ class BaseGenerator(Munch):
         )
     )
 
-    sigproc_v2_schema = s(s.is_kws_r(calibration_file=s.is_str()))
-
-    sigproc_v2_instrument_calib_schema = s(
-        s.is_kws_r(sigproc_source=s.is_list(s.is_str(), help="See Main Help"),)
+    sigproc_v2_schema = s(
+        s.is_kws_r(
+            calibration_file=s.is_str(),
+            sigproc_source=s.is_list(s.is_str(), help="See Main Help")
+        )
     )
 
     report_metadata = Munch(
