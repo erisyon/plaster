@@ -19,6 +19,26 @@ from plaster.tools.log.log import debug
 from zest import zest
 
 
+'''
+class NulCalibSigprocV2Params(SigprocV2Params):
+    """
+    We need to break the chicked-and-egg problem.
+
+    During Foreground Calibration we need to call the _sigproc_field
+    function which normally uses the "regional_illumination_balance"
+    calib property to correct for regional differences.
+
+    But we need to pass in a "fake" calib "regional_illumination_balance"
+    with unity values to extract the differences.
+    """
+
+    def __init__(self, ch_i):
+        super().__init__()
+        params = SigprocV2Params(calibration_file=None, mode="analyze",)
+        params.calibration = Calibration
+'''
+
+
 class MockImsImportResult:
     @property
     def ims(self):
