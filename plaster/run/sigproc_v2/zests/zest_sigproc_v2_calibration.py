@@ -6,6 +6,7 @@ from plumbum import local
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
+from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.utils.utils import np_within
@@ -23,20 +24,18 @@ from zest import zest
 class NulCalibSigprocV2Params(SigprocV2Params):
     """
     We need to break the chicked-and-egg problem.
-
     During Foreground Calibration we need to call the _sigproc_field
     function which normally uses the "regional_illumination_balance"
     calib property to correct for regional differences.
-
     But we need to pass in a "fake" calib "regional_illumination_balance"
     with unity values to extract the differences.
     """
-
     def __init__(self, ch_i):
         super().__init__()
         params = SigprocV2Params(calibration_file=None, mode="analyze",)
         params.calibration = Calibration
 '''
+
 
 
 class MockImsImportResult:
@@ -49,10 +48,14 @@ class MockImsImportResult:
 
     def __init__(self, ims_to_return, n_fields, n_channels, n_cycles, is_movie=True):
         self.ims_to_return = ims_to_return
+        self.dim = ims_to_return.shape[-1]
         self.n_fields = n_fields
         self.n_channels = n_channels
         self.n_cycles = n_cycles
         self.params = ImsImportParams(is_movie=is_movie)
+    
+    def n_fields_channel_frames(self):
+        return self.n_fields, self.n_channels, self.n_cycles
 
 
 def result_from_z_stack(n_fields=1, n_channels=1, n_cycles=1, uniformity="uniform"):
@@ -64,7 +67,7 @@ def result_from_z_stack(n_fields=1, n_channels=1, n_cycles=1, uniformity="unifor
 
     TODO: Probably need to change this so that is can
         1. Generate wide->narrow->wide z_stack PSFs
-        2. Regionaly differences.
+        2. Regional differences.
     """
 
     s = synth.Synth(
@@ -247,18 +250,15 @@ def zest_sigproc_v2_calibration():
                     debug(np.mean(new_mean), 0, true_bg_std)
                     raise
 
-            def it_adds_regional_bg_stats_to_calib_correctly():
-                ims = _synth(true_bg_std, howmanydims=3)
-                calib = Calibration()
-                calib = worker._background_stats_ims(ims, 0, 1, divs, calib)
+            def it_estimates_regional_bg_stats_correctly():
+                ims = _synth(true_bg_std, howmanydims=2)
 
-                est_bg_mean = np.array(calib["regional_bg_mean.instrument_channel[0]"])
+                est_bg_mean, est_bg_std = worker._background_stats_ims(ims, divs)
                 assert len(est_bg_mean.shape) == 2
                 allow_err = true_bg_mean / 5
                 assert np_within(true_bg_mean, est_bg_mean.max(), allow_err)
                 assert np_within(true_bg_mean, est_bg_mean.min(), allow_err)
 
-                est_bg_std = np.array(calib["regional_bg_std.instrument_channel[0]"])
                 assert len(est_bg_std.shape) == 2
                 allow_err = true_bg_std / 3
                 assert np_within(true_bg_std, est_bg_std.max(), allow_err)
@@ -271,10 +271,19 @@ def zest_sigproc_v2_calibration():
                 # in the image, etc.  This test is just checking that the
                 # data returned is getting put into the calibration objects
                 # with the right shape, and using the right keyword
-                ims = _synth(true_bg_std, howmanydims=3)
-
+                ims_import_result = result_from_z_stack(n_fields=2, n_cycles=15)
                 calib = Calibration()
-                calib = worker._calibrate_background_stats(calib, ims, divs)
+                sigproc_v2_params = SigprocV2Params(
+                    calibration_file='temp',
+                    mode=common.SIGPROC_V2_INSTRUMENT_CALIB
+                )
+                sigproc_v2_params.mode = common.SIGPROC_V2_INSTRUMENT_ANALYZE
+                sigproc_v2_params.calibration = calib
+                calib = worker._calibrate_step_1_background_stats(
+                    calib, 
+                    ims_import_result, 
+                    sigproc_v2_params
+                )
 
                 check.list_t(calib["regional_bg_mean.instrument_channel[0]"], list)
                 rbm_arr = np.array(calib["regional_bg_mean.instrument_channel[0]"])
@@ -445,7 +454,6 @@ def zest_sigproc_v2_calibration():
         n_z_slices = 20
         n_fields = 1
         z_stack = np.array([])
-        calib = Calibration()
         s = synth.Synth(n_cycles=1, overwrite=True)
         peaks = (
             synth.PeaksModelGaussianCircular(n_peaks=400)
@@ -469,9 +477,19 @@ def zest_sigproc_v2_calibration():
             imgs = s.render_chcy()
             templist.append(imgs[0][0])
         z_stack = np.array([templist])
+
+        # MOCK a SigprocV2Param
+        sigproc_v2_params = SigprocV2Params(
+            calibration_file='temp',
+            mode=common.SIGPROC_V2_INSTRUMENT_CALIB
+        )
+        sigproc_v2_params.mode = common.SIGPROC_V2_INSTRUMENT_ANALYZE
+        calib = Calibration()
+        sigproc_v2_params.calibration = calib
+
         # MEASURE the psf stats using this z-stack
         z_and_region_to_psf = np.array(
-            worker._psf_stats_one_channel(z_stack, n_fields, n_z_slices, divs, peak_dim)
+            worker._psf_stats_one_channel(z_stack, sigproc_v2_params)
         )
         # DETERMINE if we measured things successfully
         fit_params_sum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
@@ -484,11 +502,9 @@ def zest_sigproc_v2_calibration():
                 ):  # cannot use imops.fit_gauss2 on all-zero psf
                     empty_psfs += 1
                     continue
-                fit_params, fit_variance = imops.fit_gauss2(
+                fit_params, _ = imops.fit_gauss2(
                     z_and_region_to_psf[z_i, x, y]
                 )
-                for fv in fit_variance:
-                    assert fv < 0.1
                 divisor += 1
                 fit_params_sum += np.array(fit_params)
         assert empty_psfs <= 2
@@ -503,17 +519,24 @@ def zest_sigproc_v2_calibration():
 
     def it_can_calibrate_foreground_one_channel():
         # MOCK a z_stack ImsImportResult
-        calib = Calibration()
         n_z_slices = 15
         n_fields = 2
         ch_i = 0
         ims_import_result = result_from_z_stack(n_fields=n_fields, n_cycles=n_z_slices)
-
-        # CREATE a calib object already partly made
-        calib = worker._calibrate_step_1_background_stats(
-            calib, ims_import_result, divs
+        # MOCK a SigprocV2Param and calibration
+        sigproc_v2_params = SigprocV2Params(
+            calibration_file='temp',
+            mode=common.SIGPROC_V2_INSTRUMENT_CALIB
         )
-        calib = worker._calibrate_step_2_psf(calib, ims_import_result, divs, peak_mea)
+        sigproc_v2_params.mode = common.SIGPROC_V2_INSTRUMENT_ANALYZE
+        calib = Calibration()
+        sigproc_v2_params.calibration = calib
+
+        # PROCESS the calib object through steps 1 and 2
+        calib = worker._calibrate_step_1_background_stats(
+            calib, ims_import_result, sigproc_v2_params
+        )
+        calib = worker._calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params)
         calib.add(
             {
                 f"regional_illumination_balance.instrument_channel[{ch_i}]": np.ones(
@@ -521,15 +544,10 @@ def zest_sigproc_v2_calibration():
                 ).tolist()
             }
         )
-        sigproc_params = SigprocV2Params(
-            calibration_file="./bogus/calib/file/location",
-            instrument_subject_id=None,
-            radiometry_channels=dict(ch=ch_i),
-            mode="z_stack",
-        )
+
         # FIND radmat and locs
         fl_radmat, fl_loc = worker._foreground_stats(
-            calib, ims_import_result, n_fields, ch_i, sigproc_params
+            calib, ims_import_result, n_fields, ch_i, sigproc_v2_params
         )
         try:
             assert (
@@ -543,9 +561,12 @@ def zest_sigproc_v2_calibration():
         assert fl_radmat.shape[3] == fl_loc.shape[1] == n_fields
 
         def it_can_calibrate_filter_locs_by_snr():
+            snr_min = 2
+            sig_min = 10
+            sig_max = 100000
             # REUSE radmat and locs from previous test
             sig, locs = worker._foreground_filter_locs(
-                fl_radmat, fl_loc, n_z_slices, ch_i
+                fl_radmat, fl_loc, n_z_slices, ch_i, snr_min, sig_min, sig_max
             )
             assert sig.shape[0] == locs.shape[0]
             assert fl_radmat.shape[0] == fl_loc.shape[0]
@@ -553,15 +574,15 @@ def zest_sigproc_v2_calibration():
                 sig.shape[0] < fl_radmat.shape[0] * n_z_slices
             )  # i.e. it filtered something
 
-            # def it_can_calibrate_balance_calc():
-            #     #REUSE ImsImportResult and filtered sig, locs from previous test
-            #     balance = worker._calibrate_balance_calc(
-            #         ims_import_result, divs, sig, locs
-            #     )
-            #     assert np.min(balance) == 1  # the brightest area balanced at value 1
-            #     assert np.count_nonzero(
-            #         balance == 1
-            #     )  # i.e. only single spot is brightest
+            def it_can_calibrate_balance_calc():
+                #REUSE ImsImportResult and filtered sig, locs from previous test
+                balance = worker._foreground_balance(
+                    ims_import_result, divs, sig, locs
+                )
+                assert np.min(balance) == 1  # the brightest area balanced at value 1
+                assert np.count_nonzero(
+                    balance == 1
+                )  # i.e. only single spot is brightest
 
             zest()
 
@@ -573,12 +594,19 @@ def zest_sigproc_v2_calibration():
         # handle nonuniform images, etc.  This test is just checking that
         # the data received is getting put into the calibration object in
         # the correct shape and with the correct keyword
-        # CREATE mock calib and ims_import_result objects
-        calib = Calibration()
+        # CREATE ims_import_result object
         n_z_slices = 20
         n_fields = 3
         ims_import_result = result_from_z_stack(n_fields=n_fields, n_cycles=n_z_slices)
-        calib = worker._calibrate_psf(calib, ims_import_result.ims, divs, peak_mea)
+        # MOCK a SigprocV2Param and calib
+        sigproc_v2_params = SigprocV2Params(
+            calibration_file='temp',
+            mode=common.SIGPROC_V2_INSTRUMENT_CALIB
+        )
+        sigproc_v2_params.mode = common.SIGPROC_V2_INSTRUMENT_ANALYZE
+        calib = Calibration()
+        sigproc_v2_params.calibration = calib
+        calib = worker._calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params)
         # VERIFY that the calib object got the right kinds of things added to it
         check.list_t(calib["regional_psf_zstack.instrument_channel[0]"], list)
         rbm_arr = np.array(calib["regional_psf_zstack.instrument_channel[0]"])
@@ -593,14 +621,37 @@ def zest_sigproc_v2_calibration():
         n_fields = 2
         ims_import_result = result_from_z_stack(n_fields=n_fields, n_cycles=n_z_slices)
         ims = ims_import_result.ims[:, :, :]
-        calib = worker._calibrate_background_stats(calib, ims, divs)
-        calib = worker._calibrate_psf(calib, ims_import_result.ims, divs, peak_mea)
+        # MOCK a SigprocV2Param
+        sigproc_v2_params = SigprocV2Params(
+            calibration_file='temp',
+            mode=common.SIGPROC_V2_INSTRUMENT_CALIB
+        )
+        sigproc_v2_params.mode = common.SIGPROC_V2_INSTRUMENT_ANALYZE
+        sigproc_v2_params.calibration = calib
+
+        calib = worker._calibrate_step_1_background_stats(
+            calib, 
+            ims_import_result, 
+            sigproc_v2_params
+            )
+        #calib = worker._calibrate_background_stats(calib, ims, divs)
+        calib = worker._calibrate_step_2_psf(
+            calib, 
+            ims_import_result, 
+            sigproc_v2_params
+        )
+        #calib = worker._calibrate_psf(calib, ims_import_result.ims, divs, peak_mea)
         nbr_failures = 0
         nbr_successes = 0
         while True:
             try:
-                calib = worker._calibrate_regional_illumination_balance(
-                    calib, ims_import_result, divs, peak_mea
+                #calib = worker._calibrate_regional_illumination_balance(
+                #    calib, ims_import_result, divs, peak_mea
+                #)
+                calib = worker._calibrate_step_3_regional_illumination_balance(
+                     calib, 
+                     ims_import_result, 
+                     sigproc_v2_params
                 )
             except AssertionError:
                 nbr_failures += 1

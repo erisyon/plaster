@@ -2,9 +2,9 @@ import re
 
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.log.log import debug
-from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.tools.schema.schema import Params
 from plaster.tools.schema.schema import Schema as s
+from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.tools.utils import utils
 from plumbum import local
 
@@ -64,11 +64,13 @@ class SigprocV2Params(Params):
 
     @property
     def n_output_channels(self):
-        return len(self.radiometry_channels.keys())
+        return 1
+        #return len(self.radiometry_channels.keys())
 
     @property
     def n_input_channels(self):
-        return len(self.radiometry_channels.keys())
+        return 1
+        #return len(self.radiometry_channels.keys())
 
     # @property
     # def channels_cycles_dim(self):
@@ -95,8 +97,10 @@ class SigprocV2Params(Params):
     #     return sorted(self.radiometry_channels.keys())
 
     def output_channel_to_input_channel(self, out_ch):
-        return self._input_channels()[out_ch]
+        #return self._input_channels()[out_ch]
+        return 0
 
     def input_channel_to_output_channel(self, in_ch):
         """Not every input channel necessarily has an output; can return None"""
-        return utils.filt_first_arg(self._input_channels(), lambda x: x == in_ch)
+        #return utils.filt_first_arg(self._input_channels(), lambda x: x == in_ch)
+        return 0
