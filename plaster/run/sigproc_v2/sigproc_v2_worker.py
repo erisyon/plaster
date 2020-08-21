@@ -582,8 +582,16 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
     src_zi_best_focus = np.argmax(im_focuses)
 
     for dst_zi in range(n_dst_zslices):
-        src_zi0 = math.floor(0.5 + ((dst_zi-0.5) - n_dst_zslices//2) * dst_z_per_src_z + src_zi_best_focus)
-        src_zi1 = math.floor(0.5 + ((dst_zi+0.5) - n_dst_zslices//2) * dst_z_per_src_z + src_zi_best_focus)
+        src_zi0 = math.floor(
+            0.5
+            + ((dst_zi - 0.5) - n_dst_zslices // 2) * dst_z_per_src_z
+            + src_zi_best_focus
+        )
+        src_zi1 = math.floor(
+            0.5
+            + ((dst_zi + 0.5) - n_dst_zslices // 2) * dst_z_per_src_z
+            + src_zi_best_focus
+        )
 
         for src_zi in range(src_zi0, src_zi1):
             if 0 <= src_zi < n_src_zslices:
@@ -595,6 +603,7 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
                 z_and_region_to_psf[dst_zi] += reg_psfs
 
     return z_and_region_to_psf
+
 
 # TODO: Write a test that definitely has the focus in the center of the src stack
 # and make sure we get the whole zslices filled in
@@ -846,6 +855,17 @@ def _calibrate_step_3_regional_illumination_balance(
         calib.add(
             {
                 f"regional_illumination_balance.instrument_channel[{ch_i}]": balance.tolist()
+            }
+        )
+
+        # ADD the fg stats
+        dim = (ims_import_result.dim, ims_import_result.dim)
+        balance_im = imops.interp(balance, dim)
+        locs_adjust = balance_im[locs[:, 0], locs[:, 1]]
+        calib.add(
+            {
+                f"fg_mean.instrument_channel[{ch_i}]": np.mean(sig * locs_adjust),
+                f"fg_std.instrument_channel[{ch_i}]": np.std(sig * locs_adjust),
             }
         )
 
@@ -1143,7 +1163,9 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib, sigproc_v2_params):
 
     radmat = np.full((n_locs, n_channels, n_cycles, 2), np.nan)  # 2 is (sig, noi)
 
-    center_weighted_mask = imops.generate_center_weighted_tanh(sigproc_v2_params.peak_mea, radius=2.0)
+    center_weighted_mask = imops.generate_center_weighted_tanh(
+        sigproc_v2_params.peak_mea, radius=2.0
+    )
 
     for ch_i in range(n_channels):
         z_reg_psfs = np.array(calib[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
@@ -1207,9 +1229,7 @@ def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
     if sigproc_v2_params.snr_thresh is not None:
         snr = radmat[:, :, :, 0] / radmat[:, :, :, 1]
         # Note: comparison (other than !=) in numpy of nan is always False
-        keep_mask = keep_mask & np.any(
-            snr > sigproc_v2_params.snr_thresh, axis=(1, 2)
-        )
+        keep_mask = keep_mask & np.any(snr > sigproc_v2_params.snr_thresh, axis=(1, 2))
 
     return keep_mask
 
@@ -1277,7 +1297,9 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True):
     return chcy_ims, locs[keep_mask], radmat[keep_mask], aln_offsets, aln_scores
 
 
-def _do_sigproc_field(field_i, ims_import_result, sigproc_v2_params, sigproc_v2_result, calib):
+def _do_sigproc_field(
+    field_i, ims_import_result, sigproc_v2_params, sigproc_v2_result, calib
+):
     """
     Analyze AND SAVE one field.
     """
@@ -1291,10 +1313,7 @@ def _do_sigproc_field(field_i, ims_import_result, sigproc_v2_params, sigproc_v2_
     # Assign 0 peak_i in the following because that is the GLOBAL peak_i
     # which is not computable until all fields are processed.
     peak_df = pd.DataFrame(
-        [
-            (0, field_i, peak_i, loc[0], loc[1])
-            for peak_i, loc in enumerate(locs)
-        ],
+        [(0, field_i, peak_i, loc[0], loc[1]) for peak_i, loc in enumerate(locs)],
         columns=list(SigprocV2Result.peak_df_schema.keys()),
     )
 
@@ -1325,7 +1344,6 @@ def _do_sigproc_field(field_i, ims_import_result, sigproc_v2_params, sigproc_v2_
     )
 
 
-
 # Entrypoints
 # -------------------------------------------------------------------------------
 
@@ -1340,23 +1358,27 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
     """
     calib = Calibration()
 
-    progress(0, 3, False)
+    if progress:
+        progress(0, 3, False)
     # 1:40 on val_calib. Probably don't need to sample every image...
     # low-hanging-fruit would be to sub-sample the images
     calib = _calibrate_step_1_background_stats(
         calib, ims_import_result, sigproc_v2_params
     )
-    progress(1, 3, False)
+    if progress:
+        progress(1, 3, False)
 
     calib = _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params)
-    progress(2, 3, False)
+    if progress:
+        progress(2, 3, False)
 
     # TODO: Probably subsampling like the _calibrate_step_1_background_stats
     # would be fine.
     calib = _calibrate_step_3_regional_illumination_balance(
         calib, ims_import_result, sigproc_v2_params
     )
-    progress(3, 3, False)
+    if progress:
+        progress(3, 3, False)
 
     calib.save(sigproc_v2_params.calibration_file)
     return SigprocV2Result(
@@ -1365,7 +1387,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
         n_channels=None,
         n_cycles=None,
         channel_weights=None,
-        calib=calib
+        calib=calib,
     )
 
 

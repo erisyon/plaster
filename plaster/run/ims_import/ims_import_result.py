@@ -29,7 +29,7 @@ class ImsImportResult(BaseResult):
         n_channels=int,
         n_cycles=int,
         dim=int,
-        tsv_data=Munch,
+        tsv_data=(type(None), Munch),
         dtype=str,
     )
 

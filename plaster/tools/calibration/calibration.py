@@ -101,6 +101,8 @@ class Calibration(Munch):
         regional_bg_mean=list,
         regional_bg_std=list,
         regional_psf_zstack=list,
+        fg_mean=float,
+        fg_std=float,
         zstack_depths=list,
         p_failure_to_bind_amino_acid=float,
         p_failure_to_attach_to_dye=float,
@@ -129,6 +131,8 @@ class Calibration(Munch):
         re.compile("zstack_depths\." + instrument_pat),
         re.compile("p_failure_to_bind_amino_acid\." + label_aa_pat),
         re.compile("p_failure_to_attach_to_dye\." + label_aa_pat),
+        re.compile("fg_mean\." + instrument_channel_pat),
+        re.compile("fg_std\." + instrument_channel_pat),
     ]
 
     bracket_pat = re.compile(r"([^\[]+)\[([^\]]+)\]")

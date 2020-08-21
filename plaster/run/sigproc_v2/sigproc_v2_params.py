@@ -18,8 +18,12 @@ class SigprocV2Params(Params):
     """
 
     defaults = dict(
-        divs=5, peak_mea=11, sig_limit=20.0, snr_thresh=2.0, focus_window_radius=6,
-        n_fields_limit=None
+        divs=5,
+        peak_mea=11,
+        sig_limit=20.0,
+        snr_thresh=2.0,
+        focus_window_radius=6,
+        n_fields_limit=None,
     )
 
     schema = s(
