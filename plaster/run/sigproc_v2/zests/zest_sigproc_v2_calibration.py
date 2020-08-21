@@ -544,7 +544,7 @@ def zest_sigproc_v2_calibration():
 
         def it_can_calibrate_filter_locs_by_snr():
             # REUSE radmat and locs from previous test
-            sig, locs = worker._foreground_filter_locs_by_snr(
+            sig, locs = worker._foreground_filter_locs(
                 fl_radmat, fl_loc, n_z_slices, ch_i
             )
             assert sig.shape[0] == locs.shape[0]

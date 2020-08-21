@@ -724,8 +724,9 @@ def _foreground_stats(calib, ims_import_result, n_fields, ch_i, sigproc_params):
     return fl_radmat, fl_loc
 
 
-def _foreground_filter_locs_by_snr(fl_radmat, fl_loc, n_z_slices, ch_i):
-
+def _foreground_filter_locs(
+    fl_radmat, fl_loc, n_z_slices, ch_i, snr_min, sig_min, sig_max
+):
     # GET signal component of radmat for all fields, this channel,
     # all peaks, 0th element is signal as opposed to 1st element is noise
     sig = np.nan_to_num(fl_radmat[:, ch_i, :, 0].flatten())
@@ -735,9 +736,10 @@ def _foreground_filter_locs_by_snr(fl_radmat, fl_loc, n_z_slices, ch_i):
     # FILTER out peaks which are too close to each other.  Tile
     # is to get the locs repeated so that dims match for later mask
     locs = np.tile(fl_loc, (1, n_z_slices)).reshape((-1, 2))
-    snr_mask = snr > 10  # 10 is an empirically determined number for snr
-    sig = sig[snr_mask]
-    locs = locs[snr_mask]
+
+    mask = (snr >= snr_min) & (sig >= sig_min) & (sig <= sig_max)
+    sig = sig[mask]
+    locs = locs[mask]
     return sig, locs
 
 
@@ -763,14 +765,11 @@ def _foreground_balance(ims_import_result, divs, sig, locs):
     y = utils.ispace(0, im_dim[0], divs + 1)
     x = utils.ispace(0, im_dim[1], divs + 1)
     medians = np.zeros((divs, divs))
-    bright_mask = (
-        sig > 2.0
-    )  # <- empirically determined usable value of 2.0 (may need tuning)
     for yi in range(len(y) - 1):
         for xi in range(len(x) - 1):
             loc_mask = (y[yi] <= locs[:, 0]) & (locs[:, 0] < y[yi + 1])
             loc_mask &= (x[xi] <= locs[:, 1]) & (locs[:, 1] < x[xi + 1])
-            _sig = sig[loc_mask & bright_mask]
+            _sig = sig[loc_mask]
             medians[yi, xi] = np.median(_sig)
     max_regional_fg_est = np.max(medians)
     balance = max_regional_fg_est / medians
@@ -844,7 +843,16 @@ def _calibrate_step_3_regional_illumination_balance(
         )
 
         # FILTER for locs with good signal-to-noise ratio
-        sig, locs = _foreground_filter_locs_by_snr(fl_radmat, fl_loc, n_zslices, ch_i)
+        sig, locs = _foreground_filter_locs(
+            fl_radmat,
+            fl_loc,
+            n_zslices,
+            ch_i,
+            snr_min=25,
+            sig_min=1000.0,
+            sig_max=4500.0,
+        )
+        np.save("/erisyon/calib_locs.npy", locs)
 
         # CALCULATE the regional balance using only filtered sig,locs
         balance = _foreground_balance(
@@ -909,17 +917,17 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     """
     n_out_channels = sigproc_params.n_output_channels
     dst_chcy_ims = np.zeros((n_out_channels, *chcy_ims.shape[-3:]))
+
     for out_ch in range(n_out_channels):
         in_ch = sigproc_params.output_channel_to_input_channel(out_ch)
-        dst_chcy_ims[out_ch] = chcy_ims[in_ch]
-    chcy_ims = dst_chcy_ims
+        dst_chcy_ims[out_ch, :] = chcy_ims[in_ch]
 
-    chcy_ims = _regional_balance_chcy_ims(chcy_ims, calib)
+    # _regional_balance_chcy_ims will balance AND subtract
+    dst_chcy_ims = _regional_balance_chcy_ims(dst_chcy_ims, calib)
 
     channel_weights = _analyze_step_1a_compute_channel_weights(sigproc_params, calib)
-    chcy_ims = utils.np_fn_along(np.multiply, chcy_ims, channel_weights, axis=0)
-
-    return chcy_ims
+    dst_chcy_ims = utils.np_fn_along(np.multiply, dst_chcy_ims, channel_weights, axis=0)
+    return dst_chcy_ims
 
 
 def _anayze_step_2_mask_anomalies_im(im, den_threshold=300):
@@ -984,6 +992,8 @@ def _analyze_step_3_align(cy_ims):
         max_score: list of max_score
     """
 
+    # The kernal seems to make things worse
+    """
     kern = _kernel()
 
     fiducial_ims = []
@@ -991,7 +1001,13 @@ def _analyze_step_3_align(cy_ims):
         med = float(np.nanmedian(im))
         im = np.nan_to_num(im, nan=med)
         fiducial_ims += [imops.convolve(im, kern)]
+
     fiducial_ims = np.array(fiducial_ims) - np.median(fiducial_ims)
+
+    # Noise is found by looking at the mimum value under zero
+    # and assuming that the distribution of the noise is symetric
+    # about zero. Therefore by taking the negative min we're
+    # making a cutoff for signal
     noise_floor = -np.min(fiducial_ims)
     fiducial_ims = np.where(fiducial_ims < noise_floor, 0, 1).astype(np.uint8)
 
@@ -1002,6 +1018,8 @@ def _analyze_step_3_align(cy_ims):
     ).astype(float)
 
     aln_offsets, aln_scores = imops.align(fiducial_cy_ims)
+    """
+    aln_offsets, aln_scores = imops.align(cy_ims)
     return aln_offsets, aln_scores
 
 
@@ -1277,7 +1295,8 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True):
         )
         # chcy_ims is now only the intersection region so it may be smaller than the original
     else:
-        aln_offsets, aln_scores = None, None
+        aln_offsets = np.array([YX(0, 0) for cy_i in range(n_cycles)])
+        aln_scores = np.array([1.0 for cy_i in range(n_cycles)])
 
     # Step 5: Peak find on combined channels
     # The goal of previous channel equalization and regional balancing is that
@@ -1348,6 +1367,26 @@ def _do_sigproc_field(
 # -------------------------------------------------------------------------------
 
 
+def hack_perfect_psf(calib):
+    mea = 11
+    im = imops.gauss2_rho_form(
+        amp=1.0,
+        std_x=1.8,
+        std_y=1.8,
+        pos_x=mea // 2,
+        pos_y=mea // 2,
+        rho=0.0,
+        const=0.0,
+        mea=mea,
+    )
+    im = im / np.sum(im)
+    im = np.repeat(im[:, :, None], 5, axis=2)
+    im = np.repeat(im[:, :, :, None], 5, axis=3)
+    im = np.repeat(im[:, :, :, :, None], 13, axis=4)
+    im = np.moveaxis(im, (0, 1, 2, 3, 4), (3, 4, 1, 2, 0))
+    calib["regional_psf_zstack.instrument_channel[0]"] = im.tolist()
+
+
 def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
     """
     Entrypoint for instrument calibration.
@@ -1368,9 +1407,10 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
     if progress:
         progress(1, 3, False)
 
-    calib = _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params)
-    if progress:
-        progress(2, 3, False)
+    # calib = _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params)
+    # if progress:
+    #     progress(2, 3, False)
+    hack_perfect_psf(calib)
 
     # TODO: Probably subsampling like the _calibrate_step_1_background_stats
     # would be fine.
@@ -1400,6 +1440,10 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress):
 
     calib = Calibration.load(sigproc_v2_params.calibration_file)
     assert not calib.is_empty()
+
+    hack_perfect_psf(calib)
+    # calib["regional_illumination_balance.instrument_channel[0]"] = np.ones((5,5)).tolist()
+    # calib["regional_bg_mean.instrument_channel[0]"] = np.full((5,5), 140).tolist()
 
     sigproc_v2_result = SigprocV2Result(
         params=sigproc_v2_params,
