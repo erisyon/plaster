@@ -5,9 +5,6 @@
 #include "flann.h"
 
 
-typedef Float32 IsolationType;
-
-
 typedef struct {
     Table dyemat;
     Table dyepeps;
@@ -25,10 +22,10 @@ typedef struct {
     struct FLANNParameters flann_params;
     flann_index_t flann_index_id;
     ProgressFn progress_fn;
-} Context;
+} SurveyV2FastContext;
 
 
-void context_start(Context *ctx);
+void context_start(SurveyV2FastContext *ctx);
 
 
 #endif

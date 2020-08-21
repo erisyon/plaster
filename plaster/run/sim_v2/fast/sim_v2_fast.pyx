@@ -1,6 +1,7 @@
 import sys
 import time
 cimport c_sim_v2_fast as csim
+cimport c_common as c
 import numpy as np
 cimport numpy as np
 from cython.view cimport array as cvarray
@@ -21,10 +22,10 @@ Size = np.uint64
 PIType = np.uint64
 RecallType = np.float64
 PCBType = np.float64
-NO_LABEL = csim.NO_LABEL
-CYCLE_TYPE_PRE = csim.CYCLE_TYPE_PRE
-CYCLE_TYPE_MOCK = csim.CYCLE_TYPE_MOCK
-CYCLE_TYPE_EDMAN = csim.CYCLE_TYPE_EDMAN
+NO_LABEL = c.NO_LABEL
+CYCLE_TYPE_PRE = c.CYCLE_TYPE_PRE
+CYCLE_TYPE_MOCK = c.CYCLE_TYPE_MOCK
+CYCLE_TYPE_EDMAN = c.CYCLE_TYPE_EDMAN
 
 
 def prob_to_p_i(prob):
@@ -66,29 +67,30 @@ def sim(
                 n_dyepep_rows is a unique row for each (dtr_i, pep_i)
                 3 columns are: dtr_i, pep_i, count
     """
-    cdef csim.Uint64 i, j, n_chcy
+    cdef c.Uint64 i, j, n_chcy
     cdef csim.DTR dtr
-    cdef csim.Index dtr_count
-    cdef csim.DyeType *dyetrack
-    cdef csim.DyePepRec *dyepeprec
-    cdef csim.Size n_peps, n_cycles, n_channels, n_samples
-    cdef csim.Size n_max_dtrs, n_max_dtr_hash_recs
-    cdef csim.Size n_max_dyepeps, n_max_dyepep_hash_recs
-    cdef csim.Context ctx
-    cdef csim.Size count_only = 0  # Set to 1 to use the counting mechanisms
+    cdef c.Index dtr_count
+    cdef c.DyeType *dyetrack
+    cdef c.DyePepRec *dyepeprec
+    cdef c.Size n_peps, n_cycles, n_channels, n_samples
+    cdef c.Size n_max_dtrs, n_max_dtr_hash_recs
+    cdef c.Size n_max_dyepeps, n_max_dyepep_hash_recs
+    cdef c.Size count_only = 0  # Set to 1 to use the counting mechanisms
+    cdef csim.SimV2FastContext ctx
 
     # Views
-    cdef csim.Float64 [:, ::1] pcbs_view
-    cdef csim.Index [::1] pep_i_to_pcb_i_view
-    cdef csim.RecallType [::1] pep_recalls_view
-    cdef csim.Uint8 [:, ::1] dyetracks_view
-    cdef csim.Uint64 [:, ::1] dyepeps_view
+    cdef c.Float64 [:, ::1] pcbs_view
+    cdef c.Index [::1] pep_i_to_pcb_i_view
+    cdef c.RecallType [::1] pep_recalls_view
+    cdef c.Uint8 [:, ::1] dyetracks_view
+    cdef c.Uint64 [:, ::1] dyepeps_view
 
     # Checks
+    assert c.sanity_check() == 0
     _assert_array_contiguous(cycles, CycleKindType)
     _assert_array_contiguous(pcbs, PCBType)
-    assert np.dtype(CycleKindType).itemsize == sizeof(csim.CycleKindType)
-    assert np.dtype(DyeType).itemsize == sizeof(csim.DyeType)
+    assert np.dtype(CycleKindType).itemsize == sizeof(c.CycleKindType)
+    assert np.dtype(DyeType).itemsize == sizeof(c.DyeType)
 
     # BUILD a map from pep_i to pcb_i.
     #   Note, this map needs to be one longer than n_peps so that we
@@ -100,13 +102,13 @@ def sim(
     n_channels = _n_channels
     n_samples = _n_samples
 
-    cdef csim.Size n_dtr_row_bytes = csim.dtr_n_bytes(n_channels, n_cycles)
+    cdef c.Size n_dtr_row_bytes = csim.dtr_n_bytes(n_channels, n_cycles)
 
     # How many dyetrack records are needed?
     # I need to run some experiments to find out where I don't allocate
 
     if count_only == 1:
-        n_max_dtrs = <csim.Size>1
+        n_max_dtrs = <c.Size>1
         n_max_dtr_hash_recs = 100_000_000
         n_max_dyepeps = 1
         n_max_dyepep_hash_recs = 100_000_000
@@ -149,21 +151,21 @@ def sim(
         #n_channels_to_n_max_dyepep_per_pep = [0, 100, 100, 100, 250, 425]
         extra_factor = 1.2
         hash_factor = 1.5
-        n_max_dtrs = <csim.Size>(extra_factor * 250 * n_peps)
+        n_max_dtrs = <c.Size>(extra_factor * 250 * n_peps)
         n_max_dtr_hash_recs = int(hash_factor * n_max_dtrs)
-        n_max_dyepeps = <csim.Size>(extra_factor * 425 * n_peps)
+        n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps)
         n_max_dyepep_hash_recs = int(hash_factor * n_max_dyepeps)
         dtr_mb = n_max_dtrs * n_dtr_row_bytes / 1024**2
-        dyepep_mb = n_max_dyepeps * sizeof(csim.DyePepRec) / 1024**2
+        dyepep_mb = n_max_dyepeps * sizeof(c.DyePepRec) / 1024**2
         if dtr_mb + dyepep_mb > 1000:
             important(f"Warning: sim_v2 buffers consuming more than 1 GB ({dtr_mb + dyepep_mb:4.1f} MB)")
 
     # Memory
-    cdef csim.Uint8 *dtrs_buf = <csim.Uint8 *>calloc(n_max_dtrs, n_dtr_row_bytes)
-    cdef csim.Uint8 *dyepeps_buf = <csim.Uint8 *>calloc(n_max_dyepeps, sizeof(csim.DyePepRec))
+    cdef c.Uint8 *dtrs_buf = <c.Uint8 *>calloc(n_max_dtrs, n_dtr_row_bytes)
+    cdef c.Uint8 *dyepeps_buf = <c.Uint8 *>calloc(n_max_dyepeps, sizeof(c.DyePepRec))
     cdef csim.HashRec *dtr_hash_buf = <csim.HashRec *>calloc(n_max_dtr_hash_recs, sizeof(csim.HashRec))
     cdef csim.HashRec *dyepep_hash_buf = <csim.HashRec *>calloc(n_max_dyepep_hash_recs, sizeof(csim.HashRec))
-    cdef csim.Index *pep_i_to_pcb_i_buf = <csim.Index *>calloc(n_peps + 1, sizeof(csim.Index))  # Why +1? see above
+    cdef c.Index *pep_i_to_pcb_i_buf = <c.Index *>calloc(n_peps + 1, sizeof(c.Index))  # Why +1? see above
 
     global global_progress_callback
     global_progress_callback = progress
@@ -171,7 +173,7 @@ def sim(
     try:
         if rng_seed is None:
             rng_seed = time.time() * 1_000_000
-        ctx.rng_seed = <csim.Uint64>rng_seed
+        ctx.rng_seed = <c.Uint64>rng_seed
         ctx.n_threads = n_threads
         ctx.n_peps = n_peps
         ctx.n_cycles = cycles.shape[0]
@@ -185,21 +187,21 @@ def sim(
             ctx.cycles[i] = cycles[i]
 
         pcbs_view = pcbs
-        ctx.pcbs = csim.table_init_readonly(<csim.Uint8 *>&pcbs_view[0, 0], pcbs.nbytes, sizeof(csim.PCB))
+        ctx.pcbs = c.table_init_readonly(<c.Uint8 *>&pcbs_view[0, 0], pcbs.nbytes, sizeof(csim.PCB))
 
-        memcpy(pep_i_to_pcb_i_buf, <const void *>&pep_i_to_pcb_i_view[0], sizeof(csim.Index) * n_peps);
+        memcpy(pep_i_to_pcb_i_buf, <const void *>&pep_i_to_pcb_i_view[0], sizeof(c.Index) * n_peps);
         pep_i_to_pcb_i_buf[n_peps] = pcbs.shape[0]
-        ctx.pep_i_to_pcb_i = csim.table_init_readonly(<csim.Uint8 *>pep_i_to_pcb_i_buf, (n_peps + 1) * sizeof(csim.Index), sizeof(csim.Index));
+        ctx.pep_i_to_pcb_i = c.table_init_readonly(<c.Uint8 *>pep_i_to_pcb_i_buf, (n_peps + 1) * sizeof(c.Index), sizeof(c.Index));
 
-        ctx.progress_fn = <csim.ProgressFn>_progress
+        ctx.progress_fn = <c.ProgressFn>_progress
 
         pep_recalls = np.zeros((ctx.n_peps), dtype=RecallType)
         pep_recalls_view = pep_recalls
         ctx.pep_recalls = &pep_recalls_view[0]
 
         # See sim.c for table and hash definitions
-        ctx.dtrs = csim.table_init(dtrs_buf, n_max_dtrs * n_dtr_row_bytes, n_dtr_row_bytes)
-        ctx.dyepeps = csim.table_init(dyepeps_buf, n_max_dyepeps * sizeof(csim.DyePepRec), sizeof(csim.DyePepRec))
+        ctx.dtrs = c.table_init(dtrs_buf, n_max_dtrs * n_dtr_row_bytes, n_dtr_row_bytes)
+        ctx.dyepeps = c.table_init(dyepeps_buf, n_max_dyepeps * sizeof(c.DyePepRec), sizeof(c.DyePepRec))
         ctx.dtr_hash = csim.hash_init(dtr_hash_buf, n_max_dtr_hash_recs)
         ctx.dyepep_hash = csim.hash_init(dyepep_hash_buf, n_max_dyepep_hash_recs)
 

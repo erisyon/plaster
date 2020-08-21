@@ -3,11 +3,13 @@
 
 
 typedef __uint8_t Uint8;
+typedef __uint16_t Uint16;
 typedef __uint32_t Uint32;
 typedef __uint64_t Uint64;
 typedef __uint128_t Uint128;
 
 typedef __int8_t Sint8;
+typedef __int16_t Sint16;
 typedef __int32_t Sint32;
 typedef __int64_t Sint64;
 typedef __int128_t Sint128;
@@ -27,6 +29,7 @@ typedef Float64 RecallType;
 typedef Float32 RadType;
 typedef Float32 Score;  // TODO: Rename ScoreType
 typedef Float32 WeightType;
+typedef Float32 IsolationType;
 
 
 #define N_MAX_CHANNELS ((DyeType)(8))
@@ -108,6 +111,38 @@ void table_dump(Table *table, char *msg);
 
 typedef void (*ProgressFn)(int complete, int total, int retry);
 
+int sanity_check();
+
+// tab
+//----------------------------------------------------------------------------------------
+
+typedef struct {
+    void *base;
+    Uint64 n_bytes_per_row;
+    Uint64 n_max_rows;
+    Uint64 n_rows;
+    int b_growable;
+} Tab;
+
+
 void tab_tests();
+void tab_dump(Tab *tab, char *msg);
+Tab tab_subset(Tab *src, Index row_i, Size n_rows);
+Tab tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, int b_growable);
+Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int b_growable);
+
+
+#define TAB_NOT_GROWABLE (0)
+#define TAB_GROWABLE (1)
+#define TAB_NO_LOCK (void *)0
+
+#define tab_row(tab, row_i) _tab_get(tab, row_i, __FILE__, __LINE__)
+#define tab_var(typ, var, tab, row_i) typ *var = (typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
+#define tab_ptr(typ, tab, row_i) (typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
+#define tab_get(typ, tab, row_i) *(typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
+#define tab_set(tab, row_i, src) _tab_set(tab, row_i, src, __FILE__, __LINE__)
+#define tab_add(tab, src, lock) _tab_add(tab, src, lock, __FILE__, __LINE__)
+#define tab_validate(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)
+
 
 #endif

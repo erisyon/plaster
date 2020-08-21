@@ -14,7 +14,7 @@
 This is the "sim" phase of plaster implemented in C.
 It is meant to be called by Cython sim_v2_fast.pyx
 
-Inputs (see typedef Context in sim.h):
+Inputs (see typedef SimV2FastContext in sim.h):
     * A list of "flus" which are Uint8 arrays (n_channels, n_cycles)
       with the channel number of NO_LABEL at each position.
     * Various paramerters
@@ -48,7 +48,7 @@ Definitions:
         into a growing array. The pre-allocated table buffer must large
         enough to accommodate the row or an assertion will be thrown.
     Hash = A simple 64-bit hashkey table that maintains a pointer value.
-    Context = All of the context (parameters, buffers, inputs, etc)
+    SimV2FastContext = All of the context (parameters, buffers, inputs, etc)
         that are needed in order to run the simulation
 
 There are two Tables maintained in the context:
@@ -97,31 +97,6 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
     // Check that the compiler sizes are what is expected.
     // return 0 == success
 
-    if(UINT64_MAX != 0xFFFFFFFFFFFFFFFFULL) {
-        printf("Failed sanity check: UINT64_MAX\n");
-        return 1;
-    }
-
-    if(sizeof(Uint128) != 16) {
-        printf("Failed sanity check: sizeof 128\n");
-        return 2;
-    }
-
-    if(sizeof(Uint64) != 8) {
-        printf("Failed sanity check: sizeof 64\n");
-        return 3;
-    }
-
-    if(sizeof(Uint8) != 1) {
-        printf("Failed sanity check: sizeof 8\n");
-        return 4;
-    }
-
-    if(sizeof(Sint64) != 8) {
-        printf("Failed sanity check: sizeof Sint64\n");
-        return 5;
-    }
-
     if(rand64(UINT64_MAX) != 1) {
         printf("Failed sanity check: rand64\n");
         return 6;
@@ -132,18 +107,13 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
         return 7;
     }
 
-    if(N_MAX_CYCLES != 64) {
-        // This is particularly annoying. See csim.pxd for explanation
-        printf("Failed sanity check: N_MAX_CYCLES\n");
-        return 8;
-    }
-
     Size n_hashkey_factors = sizeof(hashkey_factors) / sizeof(hashkey_factors[0]);
     for(Index i=0; i<n_hashkey_factors; i++) {
         hashkey_factors[i] = (rand() * rand() * rand() * rand() * rand() * rand() * rand()) % UINT64_MAX;
     }
 
     if(n_channels * n_cycles >= n_hashkey_factors) {
+        printf("Failed sanity check: n_channels * n_cycles >= n_hashkey_factors\n");
         return 9;
     }
 
@@ -155,11 +125,6 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
     if(prob_to_p_i(1.0) != (Uint64)UINT64_MAX) {
         printf("Failed sanity check: prob_to_p_i(1.0) %ld %ld\n", prob_to_p_i(1.0), (Uint64)UINT64_MAX);
         return 11;
-    }
-
-    if(sizeof(Float64) != 8) {
-        printf("Failed sanity check: Float64\n");
-        return 12;
     }
 
     return 0;
@@ -345,7 +310,7 @@ void dyepep_dump_all(Table *dyepeps) {
 // sim
 //=========================================================================================
 
-Counts context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
+Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
     // Runs the Monte-Carlo simulation of one peptide flu over n_samples
     // See algorithm described at top of file.
     // Returns the number of NEW dtrs
@@ -572,7 +537,7 @@ Counts context_sim_flu(Context *ctx, Index pep_i, Table *pcb_block, Size n_aas) 
 }
 
 
-Index context_work_orders_pop(Context *ctx) {
+Index context_work_orders_pop(SimV2FastContext *ctx) {
     // NOTE: This return +1! So that 0 can be reserved.
     if(ctx->n_threads > 1) {
         pthread_mutex_lock(&ctx->work_order_lock);
@@ -595,7 +560,7 @@ Index context_work_orders_pop(Context *ctx) {
 void *context_work_orders_worker(void *_ctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
-    Context *ctx = (Context *)_ctx;
+    SimV2FastContext *ctx = (SimV2FastContext *)_ctx;
     if(ctx->count_only) {
         ensure(ctx->n_threads == 1, "n_therads must be 1 when counting");
         trace("Counting n_dtrs and n_dyepeps for %ld peps\n", ctx->n_peps);
@@ -632,7 +597,7 @@ void *context_work_orders_worker(void *_ctx) {
 }
 
 
-void context_work_orders_start(Context *ctx) {
+void context_work_orders_start(SimV2FastContext *ctx) {
     // context_dump(ctx);
 
     // Initialize mutex and start the worker thread(s).
@@ -681,25 +646,25 @@ void context_work_orders_start(Context *ctx) {
 }
 
 
-Index context_dtr_get_count(Context *ctx, Index dtr_i) {
+Index context_dtr_get_count(SimV2FastContext *ctx, Index dtr_i) {
     DTR *dtr = table_get_row(&ctx->dtrs, dtr_i, DTR);
     return dtr->count;
 }
 
 
-DyeType *context_dtr_dyetrack(Context *ctx, Index dtr_i) {
+DyeType *context_dtr_dyetrack(SimV2FastContext *ctx, Index dtr_i) {
     DTR *dtr = table_get_row(&ctx->dtrs, dtr_i, DTR);
     return dtr->chcy_dye_counts;
 }
 
 
-DyePepRec *context_dyepep(Context *ctx, Index dyepep_i) {
+DyePepRec *context_dyepep(SimV2FastContext *ctx, Index dyepep_i) {
     return table_get_row(&ctx->dyepeps, dyepep_i, DyePepRec);
 }
 
 
-void context_dump(Context *ctx) {
-    printf("Context:\n");
+void context_dump(SimV2FastContext *ctx) {
+    printf("SimV2FastContext:\n");
     printf("  n_peps=%" PRIu64 "\n", ctx->n_peps);
     printf("  n_cycles=%" PRIu64 "\n", ctx->n_cycles);
     printf("  n_samples=%" PRIu64 "\n", ctx->n_samples);
@@ -716,7 +681,7 @@ void context_dump(Context *ctx) {
 
 
 /*
-void _context_generate_test_pepflus(Context *ctx) {
+void _context_generate_test_pepflus(SimV2FastContext *ctx) {
     // Mock flues for testing purposes
     ctx->flus = (DyeType **)calloc(sizeof(DyeType *), ctx->n_peps);
     ctx->n_aas = (Size *)calloc(sizeof(Size), ctx->n_peps);
@@ -741,7 +706,7 @@ void _context_generate_test_pepflus(Context *ctx) {
 int main() {
     // Tests (not run by production code, see fast_sim.pyx)
     // Setup context
-    Context ctx;
+    SimV2FastContext ctx;
 
     ctx.n_peps = 100;
     ctx.n_samples = 5000;

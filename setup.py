@@ -48,6 +48,7 @@ extensions = [
             "./plaster/tools/c_common/c_common.c",
         ],
         include_dirs=[
+            "./plaster/tools/c_common",
             "./plaster/run/nn_v2/fast",
             "./plaster/tools/c_common",
             "/flann/src/cpp/flann/",
@@ -130,5 +131,7 @@ setup(
         "zbs.zest",
     ],
     python_requires=">=3.6",
-    ext_modules=cythonize(extensions, language_level="3"),
+    ext_modules=cythonize(extensions, language_level="3", include_path=[
+       "./plaster/tools/c_common",
+    ]),
 )

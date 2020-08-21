@@ -19,7 +19,7 @@ Goals:
     DONE tab_dump(Table *tab)
     tab_subset(void *base, Index start, Size n_rows)
     tab_tests()
-*/
+
 
 
 #include "stdint.h"
@@ -231,3 +231,4 @@ int main(int argc, char **argv) {
     tab_tests();
     return 0;
 }
+*/

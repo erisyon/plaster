@@ -42,7 +42,7 @@ void dump_row_of_dyemat(Table dyemat, int row) {
     printf("\n");
 }
 
-void context_pep_measure_isolation(Context *ctx, Index pep_i) {
+void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     /*
     TODO.
     A large value of isolation means the peptide is well separated.
@@ -169,9 +169,9 @@ void context_pep_measure_isolation(Context *ctx, Index pep_i) {
 }
 
 
-Index context_work_orders_pop(Context *ctx) {
+Index context_work_orders_pop(SurveyV2FastContext *ctx) {
     // TODO: This could be dried with similar sim_v2 code
-    // (but remember they refer to differnte Context structs)
+    // (but remember they refer to differnte SurveyV2FastContext structs)
     // NOTE: This return +1! So that 0 can be reserved.
     if(ctx->n_threads > 1) {
         pthread_mutex_lock(&ctx->work_order_lock);
@@ -194,7 +194,7 @@ Index context_work_orders_pop(Context *ctx) {
 void *context_work_orders_worker(void *_ctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
-    Context *ctx = (Context *)_ctx;
+    SurveyV2FastContext *ctx = (SurveyV2FastContext *)_ctx;
     while(1) {
         Index pep_i_plus_1 = context_work_orders_pop(ctx);
         if(pep_i_plus_1 == 0) {
@@ -213,7 +213,7 @@ void *context_work_orders_worker(void *_ctx) {
 }
 
 
-void context_start(Context *ctx) {
+void context_start(SurveyV2FastContext *ctx) {
     // Initialize mutex and start the worker thread(s).
     ctx->next_pep_i = 0;
 
