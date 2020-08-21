@@ -155,6 +155,12 @@ class PeaksModel(BaseSynthModel):
         self.amps = mean + std * np.random.randn(self.n_peaks)
         return self
 
+    def dyt_uniform(self, dyt):
+        dyt = np.array(dyt)
+        dyts = np.tile(dyt, (self.amps.shape[0], 1))
+        self.amps = self.amps[:, None] * dyts
+        return self
+
     def remove_near_edges(self, dist=20):
         self.locs = np.array(
             [
@@ -203,6 +209,9 @@ class PeaksModelGaussian(PeaksModel):
 
         mea = 11
         for loc, amp, std_x, std_y in zip(self.locs, self.amps, self.std_x, self.std_y):
+            if isinstance(amp, np.ndarray):
+                amp = amp[cy_i]
+
             frac_x = np.modf(loc[0])[0]
             frac_y = np.modf(loc[1])[0]
             peak_im = imops.gauss2_rho_form(
