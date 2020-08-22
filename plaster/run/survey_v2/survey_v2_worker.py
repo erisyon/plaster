@@ -97,6 +97,7 @@ def survey_v2(
     """
 
     survey_v2_fast.survey(
+        prep_result.n_peps,
         sim_v2_result.train_dyemat,
         sim_v2_result.train_dyepeps,
         n_threads=1,

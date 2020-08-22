@@ -34,13 +34,13 @@ for each peptide (parallel)
         Add all those up and that's the isolation metric. A big number is better.
 */
 
-void dump_row_of_dyemat(Table dyemat, int row) {
-    DyeType *dyt = table_get_row(&dyemat, row, DyeType);
-    for (Index k=0; k<dyemat.n_bytes_per_row; k++) {
-        printf("%d ", dyt[k]);
-    }
-    printf("\n");
-}
+//void dump_row_of_dyemat(Table dyemat, int row) {
+//    DyeType *dyt = table_get_row(&dyemat, row, DyeType);
+//    for (Index k=0; k<dyemat.n_bytes_per_row; k++) {
+//        printf("%d ", dyt[k]);
+//    }
+//    printf("\n");
+//}
 
 void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     /*

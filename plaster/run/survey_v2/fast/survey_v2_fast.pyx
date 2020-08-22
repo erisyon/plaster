@@ -13,7 +13,9 @@ from plaster.tools.log.log import important
 
 # Local helpers
 def _assert_array_contiguous(arr, dtype):
-    assert isinstance(arr, np.ndarray) and arr.dtype == dtype and arr.flags["C_CONTIGUOUS"]
+    assert isinstance(arr, np.ndarray)
+    assert arr.dtype == dtype, f"{arr.dtype} {dtype}"
+    assert arr.flags["C_CONTIGUOUS"]
 
 
 global_progress_callback = None
@@ -61,9 +63,14 @@ def survey(
     ctx.dyemat = c.table_init_readonly(<c.Uint8 *>&dyemat_view[0, 0], dyemat.nbytes, dyemat.shape[1] * sizeof(c.DyeType))
 
     # BUILD a LUT from dyt_i to most-likely peptide i (mlpep_i)
+    # The dyepep_df can have missing pep_i (there are peptides that have no dyt_i)
+    # But all dyt have peps.
     dyepep_df = pd.DataFrame(dyepeps, columns=["dyt_i", "pep_i", "n_reads"])
-    dyt_i_to_mlpep_i = dyepep_df.loc[dyepep_df.groupby(["dyt_i"])["n_reads"].idxmax()].set_index("dyt_i")
-    dyt_i_to_mlpep_i = dyt_i_to_mlpep_i.reindex(list(range(0, n_dyts)), fill_value=0)
+
+    # EXTRACT the row in each dyt_i group that has the most reads; this is the Most-Likely-Pep
+    dyt_i_to_mlpep_i = dyepep_df.loc[dyepep_df.groupby(["dyt_i"])["n_reads"].idxmax()].reset_index()
+    assert np.unique(dyt_i_to_mlpep_i.dyt_i).tolist() == list(range(n_dyts))
+
     dyt_i_to_mlpep_i = dyt_i_to_mlpep_i.pep_i.values
     assert <c.Size>(len(dyt_i_to_mlpep_i)) == n_dyts
     dyt_i_to_mlpep_i = np.ascontiguousarray(dyt_i_to_mlpep_i, dtype=np.uint64)
@@ -71,19 +78,37 @@ def survey(
     dyt_i_to_mlpep_i_view = dyt_i_to_mlpep_i
     ctx.dyt_i_to_mlpep_i = c.table_init_readonly(<c.Uint8 *>&dyt_i_to_mlpep_i_view[0], dyt_i_to_mlpep_i.nbytes, sizeof(c.Index))
 
-    # SETUP the dyepeps table, sorting by pep_i
-    # Note, all pep_i must occur in this.
-    dyepeps = dyepeps[dyepeps[:, pep_column_in_dyepeps].argsort()]
-    pep_i_column = dyepeps[:, pep_column_in_dyepeps]
-    if np.unique(pep_i_column).tolist() != list(range(n_peps)):
-        print(np.unique(pep_i_column).tolist())
-        print(list(range(n_peps)))
-    assert np.unique(pep_i_column).tolist() == list(range(n_peps))
+    # FILL-in missing pep_i from the dataframe
+    # This is tricky because there can be duplicate "pep_i" rows and the simple reindex
+    # answer from SO doesn't work in that case so we need to make a list of the missing rows
+    new_index = pd.Index(np.arange(_n_peps), name="pep_i")
+
+    # Drop duplicates from dyepep_df so that the reindex can work...
+    missing = dyepep_df.drop_duplicates("pep_i").set_index("pep_i").reindex(new_index)
+
+    # Now missing has all rows, and the "new" rows (ie those that were missing in dyepep_df)
+    # have NaNs in their dyt_i fields, so select those out.
+    missing = missing[np.isnan(missing.dyt_i)].reset_index()
+
+    # Now we can merge those missing rows into the dyepep_df
+    dyepep_df = pd.merge(dyepep_df, missing, on="pep_i", how="outer", suffixes=["", "_dropme"]).drop(columns=["dyt_i_dropme", "n_reads_dropme"])
+    dyepep_df = dyepep_df.sort_values(["pep_i", "dyt_i"]).reset_index(drop=True)
+    dyepep_df = dyepep_df.fillna(0).astype(np.uint64)
+    print(dyepep_df)
+
+    # SETUP the dyepeps table, sorting by pep_i.  All pep_i must occur in this.
+    # if np.unique(dyepep_df.pep_i).tolist() != list(range(n_peps)):
+    #     print("UNIQIUE:")
+    #     print(np.unique(dyepep_df.pep_i).tolist())
+    #     print(list(range(n_peps)))
+    #     print(dyepeps)
+    assert np.unique(dyepep_df.pep_i).tolist() == list(range(n_peps))
+    dyepeps = np.ascontiguousarray(dyepep_df.values, dtype=np.uint64)
     _assert_array_contiguous(dyepeps, np.uint64)
     dyepeps_view = dyepeps
     ctx.dyepeps = c.table_init_readonly(<c.Uint8 *>&dyepeps_view[0, 0], dyepeps.nbytes, sizeof(c.DyePepRec))
 
-    _pep_i_to_dyepep_row_i = np.unique(pep_i_column, return_index=1)[1].astype(np.uint64)
+    _pep_i_to_dyepep_row_i = np.unique(dyepep_df.pep_i, return_index=1)[1].astype(np.uint64)
     pep_i_to_dyepep_row_i = np.zeros((n_peps + 1), dtype=np.uint64)
     pep_i_to_dyepep_row_i[0:n_peps] = _pep_i_to_dyepep_row_i
     pep_i_to_dyepep_row_i[n_peps] = n_dyepep_rows
