@@ -1,3 +1,4 @@
+import pandas as pd
 import sys
 import time
 cimport c_sim_v2_fast as csim
@@ -12,9 +13,12 @@ from plaster.tools.log.log import important
 
 # Local helpers
 def _assert_array_contiguous(arr, dtype):
-    assert isinstance(arr, np.ndarray) and arr.dtype == dtype and arr.flags["C_CONTIGUOUS"]
+    assert isinstance(arr, np.ndarray)
+    assert arr.dtype == dtype, f"{arr.dtype} {dtype}"
+    assert arr.flags["C_CONTIGUOUS"]
 
 
+# TODO: Move to c_common
 # Type and constant exports
 DyeType = np.uint8
 CycleKindType = np.uint8

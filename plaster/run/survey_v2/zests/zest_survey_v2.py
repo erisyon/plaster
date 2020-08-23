@@ -5,6 +5,7 @@ from plaster.run.sim_v2 import sim_v2_fixtures
 from plaster.run.survey_v2.fast import survey_v2_fast
 from plaster.run.survey_v2 import survey_v2_worker
 from plaster.run.survey_v2.survey_v2_params import SurveyV2Params
+from plaster.tools.utils import tmp
 from plaster.tools.log.log import debug
 
 # def zest_tab_tests():
@@ -40,9 +41,13 @@ def zest_survey_v2_pyx():
 
 
 def zest_survey_v2_integration():
-    prep_result = prep_fixtures.result_random_fixture(2)
-    sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result, labels="DE,C,Y")
-    survey_v2_result = survey_v2_worker.survey_v2(SurveyV2Params(), prep_result, sim_v2_result)
+    for i in range(100):
+        debug(i)
+        with tmp.tmp_folder(chdir=True):
+            prep_result = prep_fixtures.result_random_fixture(2)
+            sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result, labels="DE,C,Y")
+            sim_v2_result.save()
+            survey_v2_result = survey_v2_worker.survey_v2(SurveyV2Params(), prep_result, sim_v2_result)
 
     zest()
 

@@ -3,6 +3,7 @@ from plaster.run.sim_v2 import sim_v2_worker
 from plaster.run.error_model import ErrorModel
 from plaster.tools.schema import check
 
+
 def result_from_prep_fixture(prep_result, labels, n_edmans=5, error_model=None):
     # Common labels: "DE", "C", "Y", "K", "H"
     check.t(labels, str)

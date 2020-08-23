@@ -28,6 +28,9 @@ cdef extern from "c_common.h":
     Uint8 CYCLE_TYPE_MOCK
     Uint8 CYCLE_TYPE_EDMAN
 
+    enum: TAB_NOT_GROWABLE
+    enum: TAB_GROWABLE
+
     ctypedef struct Table:
         Uint8 *rows
         Uint64 n_bytes_per_row

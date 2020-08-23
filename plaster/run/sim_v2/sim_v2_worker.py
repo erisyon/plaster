@@ -38,8 +38,6 @@ Nomenclature
 """
 import math
 import numpy as np
-import pandas as pd
-from scipy.spatial.distance import cdist
 from plaster.run.sim_v2.fast import sim_v2_fast
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.run.sim_v2 import sim_v2_params
@@ -388,7 +386,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         test_true_pep_iz = test_true_pep_iz[non_zero_rows]
         test_true_dye_iz = test_true_dye_iz[non_zero_rows]
 
-    return SimV2Result(
+    sim_result_v2 = SimV2Result(
         params=sim_v2_params,
         train_dyemat=train_dyemat,
         train_radmat=train_radmat,
@@ -401,3 +399,5 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         test_true_pep_iz=test_true_pep_iz,
         test_true_dye_iz=test_true_dye_iz,
     )
+    sim_result_v2._generate_flu_info(prep_result)
+    return sim_result_v2

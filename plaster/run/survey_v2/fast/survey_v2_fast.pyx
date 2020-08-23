@@ -46,7 +46,6 @@ def survey(
 
     # Vars
     cdef c.Index n_peps = <c.Index>_n_peps
-    cdef c.Index n_dyepep_rows = <c.Index>dyepeps.shape[0]
     cdef c.Size n_dyts = <c.Size>dyemat.shape[0]
     cdef csurvey.SurveyV2FastContext ctx
 
@@ -60,7 +59,7 @@ def survey(
     # SETUP the dyemat table
     _assert_array_contiguous(dyemat, np.uint8)
     dyemat_view = dyemat
-    ctx.dyemat = c.table_init_readonly(<c.Uint8 *>&dyemat_view[0, 0], dyemat.nbytes, dyemat.shape[1] * sizeof(c.DyeType))
+    ctx.dyemat = c.tab_by_size(&dyemat_view[0, 0], dyemat.nbytes, dyemat.shape[1] * sizeof(c.DyeType), c.TAB_NOT_GROWABLE)
 
     # BUILD a LUT from dyt_i to most-likely peptide i (mlpep_i)
     # The dyepep_df can have missing pep_i (there are peptides that have no dyt_i)
@@ -76,7 +75,7 @@ def survey(
     dyt_i_to_mlpep_i = np.ascontiguousarray(dyt_i_to_mlpep_i, dtype=np.uint64)
     _assert_array_contiguous(dyt_i_to_mlpep_i, np.uint64)
     dyt_i_to_mlpep_i_view = dyt_i_to_mlpep_i
-    ctx.dyt_i_to_mlpep_i = c.table_init_readonly(<c.Uint8 *>&dyt_i_to_mlpep_i_view[0], dyt_i_to_mlpep_i.nbytes, sizeof(c.Index))
+    ctx.dyt_i_to_mlpep_i = c.tab_by_size(&dyt_i_to_mlpep_i_view[0], dyt_i_to_mlpep_i.nbytes, sizeof(c.Index), c.TAB_NOT_GROWABLE)
 
     # FILL-in missing pep_i from the dataframe
     # This is tricky because there can be duplicate "pep_i" rows and the simple reindex
@@ -94,48 +93,46 @@ def survey(
     dyepep_df = pd.merge(dyepep_df, missing, on="pep_i", how="outer", suffixes=["", "_dropme"]).drop(columns=["dyt_i_dropme", "n_reads_dropme"])
     dyepep_df = dyepep_df.sort_values(["pep_i", "dyt_i"]).reset_index(drop=True)
     dyepep_df = dyepep_df.fillna(0).astype(np.uint64)
-    print(dyepep_df)
 
-    # SETUP the dyepeps table, sorting by pep_i.  All pep_i must occur in this.
-    # if np.unique(dyepep_df.pep_i).tolist() != list(range(n_peps)):
-    #     print("UNIQIUE:")
-    #     print(np.unique(dyepep_df.pep_i).tolist())
-    #     print(list(range(n_peps)))
-    #     print(dyepeps)
+    # SETUP the dyepeps tab, sorting by pep_i.  All pep_i must occur in this.
     assert np.unique(dyepep_df.pep_i).tolist() == list(range(n_peps))
     dyepeps = np.ascontiguousarray(dyepep_df.values, dtype=np.uint64)
     _assert_array_contiguous(dyepeps, np.uint64)
     dyepeps_view = dyepeps
-    ctx.dyepeps = c.table_init_readonly(<c.Uint8 *>&dyepeps_view[0, 0], dyepeps.nbytes, sizeof(c.DyePepRec))
+    ctx.dyepeps = c.tab_by_size(&dyepeps_view[0, 0], dyepeps.nbytes, sizeof(c.DyePepRec), c.TAB_NOT_GROWABLE)
 
     _pep_i_to_dyepep_row_i = np.unique(dyepep_df.pep_i, return_index=1)[1].astype(np.uint64)
     pep_i_to_dyepep_row_i = np.zeros((n_peps + 1), dtype=np.uint64)
     pep_i_to_dyepep_row_i[0:n_peps] = _pep_i_to_dyepep_row_i
-    pep_i_to_dyepep_row_i[n_peps] = n_dyepep_rows
+    pep_i_to_dyepep_row_i[n_peps] = dyepeps.shape[0]
     _assert_array_contiguous(pep_i_to_dyepep_row_i, np.uint64)
     pep_i_to_dyepep_row_i_view = pep_i_to_dyepep_row_i
-    ctx.pep_i_to_dyepep_row_i = c.table_init_readonly(
-        <c.Uint8 *>&pep_i_to_dyepep_row_i_view[0],
-        (n_peps + 1) * sizeof(c.Index),
-        sizeof(c.Index)
-    );
+    ctx.pep_i_to_dyepep_row_i = c.tab_by_n_rows(&pep_i_to_dyepep_row_i_view[0], n_peps + 1, sizeof(c.Index), c.TAB_NOT_GROWABLE)
 
-    # for i in range(n_peps + 1):
-    #     print(f"i={i} {pep_i_to_dyepep_row_i_view[i]}")
+    # SANITY CHECK
+    print(", ".join([f"{i}" for i in pep_i_to_dyepep_row_i.tolist()]))
+    assert np.all(np.diff(pep_i_to_dyepep_row_i) >= 0), "bad pep_i_to_dyepep_row_i"
 
     ctx.n_threads = n_threads
     ctx.n_peps = n_peps
     ctx.n_neighbors = 20
     ctx.n_dyts = n_dyts
     ctx.n_dyt_cols = dyemat.shape[1]
-    ctx.distance_to_assign_an_isolated_pep = 10 # TODO: Find this by sampling.
+    ctx.distance_to_assign_an_isolated_pep = 10  # TODO: Find this by sampling.
     ctx.progress_fn = <c.ProgressFn>_progress
 
     pep_i_to_isolation_metric = np.zeros((n_peps,), dtype=IsolationNPType)
     _assert_array_contiguous(pep_i_to_isolation_metric, np.float32)
     pep_i_to_isolation_metric_view = pep_i_to_isolation_metric
-    ctx.output_pep_i_to_isolation_metric = c.table_init_readonly(<c.Uint8 *>&pep_i_to_isolation_metric_view[0], pep_i_to_isolation_metric.nbytes, sizeof(c.IsolationType))
+    ctx.output_pep_i_to_isolation_metric = c.tab_by_size(
+        &pep_i_to_isolation_metric_view[0],
+        pep_i_to_isolation_metric.nbytes,
+        sizeof(c.IsolationType),
+        c.TAB_NOT_GROWABLE
+    )
 
+    print("FOO9")
     csurvey.context_start(&ctx)
+    print("FOO10")
 
     return pep_i_to_isolation_metric

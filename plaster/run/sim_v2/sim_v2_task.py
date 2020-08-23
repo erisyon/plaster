@@ -14,5 +14,4 @@ class SimV2Task(PipelineTask):
         sim_result_v2 = sim_v2(
             sim_v2_params, prep_result, progress=self.progress, pipeline=self
         )
-        sim_result_v2._generate_flu_info(prep_result)
         sim_result_v2.save()

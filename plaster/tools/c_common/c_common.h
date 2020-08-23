@@ -130,6 +130,8 @@ void tab_dump(Tab *tab, char *msg);
 Tab tab_subset(Tab *src, Index row_i, Size n_rows);
 Tab tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, int b_growable);
 Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int b_growable);
+void *_tab_get(Tab *tab, Index row_i, char *file, int line);
+void _tab_set(Tab *tab, Index row_i, void *src, char *file, int line);
 
 
 #define TAB_NOT_GROWABLE (0)

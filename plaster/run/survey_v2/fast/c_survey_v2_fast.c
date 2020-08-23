@@ -55,25 +55,27 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     ensure(n_dyt_cols > 0, "no n_dyt_cols");
 
     // SETUP a local table for the dyepeps of this peptide.
-    Index dyepeps_offset_start_of_this_pep = *table_get_row(&ctx->pep_i_to_dyepep_row_i, pep_i, Index);
-    Index dyepeps_offset_start_of_next_pep = *table_get_row(&ctx->pep_i_to_dyepep_row_i, pep_i + 1, Index);
-    Size n_local_dyts = dyepeps_offset_start_of_next_pep - dyepeps_offset_start_of_this_pep;
-    ensure(n_local_dyts > 0, "no dyts pep_i=%ld (%ld %ld)", pep_i, dyepeps_offset_start_of_next_pep, dyepeps_offset_start_of_this_pep);
-    Table dyepeps = table_init_subset(&ctx->dyepeps, dyepeps_offset_start_of_this_pep, n_local_dyts, 1);
+    tab_var(Index, dyepeps_offset_start_of_this_pep, &ctx->pep_i_to_dyepep_row_i, pep_i);
+    tab_var(Index, dyepeps_offset_start_of_next_pep, &ctx->pep_i_to_dyepep_row_i, pep_i + 1);
+    int _n_local_dyts = *dyepeps_offset_start_of_next_pep - *dyepeps_offset_start_of_this_pep;
+    ensure(_n_local_dyts > 0, "no dyts pep_i=%ld (this=%ld next=%ld)", pep_i, *dyepeps_offset_start_of_this_pep, *dyepeps_offset_start_of_next_pep);
+    Index n_local_dyts = (Index)_n_local_dyts;
+
+    Tab dyepeps = tab_subset(&ctx->dyepeps, *dyepeps_offset_start_of_this_pep, n_local_dyts);
 
     // TODO: This table_init_readonly in the following contexts is a misnomer,
     //   I need to rename it. What I mean is that the table isn't going to GROW
     // ALLOC a dyemat for all of the dyts of this peptide
     RadType *local_dyemat_buffer = (RadType *)alloca(n_local_dyts * n_dyt_cols * sizeof(DyeType));
     memset(local_dyemat_buffer, 0, n_local_dyts * n_dyt_cols * sizeof(DyeType));
-    Table local_dyemat = table_init_readonly(local_dyemat_buffer, n_local_dyts * n_dyt_cols * sizeof(DyeType), n_dyt_cols * sizeof(DyeType));
+    Tab local_dyemat = tab_by_n_rows(local_dyemat_buffer, n_local_dyts, n_dyt_cols * sizeof(DyeType), TAB_NOT_GROWABLE);
 
     // LOAD the local dyemat table by copying using the dyt_iz in dyepeps
     for(Index i=0; i<n_local_dyts; i++) {
-        DyePepRec *dyepep_row = table_get_row(&dyepeps, i, DyePepRec);
+        tab_var(DyePepRec, dyepep_row, &dyepeps, i);
 
-        DyeType *src = table_get_row(&ctx->dyemat, dyepep_row->dtr_i, DyeType);
-        DyeType *dst = table_get_row(&local_dyemat, i, DyeType);
+        tab_var(DyeType, src, &ctx->dyemat, dyepep_row->dtr_i);
+        tab_var(DyeType, dst, &local_dyemat, i);
         memcpy(dst, src, dyt_row_n_bytes);
     }
 
@@ -85,14 +87,14 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     memset(nn_dyt_iz_buf, 0, n_local_dyts * nn_dyt_iz_row_n_bytes);
     memset(nn_dists_buf, 0, n_local_dyts * nn_dists_row_n_bytes);
 
-    // Remember: nn_dyt_iz_buf contains offets into the GLOBAL dyemat
-    Table nn_dyt_iz = table_init_readonly(nn_dyt_iz_buf, n_local_dyts * nn_dyt_iz_row_n_bytes, nn_dyt_iz_row_n_bytes);
-    Table nn_dists = table_init_readonly(nn_dists_buf, n_local_dyts * nn_dists_row_n_bytes, nn_dists_row_n_bytes);
+    // Remember: nn_dyt_iz_buf contains offsets into the GLOBAL dyemat
+    Tab nn_dyt_iz = tab_by_n_rows(nn_dyt_iz_buf, n_local_dyts, nn_dyt_iz_row_n_bytes, TAB_NOT_GROWABLE);
+    Tab nn_dists = tab_by_n_rows(nn_dists_buf, n_local_dyts, nn_dists_row_n_bytes, TAB_NOT_GROWABLE);
 
     // FETCH a batch of neighbors from FLANN in one call against the GLOBAL index of dyetracks
     int ret = flann_find_nearest_neighbors_index_byte(
         ctx->flann_index_id,
-        table_get_row(&local_dyemat, 0, DyeType),
+        tab_ptr(DyeType, &local_dyemat, 0),
         n_local_dyts,
         nn_dyt_iz_buf,
         nn_dists_buf,
@@ -103,7 +105,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
 
     // Sanity check
     for (Index i=0; i<n_local_dyts; i++) {
-        int *row = table_get_row(&nn_dyt_iz, i, int);
+        tab_var(int, row, &nn_dyt_iz, i);
         for (int j=0; j<n_neighbors; j++ ) {
             //printf("%3d ", row[j]);
             if(!(0 <= row[j] && row[j] < (int)n_global_dyts)) {
@@ -122,11 +124,11 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     Size n_reads_total = 0;
     IsolationType isolation_metric = (IsolationType)0;
     for (Index i=0; i<n_local_dyts; i++) {
-        DyePepRec *dyepep_row = table_get_row(&dyepeps, i, DyePepRec);
+        tab_var(DyePepRec, dyepep_row, &dyepeps, i);
 
         Float32 mic_pep_dist = (Float32)0;
-        int *nn_dyt_row_i = table_get_row(&nn_dyt_iz, i, int);
-        float *nn_dists_row_i = table_get_row(&nn_dists, i, float);
+        tab_var(int, nn_dyt_row_i, &nn_dyt_iz, i);
+        tab_var(float, nn_dists_row_i, &nn_dists, i);
 
         Index nn_i = 0;
         for (nn_i=0; nn_i<n_neighbors_u; nn_i++) {
@@ -134,7 +136,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
             ensure_only_in_debug(0 <= global_dyt_i && global_dyt_i < (int)n_global_dyts, "Illegal dyt in nn lookup: %ld %ld", global_dyt_i, n_global_dyts);
 
             // LOOKUP the mlpep for this dyt_i. remember, we must CONVERT from local_dyt_i to global_dyt_i
-            Index mlpep_i = *table_get_row(&ctx->dyt_i_to_mlpep_i, global_dyt_i, Index);
+            Index mlpep_i = tab_get(Index, &ctx->dyt_i_to_mlpep_i, global_dyt_i);
             ensure_only_in_debug(0 <= mlpep_i && mlpep_i < ctx->n_peps, "mlpep_i out of bounds %ld %ld", mlpep_i, ctx->n_peps);
 
             if(mlpep_i != pep_i) {
@@ -164,8 +166,8 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     }
 
     // RECORD the result
-    IsolationType *result = table_get_row(&ctx->output_pep_i_to_isolation_metric, pep_i, IsolationType);
-    *result = isolation_metric / (IsolationType)n_reads_total;
+    IsolationType result = isolation_metric / (IsolationType)n_reads_total;
+    tab_set(&ctx->output_pep_i_to_isolation_metric, pep_i, &result);
 }
 
 
@@ -232,38 +234,12 @@ void context_start(SurveyV2FastContext *ctx) {
     // TODO: DRY with NN
     float speedup = 0.0f;
     ctx->flann_index_id = flann_build_index_byte(
-        table_get_row(&ctx->dyemat, 0, DyeType),
+        tab_ptr(DyeType, &ctx->dyemat, 0),
         ctx->dyemat.n_rows,
         ctx->n_dyt_cols,
         &speedup,
         &ctx->flann_params
     );
-
-// HACK TEST
-//#define n_neighbors (2)
-//int nn_dyt_iz_buf[n_neighbors];
-//float nn_dists_buf[n_neighbors];
-//int ret = flann_find_nearest_neighbors_index_byte(
-//    ctx->flann_index_id,
-//    table_get_row(&ctx->dyemat, 3, DyeType),
-//    1,
-//    nn_dyt_iz_buf,
-//    nn_dists_buf,
-//    n_neighbors,
-//    &ctx->flann_params
-//);
-//ensure(ret == 0, "flann returned error code");
-//for (int j=0; j<n_neighbors; j++) {
-//    Index dyt_i = nn_dyt_iz_buf[j];
-//    printf("dyt_i=%ld\n", dyt_i);
-//    DyeType *dyt = table_get_row(&ctx->dyemat, dyt_i, DyeType);
-//    for (Index k=0; k<ctx->n_dyt_cols; k++) {
-//        printf("%d ", dyt[k]);
-//    }
-//    printf("\n");
-//}
-//printf("\n");
-
 
     // START threads
     pthread_t ids[256];
