@@ -155,7 +155,7 @@ def sim(
         #n_channels_to_n_max_dyepep_per_pep = [0, 100, 100, 100, 250, 425]
         extra_factor = 1.2
         hash_factor = 1.5
-        n_max_dtrs = <c.Size>(extra_factor * 250 * n_peps)
+        n_max_dtrs = <c.Size>(extra_factor * 250 * n_peps + 1000)
         n_max_dtr_hash_recs = int(hash_factor * n_max_dtrs)
         n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps)
         n_max_dyepep_hash_recs = int(hash_factor * n_max_dyepeps)

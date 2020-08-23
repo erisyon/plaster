@@ -43,6 +43,7 @@ def survey(
     cdef c.Index [::1] pep_i_to_dyepep_row_i_view
     cdef c.Index [::1] dyt_i_to_mlpep_i_view
     cdef c.IsolationType [::1] pep_i_to_isolation_metric_view
+    cdef c.Index [::1] pep_i_to_mic_pep_i_view  # mic = "Most In Contention"
 
     # Vars
     cdef c.Index n_peps = <c.Index>_n_peps
@@ -110,7 +111,7 @@ def survey(
     ctx.pep_i_to_dyepep_row_i = c.tab_by_n_rows(&pep_i_to_dyepep_row_i_view[0], n_peps + 1, sizeof(c.Index), c.TAB_NOT_GROWABLE)
 
     # SANITY CHECK
-    print(", ".join([f"{i}" for i in pep_i_to_dyepep_row_i.tolist()]))
+    # print(", ".join([f"{i}" for i in pep_i_to_dyepep_row_i.tolist()]))
     assert np.all(np.diff(pep_i_to_dyepep_row_i) >= 0), "bad pep_i_to_dyepep_row_i"
 
     ctx.n_threads = n_threads
@@ -131,8 +132,16 @@ def survey(
         c.TAB_NOT_GROWABLE
     )
 
-    print("FOO9")
-    csurvey.context_start(&ctx)
-    print("FOO10")
+    pep_i_to_mic_pep_i = np.zeros((n_peps,), dtype=np.uint64)
+    _assert_array_contiguous(pep_i_to_mic_pep_i, np.uint64)
+    pep_i_to_mic_pep_i_view = pep_i_to_mic_pep_i
+    ctx.output_pep_i_to_mic_pep_i = c.tab_by_size(
+        &pep_i_to_mic_pep_i_view[0],
+        pep_i_to_mic_pep_i.nbytes,
+        sizeof(c.Index),
+        c.TAB_NOT_GROWABLE
+    )
 
-    return pep_i_to_isolation_metric
+    csurvey.context_start(&ctx)
+
+    return pep_i_to_mic_pep_i, pep_i_to_isolation_metric

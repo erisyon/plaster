@@ -96,17 +96,14 @@ def survey_v2(
         - We are including decoys if present.
     """
 
-    pep_i_to_isolation_metric = survey_v2_fast.survey(
+    pep_i_to_mic_pep_i, pep_i_to_isolation_metric = survey_v2_fast.survey(
         prep_result.n_peps,
         sim_v2_result.train_dyemat,
         sim_v2_result.train_dyepeps,
         n_threads=1,
         progress=progress,
     )
-    debug(pep_i_to_isolation_metric)
 
-    # TODO
-    '''
     # Join this to some flu information so we have it all in one place, especially
     # info about degeneracy (when more than one pep has the same dyetrack)
     # This isn't very DRY, since this data already lives in the prep and sim results.
@@ -123,6 +120,9 @@ def survey_v2(
         lambda x: x.pep_stop - x.pep_start - 1, axis=1
     )
 
+    peps__flus["nn_pep_i"] = pep_i_to_mic_pep_i
+    peps__flus["nn_dist"] = pep_i_to_isolation_metric
+
     # include the peptide sequence, and whether it has Proline at position 2
     pepstrs = prep_result.pepstrs()
     pepstrs["P2"] = pepstrs.apply(
@@ -133,11 +133,9 @@ def survey_v2(
     )
 
     df = (
-        df.set_index("pep_i")
-        .join(peps__flus.set_index("pep_i"), how="left")
+        peps__flus.set_index("pep_i")
         .join(pepstrs.set_index("pep_i"), how="left")
         .reset_index()
-    )[SurveyV2Result.survey_columns]
+    )
 
     return SurveyV2Result(params=survey_v2_params, _survey=df)
-    '''

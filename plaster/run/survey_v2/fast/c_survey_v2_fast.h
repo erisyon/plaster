@@ -11,6 +11,7 @@ typedef struct {
     Tab pep_i_to_dyepep_row_i;
     Tab dyt_i_to_mlpep_i;
     Tab output_pep_i_to_isolation_metric;
+    Tab output_pep_i_to_mic_pep_i;
     Index next_pep_i;
     Size n_threads;
     Size n_peps;

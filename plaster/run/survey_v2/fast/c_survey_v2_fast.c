@@ -123,6 +123,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     Size n_neighbors_u = (Size)n_neighbors;
     Size n_reads_total = 0;
     IsolationType isolation_metric = (IsolationType)0;
+    Index mic_pep_i = 0;
     for (Index i=0; i<n_local_dyts; i++) {
         tab_var(DyePepRec, dyepep_row, &dyepeps, i);
 
@@ -142,6 +143,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
             if(mlpep_i != pep_i) {
                 // Found the first neighbor dyetrack with a Max-Liklihood peptide that isn't the current peptide
                 mic_pep_dist = nn_dists_row_i[nn_i];
+                mic_pep_i = mlpep_i;
                 break;
             }
         }
@@ -159,6 +161,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
                 ctx->distance_to_assign_an_isolated_pep
                 * ctx->distance_to_assign_an_isolated_pep
             );
+            mic_pep_i = 0;
         }
 
         isolation_metric += dyepep_row->n_reads * sqrt(mic_pep_dist);
@@ -168,6 +171,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     // RECORD the result
     IsolationType result = isolation_metric / (IsolationType)n_reads_total;
     tab_set(&ctx->output_pep_i_to_isolation_metric, pep_i, &result);
+    tab_set(&ctx->output_pep_i_to_mic_pep_i, pep_i, &mic_pep_i);
 }
 
 
