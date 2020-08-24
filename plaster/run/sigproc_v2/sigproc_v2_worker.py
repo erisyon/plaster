@@ -395,6 +395,10 @@ def _background_subtraction(im, reg_bg_mean):
 
 
 def _background_estimate_im(im, divs):
+
+    # HACK
+    im = np.load("/erisyon/perfect_bg.npy").astype(float)
+
     """
     Using an approximate peak kernel, separate FG and BG regionally
     and return the bg mean and std.
@@ -440,7 +444,7 @@ def _background_estimate_im(im, divs):
     cim = np.nan_to_num(cim)
     fg_mask = np.where(cim > thresh, 1, 0)
 
-    fg_im = np.where(fg_mask & ~nan_mask, im, np.nan)
+    # fg_im = np.where(fg_mask & ~nan_mask, im, np.nan)
 
     fg_mask = cv2.dilate(fg_mask.astype(np.uint8), circle, iterations=1)
     bg_im = np.where(fg_mask | nan_mask, np.nan, im)
@@ -451,7 +455,7 @@ def _background_estimate_im(im, divs):
         return np.nanmean(dat), np.nanstd(dat)
 
     reg_bg_means, reg_bg_stds = imops.region_map(bg_im, nanstats, divs=divs)
-    reg_fg_means, reg_fg_stds = imops.region_map(fg_im, nanstats, divs=divs)
+    # reg_fg_means, reg_fg_stds = imops.region_map(fg_im, nanstats, divs=divs)
     stats = np.stack((reg_bg_means, reg_bg_stds, reg_fg_means, reg_fg_stds), axis=2)
 
     reg_bg_mean = stats[:, :, 0]
@@ -625,59 +629,6 @@ def _psf_stats_one_channel(fl_zi_ims, sigproc_v2_params):
     z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
     return z_and_region_to_psf.tolist()
 
-
-'''
-def _psf_stats_one_channel(fl_zi_ims, sigproc_v2_params):
-    """
-    Step one of calibration is to get Point Spread Function from
-    a z-stack dataset.  Note that what is normally called 'cycle'
-    is actually z-stack index here.
-
-    Returns:
-        list psf, ready to insert into calib object
-    """
-
-    n_fields, n_src_zslices = fl_zi_ims.shape[0:2]
-    divs = sigproc_v2_params.divs
-    peak_dim = (sigproc_v2_params.peak_mea, sigproc_v2_params.peak_mea)
-    n_dst_zslices = 1 + 2 * sigproc_v2_params.focus_window_radius
-    z_and_region_to_psf = np.zeros((n_dst_zslices, divs, divs, *peak_dim))
-
-    dst_z_per_src_z = n_src_zslices / n_dst_zslices
-
-    # TODO: zap this...
-    for fl_i in range(0, n_fields):
-
-        # COMPUTE focus for the entire zstack
-        # (might be much greater than focus_window_radius)
-        im_focuses = np.zeros((n_src_zslices,))
-        for src_zi in range(n_src_zslices):
-            bg_mean, _ = _background_estimate_im(fl_zi_ims[fl_i][src_zi], divs)
-            im_sub = _background_subtraction(fl_zi_ims[fl_i][src_zi], bg_mean)
-            im_focuses[src_zi] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
-
-        src_zi_best_focus = np.argmax(im_focuses)
-        debug(fl_i, src_zi_best_focus)
-
-        for dst_zi in range(n_dst_zslices):
-            src_zi0 = math.floor(0.5 + ((dst_zi-0.5) - n_dst_zslices//2) * dst_z_per_src_z + src_zi_best_focus)
-            src_zi1 = math.floor(0.5 + ((dst_zi+0.5) - n_dst_zslices//2) * dst_z_per_src_z + src_zi_best_focus)
-
-            for src_zi in range(src_zi0, src_zi1):
-                if 0 <= src_zi < n_src_zslices:
-                    # Only if the source is inside the source range, accum to dst.
-                    # TODO: Possible optimization: save the bg results from above
-                    bg_mean, bg_std = _background_estimate_im(fl_zi_ims[fl_i][src_zi], divs)
-                    im_sub = _background_subtraction(fl_zi_ims[fl_i][src_zi], bg_mean)
-                    _, reg_psfs = _psf_extract(im_sub, divs=divs, peak_mea=peak_dim[0])
-                    z_and_region_to_psf[dst_zi] += reg_psfs
-
-    # NORMALIZE all psfs
-    # The z_and_region_to_psf can have all-zero elements thus we use np_safe_divide below
-    denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
-    z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
-    return z_and_region_to_psf.tolist()
-'''
 
 # Foreground functions
 # -------------------------------------------------------------------------------
