@@ -1307,8 +1307,11 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
         )
         # chcy_ims is now only the intersection region so it may be smaller than the original
     else:
-        aln_offsets = np.array([YX(0, 0) for cy_i in range(n_cycles)])
-        aln_scores = np.array([1.0 for cy_i in range(n_cycles)])
+        aln_offsets = [YX(0, 0) for cy_i in range(n_cycles)]
+        aln_scores = [1.0 for cy_i in range(n_cycles)]
+
+    aln_offsets = np.array(aln_offsets)
+    aln_scores = np.array(aln_scores)
 
     # Step 5: Peak find on combined channels
     # The goal of previous channel equalization and regional balancing is that
@@ -1325,7 +1328,7 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
 
     keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
 
-    mea = chcy_ims.shape[-1:]
+    mea = np.array([chcy_ims.shape[-1:]])
     if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
         important(f"field {field_i} has bad alignment")
 
