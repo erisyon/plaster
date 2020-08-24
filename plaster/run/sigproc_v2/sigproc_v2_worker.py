@@ -1407,10 +1407,10 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
     if progress:
         progress(1, 3, False)
 
-    # calib = _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params)
-    # if progress:
-    #     progress(2, 3, False)
-    hack_perfect_psf(calib)
+    calib = _calibrate_step_2_psf(calib, ims_import_result, sigproc_v2_params)
+    if progress:
+        progress(2, 3, False)
+    # hack_perfect_psf(calib)
 
     # TODO: Probably subsampling like the _calibrate_step_1_background_stats
     # would be fine.
@@ -1441,9 +1441,11 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress):
     calib = Calibration.load(sigproc_v2_params.calibration_file)
     assert not calib.is_empty()
 
-    hack_perfect_psf(calib)
-    # calib["regional_illumination_balance.instrument_channel[0]"] = np.ones((5,5)).tolist()
-    # calib["regional_bg_mean.instrument_channel[0]"] = np.full((5,5), 140).tolist()
+    # hack_perfect_psf(calib)
+    calib["regional_illumination_balance.instrument_channel[0]"] = np.ones(
+        (5, 5)
+    ).tolist()
+    calib["regional_bg_mean.instrument_channel[0]"] = np.full((5, 5), 140).tolist()
 
     sigproc_v2_result = SigprocV2Result(
         params=sigproc_v2_params,

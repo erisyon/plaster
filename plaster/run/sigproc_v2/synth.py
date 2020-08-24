@@ -132,6 +132,10 @@ class PeaksModel(BaseSynthModel):
         self.locs = np.random.uniform(0, self.dim, (self.n_peaks, 2))
         return self
 
+    def locs_randomize_no_subpixel(self):
+        self.locs = np.random.uniform(0, self.dim, (self.n_peaks, 2)).astype(int)
+        return self
+
     def locs_randomize_away_from_edges(self):
         self.locs = np.random.uniform(
             [15, 15], np.array(self.dim) - 15, (self.n_peaks, 2)
