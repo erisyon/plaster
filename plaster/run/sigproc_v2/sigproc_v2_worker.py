@@ -390,6 +390,10 @@ def _background_subtraction(im, reg_bg_mean):
     Remove a regional bg_mean from an image
     """
     bg_im = imops.interp(reg_bg_mean, im.shape[-2:])
+
+    # HACK
+    # bg_im = np.load("/erisyon/perfect_bg.npy").astype(float)
+
     diff_im = im - bg_im
     return diff_im
 
@@ -397,7 +401,7 @@ def _background_subtraction(im, reg_bg_mean):
 def _background_estimate_im(im, divs):
 
     # HACK
-    im = np.load("/erisyon/perfect_bg.npy").astype(float)
+    # im = np.load("/erisyon/perfect_bg.npy").astype(float)
 
     """
     Using an approximate peak kernel, separate FG and BG regionally
@@ -454,12 +458,12 @@ def _background_estimate_im(im, divs):
             return np.nan, np.nan
         return np.nanmean(dat), np.nanstd(dat)
 
-    reg_bg_means, reg_bg_stds = imops.region_map(bg_im, nanstats, divs=divs)
+    reg_bg_mean, reg_bg_std = imops.region_map(bg_im, nanstats, divs=divs)
     # reg_fg_means, reg_fg_stds = imops.region_map(fg_im, nanstats, divs=divs)
-    stats = np.stack((reg_bg_means, reg_bg_stds, reg_fg_means, reg_fg_stds), axis=2)
+    # stats = np.stack((reg_bg_means, reg_bg_stds, reg_fg_means, reg_fg_stds), axis=2)
 
-    reg_bg_mean = stats[:, :, 0]
-    reg_bg_std = stats[:, :, 1]
+    # reg_bg_mean = stats[:, :, 0]
+    # reg_bg_std = stats[:, :, 1]
     return reg_bg_mean, reg_bg_std
 
 
@@ -687,8 +691,21 @@ def _foreground_filter_locs(
     # FILTER out peaks which are too close to each other.  Tile
     # is to get the locs repeated so that dims match for later mask
     locs = np.tile(fl_loc, (1, n_z_slices)).reshape((-1, 2))
+    n_locs = len(locs)
 
-    mask = (snr >= snr_min) & (sig >= sig_min) & (sig <= sig_max)
+    mask = np.ones((n_locs,), dtype=bool)
+    if snr_min is not None:
+        mask &= snr >= snr_min
+    if sig_min is not None:
+        mask &= sig >= sig_min
+    if sig_max is not None:
+        mask &= sig <= sig_max
+
+    if mask.sum() < int(0.25 * n_locs):
+        raise ValueError(
+            f"filter retained less than 25% of peaks (found={mask.sum()} of={n_locs})"
+        )
+
     sig = sig[mask]
     locs = locs[mask]
     return sig, locs
@@ -795,17 +812,11 @@ def _calibrate_step_3_regional_illumination_balance(
 
         # FILTER for locs with good signal-to-noise ratio
         sig, locs = _foreground_filter_locs(
-            fl_radmat,
-            fl_loc,
-            n_zslices,
-            ch_i,
-            snr_min=25,
-            sig_min=1000.0,
-            sig_max=4500.0,
+            fl_radmat, fl_loc, n_zslices, ch_i, snr_min=5, sig_min=100.0, sig_max=None,
         )
 
         # HACK
-        np.save("/erisyon/calib_locs.npy", locs)
+        # np.save("/erisyon/calib_locs.npy", locs)
 
         # CALCULATE the regional balance using only filtered sig,locs
         balance = _foreground_balance(
@@ -1238,7 +1249,7 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
         chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
 
     # HACK
-    np.save(f"/erisyon/field_{field_i}", chcy_ims)
+    # np.save(f"/erisyon/field_{field_i}", chcy_ims)
 
     if align_images:
         # Step 3: Find alignment offsets
