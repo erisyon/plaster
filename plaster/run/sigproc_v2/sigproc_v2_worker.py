@@ -109,7 +109,7 @@ from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.image.imops import sub_pixel_center
-from plaster.tools.log.log import debug, info
+from plaster.tools.log.log import debug, info, important
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
