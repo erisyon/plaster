@@ -109,7 +109,7 @@ from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.image.imops import sub_pixel_center
-from plaster.tools.log.log import debug, info
+from plaster.tools.log.log import debug, info, important
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
@@ -736,8 +736,22 @@ def _foreground_filter_locs(
     # FILTER out peaks which are too close to each other.  Tile
     # is to get the locs repeated so that dims match for later mask
     locs = np.tile(fl_loc, (1, n_z_slices)).reshape((-1, 2))
+    n_locs = len(locs)
 
-    mask = (snr >= snr_min) & (sig >= sig_min) & (sig <= sig_max)
+    mask = np.ones((n_locs,), dtype=bool)
+    if snr_min is not None:
+        mask &= snr >= snr_min
+    if sig_min is not None:
+        mask &= sig >= sig_min
+    if sig_max is not None:
+        mask &= sig <= sig_max
+
+    n_keep = mask.sum()
+    if n_keep < int(0.25 * n_locs):
+        raise ValueError(
+            f"foreground peaks filter less than 25% of all peaks (n_locs={n_locs}, keep={n_keep})"
+        )
+
     sig = sig[mask]
     locs = locs[mask]
     return sig, locs
@@ -842,15 +856,12 @@ def _calibrate_step_3_regional_illumination_balance(
             calib, ims_import_result, n_fields, ch_i, sigproc_v2_params
         )
 
+        # TODO: Come up with a way to put good numbers on: snr_min, sig_min, sig_max
+        # Until then, we're putting them in as very permissive
+
         # FILTER for locs with good signal-to-noise ratio
         sig, locs = _foreground_filter_locs(
-            fl_radmat,
-            fl_loc,
-            n_zslices,
-            ch_i,
-            snr_min=25,
-            sig_min=1000.0,
-            sig_max=4500.0,
+            fl_radmat, fl_loc, n_zslices, ch_i, snr_min=5, sig_min=100.0, sig_max=None,
         )
         np.save("/erisyon/calib_locs.npy", locs)
 
