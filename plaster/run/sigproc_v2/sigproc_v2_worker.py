@@ -713,7 +713,7 @@ def _foreground_stats(calib, ims_import_result, n_fields, ch_i, sigproc_params):
     for fl_i in range(n_fields):
         chcy_ims = ims_import_result.ims[fl_i, ch_i : (ch_i + 1), :]
         (chcy_ims, locs, radmat, aln_offsets, aln_scores,) = _sigproc_field(
-            chcy_ims, sigproc_params, calib, align_images=False
+            chcy_ims, sigproc_params, calib, align_images=False, field_i=fl_i
         )
         fl_radmats += [radmat]
         fl_locs += [locs]
@@ -932,7 +932,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     return dst_chcy_ims
 
 
-def _anayze_step_2_mask_anomalies_im(im, den_threshold=300):
+def _analyze_step_2_mask_anomalies_im(im, den_threshold=300):
     """
     Operates on pre-balanced images.
     The den_threshold of 300 was found empirically on Val data
@@ -994,8 +994,6 @@ def _analyze_step_3_align(cy_ims):
         max_score: list of max_score
     """
 
-    # The kernal seems to make things worse
-    
     kern = _kernel()
 
     fiducial_ims = []
@@ -1006,22 +1004,23 @@ def _analyze_step_3_align(cy_ims):
 
     fiducial_ims = np.array(fiducial_ims) - np.median(fiducial_ims)
 
-    # Noise is found by looking at the mimum value under zero
-    # and assuming that the distribution of the noise is symetric
-    # about zero. Therefore by taking the negative min we're
-    # making a cutoff for signal
-    noise_floor = -np.min(fiducial_ims)
+    noise_floor = np.percentile(fiducial_ims, 95)
+
     fiducial_ims = np.where(fiducial_ims < noise_floor, 0, 1).astype(np.uint8)
 
-    kern = imops.generate_circle_mask(3).astype(np.uint8)
-
+    # ENLARGE the points
+    enlarge_radius = 3
+    kern = imops.generate_circle_mask(enlarge_radius).astype(np.uint8)
     fiducial_cy_ims = np.array(
         [cv2.dilate(im, kern, iterations=1) for im in fiducial_ims]
     ).astype(float)
 
+    # MASK out edge effects
+    for im in fiducial_cy_ims:
+        imops.fill(im, XY(1024 - enlarge_radius * 2, 0), WH(10, 1024))
+        imops.fill(im, XY(0, 1024 - enlarge_radius * 2), WH(1024, 10))
+
     aln_offsets, aln_scores = imops.align(fiducial_cy_ims)
-    
-    # aln_offsets, aln_scores = imops.align(cy_ims)
     return aln_offsets, aln_scores
 
 
@@ -1285,7 +1284,7 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
 
     # Step 2: Remove anomalies
     for ch_i, cy_ims in enumerate(chcy_ims):
-        chcy_ims[ch_i] = imops.stack_map(cy_ims, _anayze_step_2_mask_anomalies_im)
+        chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
 
     # HACK
     np.save(f"/erisyon/field_{field_i}", chcy_ims)
@@ -1317,6 +1316,10 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
     radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib, sigproc_v2_params)
 
     keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
+
+    mea = chcy_ims.shape[-1:]
+    if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
+        important(f"field {field_i} has bad alignment")
 
     return chcy_ims, locs[keep_mask], radmat[keep_mask], aln_offsets, aln_scores
 

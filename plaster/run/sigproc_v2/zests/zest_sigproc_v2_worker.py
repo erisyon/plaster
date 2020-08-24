@@ -588,7 +588,7 @@ def zest_mask_anomalies_im():
     def it_does_not_mask_point_anomalies():
         im = _im()
         im[5:10, 5:10] = np.random.normal(loc=4_000, scale=20, size=(5, 5))
-        res = worker._anayze_step_2_mask_anomalies_im(im, den_threshold=300)
+        res = worker._analyze_step_2_mask_anomalies_im(im, den_threshold=300)
         n_nan = np.sum(np.isnan(res))
         frac_nan = n_nan / (res.shape[0] * res.shape[1])
         assert frac_nan < 0.001
@@ -596,7 +596,7 @@ def zest_mask_anomalies_im():
     def it_masks_large_anomalies():
         im = _im()
         im[50:80, 50:80] = np.random.normal(loc=4_000, scale=20, size=(30, 30))
-        res = worker._anayze_step_2_mask_anomalies_im(im, den_threshold=300)
+        res = worker._analyze_step_2_mask_anomalies_im(im, den_threshold=300)
         assert np.all(np.isnan(res[50:80, 50:80]))
 
         # Clear out the nan area (and some extra)
