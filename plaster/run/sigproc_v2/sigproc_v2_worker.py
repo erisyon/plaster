@@ -109,7 +109,7 @@ from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.image.imops import sub_pixel_center
-from plaster.tools.log.log import debug, info, important
+from plaster.tools.log.log import debug, info
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
@@ -736,22 +736,8 @@ def _foreground_filter_locs(
     # FILTER out peaks which are too close to each other.  Tile
     # is to get the locs repeated so that dims match for later mask
     locs = np.tile(fl_loc, (1, n_z_slices)).reshape((-1, 2))
-    n_locs = len(locs)
 
-    mask = np.ones((n_locs,), dtype=bool)
-    if snr_min is not None:
-        mask &= snr >= snr_min
-    if sig_min is not None:
-        mask &= sig >= sig_min
-    if sig_max is not None:
-        mask &= sig <= sig_max
-
-    n_keep = mask.sum()
-    if n_keep < int(0.25 * n_locs):
-        raise ValueError(
-            f"foreground peaks filter less than 25% of all peaks (n_locs={n_locs}, keep={n_keep})"
-        )
-
+    mask = (snr >= snr_min) & (sig >= sig_min) & (sig <= sig_max)
     sig = sig[mask]
     locs = locs[mask]
     return sig, locs
@@ -856,13 +842,18 @@ def _calibrate_step_3_regional_illumination_balance(
             calib, ims_import_result, n_fields, ch_i, sigproc_v2_params
         )
 
-        # TODO: Come up with a way to put good numbers on: snr_min, sig_min, sig_max
-        # Until then, we're putting them in as very permissive
-
         # FILTER for locs with good signal-to-noise ratio
         sig, locs = _foreground_filter_locs(
-            fl_radmat, fl_loc, n_zslices, ch_i, snr_min=5, sig_min=100.0, sig_max=None,
+            fl_radmat,
+            fl_loc,
+            n_zslices,
+            ch_i,
+            snr_min=25,
+            sig_min=1000.0,
+            sig_max=4500.0,
         )
+
+        # HACK
         np.save("/erisyon/calib_locs.npy", locs)
 
         # CALCULATE the regional balance using only filtered sig,locs
@@ -1004,7 +995,7 @@ def _analyze_step_3_align(cy_ims):
     """
 
     # The kernal seems to make things worse
-    """
+    
     kern = _kernel()
 
     fiducial_ims = []
@@ -1029,8 +1020,8 @@ def _analyze_step_3_align(cy_ims):
     ).astype(float)
 
     aln_offsets, aln_scores = imops.align(fiducial_cy_ims)
-    """
-    aln_offsets, aln_scores = imops.align(cy_ims)
+    
+    # aln_offsets, aln_scores = imops.align(cy_ims)
     return aln_offsets, aln_scores
 
 
@@ -1263,7 +1254,7 @@ def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
     return keep_mask
 
 
-def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True):
+def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_i=None):
     """
     Analyze one field --
         * Regional and channel balance
@@ -1295,6 +1286,9 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True):
     # Step 2: Remove anomalies
     for ch_i, cy_ims in enumerate(chcy_ims):
         chcy_ims[ch_i] = imops.stack_map(cy_ims, _anayze_step_2_mask_anomalies_im)
+
+    # HACK
+    np.save(f"/erisyon/field_{field_i}", chcy_ims)
 
     if align_images:
         # Step 3: Find alignment offsets
@@ -1337,7 +1331,7 @@ def _do_sigproc_field(
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
     chcy_ims, locs, radmat, aln_offsets, aln_scores = _sigproc_field(
-        chcy_ims, sigproc_v2_params, calib
+        chcy_ims, sigproc_v2_params, calib, field_i=field_i
     )
 
     # Assign 0 peak_i in the following because that is the GLOBAL peak_i
