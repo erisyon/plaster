@@ -24,6 +24,7 @@ class SigprocV2Params(Params):
         snr_thresh=2.0,
         focus_window_radius=6,
         n_fields_limit=None,
+        skip_anomaly_detection=False,
     )
 
     schema = s(
@@ -36,6 +37,7 @@ class SigprocV2Params(Params):
             snr_thresh=s.is_float(),
             focus_window_radius=s.is_int(),
             n_fields_limit=s.is_int(noneable=True),
+            skip_anomaly_detection=s.is_bool(),
         )
     )
 
@@ -65,12 +67,12 @@ class SigprocV2Params(Params):
     @property
     def n_output_channels(self):
         return 1
-        #return len(self.radiometry_channels.keys())
+        # return len(self.radiometry_channels.keys())
 
     @property
     def n_input_channels(self):
         return 1
-        #return len(self.radiometry_channels.keys())
+        # return len(self.radiometry_channels.keys())
 
     # @property
     # def channels_cycles_dim(self):
@@ -97,10 +99,10 @@ class SigprocV2Params(Params):
     #     return sorted(self.radiometry_channels.keys())
 
     def output_channel_to_input_channel(self, out_ch):
-        #return self._input_channels()[out_ch]
+        # return self._input_channels()[out_ch]
         return 0
 
     def input_channel_to_output_channel(self, in_ch):
         """Not every input channel necessarily has an output; can return None"""
-        #return utils.filt_first_arg(self._input_channels(), lambda x: x == in_ch)
+        # return utils.filt_first_arg(self._input_channels(), lambda x: x == in_ch)
         return 0

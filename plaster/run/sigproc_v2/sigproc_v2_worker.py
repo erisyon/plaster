@@ -1228,8 +1228,9 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
     assert n_out_channels == sigproc_v2_params.n_output_channels
 
     # Step 2: Remove anomalies
-    for ch_i, cy_ims in enumerate(chcy_ims):
-        chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
+    if not sigproc_v2_params.skip_anomaly_detection:
+        for ch_i, cy_ims in enumerate(chcy_ims):
+            chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
 
     # HACK
     # np.save(f"/erisyon/field_{field_i}", chcy_ims)
