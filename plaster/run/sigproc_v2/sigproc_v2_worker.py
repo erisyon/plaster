@@ -399,10 +399,6 @@ def _background_subtraction(im, reg_bg_mean):
 
 
 def _background_estimate_im(im, divs):
-
-    # HACK
-    # im = np.load("/erisyon/perfect_bg.npy").astype(float)
-
     """
     Using an approximate peak kernel, separate FG and BG regionally
     and return the bg mean and std.
@@ -448,8 +444,6 @@ def _background_estimate_im(im, divs):
     cim = np.nan_to_num(cim)
     fg_mask = np.where(cim > thresh, 1, 0)
 
-    # fg_im = np.where(fg_mask & ~nan_mask, im, np.nan)
-
     fg_mask = cv2.dilate(fg_mask.astype(np.uint8), circle, iterations=1)
     bg_im = np.where(fg_mask | nan_mask, np.nan, im)
 
@@ -459,11 +453,6 @@ def _background_estimate_im(im, divs):
         return np.nanmean(dat), np.nanstd(dat)
 
     reg_bg_mean, reg_bg_std = imops.region_map(bg_im, nanstats, divs=divs)
-    # reg_fg_means, reg_fg_stds = imops.region_map(fg_im, nanstats, divs=divs)
-    # stats = np.stack((reg_bg_means, reg_bg_stds, reg_fg_means, reg_fg_stds), axis=2)
-
-    # reg_bg_mean = stats[:, :, 0]
-    # reg_bg_std = stats[:, :, 1]
     return reg_bg_mean, reg_bg_std
 
 
@@ -680,14 +669,13 @@ def _foreground_stats(calib, ims_import_result, n_fields, ch_i, sigproc_params):
 
 
 def _foreground_filter_locs(
-    fl_radmat, fl_loc, n_z_slices, ch_i, snr_min, sig_min, sig_max
+    fl_radmat, fl_loc, n_z_slices, ch_i, snr_min=None, sig_min=None, sig_max=None
 ):
     # GET signal component of radmat for all fields, this channel,
     # all peaks, 0th element is signal as opposed to 1st element is noise
     sig = np.nan_to_num(fl_radmat[:, ch_i, :, 0].flatten())
     noi = fl_radmat[:, ch_i, :, 1].flatten()
     snr = np.nan_to_num(sig / noi)
-
     # FILTER out peaks which are too close to each other.  Tile
     # is to get the locs repeated so that dims match for later mask
     locs = np.tile(fl_loc, (1, n_z_slices)).reshape((-1, 2))
@@ -815,21 +803,16 @@ def _calibrate_step_3_regional_illumination_balance(
             fl_radmat, fl_loc, n_zslices, ch_i, snr_min=5, sig_min=100.0, sig_max=None,
         )
 
-        # HACK
-        # np.save("/erisyon/calib_locs.npy", locs)
-
         # CALCULATE the regional balance using only filtered sig,locs
         balance = _foreground_balance(
             ims_import_result, sigproc_v2_params.divs, sig, locs
         )
-
         # REPLACE the all-ones values with real balance factors
         calib.add(
             {
                 f"regional_illumination_balance.instrument_channel[{ch_i}]": balance.tolist()
             }
         )
-
         # ADD the fg stats
         dim = (ims_import_result.dim, ims_import_result.dim)
         balance_im = imops.interp(balance, dim)

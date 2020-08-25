@@ -81,59 +81,6 @@ def zest_intersection_roi_from_aln_offsets():
     zest()
 
 
-def zest_regional_bg_fg_stats():
-    divs = 5
-    bg_mean = 100
-    bg_std = 10
-    with synth.Synth(overwrite=True) as s:
-        (
-            synth.PeaksModelGaussianCircular(n_peaks=100)
-            .locs_randomize()
-            .amps_constant(val=10000)
-        )
-        synth.CameraModel(bias=bg_mean, std=bg_std)
-        im = s.render_chcy()[0, 0]
-
-    def _check_bg_stats(stats):
-        # Check that bg mean and std are close
-        assert np.all((stats[:, :, 0] - bg_mean) ** 2 < 3 ** 2)
-        assert np.all((stats[:, :, 1] - bg_std) ** 2 < 2 ** 2)
-
-    def it_returns_stats_regionally():
-        stats = worker._regional_bg_fg_stats(im, divs=divs)
-        assert stats.shape == (5, 5, 4)
-        _check_bg_stats(stats)
-
-    def it_varies_divs():
-        stats = worker._regional_bg_fg_stats(im, divs=10)
-        assert stats.shape == (10, 10, 4)
-
-    def it_returns_fg_and_bg_ims():
-        stats, fg_im, bg_im = worker._regional_bg_fg_stats(im, return_ims=True)
-        assert stats.shape == (5, 5, 4)
-        _check_bg_stats(stats)
-        assert fg_im.shape == im.shape
-        assert bg_im.shape == im.shape
-
-    def it_handles_all_zeros():
-        im = np.zeros((512, 512))
-        stats, fg_im, bg_im = worker._regional_bg_fg_stats(im, return_ims=True)
-        assert np.all(stats[:, :, 0] == 0)
-        assert np.all(stats[:, :, 1] == 0)
-        assert np.all(np.isnan(stats[:, :, 2]))
-        assert np.all(np.isnan(stats[:, :, 3]))
-
-    def it_handles_all_noise():
-        with synth.Synth(overwrite=True) as s:
-            synth.CameraModel(bias=bg_mean, std=bg_std)
-            im = s.render_chcy()[0, 0]
-
-        stats, fg_im, bg_im = worker._regional_bg_fg_stats(im, return_ims=True)
-        _check_bg_stats(stats)
-
-    zest()
-
-
 def zest_regional_balance_chcy_ims():
     def _setup(corner_bal):
         divs = 5
