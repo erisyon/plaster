@@ -600,7 +600,7 @@ def zest_sigproc_v2_calibration():
             zest()
 
         def it_raises_on_low_counts():
-            with zest.raises(ValueError, in_args="filter less than"):
+            with zest.raises(ValueError, in_args="filter retained less than"):
                 worker._foreground_filter_locs(
                     fl_radmat,
                     fl_loc,
