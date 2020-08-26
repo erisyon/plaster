@@ -12,7 +12,7 @@ from plaster.gen.classify_generator import ClassifyGenerator
 from plaster.gen.errors import ValidationError
 from plaster.gen.ptm_generator import PTMGenerator
 from plaster.gen.sigproc_v1_generator import SigprocV1Generator
-from plaster.gen.sigproc_v2_calib_generator import SigprocV2CalibGenerator
+from plaster.gen.sigproc_v2_calib_generator import SigprocV2InstrumentCalibGenerator
 from plaster.gen.sigproc_v2_generator import SigprocV2Generator
 from plaster.gen.survey_generator import SurveyGenerator
 from plaster.run.run import RunExecutor
@@ -477,7 +477,7 @@ class GenApp(cli.Application, GenFuncs):
         ptm=PTMGenerator,
         sigproc_v1=SigprocV1Generator,
         sigproc_v2=SigprocV2Generator,
-        calib_sigproc_v2=SigprocV2CalibGenerator,
+        sigproc_v2_instrument_calib=SigprocV2InstrumentCalibGenerator,
         survey=SurveyGenerator,
     )
 

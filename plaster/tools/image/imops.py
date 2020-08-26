@@ -462,6 +462,8 @@ def edge_fill(tar, loc, dim, val=0, center=False):
         # Right
         tar[tar_roi[0].start : tar_roi[0].stop, tar_roi[1].stop - 1] = val
 
+    return tar
+
 
 def rolling_window(im, window_dim, n_samples, return_coords=False):
     """

@@ -40,10 +40,10 @@ class SigprocV2Result(BaseResult):
     required_props = OrderedDict(
         # Note that these do not include props in the save_field
         params=SigprocV2Params,
-        n_input_channels=int,
-        n_channels=int,
-        n_cycles=int,
-        channel_weights=np.ndarray,
+        n_input_channels=(type(None), int),
+        n_channels=(type(None), int),
+        n_cycles=(type(None), int),
+        calib=Calibration,
     )
 
     peak_df_schema = OrderedDict(

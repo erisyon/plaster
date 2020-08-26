@@ -1,4 +1,5 @@
 import numpy as np
+import math
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
@@ -29,7 +30,7 @@ class Synth:
             p = PeaksModelGaussian()
             p.locs_randomize()
             CameraModel(100, 2)
-            s.render()
+            s.render_chcy()
 
     """
 
@@ -68,6 +69,9 @@ class Synth:
         ims = self.render_flchcy()
         self._save_np(ims, "ims")
 
+    def zero_aln_offsets(self):
+        self.aln_offsets = np.zeros((self.n_cycles, 2), dtype=int)
+
     def add_model(self, model):
         self.models += [model]
 
@@ -77,7 +81,7 @@ class Synth:
             np.save(save_as, arr)
             important(f"Wrote synth image to {save_as}.npy")
 
-    def render_chcy(self):
+    def render_chcy(self, fl_i=0):
         """
         Returns only chcy_ims (first field)
         """
@@ -86,7 +90,7 @@ class Synth:
             for cy_i in np.arange(self.n_cycles):
                 im = ims[ch_i, cy_i]
                 for model in self.models:
-                    model.render(im, cy_i)
+                    model.render(im, fl_i, ch_i, cy_i)
 
                 ims[ch_i, cy_i] = imops.shift(im, self.aln_offsets[cy_i])
 
@@ -113,7 +117,7 @@ class BaseSynthModel:
         self.dim = Synth.synth.dim
         Synth.synth.add_model(self)
 
-    def render(self, im, cy_i):
+    def render(self, im, fl_i, ch_i, cy_i):
         pass
 
 
@@ -126,6 +130,10 @@ class PeaksModel(BaseSynthModel):
 
     def locs_randomize(self):
         self.locs = np.random.uniform(0, self.dim, (self.n_peaks, 2))
+        return self
+
+    def locs_randomize_no_subpixel(self):
+        self.locs = np.random.uniform(0, self.dim, (self.n_peaks, 2)).astype(int)
         return self
 
     def locs_randomize_away_from_edges(self):
@@ -151,6 +159,12 @@ class PeaksModel(BaseSynthModel):
         self.amps = mean + std * np.random.randn(self.n_peaks)
         return self
 
+    def dyt_uniform(self, dyt):
+        dyt = np.array(dyt)
+        dyts = np.tile(dyt, (self.amps.shape[0], 1))
+        self.amps = self.amps[:, None] * dyts
+        return self
+
     def remove_near_edges(self, dist=20):
         self.locs = np.array(
             [
@@ -171,8 +185,14 @@ class PeaksModelGaussian(PeaksModel):
         self.std = None
         self.std_x = None
         self.std_y = None
+        self.z_scale = None  # (simulates z stage)
+        self.z_center = None  # (simulates z stage)
 
-    def render(self, im, cy_i):
+    def z_function(self, z_scale, z_center):
+        self.z_scale = z_scale
+        self.z_center = z_center
+
+    def render(self, im, fl_i, ch_i, cy_i):
         if self.std_x is None:
             self.std_x = [self.std]
         if self.std_y is None:
@@ -184,15 +204,24 @@ class PeaksModelGaussian(PeaksModel):
         if len(self.std_y) != n_locs:
             self.std_y = np.repeat(self.std_y, (n_locs,))
 
-        super().render(im, cy_i)
-        mea = 17
+        super().render(im, fl_i, ch_i, cy_i)
+
+        z_scale = 1.0
+        if self.z_scale is not None:
+            assert self.z_center is not None
+            z_scale = 1.0 + self.z_scale * (cy_i - self.z_center) ** 2
+
+        mea = 11
         for loc, amp, std_x, std_y in zip(self.locs, self.amps, self.std_x, self.std_y):
+            if isinstance(amp, np.ndarray):
+                amp = amp[cy_i]
+
             frac_x = np.modf(loc[0])[0]
             frac_y = np.modf(loc[1])[0]
             peak_im = imops.gauss2_rho_form(
                 amp=amp,
-                std_x=std_x,
-                std_y=std_y,
+                std_x=z_scale * std_x,
+                std_y=z_scale * std_y,
                 pos_x=mea // 2 + frac_x,
                 pos_y=mea // 2 + frac_y,
                 rho=0.0,
@@ -213,9 +242,9 @@ class PeaksModelGaussianCircular(PeaksModelGaussian):
         self.std_y = [std for _ in self.locs]
         return self
 
-    def render(self, im, cy_i):
+    def render(self, im, fl_i, ch_i, cy_i):
         # self.covs = np.array([(std ** 2) * np.eye(2) for std in self.stds])
-        super().render(im, cy_i)
+        super().render(im, fl_i, ch_i, cy_i)
 
 
 class PeaksModelGaussianAstigmatism(PeaksModelGaussian):
@@ -283,8 +312,8 @@ class IlluminationQuadraticFalloffModel(BaseSynthModel):
         self.center = center
         self.width = width
 
-    def render(self, im, cy_i):
-        super().render(im, cy_i)
+    def render(self, im, fl_i, ch_i, cy_i):
+        super().render(im, fl_i, ch_i, cy_i)
         yy, xx = np.meshgrid(
             (np.linspace(0, 1, im.shape[0]) - self.center[0]) / self.width,
             (np.linspace(0, 1, im.shape[1]) - self.center[1]) / self.width,
@@ -299,7 +328,7 @@ class CameraModel(BaseSynthModel):
         self.bias = bias
         self.std = std
 
-    def render(self, im, cy_i):
-        super().render(im, cy_i)
+    def render(self, im, fl_i, ch_i, cy_i):
+        super().render(im, fl_i, ch_i, cy_i)
         bg = np.random.normal(loc=self.bias, scale=self.std, size=self.dim)
         imops.accum_inplace(im, bg, XY(0, 0), center=False)

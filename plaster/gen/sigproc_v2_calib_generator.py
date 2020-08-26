@@ -5,35 +5,42 @@ from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
 
 
-class SigprocV2CalibGenerator(BaseGenerator):
-    schema = s(
-        s.is_kws_r(
-            **BaseGenerator.sigproc_source_schema.schema(),
-            **BaseGenerator.label_set_schema.schema(),
-            **BaseGenerator.scope_run_schema.schema(),
-            **BaseGenerator.sigproc_v2_schema.schema(),
-            **BaseGenerator.dye_names_schema.schema(),
-        )
-    )
+class SigprocV2InstrumentCalibGenerator(BaseGenerator):
+    """
+    Instrument Calib takes a z-stack movie of single dye-count
+    (future: multi-channel single dye count).
+ims_imports
+    For now: z stack of 1-channel 1-count to derive the PSF and
+    regional illumination balance.
+    """
+
+    schema = s(s.is_kws_r(**BaseGenerator.sigproc_v2_schema.schema(),))
 
     def generate(self):
         runs = []
 
         if len(self.sigproc_source) != 1:
             raise ValueError(f"Calibrations can have only one sigproc_source")
-        sigproc_source = self.sigproc_source[0]
 
-        ims_import_task = self.ims_imports(sigproc_source)
-        sigproc_v2_task = task_templates.sigproc_v2(
-            "dye_calib", self.calibration_file, self.instrument_subject_id
+        ims_import_task = task_templates.ims_import(
+            self.sigproc_source[0], is_movie=True
         )
 
-        run = Munch(run_name=f"sigproc_v2_calib", **ims_import_task, **sigproc_v2_task)
+        sigproc_v2_calib_task = task_templates.sigproc_v2_instrument_calib(
+            self.calibration_file
+        )
+
+        run = Munch(
+            run_name=f"sigproc_v2_instrument_calib",
+            **ims_import_task,
+            **sigproc_v2_calib_task,
+        )
+
         if self.force_run_name is not None:
             run.run_name = self.force_run_name
 
         self.report_section_run_object(run)
-        template = "sigproc_v2_calib_template.ipynb"
+        template = "sigproc_v2_instrument_calib_template.ipynb"
         self.report_section_from_template(template)
 
         runs += [run]
@@ -42,7 +49,7 @@ class SigprocV2CalibGenerator(BaseGenerator):
         self.report_preamble(
             utils.smart_wrap(
                 f"""
-                # Sigproc V2 Calibration
+                # Sigproc V2 Instrument Calibration
                 ## {n_runs} run(s) processed.
             """
             )
