@@ -18,7 +18,7 @@ from plaster.tools.log.log import debug
 
 from zest import zest
 
-@zest.skip("coming soon")
+@zest.skip(reason="coming soon")
 def zest_sigproc_v2_integration():
     """
     Test Calibration and Analysis with synthethic data
