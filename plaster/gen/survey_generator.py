@@ -73,7 +73,7 @@ class SurveyGenerator(BaseGenerator):
                 n_ptms_limit=self.n_ptms_limit,
             )
 
-            sim_task = task_templates.sim_v1(
+            sim_v2_task = task_templates.sim_v2(
                 list(aa_list),
                 err_set,
                 n_pres=self.n_pres,
@@ -83,10 +83,10 @@ class SurveyGenerator(BaseGenerator):
                 n_samples_test=1,
                 is_survey=True,
             )
-            sim_task.sim_v1.parameters.random_seed = self.random_seed
+            sim_v2_task.sim_v2.parameters.random_seed = self.random_seed
             # note: same seed is used to generate decoys
 
-            survey_task = task_templates.survey_nn_v1()
+            survey_v2_task = task_templates.survey_v2()
 
             e_block = self.erisyon_block(aa_list, protease, err_set)
 
@@ -95,7 +95,11 @@ class SurveyGenerator(BaseGenerator):
                 run_name = self.force_run_name
 
             run_desc = Munch(
-                run_name=run_name, **e_block, **prep_task, **sim_task, **survey_task,
+                run_name=run_name,
+                **e_block,
+                **prep_task,
+                **sim_v2_task,
+                **survey_v2_task,
             )
             run_descs += [run_desc]
 

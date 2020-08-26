@@ -16,7 +16,7 @@ from plaster.tools.log.log import debug
 def zest_nn_v2_worker():
     prep_result = prep_fixtures.result_random_fixture(2)
 
-    sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result)
+    sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result, labels="DE,C")
 
     # Flip just to convince myself that it is working
     # (ie they aren't accidentally in the right order)

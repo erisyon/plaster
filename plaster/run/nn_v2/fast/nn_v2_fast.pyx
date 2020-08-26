@@ -1,6 +1,7 @@
 import sys
 import time
-cimport c_nn_v2_fast as c_nn
+cimport c_nn_v2_fast as cnn
+cimport c_common as c
 import numpy as np
 cimport numpy as np
 from cython.view cimport array as cvarray
@@ -58,14 +59,15 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
         scores: ndarray((test_unit_radmat.shape[0],), dtype=np.float32)
         output_pred_dye_iz: ndarray((test_unit_radmat.shape[0],), dtype=np.uint32)
     """
-    cdef c_nn.RadType [:, ::1] test_unit_radmat_view
-    cdef c_nn.DyeType [:, ::1] train_dyemat_view
-    cdef c_nn.Index [:, ::1] train_dyepeps_view
-    cdef c_nn.Index32 [::1] output_pred_pep_iz_view
-    cdef c_nn.Index32 [::1] output_pred_dye_iz_view
-    cdef c_nn.Score [::1] output_scores_view
+    cdef c.RadType [:, ::1] test_unit_radmat_view
+    cdef c.DyeType [:, ::1] train_dyemat_view
+    cdef c.Index [:, ::1] train_dyepeps_view
+    cdef c.Index32 [::1] output_pred_pep_iz_view
+    cdef c.Index32 [::1] output_pred_dye_iz_view
+    cdef c.Score [::1] output_scores_view
 
     # CHECKS
+    assert c.sanity_check() == 0
     _assert_array_contiguous(test_unit_radmat, np.float32, "test_unit_radmat")
     _assert_array_contiguous(train_dyemat, np.uint8, "train_dyemat")
     _assert_array_contiguous(train_dyepeps, np.uint64, "train_dyepeps")
@@ -91,21 +93,21 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
     output_pred_dye_iz_view = output_pred_dye_iz
     output_scores_view = output_scores
 
-    cdef c_nn.Index i
-    cdef c_nn.Index dye_i
-    cdef c_nn.Index last_dye_i
-    cdef c_nn.Size last_count
-    cdef c_nn.Size n_dyetracks
-    cdef c_nn.DyeType *src
-    cdef c_nn.RadType *dst
-    cdef c_nn.Size train_dyemat_n_rows = train_dyemat.shape[0]
-    cdef c_nn.Size train_dyemat_n_elems = train_dyemat_n_rows * n_cols
-    cdef c_nn.Size dyepep_n_rows = train_dyepeps.shape[0]
-    cdef c_nn.Context ctx
-    cdef c_nn.RadType *train_dyemat_as_radtype
-    cdef c_nn.Uint64 *dyetrack_weights_uint64
-    cdef c_nn.WeightType *dyetrack_weights_float
-    cdef c_nn.Index *dye_i_to_dyepep_offset
+    cdef c.Index i
+    cdef c.Index dye_i
+    cdef c.Index last_dye_i
+    cdef c.Size last_count
+    cdef c.Size n_dyetracks
+    cdef c.DyeType *src
+    cdef c.RadType *dst
+    cdef c.Size train_dyemat_n_rows = train_dyemat.shape[0]
+    cdef c.Size train_dyemat_n_elems = train_dyemat_n_rows * n_cols
+    cdef c.Size dyepep_n_rows = train_dyepeps.shape[0]
+    cdef c.RadType *train_dyemat_as_radtype
+    cdef c.Uint64 *dyetrack_weights_uint64
+    cdef c.WeightType *dyetrack_weights_float
+    cdef c.Index *dye_i_to_dyepep_offset
+    cdef cnn.NNV2FastContext ctx
 
     # COUNT dyetracks (ie, largest dyetrack index + 1)
     train_dyepeps_view = train_dyepeps
@@ -115,17 +117,17 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
     n_dyetracks += 1  # Because we want a count not max.
 
     # ALLOCATE arrays
-    train_dyemat_as_radtype = <c_nn.RadType *>calloc(train_dyemat_n_elems, sizeof(c_nn.RadType))
-    dyetrack_weights_uint64 = <c_nn.Uint64 *>calloc(train_dyemat_n_rows, sizeof(c_nn.Uint64))
-    dyetrack_weights_float = <c_nn.WeightType *>calloc(train_dyemat_n_rows, sizeof(c_nn.WeightType))
-    dye_i_to_dyepep_offset = <c_nn.Index *>calloc(n_dyetracks, sizeof(c_nn.Index))
+    train_dyemat_as_radtype = <c.RadType *>calloc(train_dyemat_n_elems, sizeof(c.RadType))
+    dyetrack_weights_uint64 = <c.Uint64 *>calloc(train_dyemat_n_rows, sizeof(c.Uint64))
+    dyetrack_weights_float = <c.WeightType *>calloc(train_dyemat_n_rows, sizeof(c.WeightType))
+    dye_i_to_dyepep_offset = <c.Index *>calloc(n_dyetracks, sizeof(c.Index))
 
     try:
         # CONVERT train_dyemat to floats
-        src = <c_nn.DyeType *>&train_dyemat_view[0, 0]
+        src = <c.DyeType *>&train_dyemat_view[0, 0]
         dst = train_dyemat_as_radtype
         for i in range(train_dyemat_n_elems):
-            dst[i] = <c_nn.RadType>src[i]
+            dst[i] = <c.RadType>src[i]
 
         # SUM dyepep counts to get weights. Sum to Uint64 then downcast to Float32 to maintain precision
         # CREATE a lookup table to the start of each dyetrack
@@ -154,59 +156,59 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
 
         # DOWNCAST weights to Float32
         for i in range(train_dyemat_n_rows):
-            dyetrack_weights_float[i] = <c_nn.WeightType>dyetrack_weights_uint64[i]
+            dyetrack_weights_float[i] = <c.WeightType>dyetrack_weights_uint64[i]
 
         # SETUP ctx
         ctx.n_neighbors = n_neighbors
         ctx.n_cols = n_cols
-        ctx.progress_fn = <c_nn.ProgressFn>_progress
+        ctx.progress_fn = <c.ProgressFn>_progress
 
-        ctx.test_unit_radmat = c_nn.table_init_readonly(
-            <c_nn.Uint8 *>&test_unit_radmat_view[0, 0],
+        ctx.test_unit_radmat = c.table_init_readonly(
+            <c.Uint8 *>&test_unit_radmat_view[0, 0],
             test_unit_radmat.nbytes,
             test_unit_radmat.itemsize * test_unit_radmat.shape[1]
         )
 
-        ctx.train_dyemat = c_nn.table_init_readonly(
-            <c_nn.Uint8 *>&train_dyemat_as_radtype[0],
-            train_dyemat_n_elems * sizeof(c_nn.RadType),
-            n_cols * sizeof(c_nn.RadType)
+        ctx.train_dyemat = c.table_init_readonly(
+            <c.Uint8 *>&train_dyemat_as_radtype[0],
+            train_dyemat_n_elems * sizeof(c.RadType),
+            n_cols * sizeof(c.RadType)
         )
 
-        ctx.train_dyepeps = c_nn.table_init_readonly(
-            <c_nn.Uint8 *>&train_dyepeps_view[0, 0],
-            dyepep_n_rows * sizeof(c_nn.Index) * 3,
-            sizeof(c_nn.Index) * 3
+        ctx.train_dyepeps = c.table_init_readonly(
+            <c.Uint8 *>&train_dyepeps_view[0, 0],
+            dyepep_n_rows * sizeof(c.Index) * 3,
+            sizeof(c.Index) * 3
         )
 
-        ctx.train_dye_i_to_dyepep_offset = c_nn.table_init_readonly(
-            <c_nn.Uint8 *>&dye_i_to_dyepep_offset[0],
-            sizeof(c_nn.Index) * n_dyetracks,
-            sizeof(c_nn.Index),
+        ctx.train_dye_i_to_dyepep_offset = c.table_init_readonly(
+            <c.Uint8 *>&dye_i_to_dyepep_offset[0],
+            sizeof(c.Index) * n_dyetracks,
+            sizeof(c.Index),
         )
 
-        ctx.output_pred_pep_iz = c_nn.table_init(
-            <c_nn.Uint8 *>&output_pred_pep_iz_view[0],
+        ctx.output_pred_pep_iz = c.table_init(
+            <c.Uint8 *>&output_pred_pep_iz_view[0],
             output_pred_pep_iz.nbytes,
             output_pred_pep_iz.itemsize
         )
 
-        ctx.output_pred_dye_iz = c_nn.table_init(
-            <c_nn.Uint8 *>&output_pred_dye_iz_view[0],
+        ctx.output_pred_dye_iz = c.table_init(
+            <c.Uint8 *>&output_pred_dye_iz_view[0],
             output_pred_dye_iz.nbytes,
             output_pred_dye_iz.itemsize
         )
 
-        ctx.output_scores = c_nn.table_init(
-            <c_nn.Uint8 *>&output_scores_view[0],
+        ctx.output_scores = c.table_init(
+            <c.Uint8 *>&output_scores_view[0],
             output_scores.nbytes,
             output_scores.itemsize
         )
 
-        ctx.train_dyetrack_weights = c_nn.table_init_readonly(
-            <c_nn.Uint8 *>&dyetrack_weights_float[0],
-            train_dyemat_n_rows * sizeof(c_nn.WeightType),
-            sizeof(c_nn.WeightType)
+        ctx.train_dyetrack_weights = c.table_init_readonly(
+            <c.Uint8 *>&dyetrack_weights_float[0],
+            train_dyemat_n_rows * sizeof(c.WeightType),
+            sizeof(c.WeightType)
         )
 
         ctx.n_threads = n_threads
@@ -215,7 +217,7 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
         ctx.n_rows_per_block = 1024 * 16
 
         # Handoff to the C code...
-        c_nn.context_start(&ctx)
+        cnn.context_start(&ctx)
 
     finally:
         free(train_dyemat_as_radtype)

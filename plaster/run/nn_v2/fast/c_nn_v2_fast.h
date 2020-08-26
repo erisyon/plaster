@@ -30,12 +30,12 @@ typedef struct {
     // The following are internal to the .c file; freed by context_free()
     struct FLANNParameters flann_params;
     flann_index_t flann_index_id;
-} Context;
+} NNV2FastContext;
 
 
-void context_start(Context *ctx);
-void context_free(Context *ctx);
-void context_print(Context *ctx);
+void context_start(NNV2FastContext *ctx);
+void context_free(NNV2FastContext *ctx);
+void context_print(NNV2FastContext *ctx);
 int test_flann();
 
 #endif

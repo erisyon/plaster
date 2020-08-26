@@ -1,23 +1,37 @@
-#include "math.h"
+/*
+Fast bounds-checking tables
+
+Goals:
+    - Bound checked table access
+    - Easy passing around table with row sizes, etc
+    - Easy debugging with __LINE__ and __FILE__ macros
+    - NON DEBUG version that remove bound checking
+    - growable
+
+    DONE tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int growable)
+    DONE tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, int growable)
+    DONE tab_row(Table *tab, Index row_i)
+    DONE tab_var(typ, var, Table *tab, Index row_i)
+    DONE tab_set(Table *tab, Index row_i, void *src)
+    DONE tab_get(type, Table *tab, Index row_i)
+    DONE tab_add(Table *tab, void *src, pthread_mutex_t *lock)
+    DONE tab_validate(Table *tab)
+    DONE tab_dump(Table *tab)
+    tab_subset(void *base, Index start, Size n_rows)
+    tab_tests()
+
+
+
 #include "stdint.h"
 #include "alloca.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "stdarg.h"
 #include "memory.h"
-#include "unistd.h"
-#include "inttypes.h"
-#include "time.h"
 #include "pthread.h"
+#include "unistd.h"
+#include "math.h"
 #include "c_common.h"
-
-
-Uint64 now() {
-    struct timespec spec;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &spec);
-    return (spec.tv_sec) * 1000000 + spec.tv_nsec / 1000;
-}
-
 
 void ensure(int expr, const char *fmt, ...) {
     // Replacement for assert with var-args and local control of compilation.
@@ -43,112 +57,18 @@ void _trace(const char *fmt, ...) {
     va_end(args);
 }
 
-
-// Table
-//=========================================================================================
-
-Table table_init(void *base, Size n_bytes, Size n_bytes_per_row) {
-    // Wrap an externally allocated memory buffer ptr as a Table.
-    // TODO: Put these checks by in optionally with a param (maybe add a table name too)
-    // ensure(n_bytes_per_row % 4 == 0, "Mis-aligned table row size");
-    // ensure((Uint64)base % 8 == 0, "Mis-aligned table");
-    Table table;
-    table.rows = (Uint8 *)base;
-    table.n_rows = 0;
-    table.n_bytes_per_row = n_bytes_per_row;
-    table.n_max_rows = n_bytes / n_bytes_per_row;
-    table.readonly = 0;
-    memset(table.rows, 0, n_bytes);
-    return table;
-}
+#define TAB_NOT_GROWABLE (0)
+#define TAB_GROWABLE (1)
+#define TAB_NO_LOCK (void *)0
 
 
-Table table_init_readonly(void *base, Size n_bytes, Size n_bytes_per_row) {
-    // Wrap an externally allocated memory buffer ptr as a Table.
-    // TODO: Put these checks by in optionally with a param (maybe add a table name too)
-    // ensure(n_bytes_per_row % 4 == 0, "Mis-aligned table row size");
-    // ensure((Uint64)base % 8 == 0, "Mis-aligned table");
-    Table table;
-    table.rows = (Uint8 *)base;
-    table.n_bytes_per_row = n_bytes_per_row;
-    table.n_max_rows = n_bytes / n_bytes_per_row;
-    table.n_rows = table.n_max_rows;
-    return table;
-}
-
-
-Table table_init_subset(Table *src, Index row_i, Size n_rows, Uint64 is_readonly) {
-    Index last_row = row_i + n_rows;
-    last_row = last_row < src->n_max_rows ? last_row : src->n_max_rows;
-    n_rows = last_row - row_i;
-    ensure(n_rows >= 0, "table_init_subset has illegal size");
-
-    Table table;
-    table.rows = (Uint8 *)(src->rows + src->n_bytes_per_row * row_i);
-    table.n_bytes_per_row = src->n_bytes_per_row;
-    table.n_max_rows = n_rows;
-    table.n_rows = is_readonly ? n_rows : 0;
-    table.readonly = is_readonly;
-    return table;
-}
-
-
-void *_table_get_row(Table *table, Index row) {
-    // Fetch a row from a table with bounds checking if activated
-    ensure_only_in_debug(0 <= row && row < table->n_rows, "table get outside bounds");
-    return (void *)(table->rows + table->n_bytes_per_row * row);
-}
-
-
-Index table_add(Table *table, void *src, pthread_mutex_t *lock, char *table_name) {
-    // Add a row to the table and halt on overflow.
-    // Optionally copies src into place if it isn't NULL.
-    // Returns the row_i where the data was written (or will be written)
-    // This is a potential race condition; a mutex may be warranted.  TODO: Test
-    if(lock) pthread_mutex_lock(lock);
-    Index row_i = table->n_rows;
-    table->n_rows ++;
-    if(lock) pthread_mutex_unlock(lock);
-    ensure_only_in_debug(!table->readonly, "Attempting to write to a readonly table");
-    ensure(row_i < table->n_max_rows, "Table overflow on %s. max_rows=%ld", table_name, table->n_max_rows);
-    if(src != 0) {
-        memcpy(table->rows + table->n_bytes_per_row * row_i, src, table->n_bytes_per_row);
-    }
-    return row_i;
-}
-
-
-void table_set_row(Table *table, Index row_i, void *src) {
-    // Set a row to the table and halt on overflow.
-    ensure_only_in_debug(!table->readonly, "Attempting to set to a readonly table");
-    ensure(0 <= row_i && row_i < table->n_max_rows, "Table overflow");
-    if(src != 0) {
-        memcpy(table->rows + table->n_bytes_per_row * row_i, src, table->n_bytes_per_row);
-    }
-}
-
-
-void table_validate(Table *table, void *ptr, char *msg) {
-    // Check that a ptr is valid on a table
-    // Use table_validate_only_in_debug (see below)
-    Sint64 byte_offset = ((Uint8 *)ptr - table->rows);
-    ensure(byte_offset % table->n_bytes_per_row == 0, msg);
-    ensure(0 <= byte_offset && (Size)byte_offset < table->n_bytes_per_row * table->n_max_rows, msg);
-}
-
-
-void table_dump(Table *table, char *msg) {
-    printf("table %s\n", msg);
-    printf("rows=%p\n", table->rows);
-    printf("n_bytes_per_row=%ld\n", table->n_bytes_per_row);
-    printf("n_max_rows=%ld\n", table->n_max_rows);
-    printf("n_rows=%ld\n", table->n_rows);
-    printf("readonly=%ld\n", table->readonly);
-}
-
-
-// Tab
-//=========================================================================================
+typedef struct {
+    void *base;
+    Uint64 n_bytes_per_row;
+    Uint64 n_max_rows;
+    Uint64 n_rows;
+    int b_growable;
+} Tab;
 
 
 Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int b_growable) {
@@ -238,6 +158,16 @@ void tab_dump(Tab *tab, char *msg) {
 }
 
 
+
+#define tab_row(tab, row_i) _tab_get(tab, row_i, __FILE__, __LINE__)
+#define tab_var(typ, var, tab, row_i) typ *var = (typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
+#define tab_ptr(typ, tab, row_i) (typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
+#define tab_get(typ, tab, row_i) *(typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
+#define tab_set(tab, row_i, src) _tab_set(tab, row_i, src, __FILE__, __LINE__)
+#define tab_add(tab, src, lock) _tab_add(tab, src, lock, __FILE__, __LINE__)
+#define tab_validate(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)
+
+
 void tab_tests() {
     #define N_ROWS (5)
     #define N_COLS (3)
@@ -297,32 +227,8 @@ void tab_tests() {
 }
 
 
-int sanity_check() {
-    ensure(sizeof(Uint8) == 1, "Wrong size: Uint8");
-    ensure(sizeof(Uint16) == 2, "Wrong size: Uint16");
-    ensure(sizeof(Uint32) == 4, "Wrong size: Uint32");
-    ensure(sizeof(Uint64) == 8, "Wrong size: Uint64");
-    ensure(sizeof(Uint128) == 16, "Wrong size: Uint128");
-
-    ensure(sizeof(Sint8) == 1, "Wrong size: Sint8");
-    ensure(sizeof(Sint16) == 2, "Wrong size: Sint16");
-    ensure(sizeof(Sint32) == 4, "Wrong size: Sint32");
-    ensure(sizeof(Sint64) == 8, "Wrong size: Sint64");
-    ensure(sizeof(Sint128) == 16, "Wrong size: Sint128");
-
-    ensure(sizeof(Float32) == 4, "Wrong size: Float32");
-    ensure(sizeof(Float64) == 8, "Wrong size: Float64");
-
-    if(UINT64_MAX != 0xFFFFFFFFFFFFFFFFULL) {
-        printf("Failed sanity check: UINT64_MAX\n");
-        return 1;
-    }
-
-    if(N_MAX_CYCLES != 64) {
-        // This is particularly annoying. See csim.pxd for explanation
-        printf("Failed sanity check: N_MAX_CYCLES\n");
-        return 8;
-    }
-
+int main(int argc, char **argv) {
+    tab_tests();
     return 0;
 }
+*/

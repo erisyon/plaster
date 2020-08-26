@@ -9,42 +9,6 @@ from zest import zest
 from plaster.tools.log.log import debug, prof
 
 
-def zest_gen_flus():
-    error_model = ErrorModel.no_errors(n_channels=2, p_non_fluorescent=0.5)
-
-    sim_v2_params = SimV2Params.construct_from_aa_list(
-        ["A", "B"], error_model=error_model, n_edmans=4
-    )
-
-    pep_seqs = pd.DataFrame(
-        dict(
-            pep_i=[0, 1, 1, 1, 2, 2],
-            aa=[".", "A", "B", "C", "A", "A"],
-            pep_offset_in_pro=[0, 0, 1, 2, 3, 4],
-        )
-    )
-
-    flus, pi_brights = sim_v2_worker._gen_flus(sim_v2_params, pep_seqs)
-
-    def it_returns_flus():
-        assert utils.np_array_same(flus[0], np.array([7], dtype=np.uint8))
-        assert utils.np_array_same(flus[1], np.array([0, 1, 7], dtype=np.uint8))
-        assert utils.np_array_same(flus[2], np.array([0, 0], dtype=np.uint8))
-
-    def it_returns_p_bright():
-        half_uint64_max = 9223372036854775807
-        assert utils.np_array_same(pi_brights[0], np.array([0], dtype=np.uint64))
-        assert utils.np_array_same(
-            pi_brights[1],
-            np.array([half_uint64_max, half_uint64_max, 0], dtype=np.uint64),
-        )
-        assert utils.np_array_same(
-            pi_brights[2], np.array([half_uint64_max, half_uint64_max], dtype=np.uint64)
-        )
-
-    zest()
-
-
 def zest_sample_pep_dyemat():
     def it_samples():
         dyepep_group = np.array([[1, 1, 5], [2, 1, 5], [3, 1, 0],], dtype=int)
@@ -265,9 +229,10 @@ def zest_sim_v2_worker():
         sim_v2_result, sim_v2_params = _sim()
         assert sim_v2_result.train_dyemat.shape == (4, 5 * 2)  # 5 cycles, 2 channels
         assert utils.np_array_same(
-            sim_v2_result.train_dyemat[1:, :],
+            sim_v2_result.train_dyemat,
             np.array(
                 [
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                     [1, 0, 0, 0, 0, 1, 1, 0, 0, 0],
                     [0, 0, 0, 0, 0, 2, 1, 1, 0, 0],
                     [0, 0, 0, 0, 0, 2, 1, 0, 0, 0],
@@ -284,13 +249,15 @@ def zest_sim_v2_worker():
         sim_v2_result, sim_v2_params = _sim()
         assert utils.np_array_same(
             sim_v2_result.train_dyepeps,
-            np.array([[1, 1, 5000], [2, 2, 5000], [3, 3, 5000],], dtype=np.uint64),
+            np.array(
+                [[0, 0, 0], [1, 1, 5000], [2, 2, 5000], [3, 3, 5000],], dtype=np.uint64
+            ),
         )
 
     def it_handles_non_fluorescent():
         sim_v2_result, sim_v2_params = _sim(dict(p_non_fluorescent=0.5))
         # Check that every dyepep other than the nul-row
-        # should have counts (col=2) a lot less than 5000.
+        # should have n_reads (col=2) a lot less than 5000.
         assert np.all(sim_v2_result.train_dyepeps[1:, 2] < 2000)
 
     def it_returns_no_all_dark_samples():
@@ -315,16 +282,6 @@ def zest_sim_v2_worker():
     def it_handles_empty_dyepeps():
         sim_v2_result, sim_v2_params = _sim(dict(p_non_fluorescent=1.0))
         assert np.all(sim_v2_result.train_pep_recalls == 0.0)
-
-    def it_returns_train_flus():
-        sim_v2_result, sim_v2_params = _sim(dict())
-        flus = sim_v2_result.train_flus
-        assert utils.np_array_same(flus[0], np.array([7], dtype=np.uint8))
-        assert utils.np_array_same(flus[1], np.array([0, 1, 7, 7, 7], dtype=np.uint8))
-        assert utils.np_array_same(
-            flus[2], np.array([1, 7, 1, 7, 7, 7], dtype=np.uint8)
-        )
-        assert utils.np_array_same(flus[3], np.array([1, 1, 7, 7, 7], dtype=np.uint8))
 
     def decoys():
         prep_with_decoy = prep_fixtures.result_simple_fixture(has_decoy=True)

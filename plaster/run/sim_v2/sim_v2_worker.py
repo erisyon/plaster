@@ -38,14 +38,13 @@ Nomenclature
 """
 import math
 import numpy as np
-import pandas as pd
-from scipy.spatial.distance import cdist
 from plaster.run.sim_v2.fast import sim_v2_fast
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.run.sim_v2 import sim_v2_params
 from plaster.tools.log.log import debug, prof
 from plaster.tools.schema import check
 from plaster.tools.utils import data
+from plaster.tools.zap.zap import get_cpu_limit
 
 
 def _rand_lognormals(logs, sigma):
@@ -53,6 +52,7 @@ def _rand_lognormals(logs, sigma):
     return np.random.lognormal(mean=logs, sigma=sigma, size=logs.shape)
 
 
+"""
 def _gen_flus(sim_v2_params, pep_seq_df):
     flus = []
     pi_brights = []
@@ -68,6 +68,8 @@ def _gen_flus(sim_v2_params, pep_seq_df):
         * (1.0 - labelled_pep_df.p_non_fluorescent)
     )
 
+    # labelled_pep_df[["pep_i", "pep_offset_in_pro", "ch_i", "p_bright"]].values
+
     for pep_i, group in labelled_pep_df.groupby("pep_i"):
         flu_float = group.ch_i.values
         flu = np.nan_to_num(flu_float, nan=sim_v2_fast.NO_LABEL).astype(
@@ -82,9 +84,10 @@ def _gen_flus(sim_v2_params, pep_seq_df):
         pi_brights += [pi_bright]
 
     return flus, pi_brights
+"""
 
 
-def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples, progress=None):
+def _dyemat_sim(sim_v2_params, pcbs, n_samples, progress=None):
     """
     Run via the C fast_sim module a dyemat sim.
 
@@ -96,15 +99,14 @@ def _dyemat_sim(sim_v2_params, flus, pi_brights, n_samples, progress=None):
 
     # TODO: bleach per channel
     dyemat, dyepeps, pep_recalls = sim_v2_fast.sim(
-        flus,
-        pi_brights,
+        pcbs,
         n_samples,
         sim_v2_params.n_channels,
         sim_v2_params.cycles_array(),
         sim_v2_params.error_model.dyes[0].p_bleach_per_cycle,
         sim_v2_params.error_model.p_detach,
         sim_v2_params.error_model.p_edman_failure,
-        n_threads=1,  # TODO, tune
+        n_threads=1,  # get_cpu_limit(),  Currently getting: Fatal Python error: PyThreadState_Get: no current thread
         rng_seed=sim_v2_params.random_seed,
         progress=progress,
     )
@@ -274,18 +276,18 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     #   * always includes decoys
     #   * may include radiometry
     # -----------------------------------------------------------------------
-    train_flus, train_pi_brights = _gen_flus(sim_v2_params, prep_result.pepseqs())
+    # debug("gen flus")
+    # train_flus, train_pi_brights = _gen_flus(sim_v2_params, prep_result.pepseqs())
+    # debug("gen flus done")
 
     if pipeline:
         pipeline.set_phase(phase_i, n_phases)
         phase_i += 1
 
+    pepseqs = prep_result.pepseqs__with_decoys()
+    pcbs = sim_v2_params.pcbs(pepseqs)
     train_dyemat, train_dyepeps, train_pep_recalls = _dyemat_sim(
-        sim_v2_params,
-        train_flus,
-        train_pi_brights,
-        sim_v2_params.n_samples_train,
-        progress,
+        sim_v2_params, pcbs, sim_v2_params.n_samples_train, progress,
     )
 
     # SORT dyepeps by dyetrack (col 0) first then reverse by count (col 2)
@@ -324,9 +326,9 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     #   * skipped if is_survey
     # -----------------------------------------------------------------------
     if not sim_v2_params.is_survey:
-        test_flus, test_pi_brights = _gen_flus(
-            sim_v2_params, prep_result.pepseqs__no_decoys()
-        )
+        # test_flus, test_pi_brights = _gen_flus(
+        #     sim_v2_params, prep_result.pepseqs__no_decoys()
+        # )
 
         if pipeline:
             pipeline.set_phase(phase_i, n_phases)
@@ -334,8 +336,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
 
         test_dyemat, test_dyepeps, test_pep_recalls = _dyemat_sim(
             sim_v2_params,
-            test_flus,
-            test_pi_brights,
+            sim_v2_params.pcbs(prep_result.pepseqs__no_decoys()),
             sim_v2_params.n_samples_test,
             progress,
         )
@@ -379,18 +380,17 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         # if not sim_v2_params.test_includes_dyemat:
         #     test_dyemat, test_dyepeps_df = None, None
 
-    # REMOVE all-zero rows (EXECPT THE FIRST which is the nul row)
-    non_zero_rows = np.argwhere(test_true_pep_iz != 0).flatten()
-    test_radmat = test_radmat[non_zero_rows]
-    test_true_pep_iz = test_true_pep_iz[non_zero_rows]
-    test_true_dye_iz = test_true_dye_iz[non_zero_rows]
+        # REMOVE all-zero rows (EXCEPT THE FIRST which is the nul row)
+        non_zero_rows = np.argwhere(test_true_pep_iz != 0).flatten()
+        test_radmat = test_radmat[non_zero_rows]
+        test_true_pep_iz = test_true_pep_iz[non_zero_rows]
+        test_true_dye_iz = test_true_dye_iz[non_zero_rows]
 
-    return SimV2Result(
+    sim_result_v2 = SimV2Result(
         params=sim_v2_params,
         train_dyemat=train_dyemat,
         train_radmat=train_radmat,
         train_pep_recalls=train_pep_recalls,
-        train_flus=train_flus,
         train_true_pep_iz=train_true_pep_iz,
         train_true_dye_iz=train_true_dye_iz,
         train_dyepeps=train_dyepeps,
@@ -399,3 +399,5 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         test_true_pep_iz=test_true_pep_iz,
         test_true_dye_iz=test_true_dye_iz,
     )
+    sim_result_v2._generate_flu_info(prep_result)
+    return sim_result_v2

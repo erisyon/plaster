@@ -27,6 +27,19 @@ typedef struct {
 
 
 typedef struct {
+    Float64 pep_i;
+    Float64 ch_i;
+    Float64 p_bright;
+} PCB;  // PCB = (p)ep_i, (c)h_i, (b)right_probability
+
+
+typedef struct {
+    Size n_new_dtrs;
+    Size n_new_dyepeps;
+} Counts;
+
+
+typedef struct {
     Size n_peps;
     Size n_cycles;
     Size n_samples;
@@ -39,17 +52,19 @@ typedef struct {
     Hash dtr_hash;
     Table dyepeps;
     Hash dyepep_hash;
-    DyeType **flus;
-    PIType **pi_brights;
-    Size *n_aas;
+    Table pcbs;
+    Table pep_i_to_pcb_i;
     RecallType *pep_recalls;
     Index next_pep_i;
+    Size count_only;
+    Size output_n_dtrs;
+    Size output_n_dyepeps;
     Size n_threads;
     Uint64 rng_seed;
     pthread_mutex_t work_order_lock;
     pthread_mutex_t table_lock;
     ProgressFn progress_fn;
-} Context;
+} SimV2FastContext;
 
 
 int setup_sanity_checks(Size n_channels, Size n_cycles);
@@ -57,10 +72,10 @@ Uint64 prob_to_p_i(double p);
 void rand64_seed(Uint64 seed);
 Size dtr_n_bytes(Size n_channels, Size n_cycles);
 Hash hash_init(HashRec *buffer, Size n_max_recs);
-void context_work_orders_start(Context *ctx);
-Index context_dtr_get_count(Context *ctx, Index dtr_i);
-DyeType *context_dtr_dyetrack(Context *ctx, Index dtr_i);
-DyePepRec *context_dyepep(Context *ctx, Index dyepep_i);
-void context_dump(Context *ctx);
+void context_work_orders_start(SimV2FastContext *ctx);
+Index context_dtr_get_count(SimV2FastContext *ctx, Index dtr_i);
+DyeType *context_dtr_dyetrack(SimV2FastContext *ctx, Index dtr_i);
+DyePepRec *context_dyepep(SimV2FastContext *ctx, Index dyepep_i);
+void context_dump(SimV2FastContext *ctx);
 
 #endif

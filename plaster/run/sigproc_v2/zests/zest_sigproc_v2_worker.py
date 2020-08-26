@@ -554,7 +554,7 @@ def zest_mask_anomalies_im():
     zest()
 
 
-@zest.group("slow")
+# @zest.skip(reason="slow")
 def zest_align():
     def _ims(mea=512, std=1.5):
         bg_mean = 145

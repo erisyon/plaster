@@ -3,7 +3,7 @@ from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.nn_v2.fast import nn_v2_fast
 from plaster.run.call_bag import CallBag
 from plaster.tools.log.log import prof
-from plaster.run.sim_v1.sim_v1_result import RadType
+from plaster.run.sim_v2.sim_v2_result import RadType
 
 
 def nn_v2(

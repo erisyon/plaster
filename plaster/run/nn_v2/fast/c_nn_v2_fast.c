@@ -10,26 +10,6 @@
 #include "c_nn_v2_fast.h"
 
 
-int sanity_check() {
-    if(sizeof(Float32) != 4) {
-        printf("Failed sanity check: sizeof Float32\n");
-        return 1;
-    }
-
-    if(sizeof(Score) != 4) {
-        printf("Failed sanity check: sizeof Score\n");
-        return 1;
-    }
-
-    if(sizeof(RadType) != 4) {
-        printf("Failed sanity check: sizeof RadType\n");
-        return 1;
-    }
-
-    return 0;
-}
-
-
 float dist_inv_square(RadType *radrow, RadType *dyerow, Size n_cols) {
     RadType *rad = radrow;
     RadType *dye = dyerow;
@@ -129,7 +109,7 @@ void score_weighted_gaussian_mixture(
 }
 
 void context_classify_unit_radrows(
-    Context *ctx,
+    NNV2FastContext *ctx,
     Table unit_radrows,
     Table output_pred_pep_iz,
     Table output_pred_dye_iz,
@@ -225,7 +205,7 @@ void context_classify_unit_radrows(
 }
 
 
-Index context_work_orders_pop(Context *ctx) {
+Index context_work_orders_pop(NNV2FastContext *ctx) {
     // NOTE: This return +1! So that 0 can be reserved.
 
     if(ctx->n_threads > 1) {
@@ -249,7 +229,7 @@ Index context_work_orders_pop(Context *ctx) {
 void *context_work_orders_worker(void *_ctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
-    Context *ctx = (Context *)_ctx;
+    NNV2FastContext *ctx = (NNV2FastContext *)_ctx;
     Size n_chunks = ctx->n_rows / ctx->n_rows_per_block;
     if(ctx->n_rows % ctx->n_rows_per_block != 0) {
         n_chunks++;
@@ -277,7 +257,7 @@ void *context_work_orders_worker(void *_ctx) {
 
 
 
-void context_start(Context *ctx) {
+void context_start(NNV2FastContext *ctx) {
     ensure(sanity_check() == 0, "Sanity checks failed");
     ensure(
         ctx->n_neighbors <= ctx->train_dyemat.n_rows,
@@ -323,7 +303,7 @@ void context_start(Context *ctx) {
 }
 
 
-void context_free(Context *ctx) {
+void context_free(NNV2FastContext *ctx) {
     if(ctx->flann_index_id) {
         flann_free_index_float(ctx->flann_index_id, &ctx->flann_params);
         ctx->flann_index_id = 0;
@@ -331,7 +311,7 @@ void context_free(Context *ctx) {
 }
 
 
-void context_print(Context *ctx) {
+void context_print(NNV2FastContext *ctx) {
     printf("n_neighbors=%ld\n", ctx->n_neighbors);
     printf("n_cols=%ld\n", ctx->n_cols);
     printf("train_dyemat.n_rows=%ld\n", ctx->train_dyemat.n_rows);

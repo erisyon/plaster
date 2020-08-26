@@ -14,7 +14,7 @@
 This is the "sim" phase of plaster implemented in C.
 It is meant to be called by Cython sim_v2_fast.pyx
 
-Inputs (see typedef Context in sim.h):
+Inputs (see typedef SimV2FastContext in sim.h):
     * A list of "flus" which are Uint8 arrays (n_channels, n_cycles)
       with the channel number of NO_LABEL at each position.
     * Various paramerters
@@ -48,7 +48,7 @@ Definitions:
         into a growing array. The pre-allocated table buffer must large
         enough to accommodate the row or an assertion will be thrown.
     Hash = A simple 64-bit hashkey table that maintains a pointer value.
-    Context = All of the context (parameters, buffers, inputs, etc)
+    SimV2FastContext = All of the context (parameters, buffers, inputs, etc)
         that are needed in order to run the simulation
 
 There are two Tables maintained in the context:
@@ -82,7 +82,7 @@ int rand64(Uint64 p_i) {
 }
 
 
-Uint64 prob_to_p_i(double p) {
+PIType prob_to_p_i(double p) {
     // Convert p (double 0-1) into a 64 bit integer
     ensure(0.0 <= p && p <= 1.0, "probability out of range");
     long double w = floorl( (long double)p * (long double)(UINT64_MAX) );
@@ -97,31 +97,6 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
     // Check that the compiler sizes are what is expected.
     // return 0 == success
 
-    if(UINT64_MAX != 0xFFFFFFFFFFFFFFFFULL) {
-        printf("Failed sanity check: UINT64_MAX\n");
-        return 1;
-    }
-
-    if(sizeof(Uint128) != 16) {
-        printf("Failed sanity check: sizeof 128\n");
-        return 2;
-    }
-
-    if(sizeof(Uint64) != 8) {
-        printf("Failed sanity check: sizeof 64\n");
-        return 3;
-    }
-
-    if(sizeof(Uint8) != 1) {
-        printf("Failed sanity check: sizeof 8\n");
-        return 4;
-    }
-
-    if(sizeof(Sint64) != 8) {
-        printf("Failed sanity check: sizeof Sint64\n");
-        return 5;
-    }
-
     if(rand64(UINT64_MAX) != 1) {
         printf("Failed sanity check: rand64\n");
         return 6;
@@ -132,18 +107,13 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
         return 7;
     }
 
-    if(N_MAX_CYCLES != 64) {
-        // This is particularly annoying. See csim.pxd for explanation
-        printf("Failed sanity check: N_MAX_CYCLES\n");
-        return 8;
-    }
-
     Size n_hashkey_factors = sizeof(hashkey_factors) / sizeof(hashkey_factors[0]);
     for(Index i=0; i<n_hashkey_factors; i++) {
         hashkey_factors[i] = (rand() * rand() * rand() * rand() * rand() * rand() * rand()) % UINT64_MAX;
     }
 
     if(n_channels * n_cycles >= n_hashkey_factors) {
+        printf("Failed sanity check: n_channels * n_cycles >= n_hashkey_factors\n");
         return 9;
     }
 
@@ -155,11 +125,6 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
     if(prob_to_p_i(1.0) != (Uint64)UINT64_MAX) {
         printf("Failed sanity check: prob_to_p_i(1.0) %ld %ld\n", prob_to_p_i(1.0), (Uint64)UINT64_MAX);
         return 11;
-    }
-
-    if(sizeof(Float64) != 8) {
-        printf("Failed sanity check: Float64\n");
-        return 12;
     }
 
     return 0;
@@ -330,7 +295,7 @@ HashKey dyepep_get_hashkey(HashKey dtr_hashkey, Index pep_i) {
 
 void dyepep_dump_one(DyePepRec *dyepep) {
     // Debugging
-    printf("%4ld %4ld %4ld\n", dyepep->dtr_i, dyepep->pep_i, dyepep->count);
+    printf("%4ld %4ld %4ld\n", dyepep->dtr_i, dyepep->pep_i, dyepep->n_reads);
 }
 
 
@@ -345,18 +310,16 @@ void dyepep_dump_all(Table *dyepeps) {
 // sim
 //=========================================================================================
 
-void context_sim_flu(Context *ctx, Index pep_i) {
+Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
     // Runs the Monte-Carlo simulation of one peptide flu over n_samples
     // See algorithm described at top of file.
+    // Returns the number of NEW dtrs
 
     // Make local copies of inner-loop variables
     DyeType ch_sums[N_MAX_CHANNELS];
     Size n_cycles = ctx->n_cycles;
     Size n_samples = ctx->n_samples;
     Size n_channels = ctx->n_channels;
-    DyeType *flu = ctx->flus[pep_i];
-    PIType *pi_bright = ctx->pi_brights[pep_i];
-    Size n_aas = ctx->n_aas[pep_i];
     CycleKindType *cycles = ctx->cycles;
     Uint64 pi_bleach = ctx->pi_bleach;
     Uint64 pi_detach = ctx->pi_detach;
@@ -365,11 +328,39 @@ void context_sim_flu(Context *ctx, Index pep_i) {
     Table *dyepeps = &ctx->dyepeps;
     Hash dtr_hash = ctx->dtr_hash;
     Hash dyepep_hash = ctx->dyepep_hash;
+    Size n_flu_bytes = sizeof(DyeType) * n_aas;
+    Size n_new_dtrs = 0;
+    Size n_new_dyepeps = 0;
 
-    // working_flu is volatile stack copy of the incoming flu
-    Size n_working_flu_bytes = sizeof(DyeType) * n_aas;
-    DyeType *working_flu = (DyeType *)alloca(n_working_flu_bytes);
-    memset(working_flu, 0, n_working_flu_bytes);
+    if(ctx->count_only) {
+        // Add one record to both dtr and dyepeps
+        if(dtrs->n_rows == 0) {
+            table_add(dtrs, 0, 0, "dtrs");
+        }
+        if(dyepeps->n_rows == 0) {
+            table_add(dyepeps, 0, 0, "dyepeps");
+        }
+    }
+
+    DyeType *flu = (DyeType *)alloca(n_flu_bytes);
+    DyeType *working_flu = (DyeType *)alloca(n_flu_bytes);
+    PIType *pi_bright = (PIType *)alloca(sizeof(PIType) * n_aas);
+    for(Index aa_i=0; aa_i<n_aas; aa_i++) {
+        PCB *pcb_row = table_get_row(pcb_block, aa_i, PCB);
+
+        ensure_only_in_debug((Index)pcb_row->pep_i == pep_i, "Mismatching pep_i in pcb_row pep_i=%ld row_pep_i=%ld aa_i=%ld", pep_i, (Index)pcb_row->pep_i, aa_i);
+
+        Float64 f_ch_i = isnan(pcb_row->ch_i) ? (Float64)(N_MAX_CHANNELS - 1) : (pcb_row->ch_i);
+        ensure_only_in_debug(0 <= f_ch_i && f_ch_i < N_MAX_CHANNELS, "f_ch_i out of bounds");
+        flu[aa_i] = (DyeType)f_ch_i;
+
+        Float64 p_bright = pcb_row->p_bright;
+        p_bright = isnan(p_bright) ? 0.0 : p_bright;
+        ensure_only_in_debug(0.0 <= p_bright && p_bright <= 1.0, "p_bright out of range pep_i=%ld aa_i=%ld %f", pep_i, aa_i, p_bright);
+        pi_bright[aa_i] = prob_to_p_i(p_bright);
+
+        working_flu[aa_i] = (DyeType)0;
+    }
 
     // working_dtr is volatile stack copy of the out-going DTR
     Size n_dyetrack_bytes = dtr_n_bytes(ctx->n_channels, ctx->n_cycles);
@@ -401,7 +392,7 @@ void context_sim_flu(Context *ctx, Index pep_i) {
 
         // GENERATE the working_dyetrack sample (Monte Carlo)
         //-------------------------------------------------------
-        memcpy(working_flu, flu, n_working_flu_bytes);
+        memcpy(working_flu, flu, n_flu_bytes);
         dtr_clear(working_dtr, n_channels, n_cycles);
 
         // MODEL dark-dyes (dyes dark before the first image)
@@ -480,7 +471,11 @@ void context_sim_flu(Context *ctx, Index pep_i) {
         ensure(dtr_hash_rec != (HashRec*)0, "dtr_hash full");
         if(dtr_hash_rec->key == 0) {
             // New record
-            Index dtr_i = table_add(dtrs, working_dtr, ctx->n_threads > 1 ? &ctx->table_lock : 0);
+            n_new_dtrs ++;
+            Index dtr_i = 0;
+            if( ! ctx->count_only) {
+                dtr_i = table_add(dtrs, working_dtr, ctx->n_threads > 1 ? &ctx->table_lock : 0, "dtrs");
+            }
             dtr = table_get_row(dtrs, dtr_i, DTR);
             dtr_hash_rec->key = dtr_hashkey;
             dtr->count++;
@@ -507,12 +502,16 @@ void context_sim_flu(Context *ctx, Index pep_i) {
         if(dyepep_hash_rec->key == 0) {
             // New record
             // If this were used multi-threaded, this would be a race condition
-            Index dyepep_i = table_add(dyepeps, 0, ctx->n_threads > 1 ? &ctx->table_lock : 0);
+            n_new_dyepeps ++;
+            Index dyepep_i = 0;
+            if( ! ctx->count_only ) {
+                dyepep_i = table_add(dyepeps, 0, ctx->n_threads > 1 ? &ctx->table_lock : 0, "dyepeps");
+            }
             DyePepRec *dyepep = table_get_row(dyepeps, dyepep_i, DyePepRec);
             dyepep_hash_rec->key = dyepep_hashkey;
             dyepep->dtr_i = dtr->dtr_i;
             dyepep->pep_i = pep_i;
-            dyepep->count++;
+            dyepep->n_reads++;
             dyepep_hash_rec->val = dyepep;
         }
         else {
@@ -520,7 +519,7 @@ void context_sim_flu(Context *ctx, Index pep_i) {
             // Same argument as above
             DyePepRec *dpr = (DyePepRec *)dyepep_hash_rec->val;
             table_validate_only_in_debug(dyepeps, dpr, "dyepep hash inc");
-            dpr->count++;
+            dpr->n_reads++;
         }
     }
 
@@ -530,32 +529,15 @@ void context_sim_flu(Context *ctx, Index pep_i) {
     else {
         ctx->pep_recalls[pep_i] = (double)0.0;
     }
+
+    Counts counts;
+    counts.n_new_dtrs = n_new_dtrs;
+    counts.n_new_dyepeps = n_new_dyepeps;
+    return counts;
 }
 
 
-void _context_generate_test_pepflus(Context *ctx) {
-    // Mock flues for testing purposes
-    ctx->flus = (DyeType **)calloc(sizeof(DyeType *), ctx->n_peps);
-    ctx->n_aas = (Size *)calloc(sizeof(Size), ctx->n_peps);
-    Size n_channels = ctx->n_channels;
-    for(Index pep_i=0; pep_i<ctx->n_peps; pep_i++) {
-        Size n_aa = 5 + rand() % 20;
-        ctx->n_aas[pep_i] = n_aa;
-        ctx->flus[pep_i] = (DyeType *)calloc(sizeof(DyeType), n_aa);
-        for(Index i=0; i<n_aa; i++) {
-            ctx->flus[pep_i][i] = NO_LABEL;
-            for(Index ch_i=(rand() % n_channels); ch_i<n_channels; ch_i++) {
-                if(!(rand() % 4)) {
-                    ctx->flus[pep_i][i] = (DyeType)(ch_i % n_channels);
-                    break;
-                }
-            }
-        }
-    }
-}
-
-
-Index context_work_orders_pop(Context *ctx) {
+Index context_work_orders_pop(SimV2FastContext *ctx) {
     // NOTE: This return +1! So that 0 can be reserved.
     if(ctx->n_threads > 1) {
         pthread_mutex_lock(&ctx->work_order_lock);
@@ -578,24 +560,44 @@ Index context_work_orders_pop(Context *ctx) {
 void *context_work_orders_worker(void *_ctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
-    Context *ctx = (Context *)_ctx;
+    SimV2FastContext *ctx = (SimV2FastContext *)_ctx;
+    if(ctx->count_only) {
+        ensure(ctx->n_threads == 1, "n_therads must be 1 when counting");
+        trace("Counting n_dtrs and n_dyepeps for %ld peps\n", ctx->n_peps);
+        trace("pep_i, n_dtrs, n_dyepeps\n");
+    }
+    Size n_dtrs = 0;
+    Size n_dyepeps = 0;
     while(1) {
         Index pep_i_plus_1 = context_work_orders_pop(ctx);
         if(pep_i_plus_1 == 0) {
             break;
         }
         Index pep_i = pep_i_plus_1 - 1;
-        context_sim_flu(ctx, pep_i);
-        if(pep_i % 10 == 0) {
+        Index pcb_i = *table_get_row(&ctx->pep_i_to_pcb_i, pep_i, Index);
+        Index pcb_i_plus_1 = *table_get_row(&ctx->pep_i_to_pcb_i, pep_i + 1, Index);
+        Size n_aas = pcb_i_plus_1 - pcb_i;
+        Table pcb_block = table_init_subset(&ctx->pcbs, pcb_i, n_aas, 1);
+
+        Counts counts = context_sim_flu(ctx, pep_i, &pcb_block, n_aas);
+
+        n_dtrs += counts.n_new_dtrs;
+        n_dyepeps += counts.n_new_dyepeps;
+        if(ctx->count_only && pep_i % 100 == 0) {
+            trace("%ld, %ld, %ld\n", pep_i, n_dtrs, n_dyepeps);
+        }
+        if(pep_i % 100 == 0) {
             ctx->progress_fn(pep_i, ctx->n_peps, 0);
         }
     }
     ctx->progress_fn(ctx->n_peps, ctx->n_peps, 0);
+    ctx->output_n_dtrs = n_dtrs;
+    ctx->output_n_dyepeps = n_dyepeps;
     return (void *)0;
 }
 
 
-void context_work_orders_start(Context *ctx) {
+void context_work_orders_start(SimV2FastContext *ctx) {
     // context_dump(ctx);
 
     // Initialize mutex and start the worker thread(s).
@@ -613,7 +615,7 @@ void context_work_orders_start(Context *ctx) {
     ensure(dtr_hash_rec->key == 0, "dtr hash should not have found nul row");
 
     Table *dtrs = &ctx->dtrs;
-    Index nul_i = table_add(dtrs, nul_rec, (void*)0);
+    Index nul_i = table_add(dtrs, nul_rec, (void*)0, "dtrs");
     DTR *nul_dtr = table_get_row(dtrs, nul_i, DTR);
     dtr_hash_rec->key = dtr_hashkey;
     nul_dtr->count++;
@@ -644,25 +646,25 @@ void context_work_orders_start(Context *ctx) {
 }
 
 
-Index context_dtr_get_count(Context *ctx, Index dtr_i) {
+Index context_dtr_get_count(SimV2FastContext *ctx, Index dtr_i) {
     DTR *dtr = table_get_row(&ctx->dtrs, dtr_i, DTR);
     return dtr->count;
 }
 
 
-DyeType *context_dtr_dyetrack(Context *ctx, Index dtr_i) {
+DyeType *context_dtr_dyetrack(SimV2FastContext *ctx, Index dtr_i) {
     DTR *dtr = table_get_row(&ctx->dtrs, dtr_i, DTR);
     return dtr->chcy_dye_counts;
 }
 
 
-DyePepRec *context_dyepep(Context *ctx, Index dyepep_i) {
+DyePepRec *context_dyepep(SimV2FastContext *ctx, Index dyepep_i) {
     return table_get_row(&ctx->dyepeps, dyepep_i, DyePepRec);
 }
 
 
-void context_dump(Context *ctx) {
-    printf("Context:\n");
+void context_dump(SimV2FastContext *ctx) {
+    printf("SimV2FastContext:\n");
     printf("  n_peps=%" PRIu64 "\n", ctx->n_peps);
     printf("  n_cycles=%" PRIu64 "\n", ctx->n_cycles);
     printf("  n_samples=%" PRIu64 "\n", ctx->n_samples);
@@ -679,10 +681,32 @@ void context_dump(Context *ctx) {
 
 
 /*
+void _context_generate_test_pepflus(SimV2FastContext *ctx) {
+    // Mock flues for testing purposes
+    ctx->flus = (DyeType **)calloc(sizeof(DyeType *), ctx->n_peps);
+    ctx->n_aas = (Size *)calloc(sizeof(Size), ctx->n_peps);
+    Size n_channels = ctx->n_channels;
+    for(Index pep_i=0; pep_i<ctx->n_peps; pep_i++) {
+        Size n_aa = 5 + rand() % 20;
+        ctx->n_aas[pep_i] = n_aa;
+        ctx->flus[pep_i] = (DyeType *)calloc(sizeof(DyeType), n_aa);
+        for(Index i=0; i<n_aa; i++) {
+            ctx->flus[pep_i][i] = NO_LABEL;
+            for(Index ch_i=(rand() % n_channels); ch_i<n_channels; ch_i++) {
+                if(!(rand() % 4)) {
+                    ctx->flus[pep_i][i] = (DyeType)(ch_i % n_channels);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+
 int main() {
     // Tests (not run by production code, see fast_sim.pyx)
     // Setup context
-    Context ctx;
+    SimV2FastContext ctx;
 
     ctx.n_peps = 100;
     ctx.n_samples = 5000;
