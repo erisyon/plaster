@@ -21,8 +21,12 @@ def zest_v1_v2_compare():
     with tmp_folder(chdir=True):
         prep_result = prep_fixtures.result_random_fixture(2)
 
-        sim_v1_result = sim_v1_fixtures.result_from_prep_fixture(prep_result, labels="A,B")
-        sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result, labels="A,B")
+        sim_v1_result = sim_v1_fixtures.result_from_prep_fixture(
+            prep_result, labels="A,B"
+        )
+        sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(
+            prep_result, labels="A,B"
+        )
 
         nn_v1_params = NNV1Params()
         nn_v1_result = nn_v1_worker.nn_v1(nn_v1_params, prep_result, sim_v1_result)

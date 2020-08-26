@@ -131,7 +131,7 @@ setup(
         "zbs.zest",
     ],
     python_requires=">=3.6",
-    ext_modules=cythonize(extensions, language_level="3", include_path=[
-       "./plaster/tools/c_common",
-    ]),
+    ext_modules=cythonize(
+        extensions, language_level="3", include_path=["./plaster/tools/c_common",]
+    ),
 )

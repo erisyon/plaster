@@ -11,6 +11,7 @@ from plaster.tools.log.log import debug
 # def zest_tab_tests():
 #     survey_v2_fast.tab_tests()
 
+
 @zest.skip(reason="The survey contention and isolation code not complete see ")
 def zest_survey_v2_pyx():
     # TODO: This
@@ -53,9 +54,13 @@ def zest_survey_v2_pyx():
 def zest_survey_v2_integration():
     with tmp.tmp_folder(chdir=True):
         prep_result = prep_fixtures.result_random_fixture(20)
-        sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result, labels="DE,C,Y")
+        sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(
+            prep_result, labels="DE,C,Y"
+        )
         sim_v2_result.save()
-        survey_v2_result = survey_v2_worker.survey_v2(SurveyV2Params(), prep_result, sim_v2_result)
+        survey_v2_result = survey_v2_worker.survey_v2(
+            SurveyV2Params(), prep_result, sim_v2_result
+        )
         # survey_v2_result._survey.to_csv("/erisyon/internal/test.csv")
 
         # I will need to set the RNG on this to test.
@@ -64,4 +69,3 @@ def zest_survey_v2_integration():
         # Why are 3 peptides with the same flu not all showing each other as the nn?
 
     zest()
-

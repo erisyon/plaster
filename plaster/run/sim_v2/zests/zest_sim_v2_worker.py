@@ -249,7 +249,9 @@ def zest_sim_v2_worker():
         sim_v2_result, sim_v2_params = _sim()
         assert utils.np_array_same(
             sim_v2_result.train_dyepeps,
-            np.array([ [0, 0, 0], [1, 1, 5000], [2, 2, 5000], [3, 3, 5000],], dtype=np.uint64),
+            np.array(
+                [[0, 0, 0], [1, 1, 5000], [2, 2, 5000], [3, 3, 5000],], dtype=np.uint64
+            ),
         )
 
     def it_handles_non_fluorescent():
