@@ -11,6 +11,7 @@ from plaster.tools.log.log import debug
 from plaster.tools.schema import check
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.schema.schema import SchemaValidationFailed
+from plaster.run.sigproc_v2 import sigproc_v2_common
 from plaster.tools.utils import utils
 from plumbum import local
 
@@ -102,8 +103,8 @@ class BaseGenerator(Munch):
 
     sigproc_source_schema = s(
         s.is_kws_r(
-            sigproc_source=s.is_list(s.is_str(), noneable=True, help="See Main Help"),
-            movie=s.is_bool(help="See Main Help"),
+            sigproc_source=s.is_str(help="See Main Help"),
+            movie=s.is_bool(noneable=True, help="See Main Help"),
             n_frames_limit=s.is_int(
                 bounds=(1, 500), noneable=True, help="See Main Help"
             ),
@@ -122,15 +123,9 @@ class BaseGenerator(Munch):
     )
 
     sigproc_v2_schema = s(
-        s.is_kws_r(calibration_file=s.is_str(), instrument_subject_id=s.is_str(),)
-    )
-
-    dye_names_schema = s(
         s.is_kws_r(
-            dye_names=s.is_str(
-                help="Dye names of each channel; will be saved with this scope.",
-                userdata=dict(cli=True),
-            )
+            calibration_file=s.is_str(),
+            sigproc_source=s.is_list(s.is_str(), help="See Main Help"),
         )
     )
 
@@ -268,41 +263,24 @@ class BaseGenerator(Munch):
         return ims_import
 
     def sigprocs_v1(self):
-        sigproc_tasks = []
+        tasks = {}
         if self.sigproc_source:
-            for ss in self.sigproc_source:
-                ims_import = self.ims_imports(ss)
-                sigproc = task_templates.sigproc_v1()
-                # task_templates returns a generic sigprocv2 task, and we can fill in some
-                # parameters that any sigprocv2 task might have based on the CliSwitches for
-                # BaseVFSCommand.  So any subclass will automatically get these params set.
-                # Where should the schema check for them?
-                sigproc.sigproc_v1.parameters.radial_filter = self.radial_filter
-                sigproc.sigproc_v1.parameters.peak_find_n_cycles = (
-                    self.peak_find_n_cycles
-                )
-                sigproc.sigproc_v1.parameters.peak_find_start = self.peak_find_start
-                sigproc.sigproc_v1.parameters.anomaly_iqr_cutoff = (
-                    self.anomaly_iqr_cutoff
-                )
+            ims_import = self.ims_imports(self.sigproc_source)
+            sigproc = task_templates.sigproc_v1()
+            sigproc.sigproc_v1.parameters.radial_filter = self.radial_filter
+            sigproc.sigproc_v1.parameters.peak_find_n_cycles = self.peak_find_n_cycles
+            sigproc.sigproc_v1.parameters.peak_find_start = self.peak_find_start
+            sigproc.sigproc_v1.parameters.anomaly_iqr_cutoff = self.anomaly_iqr_cutoff
+            tasks = Munch(**ims_import, **sigproc)
+        return tasks
 
-                sigproc_task = Munch(**ims_import, **sigproc)
-                sigproc_tasks += [sigproc_task]
-        return sigproc_tasks
-
-    def sigprocs_v2(self, **kwargs):
-        sigproc_tasks = []
-        if self.sigproc_source:
-            for ss in self.sigproc_source:
-                ims_import = self.ims_imports(ss)
-                sigproc = task_templates.sigproc_v2(**kwargs)
-                # task_templates returns a generic sigprocv2 task, and we can fill in some
-                # parameters that any sigprocv2 task might have based on the CliSwitches for
-                # BaseVFSCommand.  So any subclass will automatically get these params set.
-                # Where should the schema check for them?
-                sigproc_task = Munch(**ims_import, **sigproc)
-                sigproc_tasks += [sigproc_task]
-        return sigproc_tasks
+    # def sigprocs_v2(self, **kwargs):
+    #     tasks = {}
+    #     if self.sigproc_source:
+    #         ims_import = self.ims_imports(self.sigproc_source)
+    #         sigproc = task_templates.sigproc_v2_analyze(**kwargs)
+    #         tasks = Munch(**ims_import, **sigproc)
+    #     return tasks
 
     def lnfits(self):
         # It is common to have multiple lnfit tasks for a single run, so this fn returns a

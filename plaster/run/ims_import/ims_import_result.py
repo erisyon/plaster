@@ -29,7 +29,7 @@ class ImsImportResult(BaseResult):
         n_channels=int,
         n_cycles=int,
         dim=int,
-        tsv_data=Munch,
+        tsv_data=(type(None), Munch),
         dtype=str,
     )
 
@@ -123,6 +123,11 @@ class ImsImportResult(BaseResult):
         return self._cache_field_chcy_ims[field_i].arr()
 
     def n_fields_channel_cycles(self):
+        assert self.params.is_movie is False
+        return self.n_fields, self.n_channels, self.n_cycles
+
+    def n_fields_channel_frames(self):
+        assert self.params.is_movie is True
         return self.n_fields, self.n_channels, self.n_cycles
 
     @property
