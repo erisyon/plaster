@@ -14,11 +14,7 @@ ims_imports
     regional illumination balance.
     """
 
-    schema = s(
-        s.is_kws_r(
-            **BaseGenerator.sigproc_v2_schema.schema(),
-        )
-    )
+    schema = s(s.is_kws_r(**BaseGenerator.sigproc_v2_schema.schema(),))
 
     def generate(self):
         runs = []

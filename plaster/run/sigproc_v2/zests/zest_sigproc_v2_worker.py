@@ -405,9 +405,9 @@ TODO Talk to Angela
 For now I'm keeping the input order the same as the output
 
 """
-@zest.skip(
-    reason = "un-skip once we have multi-channel working"
-)
+
+
+@zest.skip(reason="un-skip once we have multi-channel working")
 def zest_compute_channel_weights():
     def it_returns_balanced_channels():
         with tmp_file() as cal_file:
@@ -438,9 +438,7 @@ def zest_compute_channel_weights():
 
 
 def zest_import_balanced_images():
-    @zest.skip(
-        reason="un-skip when we  have multi-channel working"
-    )
+    @zest.skip(reason="un-skip when we  have multi-channel working")
     def it_remaps_and_balances_channels():
         with tmp_file() as cal_file:
             calibration = Calibration(
@@ -502,21 +500,18 @@ def zest_import_balanced_images():
                 }
             )
             pickle.dump(calibration, open(cal_file, "wb"))
-            sigproc_params = SigprocV2Params(
-                mode="analyze",
-                calibration_file=cal_file,
-            )
+            sigproc_params = SigprocV2Params(mode="analyze", calibration_file=cal_file,)
             chcy_ims = np.ones((1, 1, 128, 128))
-            #chcy_ims = np.ones((2, 1, 128, 128))
+            # chcy_ims = np.ones((2, 1, 128, 128))
             chcy_ims[0] *= 1000.0
-            #chcy_ims[1] *= 2000.0
+            # chcy_ims[1] *= 2000.0
             balanced_ims = worker._analyze_step_1_import_balanced_images(
                 chcy_ims, sigproc_params, calibration
             )
             assert np.all(np.isclose(balanced_ims[0, 0, 0, 0], (1000 - 100)))
             assert np.all(np.isclose(balanced_ims[0, 0, 0, 127], (1000 - 100) * 5))
-            #assert np.all(np.isclose(balanced_ims[1, 0, 0, 0], (2000 - 200) * 1 * 7))
-            #assert np.all(np.isclose(balanced_ims[1, 0, 127, 0], (2000 - 200) * 1))
+            # assert np.all(np.isclose(balanced_ims[1, 0, 0, 0], (2000 - 200) * 1 * 7))
+            # assert np.all(np.isclose(balanced_ims[1, 0, 127, 0], (2000 - 200) * 1))
 
     zest()
 

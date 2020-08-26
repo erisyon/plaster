@@ -264,8 +264,8 @@ def zest_sigproc_v2_calibration():
                 assert np_within(true_bg_std, est_bg_std.min(), allow_err)
 
             def it_handles_all_zeros():
-                im = np.zeros((1,1,512, 512))
-                est_bg_mean, est_bg_std = worker._background_stats_ims(im,divs)
+                im = np.zeros((1, 1, 512, 512))
+                est_bg_mean, est_bg_std = worker._background_stats_ims(im, divs)
                 assert np.all(est_bg_mean == 0)
                 assert np.all(est_bg_std == 0)
 
@@ -273,15 +273,13 @@ def zest_sigproc_v2_calibration():
                 with synth.Synth(overwrite=True) as s:
                     synth.CameraModel(bias=true_bg_mean, std=true_bg_std)
                     im = s.render_chcy()
-                est_bg_mean, est_bg_std = worker._background_stats_ims(im,divs)
+                est_bg_mean, est_bg_std = worker._background_stats_ims(im, divs)
                 allow_err = true_bg_mean / 10
                 assert np_within(true_bg_mean, est_bg_mean.max(), allow_err)
                 assert np_within(true_bg_mean, est_bg_mean.min(), allow_err)
                 allow_err = true_bg_std / 10
                 assert np_within(true_bg_std, est_bg_std.max(), allow_err)
                 assert np_within(true_bg_std, est_bg_std.min(), allow_err)
-
-
 
             def it_can_calibrate_background_stats():
                 # other tests for the lower level functions called by
@@ -308,7 +306,6 @@ def zest_sigproc_v2_calibration():
                 check.list_t(calib["regional_bg_std.instrument_channel[0]"], list)
                 rbs_arr = np.array(calib["regional_bg_std.instrument_channel[0]"])
                 check.array_t(rbs_arr, shape=(divs, divs), dtype=np.float64)
-
 
             zest()
 
