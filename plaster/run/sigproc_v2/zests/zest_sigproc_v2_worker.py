@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Params
@@ -10,6 +11,7 @@ from plaster.tools.image.coord import ROI
 from plaster.tools.log.log import debug
 from plaster.tools.schema.check import CheckAffirmError
 from plaster.tools.utils import utils
+from plaster.tools.utils.tmp import tmp_folder, tmp_file
 from zest import zest
 
 
@@ -456,11 +458,10 @@ For now I'm keeping the input order the same as the output
 """
 
 
-@zest.skip(reason="Ross: This is failing because it needs calibration file")
 def zest_compute_channel_weights():
+
     def it_returns_balanced_channels():
-        sigproc_params = SigprocV2Params(
-            radiometry_channels=dict(aaa=0, bbb=1),
+        with tmp_file() as cal_file:
             calibration=Calibration(
                 {
                     "regional_bg_mean.instrument_channel[0].test": [
@@ -472,21 +473,24 @@ def zest_compute_channel_weights():
                         [200.0, 200.0],
                     ],
                 }
-            ),
-            instrument_subject_id="test",
-        )
+            )
+            pickle.dump(calibration,open(cal_file,'wb'))
+            sigproc_params = SigprocV2Params(
+                mode="analyze",
+                radiometry_channels=dict(aaa=0, bbb=1),
+                calibration_file=cal_file,
+                instrument_subject_id="test",
+            )
 
-        balance = worker._compute_channel_weights(sigproc_params)
-        assert np.all(balance == [2.0, 1.0])
+            balance = worker._compute_channel_weights(sigproc_params)
+            assert np.all(balance == [2.0, 1.0])
 
     zest()
 
 
-@zest.skip(reason="Ross: This is failing because it needs calibration file")
 def zest_import_balanced_images():
     def it_remaps_and_balances_channels():
-        sigproc_params = SigprocV2Params(
-            radiometry_channels=dict(aaa=0, bbb=1),
+        with tmp_file() as cal_file:
             calibration=Calibration(
                 {
                     "regional_illumination_balance.instrument_channel[0].test": [
@@ -506,19 +510,23 @@ def zest_import_balanced_images():
                         [200.0, 200.0],
                     ],
                 }
-            ),
-            instrument_subject_id="test",
-        )
-        chcy_ims = np.ones((2, 1, 128, 128))
-        chcy_ims[0] *= 1000.0
-        chcy_ims[1] *= 2000.0
-        balanced_ims = worker._import_balanced_images(chcy_ims, sigproc_params)
-        assert np.all(np.isclose(balanced_ims[0], (1000 - 100) * 2))
-        assert np.all(np.isclose(balanced_ims[1], (2000 - 200) * 1))
+            )
+            pickle.dump(calibration,open(cal_file,'wb'))
+            sigproc_params = SigprocV2Params(
+                mode="analyze",
+                radiometry_channels=dict(aaa=0, bbb=1),
+                calibration_file=cal_file,
+                instrument_subject_id="test",
+            )
+            chcy_ims = np.ones((2, 1, 128, 128))
+            chcy_ims[0] *= 1000.0
+            chcy_ims[1] *= 2000.0
+            balanced_ims = worker._import_balanced_images(chcy_ims, sigproc_params)
+            assert np.all(np.isclose(balanced_ims[0], (1000 - 100) * 2))
+            assert np.all(np.isclose(balanced_ims[1], (2000 - 200) * 1))
 
     def it_balances_regionally():
-        sigproc_params = SigprocV2Params(
-            radiometry_channels=dict(aaa=0, bbb=1),
+        with tmp_file() as cal_file:
             calibration=Calibration(
                 {
                     "regional_illumination_balance.instrument_channel[0].test": [
@@ -538,17 +546,22 @@ def zest_import_balanced_images():
                         [200.0, 200.0],
                     ],
                 }
-            ),
-            instrument_subject_id="test",
-        )
-        chcy_ims = np.ones((2, 1, 128, 128))
-        chcy_ims[0] *= 1000.0
-        chcy_ims[1] *= 2000.0
-        balanced_ims = worker._import_balanced_images(chcy_ims, sigproc_params)
-        assert np.all(np.isclose(balanced_ims[0, 0, 0, 0], (1000 - 100) * 2))
-        assert np.all(np.isclose(balanced_ims[0, 0, 0, 127], (1000 - 100) * 2 * 5))
-        assert np.all(np.isclose(balanced_ims[1, 0, 0, 0], (2000 - 200) * 1 * 7))
-        assert np.all(np.isclose(balanced_ims[1, 0, 127, 0], (2000 - 200) * 1))
+            )
+            pickle.dump(calibration,open(cal_file,'wb'))
+            sigproc_params = SigprocV2Params(
+                mode="analyze",
+                radiometry_channels=dict(aaa=0, bbb=1),
+                calibration_file=cal_file,
+                instrument_subject_id="test",
+            )
+            chcy_ims = np.ones((2, 1, 128, 128))
+            chcy_ims[0] *= 1000.0
+            chcy_ims[1] *= 2000.0
+            balanced_ims = worker._import_balanced_images(chcy_ims, sigproc_params)
+            assert np.all(np.isclose(balanced_ims[0, 0, 0, 0], (1000 - 100) * 2))
+            assert np.all(np.isclose(balanced_ims[0, 0, 0, 127], (1000 - 100) * 2 * 5))
+            assert np.all(np.isclose(balanced_ims[1, 0, 0, 0], (2000 - 200) * 1 * 7))
+            assert np.all(np.isclose(balanced_ims[1, 0, 127, 0], (2000 - 200) * 1))
 
     zest()
 
@@ -591,7 +604,7 @@ def zest_mask_anomalies_im():
     zest()
 
 
-@zest.skip(reason="slow")
+#@zest.skip(reason="slow")
 def zest_align():
     def _ims(mea=512, std=1.5):
         bg_mean = 145

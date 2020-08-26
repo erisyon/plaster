@@ -1814,7 +1814,7 @@ def plot_sigproc_classify_overview(run, top_n_classes=10):
     md(f"## {bag.n_rows} spots classified")
 
     cols_to_show = ["pep_i", "pred_counts", "pro_id", "pro_is_decoy", "seqstr"]
-    print(pred_counts_df.nlargest(10, "pred_counts")[cols_to_show])
+    print(pred_counts_df.nlargest(top_n_classes, "pred_counts")[cols_to_show])
 
     z = ZPlots()
     with z(_cols=2, fill_alpha=0.5, line_alpha=0.05):
