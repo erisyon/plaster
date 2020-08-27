@@ -12,7 +12,7 @@ from plaster.tools.log.log import debug
 #     survey_v2_fast.tab_tests()
 
 
-@zest.skip(reason="The survey contention and isolation code not complete see ")
+#@zest.skip(reason="The survey contention and isolation code not complete see ")
 def zest_survey_v2_pyx():
     # TODO: This
 

@@ -227,7 +227,6 @@ void _tab_validate(Tab *tab, void *ptr, char *file, int line) {
     );
 }
 
-
 void tab_dump(Tab *tab, char *msg) {
     printf("table %s:\n", msg);
     printf("  base=%p\n", tab->base);
