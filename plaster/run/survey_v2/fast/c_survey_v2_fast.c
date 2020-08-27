@@ -12,26 +12,12 @@
 
 /*
 
-Looks like there's more and more common c code
-Need to get a common pxd file
-Change all dye_ and dt stuff to consistent dyt_
-I really want more than one version of table_init
+Survey
 
-mlpep = maximum likely peptide
+This code's job is to measure how "isolated" each peptide is
+with the goal of quickly prediciting how well a given
+label/protease scheme will perform.
 
-Build a "dyt_to_mlpep" LUT
-
-for each peptide (parallel)
-    extract out all of the dyts for that peptide (a groupby in pandas or a index similar to sim_v2)
-        Lookup n_neighbors for each of those dyetracks
-        that's a matrix of n_dyt, n_neighbor
-        there's a parallel dist vector returned from flann
-        replace each value in that table with a LUT from dyt_to_mlpep
-        Search along the columns for the first pep that isn't THIS pep
-        That pep is the closest interference pep
-
-        Multiply f(dist) * frac_of_reads_to_this_dyt
-        Add all those up and that's the isolation metric. A big number is better.
 */
 
 void dump_dyepeps(SurveyV2FastContext *ctx) {
@@ -67,8 +53,6 @@ void dump_row_of_dyemat(Tab *dyemat, int row, char *prefix) {
 
 void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     /*
-    TODO.
-    A large value of isolation means the peptide is well separated.
 
     Terminology:
         dyt: Dyetrack
@@ -81,52 +65,39 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
         global:dyts: The set of all dyetracks in the simulation.
         ml_pep: "Most Likely Peptide" That is the peptide with the most reads
             from any given dyetrack
+        self-dyetrack: a dyetrack that has THIS peptide as its ML-pep
+        foreign-dyetrack: a dyetrack that has SOME OTHER peptide as its ML-pep
+        isolation: A metric of how well separated this peptide is
+            from other peptides. This is a relative metric, not
+            an actual distance (ie this is NOT a Euclidiean distance)
+        contention: The inverse of isolation. A large number means the
+            peptide is LESS isolated.
 
-    Each peptide (1 of which is passed into this function)
-    has many dyetracks that it can generate.
-    Each dyetrack maps to a max-likley peptide and has some n_reads
-    Example:
+    This funciton analyzes the "isolation" of a single peptide.
+    It has access to:
+        * The dyepeps which is a table w/ columns: (dyt_i, pep_i, n_reads)
+            That is, each peptide has a list of all dyetracks it can
+            create and how many reads that peptide generated for each
+            dyetrack.
+        * All the dyetracks
 
-        Peptide 1:
-          dyt_i:1    n_reads:3537      mlpep_i:1      1 0 0 0 0 0 1 1 0 0 0 0
-          dyt_i:2    n_reads:33        mlpep_i:2      0 0 0 0 0 0 1 1 1 0 0 0
-          dyt_i:3    n_reads:307       mlpep_i:1      1 0 0 0 0 0 0 0 0 0 0 0
-          dyt_i:4    n_reads:371       mlpep_i:1      1 0 0 0 0 0 1 0 0 0 0 0
-          dyt_i:5    n_reads:30        mlpep_i:3      0 0 0 0 0 0 1 0 0 0 0 0
-          dyt_i:6    n_reads:182       mlpep_i:1      1 1 0 0 0 0 1 1 1 0 0 0
-          dyt_i:7    n_reads:13        mlpep_i:1      1 1 0 0 0 0 0 0 0 0 0 0
-          dyt_i:8    n_reads:205       mlpep_i:1      1 0 0 0 0 0 1 1 1 0 0 0
-          dyt_i:9    n_reads:3         mlpep_i:2      0 0 0 0 0 0 1 1 1 1 0 0
-          dyt_i:10   n_reads:1         mlpep_i:1      1 1 1 0 0 0 1 1 1 0 0 0
-          dyt_i:11   n_reads:10        mlpep_i:1      1 0 0 0 0 0 1 1 1 1 0 0
-          dyt_i:12   n_reads:259       mlpep_i:3      0 0 0 0 0 0 1 1 0 0 0 0
-          dyt_i:13   n_reads:10        mlpep_i:1      1 1 0 0 0 0 1 0 0 0 0 0
-          dyt_i:14   n_reads:10        mlpep_i:1      1 1 1 0 0 0 1 1 1 1 0 0
-          dyt_i:15   n_reads:8         mlpep_i:1      1 1 0 0 0 0 1 1 1 1 0 0
-          dyt_i:16   n_reads:1         mlpep_i:1      1 1 1 0 0 0 0 0 0 0 0 0
-          dyt_i:17   n_reads:18        mlpep_i:1      1 1 0 0 0 0 1 1 0 0 0 0
-          dyt_i:18   n_reads:1         mlpep_i:1      1 1 1 1 0 0 1 1 1 1 1 0
-          dyt_i:19   n_reads:1         mlpep_i:1      1 0 0 0 0 0 1 1 1 1 1 0
+    We seek features for this peptide:
+         * A measure of "isolation" (bigger number means better isolated)
+         * Which OTHER peptide is the most contentious with this peptide?
 
-    A "self-dyetrack" is one that has its ML peptide equal to this peptide
-    A "foreign-dyetrack" is one that has its ML peptide equal to any other peptide
+    Algorithm:
+        For this peptide, consider all dyetracks and measure their distance
+        to their closest neighbor dyetrack.
+        Scale those dyetrack distances by the n_reads for that dyetrack
+        Sum all those read-scaled distances up and call that the
+        "isolation metric"
 
-    A well-isolated peptide is one that:
-        Has very few reads to close-by non-self-dyetracks.
-    Or, put another way:
-        Has most of its reads to far away or self-dyetracks.
+        Meanwhile, compute the contention metric for the ml-peptide
+        for each dyetrack.
+        Sum those ml-pep contentions over every dyetrack
+        Find the "most contentious" peptide to return
 
-    A "very in contention" peptide is one that:
-        Has most of its reads very close.
-
-    This isolation and contention are inverses.
-
-    We want the sum of the isolations to get a sense of how well separate
-    this particular peptide is from others. A high isolation score
-    means it is well separated.
-
-    But we also want the contention score so that we can note of all
-    the possible contentious peptides, which is the WORST?
+        In python-like code:
 
         isolation_by_dyt_i = {}
         contention_by_pep_i = {}
@@ -144,14 +115,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
 
         total_isolation_for_this_pep = sum( isolation_of_dyt_i )
         most_in_contention_pep = the_peptide_with_the_highest_contention_sum(contention_by_pep_i)
-
-
     */
-    // trace("START pep_i=%lu\n", pep_i);
-
-    // TODO: The above descibred algorithm for contention and isolation is not yet implemented correctly.
-
-//trace("pep_i=%lu\n", pep_i);
 
     Size n_global_dyts = ctx->n_dyts;
     int n_neighbors = ctx->n_neighbors;
@@ -159,15 +123,20 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     int n_dyt_cols = ctx->n_dyt_cols;
     ensure(n_dyt_cols > 0, "no n_dyt_cols");
 
-    // SETUP a local table for the dyepeps of this peptide.
+    // SETUP a local table for the dyepeps OF THIS peptide by using the
+    // pep_i_to_dyepep_row_i table to get the start and stop range.
     tab_var(Index, dyepeps_offset_start_of_this_pep, &ctx->pep_i_to_dyepep_row_i, pep_i);
     tab_var(Index, dyepeps_offset_start_of_next_pep, &ctx->pep_i_to_dyepep_row_i, pep_i + 1);
     int _n_local_dyts = *dyepeps_offset_start_of_next_pep - *dyepeps_offset_start_of_this_pep;
     ensure(_n_local_dyts > 0, "no dyts pep_i=%ld (this=%ld next=%ld)", pep_i, *dyepeps_offset_start_of_this_pep, *dyepeps_offset_start_of_next_pep);
     Index n_local_dyts = (Index)_n_local_dyts;
 
+    // Using the pep_i_to_dyepep_row_i we now have the range of the dyepeps and we
+    // can create a table subset (which is jsut a view into the table)
     Tab dyepeps = tab_subset(&ctx->dyepeps, *dyepeps_offset_start_of_this_pep, n_local_dyts);
 
+    // We need a contiguous dyemat to feed to the FLANN function so we have
+    // to copy each referenced dyemat from the global ctx->dyemat into a local copy.
     // ALLOC a dyemat for all of the dyts of this peptide
     RadType *local_dyemat_buffer = (RadType *)alloca(n_local_dyts * n_dyt_cols * sizeof(DyeType));
     memset(local_dyemat_buffer, 0, n_local_dyts * n_dyt_cols * sizeof(DyeType));
@@ -182,7 +151,8 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
         memcpy(dst, src, dyt_row_n_bytes);
     }
 
-    // ALLOC space for the NN table
+    // FLANN needs buffers to write what it found as the closest neighbors and their distances.
+    // ALLOC space for those table on the stack because they shouldn't be too large.
     Size nn_dyt_iz_row_n_bytes = n_neighbors * sizeof(int);
     Size nn_dists_row_n_bytes = n_neighbors * sizeof(float);
     int *nn_dyt_iz_buf = (int *)alloca(n_local_dyts * nn_dyt_iz_row_n_bytes);
@@ -190,7 +160,6 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     memset(nn_dyt_iz_buf, 0, n_local_dyts * nn_dyt_iz_row_n_bytes);
     memset(nn_dists_buf, 0, n_local_dyts * nn_dists_row_n_bytes);
 
-    // Remember: nn_dyt_iz_buf contains offsets into the GLOBAL dyemat
     Tab nn_dyt_iz = tab_by_n_rows(nn_dyt_iz_buf, n_local_dyts, nn_dyt_iz_row_n_bytes, TAB_NOT_GROWABLE);
     Tab nn_dists = tab_by_n_rows(nn_dists_buf, n_local_dyts, nn_dists_row_n_bytes, TAB_NOT_GROWABLE);
 
@@ -206,22 +175,25 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     );
     ensure(ret == 0, "flann returned error code");
 
-    // TODO: Check FLANN retuns the square of the distance
+    // At this point FLANN has found neighbors (and their distances) for each local dyetrack
+    // Tab nn_dyt_iz contains the GLBOAL dyt_i index for each neighbor
+    // Tab nn_dists contains the distance
+    // TODO: Check FLANN retuns the square of the distance (?)
 
     // Sanity check
-    for (Index i=0; i<n_local_dyts; i++) {
-        tab_var(int, row, &nn_dyt_iz, i);
-        for (int j=0; j<n_neighbors; j++ ) {
-            //printf("%3d ", row[j]);
-            if(!(0 <= row[j] && row[j] < (int)n_global_dyts)) {
-                trace("\nfield in row %d %d %d %d\n", i, j, row[j], n_global_dyts);
-            }
-        }
-        //printf("\n");
-    }
+//    for (Index i=0; i<n_local_dyts; i++) {
+//        tab_var(int, row, &nn_dyt_iz, i);
+//        for (int j=0; j<n_neighbors; j++ ) {
+//            //printf("%3d ", row[j]);
+//            if(!(0 <= row[j] && row[j] < (int)n_global_dyts)) {
+//                trace("\nfield in row %d %d %d %d\n", i, j, row[j], n_global_dyts);
+//            }
+//        }
+//        //printf("\n");
+//    }
 
-    // FOLLOW each neighbor dyt to its mlpep. Often, this mlpep will be the
-    // same as the pep_i that is currently analyzeing. The first mlpep that
+    // FOLLOW each neighbor dyt to its ml-pep. Often, this ml-pep will be the
+    // same as the pep_i that we are currently analyzing. The first mlpep that
     // is NOT this same peptide we call the most-in-contention peptide (mic_pep_i).
     // The distance to that micpep is a distance of interest.
 
