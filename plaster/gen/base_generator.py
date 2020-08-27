@@ -103,7 +103,7 @@ class BaseGenerator(Munch):
 
     sigproc_source_schema = s(
         s.is_kws_r(
-            sigproc_source=s.is_str(help="See Main Help"),
+            sigproc_source=s.is_str(noneable=True, help="See Main Help"),
             movie=s.is_bool(noneable=True, help="See Main Help"),
             n_frames_limit=s.is_int(
                 bounds=(1, 500), noneable=True, help="See Main Help"
