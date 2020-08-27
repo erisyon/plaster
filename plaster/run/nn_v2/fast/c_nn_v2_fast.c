@@ -43,19 +43,6 @@ void score_weighted_inv_square(
 }
 
 
-void local_trace(const char *fmt, ...) {
-    static FILE *trace_file = (FILE *)0;
-    if(!trace_file) {
-        trace_file = fopen("trace.txt", "wt");
-    }
-    va_list args;
-    va_start(args, fmt);
-    vfprintf(trace_file, fmt, args);
-    fflush(trace_file);
-    va_end(args);
-}
-
-
 void score_weighted_gaussian_mixture(
     int n_neighbors,
     Size n_cols,
@@ -256,7 +243,6 @@ void *context_work_orders_worker(void *_ctx) {
 }
 
 
-
 void context_start(NNV2FastContext *ctx) {
     ensure(sanity_check() == 0, "Sanity checks failed");
     ensure(
@@ -286,6 +272,11 @@ void context_start(NNV2FastContext *ctx) {
 
     pthread_t ids[256];
     ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
+
+    if(ctx->n_threads > 1) {
+        trace("WARNING. Multi-thread nn_v2 broken, reverting to single thread\n");
+        ctx->n_threads = 1;
+    }
 
     if(ctx->n_threads > 1) {
         int ret = pthread_mutex_init(&ctx->work_order_lock, NULL);
