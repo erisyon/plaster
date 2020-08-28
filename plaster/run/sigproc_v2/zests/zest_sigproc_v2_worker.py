@@ -1,3 +1,4 @@
+from munch import Munch
 import numpy as np
 import pickle
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
@@ -104,7 +105,7 @@ def zest_regional_balance_chcy_ims():
 
     def it_subtracts_regional_bg():
         chcy_ims, calib = _setup(10.0)
-        bal_ims = worker._regional_balance_chcy_ims(chcy_ims, calib)
+        bal_ims = worker._regional_balance_and_bg_subtract_chcy_ims(chcy_ims, calib)
 
         # 0, 0 corner is 10 times brighter
         # Opposite corner is just unit brightness
@@ -116,7 +117,7 @@ def zest_regional_balance_chcy_ims():
     def it_handles_all_zeros():
         _, calib = _setup(1.0)
         all_zeros = np.zeros((2, 4, 512, 512))
-        bal_ims = worker._regional_balance_chcy_ims(all_zeros, calib)
+        bal_ims = worker._regional_balance_and_bg_subtract_chcy_ims(all_zeros, calib)
         assert np.all(np.abs(bal_ims - (0 - 100) * 1) < 1.0)
 
     def it_raises_on_nans():
@@ -124,11 +125,11 @@ def zest_regional_balance_chcy_ims():
 
         with zest.raises(ValueError, in_args="nan"):
             nan_chcy_ims = np.full_like(chcy_ims, np.nan)
-            worker._regional_balance_chcy_ims(nan_chcy_ims, calib)
+            worker._regional_balance_and_bg_subtract_chcy_ims(nan_chcy_ims, calib)
 
         with zest.raises(ValueError, in_args="nan"):
             calib[f"regional_bg_mean.instrument_channel[0]"][0][0] = np.nan
-            worker._regional_balance_chcy_ims(chcy_ims, calib)
+            worker._regional_balance_and_bg_subtract_chcy_ims(chcy_ims, calib)
 
     zest()
 
@@ -186,7 +187,6 @@ def zest_peak_find():
     zest()
 
 
-@zest.group("slow")
 def zest_psf_estimate():
     bg_mean = 145
     bg_std = 11
@@ -351,30 +351,6 @@ def zest_psf_estimate():
         assert psf.shape == (17, 17)
 
     zest()
-
-
-"""
-def zest_psf_normalize():
-    def it_normalizes_4_dim():
-        psfs = np.ones((2, 2, 4, 4))
-        got = worker._psf_normalize(psfs)
-        assert got.shape == (2, 2, 4, 4) and np.all(got == 1.0 / 16.0)
-
-    def it_normalizes_5_dim():
-        psfs = np.ones((3, 2, 2, 4, 4))
-        psfs[0] = psfs[0] * 1
-        psfs[1] = psfs[1] * 2
-        psfs[2] = psfs[2] * 3
-        got = worker._psf_normalize(psfs)
-        assert got.shape == (3, 2, 2, 4, 4) and np.all(got == 1.0 / 16.0)
-
-    def it_handles_zeros():
-        psfs = np.zeros((2, 2, 4, 4))
-        got = worker._psf_normalize(psfs)
-        assert np.all(got == 0.0)
-
-    zest()
-"""
 
 
 def zest_calibrate_bg_and_psf_im():
@@ -554,7 +530,6 @@ def zest_mask_anomalies_im():
     zest()
 
 
-# @zest.skip(reason="slow")
 def zest_align():
     def _ims(mea=512, std=1.5):
         bg_mean = 145
@@ -587,7 +562,6 @@ def zest_align():
     zest()
 
 
-@zest.group("slow")
 def zest_composite_with_alignment_offsets_chcy_ims():
     def _ims():
         bg_mean = 145
@@ -604,7 +578,7 @@ def zest_composite_with_alignment_offsets_chcy_ims():
 
     def it_creates_a_single_composite_image():
         chcy_ims, true_aln_offsets = _ims()
-        comp_im = worker._analyze_step_4_composite_with_alignment_offsets_chcy_ims(
+        comp_im = worker._analyze_step_4_align_stack_of_chcy_ims(
             chcy_ims, true_aln_offsets
         )
         assert comp_im.ndim == 4
@@ -696,74 +670,36 @@ def zest_peak_radiometry():
     zest()
 
 
-# def zest_radiometry():
-#     def it_uses_the_regional_psf():
-#         raise NotImplementedError
-#
-#     def it_skips_near_edges():
-#         raise NotImplementedError
-#
-#     def it_skips_nans():
-#         # How does this ever happen? Can it happen?
-#         raise NotImplementedError
-#
-#     def it_calls_to_peak_radiometry():
-#         raise NotImplementedError
-#
-#     def it_returns_sig_and_noise_by_loc_ch_cy():
-#         raise NotImplementedError
-#
-#     zest()
-#
-#
-# def zest_sigproc_field():
-#     def it_works_on_a_test_field():
-#         # Is this going to characterize? Or random seed?
-#         raise NotImplementedError
-#
-#     def it_filters_empties():
-#         # Maybe this should be its own unit?
-#         raise NotImplementedError
-#
-#     def it_returns_chcy_ims__locs__radmat__aln_offsets__aln_scores():
-#         raise NotImplementedError
-#
-#     zest()
-#
-# def zest_sigproc():
-#     def it_works_on_two_fields():
-#         raise NotImplementedError
-#
-#     zest()
+def zest_analyze_step_6_radiometry():
+    with synth.Synth(n_channels=1, n_cycles=2, overwrite=True, dim=(512, 512)) as s:
+        # The synth really needs a PSF model but for now...
+        psf = imops.gauss2_rho_form(
+            amp=1.0,
+            std_x=1.5,
+            std_y=1.5,
+            pos_x=11 // 2,
+            pos_y=11 // 2,
+            rho=0.0,
+            const=0.0,
+            mea=11,
+        )
 
+        bg_mean = 150
+        (
+            synth.PeaksModelGaussianCircular(n_peaks=1000)
+            .locs_randomize()
+            .widths_uniform(1.5)
+            .dyt_amp_constant(4000)
+            .dyt_random_choice([[1, 1], [1, 0]], [0.1, 0.9])
+        )
+        synth.CameraModel(bias=bg_mean, std=20)
+        synth.HaloModel(std=20, scale=2)
+        chcy_ims = s.render_chcy()
 
-# # Helpers
-# DONE def _kernel():
-# DONE def _intersection_roi_from_aln_offsets(aln_offsets, raw_dim):
-# DONE def _regional_bg_fg_stats(im, mask_radius=2, divs=5, return_ims=False):
-# DONE def _regional_balance_chcy_ims(chcy_ims, calib):
-# SKIP   def circle_locs(im, locs, inner_radius=3, outer_radius=4, fill_mode="nan"):
-# DONE def _peak_find(im):
-#
-# # PSF
-# DONE def _psf_estimate(im, locs, mea, keep_dist=8, return_reasons=True):
-# DONE def _psf_normalize(psfs):
-#
-# # Calibration
-# def _calibrate_bg_and_psf_im(im, divs=5, keep_dist=8, peak_mea=11, locs=None):
-# def _calibrate(flchcy_ims, divs=5, progress=None, overload_psf=None):
-# def calibrate(ims_import_res, n_best_fields=6, divs=5, metadata=None, progress=None):
-#
-# # Steps
-# DONE def _compute_channel_weights(sigproc_params, calib):
-# DONE def _import_balanced_images(chcy_ims, sigproc_params, calib):
-# DONE def _mask_anomalies_im(im, den_threshold=300):
-# DONE def _align(cy_ims):
-# DONE def _composite_with_alignment_offsets_chcy_ims(chcy_ims, aln_offsets):
-# DONE def _peak_radiometry( peak_im, psf_kernel, center_weighted_mask, allow_non_unity_psf_kernel=False):
-# def _radiometry(chcy_ims, locs, ch_z_reg_psfs, cycle_to_z_index):
-#
-# # Entrypoint
-# def sigproc_field(chcy_ims, sigproc_params, snr_thresh=None):
-# def _do_sigproc_field(ims_import_result, sigproc_params, field_i, sigproc_result):
-# def sigproc(sigproc_params, ims_import_result, progress=None):
+    sigproc_v2_params = Munch(divs=5, peak_mea=11)
+    calib = Calibration()
+    import pudb
+
+    pudb.set_trace()
+    calib[f"regional_psf_zstack.instrument_channel[0]"] = np.tile(psf, (1, 5, 5))
+    worker._analyze_step_6_radiometry(chcy_ims, s.locs, calib, sigproc_v2_params)

@@ -15,6 +15,7 @@ def cluster(data, n_subsample=None, **kwargs):
     method = kwargs.pop("method", "weighted")
     if n_subsample is not None:
         data = subsample(data, n_subsample)
+    assert data.shape[0] <= 500
     if data.shape[0] > 1:
         data_dist = pdist(data)
         data_link = linkage(

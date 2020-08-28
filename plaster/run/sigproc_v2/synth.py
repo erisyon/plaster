@@ -1,9 +1,10 @@
 import numpy as np
-import math
+import cv2
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
 from plaster.tools.utils import utils
+from plaster.tools.schema import check
 from plumbum import local
 
 # see comment below, above "PeaksModelPSF" regarding why this is commented out
@@ -159,10 +160,34 @@ class PeaksModel(BaseSynthModel):
         self.amps = mean + std * np.random.randn(self.n_peaks)
         return self
 
+    def dyt_amp_constant(self, amp):
+        self.dyt_amp = amp
+        return self
+
     def dyt_uniform(self, dyt):
         dyt = np.array(dyt)
         dyts = np.tile(dyt, (self.amps.shape[0], 1))
-        self.amps = self.amps[:, None] * dyts
+        self.amps = self.dyt_amp * dyts
+        return self
+
+    def dyt_random_choice(self, dyts, probs):
+        """
+        dyts is like:
+            [
+                [3, 2, 2, 1],
+                [2, 1, 1, 0],
+                [1, 0, 0, 0],
+            ]
+
+        and each row of dyts has a probability for it
+            probs: [0.5, 0.3, 0.2]
+        """
+        dyts = np.array(dyts)
+        check.array_t(dyts, ndim=2)
+        assert dyts.shape[0] == len(probs)
+
+        choices = np.random.choice(len(dyts), size=self.n_peaks, p=probs)
+        self.amps = self.dyt_amp * dyts[choices, :]
         return self
 
     def remove_near_edges(self, dist=20):
@@ -187,6 +212,7 @@ class PeaksModelGaussian(PeaksModel):
         self.std_y = None
         self.z_scale = None  # (simulates z stage)
         self.z_center = None  # (simulates z stage)
+        self.mea = 11
 
     def z_function(self, z_scale, z_center):
         self.z_scale = z_scale
@@ -211,7 +237,6 @@ class PeaksModelGaussian(PeaksModel):
             assert self.z_center is not None
             z_scale = 1.0 + self.z_scale * (cy_i - self.z_center) ** 2
 
-        mea = 11
         for loc, amp, std_x, std_y in zip(self.locs, self.amps, self.std_x, self.std_y):
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
@@ -222,11 +247,11 @@ class PeaksModelGaussian(PeaksModel):
                 amp=amp,
                 std_x=z_scale * std_x,
                 std_y=z_scale * std_y,
-                pos_x=mea // 2 + frac_x,
-                pos_y=mea // 2 + frac_y,
+                pos_x=self.mea // 2 + frac_x,
+                pos_y=self.mea // 2 + frac_y,
                 rho=0.0,
                 const=0.0,
-                mea=mea,
+                mea=self.mea,
             )
 
             imops.accum_inplace(im, peak_im, loc=YX(*np.floor(loc)), center=True)
@@ -332,3 +357,18 @@ class CameraModel(BaseSynthModel):
         super().render(im, fl_i, ch_i, cy_i)
         bg = np.random.normal(loc=self.bias, scale=self.std, size=self.dim)
         imops.accum_inplace(im, bg, XY(0, 0), center=False)
+
+
+class HaloModel(BaseSynthModel):
+    def __init__(self, std=20, scale=2):
+        super().__init__()
+        self.std = std
+        self.scale = scale
+
+    def render(self, im, fl_i, ch_i, cy_i):
+        super().render(im, fl_i, ch_i, cy_i)
+        size = int(self.std * 2.5)
+        size += 1 if size % 2 == 0 else 0
+        bg_mean = np.median(im) - 1
+        blur = cv2.GaussianBlur(im, (size, size), self.std) - bg_mean - 1
+        imops.accum_inplace(im, self.scale * blur, XY(0, 0), center=False)

@@ -163,7 +163,7 @@ def _intersection_roi_from_aln_offsets(aln_offsets, raw_dim):
     return ROI(loc=YX(b, l), dim=HW(t - b, r - l))
 
 
-def _regional_balance_chcy_ims(chcy_ims, calib):
+def _regional_balance_and_bg_subtract_chcy_ims(chcy_ims, calib):
     """
     Balance and subtract background on each channel according to calibration data.
 
@@ -870,7 +870,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
         dst_chcy_ims[out_ch, :] = chcy_ims[in_ch]
 
     # _regional_balance_chcy_ims will balance AND subtract
-    dst_chcy_ims = _regional_balance_chcy_ims(dst_chcy_ims, calib)
+    dst_chcy_ims = _regional_balance_and_bg_subtract_chcy_ims(dst_chcy_ims, calib)
 
     channel_weights = _analyze_step_1a_compute_channel_weights(sigproc_params, calib)
     dst_chcy_ims = utils.np_fn_along(np.multiply, dst_chcy_ims, channel_weights, axis=0)
@@ -969,7 +969,7 @@ def _analyze_step_3_align(cy_ims):
     return aln_offsets, aln_scores
 
 
-def _analyze_step_4_composite_with_alignment_offsets_chcy_ims(chcy_ims, aln_offsets):
+def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     """
     Given the alignment_offsets, create a new image stack that
     has the dimensions of the intersection ROI (ie the overlapping
@@ -1240,9 +1240,7 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
         aln_offsets, aln_scores = _analyze_step_3_align(np.mean(chcy_ims, axis=0))
 
         # Step 4: Composite with alignment
-        chcy_ims = _analyze_step_4_composite_with_alignment_offsets_chcy_ims(
-            chcy_ims, aln_offsets
-        )
+        chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets)
         # chcy_ims is now only the intersection region so it may be smaller than the original
     else:
         aln_offsets = [YX(0, 0) for cy_i in range(n_cycles)]
