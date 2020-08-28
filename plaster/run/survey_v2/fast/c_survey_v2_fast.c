@@ -12,26 +12,12 @@
 
 /*
 
-Looks like there's more and more common c code
-Need to get a common pxd file
-Change all dye_ and dt stuff to consistent dyt_
-I really want more than one version of table_init
+Survey
 
-mlpep = maximum likely peptide
+This code's job is to measure how "isolated" each peptide is
+with the goal of quickly prediciting how well a given
+label/protease scheme will perform.
 
-Build a "dyt_to_mlpep" LUT
-
-for each peptide (parallel)
-    extract out all of the dyts for that peptide (a groupby in pandas or a index similar to sim_v2)
-        Lookup n_neighbors for each of those dyetracks
-        that's a matrix of n_dyt, n_neighbor
-        there's a parallel dist vector returned from flann
-        replace each value in that table with a LUT from dyt_to_mlpep
-        Search along the columns for the first pep that isn't THIS pep
-        That pep is the closest interference pep
-
-        Multiply f(dist) * frac_of_reads_to_this_dyt
-        Add all those up and that's the isolation metric. A big number is better.
 */
 
 void dump_dyepeps(SurveyV2FastContext *ctx) {
@@ -65,10 +51,18 @@ void dump_row_of_dyemat(Tab *dyemat, int row, char *prefix) {
     printf("\n");
 }
 
+HashKey pep_i_to_hash_key(Index pep_i) {
+    return (pep_i + 1);
+}
+
+Index hash_key_pep_i(HashKey pep_i) {
+    return (pep_i - 1);
+}
+
+int show_debug = 0;
+
 void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     /*
-    TODO.
-    A large value of isolation means the peptide is well separated.
 
     Terminology:
         dyt: Dyetrack
@@ -81,77 +75,60 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
         global:dyts: The set of all dyetracks in the simulation.
         ml_pep: "Most Likely Peptide" That is the peptide with the most reads
             from any given dyetrack
+        self-dyetrack: a dyetrack that has THIS peptide as its ML-pep
+        foreign-dyetrack: a dyetrack that has SOME OTHER peptide as its ML-pep
+        isolation: A metric of how well separated this peptide is
+            from other peptides. This is a relative metric, not
+            an actual distance (ie this is NOT a Euclidiean distance)
+        contention: The inverse of isolation. A large number means the
+            peptide is LESS isolated.
 
-    Each peptide (1 of which is passed into this function)
-    has many dyetracks that it can generate.
-    Each dyetrack maps to a max-likley peptide and has some n_reads
-    Example:
+    This function analyzes the "isolation" of a single peptide.
+    It has access to:
+        * The dyepeps which is a table w/ columns: (dyt_i, pep_i, n_reads)
+            That is, each peptide has a list of all dyetracks it can
+            create and how many reads that peptide generated for each
+            dyetrack.
+        * All the dyetracks
 
-        Peptide 1:
-          dyt_i:1    n_reads:3537      mlpep_i:1      1 0 0 0 0 0 1 1 0 0 0 0
-          dyt_i:2    n_reads:33        mlpep_i:2      0 0 0 0 0 0 1 1 1 0 0 0
-          dyt_i:3    n_reads:307       mlpep_i:1      1 0 0 0 0 0 0 0 0 0 0 0
-          dyt_i:4    n_reads:371       mlpep_i:1      1 0 0 0 0 0 1 0 0 0 0 0
-          dyt_i:5    n_reads:30        mlpep_i:3      0 0 0 0 0 0 1 0 0 0 0 0
-          dyt_i:6    n_reads:182       mlpep_i:1      1 1 0 0 0 0 1 1 1 0 0 0
-          dyt_i:7    n_reads:13        mlpep_i:1      1 1 0 0 0 0 0 0 0 0 0 0
-          dyt_i:8    n_reads:205       mlpep_i:1      1 0 0 0 0 0 1 1 1 0 0 0
-          dyt_i:9    n_reads:3         mlpep_i:2      0 0 0 0 0 0 1 1 1 1 0 0
-          dyt_i:10   n_reads:1         mlpep_i:1      1 1 1 0 0 0 1 1 1 0 0 0
-          dyt_i:11   n_reads:10        mlpep_i:1      1 0 0 0 0 0 1 1 1 1 0 0
-          dyt_i:12   n_reads:259       mlpep_i:3      0 0 0 0 0 0 1 1 0 0 0 0
-          dyt_i:13   n_reads:10        mlpep_i:1      1 1 0 0 0 0 1 0 0 0 0 0
-          dyt_i:14   n_reads:10        mlpep_i:1      1 1 1 0 0 0 1 1 1 1 0 0
-          dyt_i:15   n_reads:8         mlpep_i:1      1 1 0 0 0 0 1 1 1 1 0 0
-          dyt_i:16   n_reads:1         mlpep_i:1      1 1 1 0 0 0 0 0 0 0 0 0
-          dyt_i:17   n_reads:18        mlpep_i:1      1 1 0 0 0 0 1 1 0 0 0 0
-          dyt_i:18   n_reads:1         mlpep_i:1      1 1 1 1 0 0 1 1 1 1 1 0
-          dyt_i:19   n_reads:1         mlpep_i:1      1 0 0 0 0 0 1 1 1 1 1 0
+    We seek features for this peptide:
+         * A measure of "p_correct"
+         * Which OTHER peptide is the most contentious with this peptide?
+           (Of the peptides that cause problems, which is the worst?)
 
-    A "self-dyetrack" is one that has its ML peptide equal to this peptide
-    A "foreign-dyetrack" is one that has its ML peptide equal to any other peptide
+    Algorithm:
+        For this_peptide...
+            for dyt in this_peptide's_dyetracks...
+                for neighbor in neighbors_of(dyt)...
+                    dist = distance from dyt to neighbor
+                    p_not_pred = distance_function(dist)
+                        The distance_function is one that goes from
+                        0.0 (close by) and asymptotically approaches 1.0
+                        as it gets further away. It can be thought of
+                        as "probability that this neighbor does NOT predict
+                        the peptide"
 
-    A well-isolated peptide is one that:
-        Has very few reads to close-by non-self-dyetracks.
-    Or, put another way:
-        Has most of its reads to far away or self-dyetracks.
+                        BUT -- the dyt might itself be foreign... so in
+                        that case the logic reverses...
+                        it's the "probability that this neighbor rescues
+                        the predicition of this peptide."
+                if dyt is local:
+                    p_correct = product( all p_not_pred )
+                else if dyt is foreign
+                    p_correct = 1 - product( all p_not_pred )
 
-    A "very in contention" peptide is one that:
-        Has most of its reads very close.
+            Each dyt was generated by pep_i n_reads / n_total_reads
 
-    This isolation and contention are inverses.
+            So we now scale each of the p_correct times the fraction
+            of calls that dyt contributes to this peptide
 
-    We want the sum of the isolations to get a sense of how well separate
-    this particular peptide is from others. A high isolation score
-    means it is well separated.
-
-    But we also want the contention score so that we can note of all
-    the possible contentious peptides, which is the WORST?
-
-        isolation_by_dyt_i = {}
-        contention_by_pep_i = {}
-        for (
-            dyt_i,
-            distance_to_closest_dyt_with_a_foreign_mlpep,
-            n_reads_to_dyt_i,
-            closest_foreign_mlpep_i
-        ) in this_peptide_dyts:
-            isolation = n_reads_to_dyt_i * distance_to_closest_dyt_with_a_foreign_mlpep
-            contention = n_reads_to_dyt_i / distance_to_closest_dyt_with_a_foreign_mlpep
-
-            isolation_by_dyt_i[dyt_i] += isolation
-            contention_by_pep_i[closest_foreign_mlpep_i] += contention
-
-        total_isolation_for_this_pep = sum( isolation_of_dyt_i )
-        most_in_contention_pep = the_peptide_with_the_highest_contention_sum(contention_by_pep_i)
-
-
+            Meanwhile, compute the contention metric for the ml-peptide
+            for each dyetrack.
     */
-    // trace("START pep_i=%lu\n", pep_i);
 
-    // TODO: The above descibred algorithm for contention and isolation is not yet implemented correctly.
-
-//trace("pep_i=%lu\n", pep_i);
+    if(show_debug) {
+	    trace("pep_i=%ld\n", pep_i);
+	}
 
     Size n_global_dyts = ctx->n_dyts;
     int n_neighbors = ctx->n_neighbors;
@@ -159,38 +136,46 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     int n_dyt_cols = ctx->n_dyt_cols;
     ensure(n_dyt_cols > 0, "no n_dyt_cols");
 
-    // SETUP a local table for the dyepeps of this peptide.
+    // SETUP a local table for the dyepeps OF THIS peptide by using the
+    // pep_i_to_dyepep_row_i table to get the start and stop range.
     tab_var(Index, dyepeps_offset_start_of_this_pep, &ctx->pep_i_to_dyepep_row_i, pep_i);
     tab_var(Index, dyepeps_offset_start_of_next_pep, &ctx->pep_i_to_dyepep_row_i, pep_i + 1);
     int _n_local_dyts = *dyepeps_offset_start_of_next_pep - *dyepeps_offset_start_of_this_pep;
     ensure(_n_local_dyts > 0, "no dyts pep_i=%ld (this=%ld next=%ld)", pep_i, *dyepeps_offset_start_of_this_pep, *dyepeps_offset_start_of_next_pep);
     Index n_local_dyts = (Index)_n_local_dyts;
 
+    // Using the pep_i_to_dyepep_row_i we now have the range of the dyepeps and we
+    // can create a table subset (which is jsut a view into the table)
     Tab dyepeps = tab_subset(&ctx->dyepeps, *dyepeps_offset_start_of_this_pep, n_local_dyts);
 
+    // We need a contiguous dyemat to feed to the FLANN function so we have
+    // to copy each referenced dyemat from the global ctx->dyemat into a local copy.
     // ALLOC a dyemat for all of the dyts of this peptide
     RadType *local_dyemat_buffer = (RadType *)alloca(n_local_dyts * n_dyt_cols * sizeof(DyeType));
     memset(local_dyemat_buffer, 0, n_local_dyts * n_dyt_cols * sizeof(DyeType));
     Tab local_dyemat = tab_by_n_rows(local_dyemat_buffer, n_local_dyts, n_dyt_cols * sizeof(DyeType), TAB_NOT_GROWABLE);
 
-    // LOAD the local dyemat table by copying using the dyt_iz in dyepeps
+    // LOAD the local dyemat table by copying rows from the global dyemat
+    // using the dyt_iz referenced in the dyepeps table.
     for(Index i=0; i<n_local_dyts; i++) {
         tab_var(DyePepRec, dyepep_row, &dyepeps, i);
-
         tab_var(DyeType, src, &ctx->dyemat, dyepep_row->dtr_i);
         tab_var(DyeType, dst, &local_dyemat, i);
         memcpy(dst, src, dyt_row_n_bytes);
     }
 
-    // ALLOC space for the NN table
+    // Now local_dyemat is a contiguous "local" set of the dyemats that
+    // are generated by this pep_i. It must be contiguous so that FLANN
+    // and operate on it on one fast call.
+
+    // FLANN needs output buffers to write what it found as the closest neighbors and their distances.
+    // ALLOC space for those table on the stack because they shouldn't be too large.
     Size nn_dyt_iz_row_n_bytes = n_neighbors * sizeof(int);
-    Size nn_dists_row_n_bytes = n_neighbors * sizeof(float);
+    Size nn_dists_row_n_bytes = n_neighbors * sizeof(Float32);
     int *nn_dyt_iz_buf = (int *)alloca(n_local_dyts * nn_dyt_iz_row_n_bytes);
-    float *nn_dists_buf = (float *)alloca(n_local_dyts * nn_dists_row_n_bytes);
+    Float32 *nn_dists_buf = (Float32 *)alloca(n_local_dyts * nn_dists_row_n_bytes);
     memset(nn_dyt_iz_buf, 0, n_local_dyts * nn_dyt_iz_row_n_bytes);
     memset(nn_dists_buf, 0, n_local_dyts * nn_dists_row_n_bytes);
-
-    // Remember: nn_dyt_iz_buf contains offsets into the GLOBAL dyemat
     Tab nn_dyt_iz = tab_by_n_rows(nn_dyt_iz_buf, n_local_dyts, nn_dyt_iz_row_n_bytes, TAB_NOT_GROWABLE);
     Tab nn_dists = tab_by_n_rows(nn_dists_buf, n_local_dyts, nn_dists_row_n_bytes, TAB_NOT_GROWABLE);
 
@@ -206,126 +191,202 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     );
     ensure(ret == 0, "flann returned error code");
 
-    // TODO: Check FLANN retuns the square of the distance
-
-    // Sanity check
-    for (Index i=0; i<n_local_dyts; i++) {
-        tab_var(int, row, &nn_dyt_iz, i);
-        for (int j=0; j<n_neighbors; j++ ) {
-            //printf("%3d ", row[j]);
-            if(!(0 <= row[j] && row[j] < (int)n_global_dyts)) {
-                trace("\nfield in row %d %d %d %d\n", i, j, row[j], n_global_dyts);
-            }
-        }
-        //printf("\n");
-    }
-
-    // FOLLOW each neighbor dyt to its mlpep. Often, this mlpep will be the
-    // same as the pep_i that is currently analyzeing. The first mlpep that
-    // is NOT this same peptide we call the most-in-contention peptide (mic_pep_i).
-    // The distance to that micpep is a distance of interest.
+    // At this point FLANN has found neighbors (and their distances) for each local dyetrack
+    // and put the results into:
+    // 	  Tab nn_dyt_iz contains the GLOBAL dyt_i index for each neighbor
+    // 	  Tab nn_dists contains the distance
 
     Size n_neighbors_u = (Size)n_neighbors;
     Size n_reads_total = 0;
-    Index mic_pep_i = 0;
-//    Index mic_dyt_i = 0;
 
-    Index *local_dyt_i_to_closest_mlpep_i_buf = (Index *)alloca(n_local_dyts * sizeof(Index));
-    memset(local_dyt_i_to_closest_mlpep_i_buf, 0, n_local_dyts * sizeof(Index));
-    Tab local_dyt_i_to_closest_mlpep_i = tab_by_n_rows(local_dyt_i_to_closest_mlpep_i_buf, n_local_dyts, sizeof(Index), TAB_NOT_GROWABLE);
+	#define N_PEP_HASH_RECS (128)
+	Hash contention_by_pep_i = hash_init(alloca(sizeof(HashRec) * N_PEP_HASH_RECS), N_PEP_HASH_RECS);
+	Index mlpep_i = 0;
 
-    float *local_dyt_i_to_closest_dyt_isolation_buf = (float *)alloca(n_local_dyts * sizeof(float));
-    memset(local_dyt_i_to_closest_dyt_isolation_buf, 0, n_local_dyts * sizeof(float));
-    Tab local_dyt_i_to_closest_dyt_isolation = tab_by_n_rows(local_dyt_i_to_closest_dyt_isolation_buf, n_local_dyts, sizeof(float), TAB_NOT_GROWABLE);
+    IsolationType isolation_sum = (IsolationType)0.0;
+    for (Index dyt_i=0; dyt_i<n_local_dyts; dyt_i++) {
+		// Reminder: dyepeps is the LOCAL dyepeps for pep_i only
+        tab_var(DyePepRec, dyepep_row, &dyepeps, dyt_i);
 
-    // For each dyt that pep_i could create, populate:
-    //   local_dyt_i_to_closest_mlpep_i
-    //   local_dyt_i_to_closest_dyt_isolation
+        Index mlpep_i_for_this_dyt_i = tab_get(Index, &ctx->dyt_i_to_mlpep_i, dyepep_row->dtr_i);
 
-    for (Index i=0; i<n_local_dyts; i++) {
+		// Get pointers to the nearest neighbor (nn) records (closest neighbot dy_y and
+		// distance) that FLANN returned to us for this dyt_i
+        tab_var(int, nn_dyt_row_i, &nn_dyt_iz, dyt_i);
+        tab_var(float, nn_dists_row_i, &nn_dists, dyt_i);
 
-        tab_var(DyePepRec, dyepep_row, &dyepeps, i);
-//trace("  i=%lu  (dyt:%lu pep:%lu cnt:%lu) \n", i, dyepep_row->dtr_i, dyepep_row->pep_i, dyepep_row->n_reads);
+        int is_local = mlpep_i_for_this_dyt_i == pep_i;
 
-        Float32 mic_pep_isolation = (Float32)0;
-        tab_var(int, nn_dyt_row_i, &nn_dyt_iz, i);
-        tab_var(float, nn_dists_row_i, &nn_dists, i);
+        if(show_debug) {
+            trace("  dyt_i:%-4lu  n_reads:%-8lu  mlpep_i:%-4lu  is_local:%1d  ",
+                dyepep_row->dtr_i,
+                dyepep_row->n_reads,
+                mlpep_i_for_this_dyt_i,
+                is_local
+            );
 
-       // For each Neighbor that this dyt i has we want to accumulate a
-       // distance measurement -- ONLY IF that neighbor dyetrack mlpep
-       // is some peptide OTHER THAN the current peptide.
-       // (That is, dyetracks that come from the same peptide are not in contention)
-       //
-       // Hence we're searching for the closest neighbor that has a different mlpep than pep_i
-       // Note that FLANN returns neighbors in closest first so we can break
-       // out of the search loop as soon as we find a mlpep != pep
+            // DRAW the dyetracl
+            tab_var(DyeType, dyt, &ctx->dyemat, dyepep_row->dtr_i);
+            for (Index k=0; k<ctx->dyemat.n_bytes_per_row; k++) {
+                trace("%d ", dyt[k]);
+            }
+            trace("\n");
+        }
+
 
         Index nn_i = 0;
-        for (nn_i=0; nn_i<n_neighbors_u; nn_i++) {
-            int global_dyt_i = nn_dyt_row_i[nn_i];
-            ensure_only_in_debug(0 <= global_dyt_i && global_dyt_i < (int)n_global_dyts, "Illegal dyt in nn lookup: %ld %ld", global_dyt_i, n_global_dyts);
+        Index global_dyt_i_of_nn_i = 0;
 
-            if((int)dyepep_row->dtr_i == global_dyt_i) {
-                // Do not compare a dyetrack to itself, it will always be zero away
+        Float32 p_product = 1.0f;
+
+        for (nn_i=0; nn_i<n_neighbors_u; nn_i++) {
+            global_dyt_i_of_nn_i = nn_dyt_row_i[nn_i];
+            ensure_only_in_debug(
+            	0 <= (int)global_dyt_i_of_nn_i && (int)global_dyt_i_of_nn_i < (int)n_global_dyts,
+            	"Illegal dyt in nn lookup: %ld %ld", global_dyt_i_of_nn_i, n_global_dyts
+			);
+
+            if(dyepep_row->dtr_i == global_dyt_i_of_nn_i) {
+                // Do not compare a dyetrack to itself, it will always be zero
                 continue;
             }
 
-//trace("    nn_i=%lu (global_dyt_i=%lu)\n", nn_i, global_dyt_i);
-
-            // LOOKUP the mlpep for this dyt_i. remember, we must CONVERT from local_dyt_i to global_dyt_i
-            Index mlpep_i = tab_get(Index, &ctx->dyt_i_to_mlpep_i, global_dyt_i);
+            // LOOKUP the ml-pep for this dyt_i.
+            // Remember, we must use the global_dyt_i_of_nn_i not the local_dyt_i
+            mlpep_i = tab_get(Index, &ctx->dyt_i_to_mlpep_i, global_dyt_i_of_nn_i);
             ensure_only_in_debug(0 <= mlpep_i && mlpep_i < ctx->n_peps, "mlpep_i out of bounds %ld %ld", mlpep_i, ctx->n_peps);
 
-            if(mlpep_i != pep_i) {
-                // Found the first neighbor dyetrack with a Max-Liklihood peptide that isn't the current peptide
-                mic_pep_isolation = nn_dists_row_i[nn_i];
-                mic_pep_i = mlpep_i;
-//                mic_dyt_i = global_dyt_i;
-                break;
+            IsolationType distance = (IsolationType)nn_dists_row_i[nn_i];
+            // Note, FLANN's distances are Manhattan distances (ie sum of the differences
+            // of each dimension). I think this is good enough but it might be worth
+            // some sort of sweep over distance metrics.
+
+            // This magic number needs to be parameter swept
+            // And the function itself is jsut a guess. There are other
+            // distance functions that might be better?
+            Float32 k = 0.8f;
+            Float32 p_func = 1.0f - expf(-k * distance);
+
+            int mode = 0;
+            if(!is_local && mlpep_i == pep_i) {
+                // A dyt that is foreign but has a neighbor that is local.
+                // This is a potential rescue, we product this into
+                // the "p of not rescue"
+                p_product *= p_func;
+                mode = 1;
+            }
+
+            if(is_local && mlpep_i != pep_i) {
+                // A dyt that is local has a neighbor that is foreign.
+                // This is a potential thief, we product this into
+                // the "p of not stealing"
+                p_product *= p_func;
+                mode = 2;
+            }
+
+            // Debugging
+            if(show_debug && mode != 0) {
+                trace("    nn dyt_i:%-4lu  mlpep_i:%-4lu  dist_to_nn:%7.1f  p_func:%7.5f  mode:%1d  dyt_of_nn:",
+                    global_dyt_i_of_nn_i,
+                    mlpep_i,
+                    distance,
+                    p_func,
+                    mode
+                );
+
+                // Dyetrack
+                tab_var(DyeType, dyt, &ctx->dyemat, global_dyt_i_of_nn_i);
+                for (Index k=0; k<ctx->dyemat.n_bytes_per_row; k++) {
+                    trace("%d ", dyt[k]);
+                }
+                trace("\n");
             }
         }
 
-        if(nn_i == n_neighbors_u) {
-            // Got to the end without finding another peptide in the neighbor list
-            // We say that this peptide has no contention but this is a problem because
-            // we sum the contributions of each distance to the mlpep and a
-            // LARGER value is a better isolation. But here we know that the closest
-            // one is really far but we don't know HOW far so we don't know how
-            // to scale it.
-            // Thus, this value has to get passed in from context and the value
-            // probably has to be determined by sampling.
-            mic_pep_isolation = (Float32)(
-                ctx->distance_to_assign_an_isolated_pep
-                * ctx->distance_to_assign_an_isolated_pep
-            );
-            mic_pep_i = 0;
-//            mic_dyt_i = 0;
+        Float32 p_correct;
+        if(is_local) {
+            // A local dyt has some fraction of reads that are "stolen" by neighbors
+            // What the p(no theft)?
+            //   p(no theft) = p(nn_0_did_not_steal) * p(nn_1_did_not_steal) ...
+            //   p(no theft) = p_product
+            p_correct = p_product;
+        }
+        else {
+            // A foreign dyt has some fraction of reads that are "rescued" by neighbors
+            // What the p(any neighbor rescues)?
+            //   p(at least one rescue) = 1 - p(no rescue)
+            //   p(no rescue) = p(nn_0_did_not_rescue) * p(nn_1_did_not_rescue) ...
+            //   p(rescue) = 1 - p_product
+            p_correct = 1.0 - p_product;
         }
 
-//trace("      reads=%lu mic_pep_isolation=%f scaled=%f mic_pep_i=%lu  mic_dyt_i=%lu \n", dyepep_row->n_reads, mic_pep_isolation, dyepep_row->n_reads * sqrt(mic_pep_isolation), mic_pep_i, mic_dyt_i);
-        mic_pep_isolation = dyepep_row->n_reads * sqrt(mic_pep_isolation);
-        tab_set(&local_dyt_i_to_closest_dyt_isolation, i, &mic_pep_isolation);
-        tab_set(&local_dyt_i_to_closest_mlpep_i, i, &mic_pep_i);
+        IsolationType isolation = dyepep_row->n_reads * p_correct;
+        isolation_sum += isolation;
+        if(show_debug) {
+            trace("    p_correct=%7.5f    isolation=%7.1f \n", p_correct, isolation);
+        }
+
+        if(!is_local) {
+            // This is really just kind of a guess at which peptide
+            // is the worst offender...
+            // Accumulate into the hash of foreign peps it's contention
+            // p_product here is the probability that it wasn't
+            // rescued we we're going to assume that if it wasn't
+            // rescued that it was assigned to the mlpep.
+            // This is not exactly right as some of those neighbors
+            // might have assigned to OTHER peptides.
+
+    		IsolationType contention = dyepep_row->n_reads * p_product;
+
+            HashKey pep_hash_key = pep_i_to_hash_key(mlpep_i_for_this_dyt_i);
+            HashRec *by_pep_i_rec = hash_get(contention_by_pep_i, pep_hash_key);
+            if(by_pep_i_rec == (HashRec*)0) {
+                // hash full!
+                ensure(0, "contention_by_pep_i hash table full");
+            }
+            else if(by_pep_i_rec->key == 0) {
+                // New record
+                by_pep_i_rec->key = pep_hash_key;
+                by_pep_i_rec->contention_val = contention;
+            }
+            else {
+                // Existing record
+                by_pep_i_rec->contention_val += contention;
+            }
+        }
 
         n_reads_total += dyepep_row->n_reads;
     }
 
-    // Now find the most in contention -- the peptide with the lowest isolation
-    float smallest_isolation = 1e10f;
-    Index closest_mlpep_i = 0;
-    for (Index i=0; i<n_local_dyts; i++) {
-        float isolation = tab_get(float, &local_dyt_i_to_closest_dyt_isolation, i);
-        if(isolation < smallest_isolation) {
-            smallest_isolation = isolation;
-            closest_mlpep_i = tab_get(Index, &local_dyt_i_to_closest_mlpep_i, i);
+    Float32 p_correct;
+    if(n_reads_total > 0) {
+        p_correct = isolation_sum / n_reads_total;
+    }
+    else {
+        p_correct = 0;
+    }
+
+    // FIND the most in-contention peptide -- the one with the highest contention
+    IsolationType most_contentious = (IsolationType)0.0;
+    Index most_contentious_pep_i = 0;
+    for (Index i=0; i<contention_by_pep_i.n_max_recs; i++) {
+    	Index pep_i_from_hash = hash_key_pep_i(contention_by_pep_i.recs[i].key);
+    	IsolationType contention_from_hash = contention_by_pep_i.recs[i].contention_val;
+        if(contention_from_hash > most_contentious) {
+            most_contentious = contention_from_hash;
+            most_contentious_pep_i = pep_i_from_hash;
         }
     }
-//trace("  smallest_isolation=%f closest_mlpep_i=%lu  \n", smallest_isolation, closest_mlpep_i);
 
-    // RECORD the result
-    IsolationType result = smallest_isolation / (IsolationType)n_reads_total;
-    tab_set(&ctx->output_pep_i_to_isolation_metric, pep_i, &result);
-    tab_set(&ctx->output_pep_i_to_mic_pep_i, pep_i, &closest_mlpep_i);
+    if(show_debug) {
+        trace("\n  iso_sum=%7.5f  reads=%-7lu  p_correct=%7.5f most_contentious_pep_i=%ld\n\n",
+            isolation_sum, n_reads_total, p_correct, most_contentious_pep_i
+        );
+    }
+
+    // RECORD the results into the output tables
+    tab_set(&ctx->output_pep_i_to_isolation_metric, pep_i, &p_correct);
+    tab_set(&ctx->output_pep_i_to_mic_pep_i, pep_i, &most_contentious_pep_i);
 }
 
 
@@ -374,7 +435,7 @@ void *context_work_orders_worker(void *_ctx) {
 
 
 void context_start(SurveyV2FastContext *ctx) {
-    // dump_dyepeps(ctx);
+//    dump_dyepeps(ctx);
 
     // Initialize mutex and start the worker thread(s).
     ctx->next_pep_i = 0;
@@ -417,5 +478,14 @@ void context_start(SurveyV2FastContext *ctx) {
 
     for(Index i=0; i<ctx->n_threads; i++) {
         pthread_join(ids[i], NULL);
+    }
+
+    if(show_debug) {
+        trace("\nSUMMARY\n");
+        for(Index pep_i=0; pep_i<ctx->n_peps; pep_i++) {
+            IsolationType isolation = tab_get(IsolationType, &ctx->output_pep_i_to_isolation_metric, pep_i);
+            Index mic_pep_i = tab_get(Index, &ctx->output_pep_i_to_mic_pep_i, pep_i);
+            trace("  pep:%-4lu  p_correct:%7.4f  mic_pep:%-4lu\n", pep_i, isolation, mic_pep_i);
+        }
     }
 }

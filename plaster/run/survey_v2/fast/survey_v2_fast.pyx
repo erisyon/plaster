@@ -42,6 +42,7 @@ def survey(
     cdef c.Index [:, ::1] dyepeps_view
     cdef c.Index [::1] pep_i_to_dyepep_row_i_view
     cdef c.Index [::1] dyt_i_to_mlpep_i_view
+    cdef c.Index [::1] dyt_i_to_n_reads_view
     cdef c.IsolationType [::1] pep_i_to_isolation_metric_view
     cdef c.Index [::1] pep_i_to_mic_pep_i_view  # mic = "Most In Contention"
 
@@ -95,12 +96,31 @@ def survey(
     dyepep_df = dyepep_df.sort_values(["pep_i", "dyt_i"]).reset_index(drop=True)
     dyepep_df = dyepep_df.fillna(0).astype(np.uint64)
 
+    # SETUP the dyt_i_to_n_reads
+    assert np.unique(dyepep_df.dyt_i).tolist() == list(range(n_dyts))
+    dyt_i_to_n_reads = np.ascontiguousarray(
+        dyepep_df.groupby("dyt_i").sum().reset_index().n_reads.values,
+        dtype=np.uint64
+    )
+    dyt_i_to_n_reads_view = dyt_i_to_n_reads
+    ctx.dyt_i_to_n_reads = c.tab_by_size(
+        &dyt_i_to_n_reads_view[0],
+        dyt_i_to_n_reads.nbytes,
+        sizeof(c.Index),
+        c.TAB_NOT_GROWABLE
+    )
+
     # SETUP the dyepeps tab, sorting by pep_i.  All pep_i must occur in this.
     assert np.unique(dyepep_df.pep_i).tolist() == list(range(n_peps))
     dyepeps = np.ascontiguousarray(dyepep_df.values, dtype=np.uint64)
     _assert_array_contiguous(dyepeps, np.uint64)
     dyepeps_view = dyepeps
-    ctx.dyepeps = c.tab_by_size(&dyepeps_view[0, 0], dyepeps.nbytes, sizeof(c.DyePepRec), c.TAB_NOT_GROWABLE)
+    ctx.dyepeps = c.tab_by_size(
+        &dyepeps_view[0, 0],
+        dyepeps.nbytes,
+        sizeof(c.DyePepRec),
+        c.TAB_NOT_GROWABLE
+    )
 
     _pep_i_to_dyepep_row_i = np.unique(dyepep_df.pep_i, return_index=1)[1].astype(np.uint64)
     pep_i_to_dyepep_row_i = np.zeros((n_peps + 1), dtype=np.uint64)
@@ -116,7 +136,7 @@ def survey(
 
     ctx.n_threads = n_threads
     ctx.n_peps = n_peps
-    ctx.n_neighbors = 20
+    ctx.n_neighbors = 10
     ctx.n_dyts = n_dyts
     ctx.n_dyt_cols = dyemat.shape[1]
     ctx.distance_to_assign_an_isolated_pep = 10  # TODO: Find this by sampling.
