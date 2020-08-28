@@ -147,6 +147,66 @@ void table_dump(Table *table, char *msg) {
 }
 
 
+// Hash
+//=========================================================================================
+
+Hash hash_init(HashRec *buffer, Size n_max_recs) {
+    Hash hash;
+    hash.recs = (HashRec *)buffer;
+    memset(buffer, 0, n_max_recs * sizeof(HashRec));
+    hash.n_max_recs = n_max_recs;
+    hash.n_active_recs = 0;
+    return hash;
+}
+
+
+HashRec *hash_get(Hash hash, HashKey key) {
+    /*
+    Assumes the hash table is large enough to never over-flow.
+
+    Usage:
+        Hash hash = hash_init(buffer, n_recs);
+        HashRec *rec = hash_get(hash, key);
+        if(rec == (HashRec*)0) {
+            // hash full!
+        }
+        else if(rec->key == 0) {
+            // New record
+        }
+        else {
+            // Existing record
+        }
+    */
+    ensure(key != 0, "Invalid hashkey");
+    Index i = key % hash.n_max_recs;
+    Index start_i = i;
+    HashKey key_at_i = hash.recs[i].key;
+    while(key_at_i != key) {
+        if(key_at_i == 0) {
+        	// Empty slot. The caller is responsible for filling in the key
+        	// by checking that key is 0
+            return &hash.recs[i];
+        }
+        i = (i + 1) % hash.n_max_recs;
+        key_at_i = hash.recs[i].key;
+        if(i == start_i) {
+        	// Overflow
+            return (HashRec *)0;
+        }
+    }
+	// Found existing
+    return &hash.recs[i];
+}
+
+
+void hash_dump(Hash hash) {
+    // Debugging
+    for(Index i=0; i<hash.n_max_recs; i++) {
+        printf("%08ld: %016lX %p\n", i, hash.recs[i].key, hash.recs[i].val);
+    }
+}
+
+
 // Tab
 //=========================================================================================
 
@@ -226,7 +286,6 @@ void _tab_validate(Tab *tab, void *ptr, char *file, int line) {
         "Tab ptr invalid @%s:%d. n_max_rows=%lu", file, line, tab->n_max_rows
     );
 }
-
 
 void tab_dump(Tab *tab, char *msg) {
     printf("table %s:\n", msg);

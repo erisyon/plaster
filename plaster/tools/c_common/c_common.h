@@ -113,6 +113,29 @@ typedef void (*ProgressFn)(int complete, int total, int retry);
 
 int sanity_check();
 
+// hash
+//----------------------------------------------------------------------------------------
+
+typedef struct {
+    HashKey key;
+    union {
+    	void *val;
+    	IsolationType contention_val;
+	};
+} HashRec;
+
+
+typedef struct {
+    HashRec *recs;
+    Uint64 n_max_recs;
+    Uint64 n_active_recs;
+} Hash;
+
+Hash hash_init(HashRec *buffer, Size n_max_recs);
+HashRec *hash_get(Hash hash, HashKey key);
+void hash_dump(Hash hash);
+
+
 // tab
 //----------------------------------------------------------------------------------------
 
@@ -146,5 +169,9 @@ void _tab_set(Tab *tab, Index row_i, void *src, char *file, int line);
 #define tab_add(tab, src, lock) _tab_add(tab, src, lock, __FILE__, __LINE__)
 #define tab_validate(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)
 
+#define tab_alloca(table_name, n_rows, n_bytes_per_row) \
+	void *buf##__LINE__ = (void *)alloca(n_rows * n_bytes_per_row); \
+    memset(buf##__LINE__, 0, n_rows * n_bytes_per_row); \
+    Tab table_name = tab_by_n_rows(buf##__LINE__, n_rows, n_bytes_per_row, TAB_NOT_GROWABLE)
 
 #endif
