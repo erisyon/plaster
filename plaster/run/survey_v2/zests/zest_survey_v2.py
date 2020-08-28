@@ -8,11 +8,7 @@ from plaster.run.survey_v2.survey_v2_params import SurveyV2Params
 from plaster.tools.utils import tmp
 from plaster.tools.log.log import debug
 
-# def zest_tab_tests():
-#     survey_v2_fast.tab_tests()
 
-
-# @zest.skip(reason="The survey contention and isolation code not complete see ")
 def zest_survey_v2_pyx():
     # TODO: This
 
@@ -33,7 +29,6 @@ def zest_survey_v2_pyx():
         progress=None,
     )
 
-    debug(pep_i_to_mic_pep_i.tolist())
     assert pep_i_to_mic_pep_i.tolist() == [0, 3, 3, 2]
 
     # In the current verion they are all close
@@ -51,7 +46,17 @@ def zest_survey_v2_pyx():
     zest()
 
 
+@zest.skip(reason="Not complete")
 def zest_survey_v2_integration():
+    """
+    This needs a lot of work on figuring out what the metric
+    of success of the survey is exactly.
+
+    Also need some brain-dead simpler cases.  Cases where
+    the peptides are super clearly separated and make sure
+    that we get sensible results.
+    """
+
     with tmp.tmp_folder(chdir=True):
         prep_result = prep_fixtures.result_random_fixture(20)
         sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(
