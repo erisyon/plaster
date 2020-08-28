@@ -113,6 +113,29 @@ typedef void (*ProgressFn)(int complete, int total, int retry);
 
 int sanity_check();
 
+// hash
+//----------------------------------------------------------------------------------------
+
+typedef struct {
+    HashKey key;
+    union {
+    	void *val;
+    	IsolationType contention_val;
+	};
+} HashRec;
+
+
+typedef struct {
+    HashRec *recs;
+    Uint64 n_max_recs;
+    Uint64 n_active_recs;
+} Hash;
+
+Hash hash_init(HashRec *buffer, Size n_max_recs);
+HashRec *hash_get(Hash hash, HashKey key);
+void hash_dump(Hash hash);
+
+
 // tab
 //----------------------------------------------------------------------------------------
 

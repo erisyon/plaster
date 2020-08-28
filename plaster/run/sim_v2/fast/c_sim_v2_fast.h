@@ -5,19 +5,6 @@
 
 
 typedef struct {
-    HashKey key;
-    void *val;
-} HashRec;
-
-
-typedef struct {
-    HashRec *recs;
-    Uint64 n_max_recs;
-    Uint64 n_active_recs;
-} Hash;
-
-
-typedef struct {
     Size count;
     Index dtr_i;
     DyeType chcy_dye_counts[];
@@ -71,7 +58,6 @@ int setup_sanity_checks(Size n_channels, Size n_cycles);
 Uint64 prob_to_p_i(double p);
 void rand64_seed(Uint64 seed);
 Size dtr_n_bytes(Size n_channels, Size n_cycles);
-Hash hash_init(HashRec *buffer, Size n_max_recs);
 void context_work_orders_start(SimV2FastContext *ctx);
 Index context_dtr_get_count(SimV2FastContext *ctx, Index dtr_i);
 DyeType *context_dtr_dyetrack(SimV2FastContext *ctx, Index dtr_i);
