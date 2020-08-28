@@ -12,7 +12,7 @@ from plaster.tools.log.log import debug
 #     survey_v2_fast.tab_tests()
 
 
-#@zest.skip(reason="The survey contention and isolation code not complete see ")
+# @zest.skip(reason="The survey contention and isolation code not complete see ")
 def zest_survey_v2_pyx():
     # TODO: This
 
@@ -34,7 +34,7 @@ def zest_survey_v2_pyx():
     )
 
     debug(pep_i_to_mic_pep_i.tolist())
-    assert pep_i_to_mic_pep_i.tolist() == [1, 0, 3, 2]
+    assert pep_i_to_mic_pep_i.tolist() == [0, 3, 3, 2]
 
     # In the current verion they are all close
     # The first peptide should be a long way away and the other two should collide

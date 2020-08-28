@@ -5,6 +5,7 @@ cdef extern from "c_survey_v2_fast.h":
         c.Tab dyemat
         c.Tab dyepeps
         c.Tab pep_i_to_dyepep_row_i
+        c.Tab dyt_i_to_n_reads
         c.Tab dyt_i_to_mlpep_i
         c.Tab output_pep_i_to_isolation_metric
         c.Tab output_pep_i_to_mic_pep_i
