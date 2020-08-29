@@ -1,6 +1,8 @@
 import itertools
 import numpy as np
 from munch import Munch
+from plaster.tools.image.coord import XY
+from plaster.tools.image import imops
 from plaster.tools.utils.utils import np_safe_divide
 from plaster.tools.zplots.zplots import ZPlots
 from plaster.tools.ipynb_helpers.displays import hd
@@ -189,3 +191,54 @@ def plot_psfs(psfs, scale=1.0, **kwargs):
                 y_i, x_i
             ]
         z.im(comp, **kwargs)
+
+
+def circle_locs(im, locs, inner_radius=3, outer_radius=4, fill_mode="nan"):
+    """
+    Returns a copy of im with circles placed around the locs.
+
+    Arguments
+        im: The background image
+        locs: Nx2 matrix of peak locations
+        circle_radius: Radius of circle to draw
+        fill_mode:
+            "nan": Use im and overlay with circles of NaNs
+            "index": zero for all background and the loc index otherwise
+                     (This causes the loss of the 0-th peak)
+        style_mode:
+            "donut" Draw a 1 pixel donut
+            "solid": Draw a filled circle
+
+    Notes:
+        * this is a public function because it is used from the notebooks like:
+            This can then be visualized like:
+                circle_im = circle_locs(im, locs, fill_mode="nan")
+                z.im(circle_im, _nan_color="red")
+    """
+    mea = (outer_radius + 1) * 2 + 1
+    hat = imops.generate_circle_mask(inner_radius, mea)
+    brim = imops.generate_circle_mask(outer_radius, mea)
+    brim = brim & ~hat
+
+    if fill_mode == "nan":
+        circle_im = np.zeros_like(im)
+        for loc in locs:
+            imops.set_with_mask_in_place(circle_im, brim, 1, loc=loc, center=True)
+        return np.where(circle_im == 1, np.nan, im)
+
+    if fill_mode == "index":
+        circle_im = np.zeros_like(im)
+        for loc_i, loc in enumerate(locs):
+            imops.set_with_mask_in_place(circle_im, brim, loc_i, loc=loc, center=True)
+        return circle_im
+
+
+def im_with_circle(im, locs, **kwargs):
+    z = kwargs.pop("_zplots_context", None) or ZPlots()
+    circle_im = circle_locs(im, locs, inner_radius=6, outer_radius=7, fill_mode="index")
+    clr_im = np.full_like(im, 1)
+    with z(_merge=True, _full=True):
+        _cper = kwargs.get("_cper", (10, 99))
+        z.im(im, _cper=_cper)
+        alpha_im = np.where(circle_im.astype(int) == 0, 0, 1)
+        z.im_blend(clr_im, alpha_im, _palette="inferno", _nan=0)

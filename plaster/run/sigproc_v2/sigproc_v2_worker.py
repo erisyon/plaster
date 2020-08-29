@@ -102,14 +102,12 @@ import cv2
 import numpy as np
 import pandas as pd
 from munch import Munch
-from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
-from plaster.run.ims_import.ims_import_worker import _quality
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.image.imops import sub_pixel_center
-from plaster.tools.log.log import debug, info, important
+from plaster.tools.log.log import debug, important
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
@@ -191,47 +189,6 @@ def _regional_balance_and_bg_subtract_chcy_ims(chcy_ims, calib):
         balanced_chcy_ims[ch] = (cy_ims - bg_im) * balance_im
 
     return balanced_chcy_ims
-
-
-def circle_locs(im, locs, inner_radius=3, outer_radius=4, fill_mode="nan"):
-    """
-    Returns a copy of im with circles placed around the locs.
-
-    Arguments
-        im: The background image
-        locs: Nx2 matrix of peak locations
-        circle_radius: Radius of circle to draw
-        fill_mode:
-            "nan": Use im and overlay with circles of NaNs
-            "index": zero for all background and the loc index otherwise
-                     (This causes the loss of the 0-th peak)
-        style_mode:
-            "donut" Draw a 1 pixel donut
-            "solid": Draw a filled circle
-
-    Notes:
-        * this is a public funtion because it is used from the notebooks like:
-            This can then be visualized like:
-                circle_im = circle_locs(im, locs, fill_mode="nan")
-                z.im(circle_im, _nan_color="red")
-    """
-    mea = (outer_radius + 1) * 2 + 1
-    hat = imops.generate_circle_mask(inner_radius, mea)
-
-    brim = imops.generate_circle_mask(outer_radius, mea)
-    brim = brim & ~hat
-
-    if fill_mode == "nan":
-        circle_im = np.zeros_like(im)
-        for loc in locs:
-            imops.set_with_mask_in_place(circle_im, brim, 1, loc=loc, center=True)
-        return np.where(circle_im == 1, np.nan, im)
-
-    if fill_mode == "index":
-        circle_im = np.zeros_like(im)
-        for loc_i, loc in enumerate(locs):
-            imops.set_with_mask_in_place(circle_im, brim, loc_i, loc=loc, center=True)
-        return circle_im
 
 
 def _peak_find(im):

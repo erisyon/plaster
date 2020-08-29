@@ -845,11 +845,6 @@ class ZPlots:
             im_data = np.where(is_nan_im, 0, im_data)
 
         fig.image(
-            # image=[im_data],
-            # x=kws.get("_x", [0]),
-            # y=kws.get("_y", [y]),
-            # dw=kws.get("_dim_w", [dim.w]),
-            # dh=kws.get("_dim_h", [dim.h]),
             color_mapper=cmap,
             **self._p_stack(),
         )
@@ -875,9 +870,7 @@ class ZPlots:
         Blend image with an alpha map.
         """
         assert self._u_stack().get("source") is None
-        fig = self._begin(kws, dict())
-
-        dim, cmap, im_data, y = self._im_setup(im_data, fig)
+        dim, cmap, im_data, y = self._im_setup(im_data)
 
         n_colors = len(cmap.palette)
         rpal = np.array([int(p[1:3], 16) for p in cmap.palette])
@@ -895,8 +888,29 @@ class ZPlots:
         view[:, :, 1] = gpal[pallete_scaled_im]
         view[:, :, 2] = bpal[pallete_scaled_im]
         view[:, :, 3] = (255.0 * alpha_im).astype(int)
-        fig.image_rgba(image=[color_im], x=[0], y=[y], dw=[dim.w], dh=[dim.h])
 
+        # See: "Image Hover" here https://docs.bokeh.org/en/latest/docs/user_guide/tools.html
+        fig = self._begin(
+            kws,
+            dict(
+                image=[color_im],
+                x=kws.get("_x", [0]),
+                y=kws.get("_y", [y]),
+                dw=kws.get("_dim_w", [dim.w]),
+                dh=kws.get("_dim_h", [dim.h]),
+            ),
+            image="image",
+            x="x",
+            y="y",
+            dw="dw",
+            dh="dh",
+        )
+
+        self._im_post_setup(fig, dim)
+
+        fig.image_rgba(
+            ** self._p_stack(),
+        )
         self._end()
         return fig
 

@@ -7,15 +7,13 @@ import pandas as pd
 import itertools
 from collections import OrderedDict
 from plumbum import local
+
 from plaster.tools.schema import check
-from munch import Munch
 import numpy as np
 from plaster.tools.utils import utils
 from plaster.tools.utils.fancy_indexer import FancyIndexer
-from plaster.tools.image.coord import Rect
 from plaster.run.base_result import BaseResult
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
-from plaster.tools.log.log import debug
 from plaster.tools.calibration.calibration import Calibration
 
 
@@ -414,3 +412,5 @@ class SigprocV2Result(BaseResult):
         )
 
         return df
+
+
