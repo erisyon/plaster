@@ -701,4 +701,5 @@ def zest_analyze_step_6_radiometry():
         calib = Calibration()
         calib[f"regional_psf_zstack.instrument_channel[0]"] = np.broadcast_to(psf, (1, 5, 5, 11, 11)).tolist()
         radmat = worker._analyze_step_6_radiometry(chcy_ims, peaks.locs, calib, sigproc_v2_params)
-        np.save("test_radmat.npy", radmat)
+        # np.save("test_radmat.npy", radmat)
+        raise NotImplementedError
