@@ -688,7 +688,7 @@ def com(im):
     rx = np.arange(im.shape[1]) + 0.5
     y = np.sum(ry * np.sum(im, axis=1))
     x = np.sum(rx * np.sum(im, axis=0))
-    return np.array([y, x]) / mass
+    return utils.np_safe_divide(np.array([y, x]), mass)
 
 
 def sub_pixel_shift(im, offset):

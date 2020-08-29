@@ -1068,9 +1068,9 @@ def _analyze_step_6a_peak_radiometry(
     if psf_kernel_sum_squared > 0.0:
         noise = np.sqrt(var_residuals / psf_kernel_sum_squared)
 
-    if noise <= 0.0 or signal <= 0.0:
-        signal = np.nan
-        noise = np.nan
+    # if noise <= 0.0 or signal <= 0.0:
+    #     signal = np.nan
+    #     noise = np.nan
 
     return signal, noise
 
@@ -1103,7 +1103,7 @@ def _fit_focus(z_reg_psfs, locs, im):
     # z-index. Then we take the plurality vote of that.
 
     # Until then:
-    return 6
+    return z_reg_psfs.shape[0] // 2
 
 
 def _analyze_step_6_radiometry(chcy_ims, locs, calib, sigproc_v2_params):

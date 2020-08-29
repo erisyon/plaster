@@ -683,9 +683,10 @@ def zest_analyze_step_6_radiometry():
             const=0.0,
             mea=11,
         )
+        psf /= np.sum(psf)
 
         bg_mean = 150
-        (
+        peaks = (
             synth.PeaksModelGaussianCircular(n_peaks=1000)
             .locs_randomize()
             .widths_uniform(1.5)
@@ -696,10 +697,8 @@ def zest_analyze_step_6_radiometry():
         synth.HaloModel(std=20, scale=2)
         chcy_ims = s.render_chcy()
 
-    sigproc_v2_params = Munch(divs=5, peak_mea=11)
-    calib = Calibration()
-    import pudb
-
-    pudb.set_trace()
-    calib[f"regional_psf_zstack.instrument_channel[0]"] = np.tile(psf, (1, 5, 5))
-    worker._analyze_step_6_radiometry(chcy_ims, s.locs, calib, sigproc_v2_params)
+        sigproc_v2_params = Munch(divs=5, peak_mea=11)
+        calib = Calibration()
+        calib[f"regional_psf_zstack.instrument_channel[0]"] = np.broadcast_to(psf, (1, 5, 5, 11, 11)).tolist()
+        radmat = worker._analyze_step_6_radiometry(chcy_ims, peaks.locs, calib, sigproc_v2_params)
+        np.save("test_radmat.npy", radmat)
