@@ -250,6 +250,9 @@ class ZPlots:
             filter=lambda prop: prop.startswith("f_"), transform=lambda prop: prop[2:],
         )
 
+    def _add_prop(self, key, val):
+        self.stack[-1][key] = val
+
     def _apply_fig_props(self, fig):
         ustack = self._u_stack()
         if ustack.get("_size"):
@@ -334,7 +337,7 @@ class ZPlots:
 
     def _build_column_data_source(self, kws, source_defaults):
         """
-        Builds a Column Dat Source from the kws and source_defaults
+        Builds a Column Data Source from the kws and source_defaults
         """
         n_rows = None
         source_kwargs = {}
@@ -455,9 +458,9 @@ class ZPlots:
             if (
                 ustack.get("_legend") is True
             ):  # so I'll add this for "nonspecific" use of legend...
-                self.stack[-1]["legend_label"] = str(
+                self._add_prop("legend_label", str(
                     kws["source"].to_df()[label_col_name].iloc[0]
-                )
+                ))
 
         self._apply_fig_props(fig)
 
@@ -480,31 +483,8 @@ class ZPlots:
 
         self.stack.pop()
 
-    def _im_setup(self, im):
-        from bokeh.models import LinearColorMapper  # Defer slow imports
-
-        _im = im
-        assert _im.ndim == 2
-
+    def _cspan(self, _im):
         ustack = self._u_stack()
-
-        y = 0
-        if ustack.get("_flip_y"):
-            assert "f_y_range" not in ustack
-            _im = np.flip(_im, axis=0)
-            y = _im.shape[0]
-
-        dim = HW(_im.shape)
-
-        if dim.w == 0 or dim.h == 0:
-            # Deal with zero dims gracefully
-            dim = HW(max(1, dim.h), max(1, dim.w))
-            _im = np.zeros(dim)
-
-        _nan = ustack.get("_nan")
-        if _nan is not None:
-            _im = np.nan_to_num(_im)
-
         _cper = ustack.get("_cper")
         if _cper is not None:
             # color by percentile
@@ -536,6 +516,36 @@ class ZPlots:
                     assert isinstance(_cspan, (int, float))
                     low = 0
                     high = _cspan
+
+        return low, high
+
+
+    def _im_setup(self, im):
+        from bokeh.models import LinearColorMapper  # Defer slow imports
+
+        _im = im
+        assert _im.ndim == 2
+
+        ustack = self._u_stack()
+
+        y = 0
+        if ustack.get("_flip_y"):
+            assert "f_y_range" not in ustack
+            _im = np.flip(_im, axis=0)
+            y = _im.shape[0]
+
+        dim = HW(_im.shape)
+
+        if dim.w == 0 or dim.h == 0:
+            # Deal with zero dims gracefully
+            dim = HW(max(1, dim.h), max(1, dim.w))
+            _im = np.zeros(dim)
+
+        _nan = ustack.get("_nan")
+        if _nan is not None:
+            _im = np.nan_to_num(_im)
+
+        low, high = self._cspan(_im)
 
         pal = ustack.get("_palette", "viridis")
         if pal == "viridis":
@@ -879,14 +889,14 @@ class ZPlots:
 
         cmap_delta = cmap.high - cmap.low
         normalized_im = (im_data - cmap.low) / cmap_delta
-        pallete_scaled_im = (n_colors * normalized_im).astype(int).clip(min=0, max=255)
+        palette_scaled_im = (n_colors * normalized_im).astype(int).clip(min=0, max=255)
 
         color_im = np.zeros(dim, dtype=np.uint32)
         view = color_im.view(dtype=np.uint8).reshape((dim.h, dim.w, 4))
 
-        view[:, :, 0] = rpal[pallete_scaled_im]
-        view[:, :, 1] = gpal[pallete_scaled_im]
-        view[:, :, 2] = bpal[pallete_scaled_im]
+        view[:, :, 0] = rpal[palette_scaled_im]
+        view[:, :, 1] = gpal[palette_scaled_im]
+        view[:, :, 2] = bpal[palette_scaled_im]
         view[:, :, 3] = (255.0 * alpha_im).astype(int)
 
         # See: "Image Hover" here https://docs.bokeh.org/en/latest/docs/user_guide/tools.html
@@ -966,6 +976,83 @@ class ZPlots:
         positive = np.clip(im_data, a_min=0, a_max=None)
         negative = np.clip(-im_data, a_min=0, a_max=None)
         self.im_color(red=negative, green=positive, **kws)
+
+    @trap()
+    def im_peaks(self, im, circle_im, index_im, sig_im, snr_im, **kws):
+        """
+        This is a custom plot for drawing information about sigproc data
+        """
+        from bokeh.colors import named
+        from bokeh.models import HoverTool
+        from bokeh.models import LinearColorMapper  # Defer slow imports
+        from bokeh.palettes import gray
+
+        pal = gray(256)
+        dim = HW(im.shape)
+
+        self.stack.append(Munch(**kws))
+        low, high = self._cspan(im)
+        cmap = LinearColorMapper(palette=pal, low=low, high=high)
+        n_colors = len(cmap.palette)
+
+        rpal = np.array([int(p[1:3], 16) for p in cmap.palette])
+        gpal = np.array([int(p[3:5], 16) for p in cmap.palette])
+        bpal = np.array([int(p[5:7], 16) for p in cmap.palette])
+
+        cmap_delta = cmap.high - cmap.low
+        normalized_im = (im - cmap.low) / cmap_delta
+        palette_scaled_im = (n_colors * normalized_im).astype(int).clip(min=0, max=255)
+
+        color_im = np.zeros(dim, dtype=np.uint32)
+        view = color_im.view(dtype=np.uint8).reshape((dim.h, dim.w, 4))
+        view[:, :, 0] = rpal[palette_scaled_im]
+        view[:, :, 1] = gpal[palette_scaled_im]
+        view[:, :, 2] = bpal[palette_scaled_im]
+        view[:, :, 3] = 255
+        view[circle_im > 0, 1] = 180
+        view[circle_im > 0, 2] = 255
+
+        # See: "Image Hover" here https://docs.bokeh.org/en/latest/docs/user_guide/tools.html
+        self._add_prop("_no_labels", True)
+
+        fig = self._begin(
+            kws,
+            dict(
+                image=[color_im],
+                x=[0],
+                y=[0],
+                dw=[dim.w],
+                dh=[dim.h],
+                peak_i=[index_im],
+                sig=[sig_im],
+                snr=[snr_im],
+                val=[im],
+            ),
+            image="image",
+            x="x",
+            y="y",
+            dw="dw",
+            dh="dh",
+        )
+
+        self._im_post_setup(fig, dim)
+
+        fig.add_tools(
+            HoverTool(
+                tooltips=[
+                    ("x", "$x"),
+                    ("y", "$y"),
+                    ("peak_i", "@peak_i"),
+                    ("value", "@val{0,0.0}"),
+                    ("sig", "@sig{0,0.0}"),
+                    ("snr", "@snr{0,0.0}"),
+                ],
+            )
+        )
+
+        fig.image_rgba(**self._p_stack())
+
+        self._end()
 
 
 def notebook_full_width():
