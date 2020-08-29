@@ -439,6 +439,7 @@ class ZPlots:
                         ("label", f"@{label_col_name}"),
                         ("x", "$x"),
                         ("y", "$y"),
+                        ("value", "@image"),
                     ],
                 )
             )
@@ -479,7 +480,7 @@ class ZPlots:
 
         self.stack.pop()
 
-    def _im_setup(self, im, fig):
+    def _im_setup(self, im):
         from bokeh.models import LinearColorMapper  # Defer slow imports
 
         _im = im
@@ -499,20 +500,6 @@ class ZPlots:
             # Deal with zero dims gracefully
             dim = HW(max(1, dim.h), max(1, dim.w))
             _im = np.zeros(dim)
-
-        full_w, full_h = (ustack.get("_full_w", False), ustack.get("_full_h", False))
-        if ustack.get("_full"):
-            full_w, full_h = (True, True)
-
-        if full_h:
-            full_h = dim.h + 40  # TASK: This value is weird, need a way to derive it
-            if ustack.get("_min_h") is not None:
-                full_h = max(full_h, ustack.get("_min_h"))
-
-        if full_w:
-            full_w = dim.w + 20  # TASK: This value is weird, need a way to derive it
-            if ustack.get("_min_w") is not None:
-                full_w = max(full_w, ustack.get("_min_w"))
 
         _nan = ustack.get("_nan")
         if _nan is not None:
@@ -573,13 +560,31 @@ class ZPlots:
 
         cmap = LinearColorMapper(palette=pal, low=low, high=high)
 
+        return dim, cmap, _im, y
+
+    def _im_post_setup(self, fig, dim):
+        ustack = self._u_stack()
+        full_w, full_h = (ustack.get("_full_w", False), ustack.get("_full_h", False))
+
+        if ustack.get("_full"):
+            full_w, full_h = (True, True)
+
+        if full_h:
+            full_h = dim.h + 40  # TASK: This value is weird, need a way to derive it
+            if ustack.get("_min_h") is not None:
+                full_h = max(full_h, ustack.get("_min_h"))
+
+        if full_w:
+            full_w = dim.w + 20  # TASK: This value is weird, need a way to derive it
+            if ustack.get("_min_w") is not None:
+                full_w = max(full_w, ustack.get("_min_w"))
+
+
         if full_w:
             fig.plot_width = full_w
 
         if full_h:
             fig.plot_height = full_h
-
-        return dim, cmap, _im, y
 
     def color_reset(self):
         ustack = self._u_stack()
@@ -810,23 +815,41 @@ class ZPlots:
         _nan_color: What color to use to draw nan (bokeh named colors, etc.)
         """
         assert self._u_stack().get("source") is None
-        fig = self._begin(kws, dict())
 
         ustack = self._u_stack()
         nan_color = ustack.get("_nan_color")
 
-        dim, cmap, im_data, y = self._im_setup(im_data, fig)
+        dim, cmap, im_data, y = self._im_setup(im_data)
+
+        # See: "Image Hover" here https://docs.bokeh.org/en/latest/docs/user_guide/tools.html
+        fig = self._begin(
+            kws,
+            dict(
+                image=[im_data],
+                x=kws.get("_x", [0]),
+                y=kws.get("_y", [y]),
+                dw=kws.get("_dim_w", [dim.w]),
+                dh=kws.get("_dim_h", [dim.h]),
+            ),
+            image="image",
+            x="x",
+            y="y",
+            dw="dw",
+            dh="dh",
+        )
+
+        self._im_post_setup(fig, dim)
 
         if nan_color is not None:
             is_nan_im = np.isnan(im_data)
             im_data = np.where(is_nan_im, 0, im_data)
 
         fig.image(
-            image=[im_data],
-            x=kws.get("_x", [0]),
-            y=kws.get("_y", [y]),
-            dw=kws.get("_dim_w", [dim.w]),
-            dh=kws.get("_dim_h", [dim.h]),
+            # image=[im_data],
+            # x=kws.get("_x", [0]),
+            # y=kws.get("_y", [y]),
+            # dw=kws.get("_dim_w", [dim.w]),
+            # dh=kws.get("_dim_h", [dim.h]),
             color_mapper=cmap,
             **self._p_stack(),
         )
