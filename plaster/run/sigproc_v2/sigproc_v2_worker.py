@@ -354,7 +354,6 @@ def _background_subtraction(im, reg_bg_mean):
     diff_im = im - bg_im
     return diff_im
 
-
 def _background_estimate_im(im, divs):
     """
     Using an approximate peak kernel, separate FG and BG regionally
@@ -413,9 +412,73 @@ def _background_estimate_im(im, divs):
     return reg_bg_mean, reg_bg_std
 
 
+def _background_extract(im):
+    # mask_radius in pixels of extra space added around FG candidates
+    mask_radius = 2  # Empirical
+
+    circle = imops.generate_circle_mask(mask_radius).astype(np.uint8)
+
+    kern = _kernel()
+
+    # Note: imops.convolve require float64 inputs; im is likely to be float32,
+    #      so we have to cast it to float64.  Alternatively we could investigate
+    #      if imops.convolve really ought to require float64?
+    med = float(np.nanmedian(im))
+    cim = imops.convolve(
+        np.nan_to_num(im.astype(np.float64), nan=med), kern
+    )
+
+    # cim can end up with artifacts around the nans to the nan_mask
+    # is dilated and splated as zeros back over the im
+    nan_mask = cv2.dilate(np.isnan(im).astype(np.uint8), circle, iterations=1)
+
+    # The negative side of the convoluted image has no signal
+    # so the std of the symetric distribution (reflecting the
+    # negative side around zero) is a good estimator of noise.
+    if (cim < 0).sum() == 0:
+        # Handle the empty case to avoid warning
+        thresh = 1e10
+    else:
+        thresh = np.nanstd(np.concatenate((cim[cim < 0], -cim[cim < 0])))
+        thresh = np.nan_to_num(
+            thresh, nan=1e10
+        )  # For nan thresh just make them very large
+    cim = np.nan_to_num(cim)
+    fg_mask = np.where(cim > thresh, 1, 0)
+
+    fg_mask = cv2.dilate(fg_mask.astype(np.uint8), circle, iterations=1)
+    bg_im = np.where(fg_mask | nan_mask, np.nan, im)
+    return bg_im, fg_mask
+
+
+def _background_regional_estimate_im(im, divs):
+    """
+    Using an approximate peak kernel, separate FG and BG regionally
+    and return the bg mean and std.
+
+    Arguments:
+        im: a single frame
+        divs:
+            Regional divisions (both horiz and vert)
+
+    Returns:
+        regional bg_mean and bg_std
+    """
+
+    bg_im, fg_mask = _background_extract(im)
+
+    def nanstats(dat):
+        if np.all(np.isnan(dat)):
+            return np.nan, np.nan
+        return np.nanmean(dat), np.nanstd(dat)
+
+    reg_bg_mean, reg_bg_std = imops.region_map(bg_im, nanstats, divs=divs)
+    return reg_bg_mean, reg_bg_std
+
+
 def _background_stats_ims(flzl_ims, divs):
     """
-    Loops over ims calling _background_stats_im
+    Loops over ims calling _background_regional_estimate_im
 
     Arguments:
         flzl_ims: frame, zslices ims to be analyzed (one channel)
@@ -432,7 +495,7 @@ def _background_stats_ims(flzl_ims, divs):
 
     for fl_i in range(n_fields):
         for z_i in range(n_zslices):
-            reg_bg_mean, reg_bg_std = _background_estimate_im(flzl_ims[fl_i, z_i], divs)
+            reg_bg_mean, reg_bg_std = _background_regional_estimate_im(flzl_ims[fl_i, z_i], divs)
             fl_reg_bg_mean[fl_i, :, :] = reg_bg_mean
             fl_reg_bg_std[fl_i, :, :] = reg_bg_std
 
@@ -529,7 +592,7 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
 
     im_focuses = np.zeros((n_src_zslices,))
     for src_zi in range(n_src_zslices):
-        bg_mean, _ = _background_estimate_im(zi_ims[src_zi], divs)
+        bg_mean, _ = _background_regional_estimate_im(zi_ims[src_zi], divs)
         im_sub = _background_subtraction(zi_ims[src_zi], bg_mean)
         im_focuses[src_zi] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
 
@@ -551,7 +614,7 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
             if 0 <= src_zi < n_src_zslices:
                 # Only if the source is inside the source range, accum to dst.
                 # TODO: Possible optimization: save the bg results from above
-                bg_mean, bg_std = _background_estimate_im(zi_ims[src_zi], divs)
+                bg_mean, bg_std = _background_regional_estimate_im(zi_ims[src_zi], divs)
                 im_sub = _background_subtraction(zi_ims[src_zi], bg_mean)
                 _, reg_psfs = _psf_extract(im_sub, divs=divs, peak_mea=peak_dim[0])
                 z_and_region_to_psf[dst_zi] += reg_psfs

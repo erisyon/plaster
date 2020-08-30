@@ -436,13 +436,13 @@ class ZPlots:
         allow_labels = ustack.get("_no_labels") is not True
 
         if allow_labels:
+            label_col = [] if label_col_name not in kws["source"].to_df().columns else [("label", f"@{label_col_name}")]
             fig.add_tools(
                 HoverTool(
-                    tooltips=[
-                        ("label", f"@{label_col_name}"),
-                        ("x", "$x"),
-                        ("y", "$y"),
-                        ("value", "@image"),
+                    tooltips=label_col + [
+                        ("x", "$x{0,0.0}"),
+                        ("y", "$y{0,0.0}"),
+                        ("value", "@image{0,0.0}"),
                     ],
                 )
             )
@@ -588,7 +588,6 @@ class ZPlots:
             full_w = dim.w + 20  # TASK: This value is weird, need a way to derive it
             if ustack.get("_min_w") is not None:
                 full_w = max(full_w, ustack.get("_min_w"))
-
 
         if full_w:
             fig.plot_width = full_w
@@ -826,8 +825,14 @@ class ZPlots:
         """
         assert self._u_stack().get("source") is None
 
+        self.stack.append(Munch(**kws))
+
         ustack = self._u_stack()
         nan_color = ustack.get("_nan_color")
+
+        if nan_color is not None:
+            is_nan_im = np.isnan(im_data)
+            im_data = np.where(is_nan_im, 0, im_data)
 
         dim, cmap, im_data, y = self._im_setup(im_data)
 
@@ -849,10 +854,6 @@ class ZPlots:
         )
 
         self._im_post_setup(fig, dim)
-
-        if nan_color is not None:
-            is_nan_im = np.isnan(im_data)
-            im_data = np.where(is_nan_im, 0, im_data)
 
         fig.image(
             color_mapper=cmap,
