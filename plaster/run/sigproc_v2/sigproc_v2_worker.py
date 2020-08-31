@@ -161,9 +161,9 @@ def _intersection_roi_from_aln_offsets(aln_offsets, raw_dim):
     return ROI(loc=YX(b, l), dim=HW(t - b, r - l))
 
 
-def _regional_balance_and_bg_subtract_chcy_ims(chcy_ims, calib):
+def _regional_balance_chcy_ims(chcy_ims, calib):
     """
-    Balance and subtract background on each channel according to calibration data.
+    Balance each channel according to calibration data.
 
     Returns:
        balanced_chcy_ims: The regionally balanced chcy_ims
@@ -172,21 +172,22 @@ def _regional_balance_and_bg_subtract_chcy_ims(chcy_ims, calib):
     balanced_chcy_ims = np.zeros_like(chcy_ims)
     dim = chcy_ims.shape[-2:]
     for ch in range(n_channels):
-        regional_bg_mean = np.array(calib[f"regional_bg_mean.instrument_channel[{ch}]"])
+        # regional_bg_mean = np.array(calib[f"regional_bg_mean.instrument_channel[{ch}]"])
         regional_balance = np.array(
             calib[f"regional_illumination_balance.instrument_channel[{ch}]"]
         )
 
         cy_ims = chcy_ims[ch]
         balance_im = imops.interp(regional_balance, dim)
-        bg_im = imops.interp(regional_bg_mean, dim)
+        # bg_im = imops.interp(regional_bg_mean, dim)
 
         if np.any(np.isnan(cy_ims)):
             raise ValueError(f"regional_balance_chcy_ims chcy_ims contains nan")
-        if np.any(np.isnan(bg_im)):
-            raise ValueError(f"regional_balance_chcy_ims bg_im contains nan")
+        # if np.any(np.isnan(bg_im)):
+        #    raise ValueError(f"regional_balance_chcy_ims bg_im contains nan")
 
-        balanced_chcy_ims[ch] = (cy_ims - bg_im) * balance_im
+        # balanced_chcy_ims[ch] = (cy_ims - bg_im) * balance_im
+        balanced_chcy_ims[ch] = cy_ims * balance_im
 
     return balanced_chcy_ims
 
@@ -424,7 +425,7 @@ def _background_regional_estimate_im(im, divs, inpaint=False):
     def nanstats(dat):
         if np.all(np.isnan(dat)):
             return np.nan, np.nan
-        return np.nanmean(dat), np.nanstd(dat)
+        return np.nanmedian(dat), np.nanstd(dat)
 
     reg_bg_mean, reg_bg_std = imops.region_map(bg_im, nanstats, divs=divs)
 
@@ -854,15 +855,33 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     n_out_channels = sigproc_params.n_output_channels
     dst_chcy_ims = np.zeros((n_out_channels, *chcy_ims.shape[-3:]))
 
+    # TODO: Clean up these loops, we've got channel loops here and
+    #  inside _regional_balance_chcy_ims
+
     for out_ch in range(n_out_channels):
         in_ch = sigproc_params.output_channel_to_input_channel(out_ch)
         dst_chcy_ims[out_ch, :] = chcy_ims[in_ch]
 
-    # _regional_balance_chcy_ims will balance AND subtract
-    dst_chcy_ims = _regional_balance_and_bg_subtract_chcy_ims(dst_chcy_ims, calib)
+    dst_chcy_ims = _regional_balance_chcy_ims(dst_chcy_ims, calib)
 
-    channel_weights = _analyze_step_1a_compute_channel_weights(sigproc_params, calib)
-    dst_chcy_ims = utils.np_fn_along(np.multiply, dst_chcy_ims, channel_weights, axis=0)
+    # Per-frame background estimation and removal
+    # This is per-frame because the is signficant foreground to background
+    # bleed. That is, more peaks in a region clearly increases the background.
+    n_channels, n_cycles = chcy_ims.shape[0:2]
+    dim = chcy_ims.shape[-2:]
+    for ch_i in range(n_channels):
+        for cy_i in range(n_cycles):
+            reg_bg_mean, _ = _background_regional_estimate_im(dst_chcy_ims[ch_i, cy_i], divs=64, inpaint=True)
+            np.save(f"reg_bg_mean_{ch_i}_{cy_i}.npy", reg_bg_mean)
+            bg_im = imops.interp(reg_bg_mean, dim)
+            dst_chcy_ims[ch_i, cy_i, :, :] = dst_chcy_ims[ch_i, cy_i, :, :] - bg_im
+
+    assert n_channels == 1  # Until multi-channel
+
+    np.save("dst_chcy_ims.npy", dst_chcy_ims)
+
+    # channel_weights = _analyze_step_1a_compute_channel_weights(sigproc_params, calib)
+    # dst_chcy_ims = utils.np_fn_along(np.multiply, dst_chcy_ims, channel_weights, axis=0)
     return dst_chcy_ims
 
 

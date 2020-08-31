@@ -92,6 +92,7 @@ class ZPlots:
         Resets color cycling.
         """
         cols = self.stack[-1].get("_cols")
+
         this_merge = self.stack[-1].get("_merge")
         stack_merge = self._u_stack(exclude_last=True).get("_merge")
         if this_merge is not None and stack_merge is None:
@@ -825,7 +826,9 @@ class ZPlots:
         """
         assert self._u_stack().get("source") is None
 
-        self.stack.append(Munch(**kws))
+        # If I do this then I break the _cols checks. But I don't know
+        # why it was I needed this...
+        # self.stack.append(Munch(**kws))
 
         ustack = self._u_stack()
         nan_color = ustack.get("_nan_color")
@@ -991,7 +994,10 @@ class ZPlots:
         pal = gray(256)
         dim = HW(im.shape)
 
-        self.stack.append(Munch(**kws))
+        # If I do this then I break the _cols checks. But I don't know
+        # why it was I needed this...
+        # self.stack.append(Munch(**kws))
+
         low, high = self._cspan(im)
         cmap = LinearColorMapper(palette=pal, low=low, high=high)
         n_colors = len(cmap.palette)

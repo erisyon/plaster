@@ -105,7 +105,7 @@ def zest_regional_balance_chcy_ims():
 
     def it_subtracts_regional_bg():
         chcy_ims, calib = _setup(10.0)
-        bal_ims = worker._regional_balance_and_bg_subtract_chcy_ims(chcy_ims, calib)
+        bal_ims = worker._regional_balance_chcy_ims(chcy_ims, calib)
 
         # 0, 0 corner is 10 times brighter
         # Opposite corner is just unit brightness
@@ -117,7 +117,7 @@ def zest_regional_balance_chcy_ims():
     def it_handles_all_zeros():
         _, calib = _setup(1.0)
         all_zeros = np.zeros((2, 4, 512, 512))
-        bal_ims = worker._regional_balance_and_bg_subtract_chcy_ims(all_zeros, calib)
+        bal_ims = worker._regional_balance_chcy_ims(all_zeros, calib)
         assert np.all(np.abs(bal_ims - (0 - 100) * 1) < 1.0)
 
     def it_raises_on_nans():
@@ -125,11 +125,11 @@ def zest_regional_balance_chcy_ims():
 
         with zest.raises(ValueError, in_args="nan"):
             nan_chcy_ims = np.full_like(chcy_ims, np.nan)
-            worker._regional_balance_and_bg_subtract_chcy_ims(nan_chcy_ims, calib)
+            worker._regional_balance_chcy_ims(nan_chcy_ims, calib)
 
         with zest.raises(ValueError, in_args="nan"):
             calib[f"regional_bg_mean.instrument_channel[0]"][0][0] = np.nan
-            worker._regional_balance_and_bg_subtract_chcy_ims(chcy_ims, calib)
+            worker._regional_balance_chcy_ims(chcy_ims, calib)
 
     zest()
 
