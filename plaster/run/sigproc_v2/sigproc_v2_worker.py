@@ -872,13 +872,10 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     for ch_i in range(n_channels):
         for cy_i in range(n_cycles):
             reg_bg_mean, _ = _background_regional_estimate_im(dst_chcy_ims[ch_i, cy_i], divs=64, inpaint=True)
-            np.save(f"reg_bg_mean_{ch_i}_{cy_i}.npy", reg_bg_mean)
             bg_im = imops.interp(reg_bg_mean, dim)
             dst_chcy_ims[ch_i, cy_i, :, :] = dst_chcy_ims[ch_i, cy_i, :, :] - bg_im
 
     assert n_channels == 1  # Until multi-channel
-
-    np.save("dst_chcy_ims.npy", dst_chcy_ims)
 
     # channel_weights = _analyze_step_1a_compute_channel_weights(sigproc_params, calib)
     # dst_chcy_ims = utils.np_fn_along(np.multiply, dst_chcy_ims, channel_weights, axis=0)

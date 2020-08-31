@@ -249,11 +249,16 @@ def circle_locs(im, locs, inner_radius=3, outer_radius=4, fill_mode="nan", vals=
         return circle_im
 
 
-def sigproc_v2_im(run, fl_i=0, ch_i=0, cy_i=0, **kwargs):
+def sigproc_v2_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
     im = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_i]
-    locs = run.sigproc_v2.locs_for_field(fl_i)
-    sig = run.sigproc_v2.signal_radmat_for_field(fl_i)[:, ch_i, cy_i]
-    snr = run.sigproc_v2.snr_for_field(fl_i)[:, ch_i, cy_i]
+    locs = run.sigproc_v2.locs(fl_i)
+    sig = run.sigproc_v2.sig(fl_i)[:, ch_i, cy_i]
+    snr = run.sigproc_v2.snr(fl_i)[:, ch_i, cy_i]
+
+    if keep_mask is not None:
+        locs = locs[keep_mask]
+        sig = sig[keep_mask]
+        snr = snr[keep_mask]
 
     z = kwargs.pop("_zplots_context", None) or ZPlots()
 

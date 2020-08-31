@@ -484,8 +484,10 @@ class ZPlots:
 
         self.stack.pop()
 
-    def _cspan(self, _im):
+    def _cspan(self, _im, **kws):
         ustack = self._u_stack()
+        ustack.update(kws)
+
         _cper = ustack.get("_cper")
         if _cper is not None:
             # color by percentile
@@ -994,11 +996,7 @@ class ZPlots:
         pal = gray(256)
         dim = HW(im.shape)
 
-        # If I do this then I break the _cols checks. But I don't know
-        # why it was I needed this...
-        # self.stack.append(Munch(**kws))
-
-        low, high = self._cspan(im)
+        low, high = self._cspan(im, **kws)
         cmap = LinearColorMapper(palette=pal, low=low, high=high)
         n_colors = len(cmap.palette)
 

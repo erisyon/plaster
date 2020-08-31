@@ -6,6 +6,8 @@ import numpy as np
 class FancyIndexer:
     """
     Used to index multi-dimensional objects
+
+    TODO: Add negtative offsets
     """
 
     def __init__(self, lengths, lookup_fn, context=None):

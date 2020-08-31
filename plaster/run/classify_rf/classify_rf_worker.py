@@ -19,7 +19,7 @@ def classify_rf(
         )
 
     pred_pep_iz, scores, all_class_scores = train_rf_result.classifier.classify(
-        utils.mat_flatter(sigproc_result.signal_radmat()), progress
+        utils.mat_flatter(sigproc_result.sig()), progress
     )
 
     return ClassifyRFResult(

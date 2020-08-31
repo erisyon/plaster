@@ -790,7 +790,7 @@ def _raw_peak_i_zoom(
     field_i = int(peak_records.iloc[0].field_i)
 
     im = res.raw_chcy_ims(field_i)
-    all_sig = res.signal_radmat()
+    all_sig = res.sig()
 
     square = cspan[1] * imops.generate_square_mask(square_radius)
 
@@ -882,7 +882,7 @@ def wizard_raw_images(
         else:
             peak_i = None
 
-        all_sig = res.signal_radmat()
+        all_sig = res.sig()
 
         # mask_rects_for_field = res.raw_mask_rects_df()[field_i]
         # Temporarily removed. This is going to involve some groupby Super-Pandas-Kungfu(tm)
@@ -1218,13 +1218,13 @@ def plot_channel_signal_histograms(
 
     def get_signal():
         signal = (
-            run.sigproc_v1.signal_radmat()
+            run.sigproc_v1.sig()
             if limit_field is None
             else run.sigproc_v1.signal_radmat_for_field(limit_field)
         )
         if div_noise:
             noise = (
-                run.sigproc_v1.noise_radmat()
+                run.sigproc_v1.noi()
                 if limit_field is None
                 else run.sigproc_v1.noise_radmat_for_field(limit_field)
             )

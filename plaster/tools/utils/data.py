@@ -14,8 +14,12 @@ def cluster(data, n_subsample=None, **kwargs):
     optimal_ordering = kwargs.pop("optimal_ordering", True)
     method = kwargs.pop("method", "weighted")
     if n_subsample is not None:
-        data = subsample(data, n_subsample)
-    assert data.shape[0] <= 500
+        args = arg_subsample(data, n_subsample)
+    else:
+        args = np.arange(data.shape[0])
+
+    data = data[args]
+    assert data.shape[0] <= 800
     if data.shape[0] > 1:
         data_dist = pdist(data)
         data_link = linkage(
@@ -23,12 +27,12 @@ def cluster(data, n_subsample=None, **kwargs):
         )
         order = leaves_list(data_link)
         if return_order:
-            return data[order], order
+            return data[order], args[order]
         else:
             return data[order]
 
     if return_order:
-        return data, np.range(data.shape[0])
+        return data, args
     else:
         return data
 

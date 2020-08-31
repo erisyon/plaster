@@ -15,6 +15,7 @@ from plaster.tools.utils.fancy_indexer import FancyIndexer
 from plaster.run.base_result import BaseResult
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.tools.calibration.calibration import Calibration
+from plaster.tools.log.log import debug
 
 
 class SigprocV2Result(BaseResult):
@@ -133,7 +134,7 @@ class SigprocV2Result(BaseResult):
         ]
 
         if save_full_signal_radmat_npy:
-            radmat = self.signal_radmat()
+            radmat = self.sig()
             np.save(
                 str(self._folder / "full_signal_radmat.npy"), radmat, allow_pickle=False
             )
@@ -206,75 +207,106 @@ class SigprocV2Result(BaseResult):
             self._cache(prop, val)
         return val
 
-    def _load_ndarray_prop_from_all_fields(self, prop, vstack=True):
+    def _fields_to_start_stop(self, fields):
+        if fields is None:
+            start = 0
+            stop = self.n_fields
+        elif isinstance(fields, slice):
+            start = fields.start
+            stop = fields.stop or self.n_fields
+            assert fields.step in (None, 1)
+        elif isinstance(fields, int):
+            start = fields
+            stop = fields + 1
+        else:
+            raise TypeError(f"fields of unknown type in _load_ndarray_prop_from_fields. {type(fields)}")
+        return start, stop
+
+    def _load_ndarray_prop_from_fields(self, fields, prop, vstack=True):
         """
         Stack the ndarray that is in prop along all fields
         """
-        val = self._cache(prop)
-        if val is None:
-            list_ = [
-                self._load_field_prop(field_i, prop) for field_i in range(self.n_fields)
-            ]
 
-            if vstack:
-                val = np.vstack(list_)
-            else:
-                val = np.stack(list_)
+        field_start, field_stop = self._fields_to_start_stop(fields)
 
-            self._cache(prop, val)
+        list_ = [
+            self._load_field_prop(field_i, prop)
+            for field_i in range(field_start, field_stop)
+        ]
+
+        if vstack:
+            val = np.vstack(list_)
+        else:
+            val = np.stack(list_)
+
         return val
+
+    # def _radmat_indexer(self, sig_noi):
+    #     def foo(fl, ch, cy):
+    #         #debug(fl, ch, cy)
+    #         a = self._load_field_prop(fl, "radmat")
+    #         #debug(a)
+    #         return a[:, ch, cy, sig_noi]
+    #
+    #
+    #     return FancyIndexer(
+    #         (self.n_fields, self.n_channels, self.n_cycles),
+    #         # lookup_fn=lambda fl, ch, cy: self._load_field_prop(fl, "radmat")[ch, cy, sig_noi],
+    #         lookup_fn=foo,
+    #     )
 
     # ndarray returns
     # ----------------------------------------------------------------
 
-    def locs_for_field(self, field_i):
+    # def locs_for_field(self, field_i):
+    #     """Return peak locations in array form"""
+    #     df = self.peaks()
+    #     return df[df.field_i == field_i][["aln_y", "aln_x"]].values
+
+    def locs(self, fields=None):
         """Return peak locations in array form"""
         df = self.peaks()
-        return df[df.field_i == field_i][["aln_y", "aln_x"]].values
-
-    def locs(self):
-        """Return peak locations in array form"""
-        return self.peaks()[["aln_y", "aln_x"]].values
+        field_start, field_stop = self._fields_to_start_stop(fields)
+        field_stop -= 1  # Because the following is inclusive
+        df = df[df.field_i.between(field_start, field_stop, inclusive=True)]
+        return df[["aln_y", "aln_x"]].values
 
     def flat_if_requested(self, mat, flat_chcy=False):
         if flat_chcy:
             return utils.mat_flatter(mat)
         return mat
 
-    def signal_radmat_for_field(self, field_i, **kwargs):
+    # def signal_radmat_for_field(self, field_i, **kwargs):
+    #     return self.flat_if_requested(
+    #         np.nan_to_num(self._load_field_prop(field_i, "radmat")[:, :, :, 0]),
+    #         **kwargs,
+    #     )
+
+    def sig(self, fields=None, **kwargs):
         return self.flat_if_requested(
-            np.nan_to_num(self._load_field_prop(field_i, "radmat")[:, :, :, 0]),
-            **kwargs,
+            self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 0], **kwargs
         )
 
-    def signal_radmat(self, **kwargs):
+    def noi(self, fields=None, **kwargs):
         return self.flat_if_requested(
-            np.nan_to_num(
-                self._load_ndarray_prop_from_all_fields("radmat")[:, :, :, 0]
-            ),
-            **kwargs,
+            self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 1], **kwargs
         )
 
-    def noise_radmat_for_field(self, field_i, **kwargs):
-        return self.flat_if_requested(
-            self._load_field_prop(field_i, "radmat")[:, :, :, 1], **kwargs
-        )
-
-    def noise_radmat(self, **kwargs):
-        return self.flat_if_requested(
-            self._load_ndarray_prop_from_all_fields("radmat")[:, :, :, 1], **kwargs
-        )
-
-    def snr_for_field(self, field_i, **kwargs):
+    def snr(self, fields=None, **kwargs):
         return utils.np_safe_divide(
-            self.signal_radmat_for_field(field_i, **kwargs),
-            self.noise_radmat_for_field(field_i, **kwargs),
+            self.sig(fields=fields, **kwargs), self.noi(fields=fields, **kwargs)
         )
 
-    def snr(self, **kwargs):
-        return utils.np_safe_divide(
-            self.signal_radmat(**kwargs), self.noise_radmat(**kwargs)
-        )
+    # def noise_radmat_for_field(self, field_i, **kwargs):
+    #     return self.flat_if_requested(
+    #         self._load_field_prop(field_i, "radmat")[:, :, :, 1], **kwargs
+    #     )
+    #
+    # def snr_for_field(self, field_i, **kwargs):
+    #     return utils.np_safe_divide(
+    #         self.signal_radmat_for_field(field_i, **kwargs),
+    #         self.noise_radmat_for_field(field_i, **kwargs),
+    #     )
 
     def aln_chcy_ims(self, field_i):
         if field_i not in self._cache_aln_chcy_ims:
@@ -288,6 +320,14 @@ class SigprocV2Result(BaseResult):
         # Only for compatibility with wizard_raw_images
         # this can be deprecated once sigproc_v2 is deprecated
         return self.aln_chcy_ims(field_i)
+
+    # @property
+    # def sig(self):
+    #     return self._radmat_indexer(sig_noi=0)
+    #
+    # @property
+    # def noi(self):
+    #     return self._radmat_indexer(sig_noi=1)
 
     @property
     def aln_ims(self):
@@ -319,8 +359,8 @@ class SigprocV2Result(BaseResult):
         """
         Unwind a radmat into a giant dataframe with peak, channel, cycle
         """
-        sigs = self.signal_radmat()
-        nois = self.noise_radmat()
+        sigs = self.sig()
+        nois = self.noi()
         snr = self.snr()
 
         signal = sigs.reshape((sigs.shape[0] * sigs.shape[1] * sigs.shape[2]))
