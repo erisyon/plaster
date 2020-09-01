@@ -393,46 +393,48 @@ def _quality(im):
 def _do_gather(
     input_field_i,
     output_field_i,
-    src_channels,
     start_cycle,
     n_cycles,
     dim,
     nd2_import_result,
     mode,
     npy_paths_by_field_channel_cycle,
+    dst_ch_i_to_src_ch_i,
 ):
     """Gather a field"""
-    check.list_t(src_channels, int)
-    n_channels = len(src_channels)
+    n_dst_channels = len(dst_ch_i_to_src_ch_i)
 
     field_chcy_arr = nd2_import_result.allocate_field(
-        output_field_i, (n_channels, n_cycles, dim, dim), OUTPUT_NP_TYPE
+        output_field_i, (n_dst_channels, n_cycles, dim, dim), OUTPUT_NP_TYPE
     )
     field_chcy_ims = field_chcy_arr.arr()
 
-    chcy_i_to_quality = np.zeros((n_channels, n_cycles))
+    chcy_i_to_quality = np.zeros((n_dst_channels, n_cycles))
     cy_i_to_metadata = [None] * n_cycles
 
     output_cycle_i = 0
     for input_cycle_i in range(start_cycle, n_cycles):
         # GATHER channels
-        for dst_channel_i, src_channel_i in enumerate(src_channels):
+
+        for dst_ch_i in range(n_dst_channels):
+            src_ch_i = dst_ch_i_to_src_ch_i[dst_ch_i]
+
             if mode == "npy":
                 # These are being imported by npy originally with a different naming
                 # convention than the scattered files.
                 scatter_fp = npy_paths_by_field_channel_cycle[
-                    (input_field_i, src_channel_i, input_cycle_i)
+                    (input_field_i, src_ch_i, input_cycle_i)
                 ]
             else:
                 scatter_fp = _npy_filename_by_field_channel_cycle(
-                    input_field_i, src_channel_i, input_cycle_i
+                    input_field_i, src_ch_i, input_cycle_i
                 )
 
             im = _load_npy(scatter_fp)
             if im.dtype != OUTPUT_NP_TYPE:
                 im = im.astype(OUTPUT_NP_TYPE)
-            field_chcy_ims[dst_channel_i, output_cycle_i, :, :] = im
-            chcy_i_to_quality[dst_channel_i, output_cycle_i] = _quality(im)
+            field_chcy_ims[dst_ch_i, output_cycle_i, :, :] = im
+            chcy_i_to_quality[dst_ch_i, output_cycle_i] = _quality(im)
 
         # GATHER metadata files if any
         cy_i_to_metadata[output_cycle_i] = None
@@ -453,7 +455,7 @@ def _do_gather(
 
 
 def _do_movie_import(
-    nd2_path, output_field_i, start_cycle, n_cycles, target_mea, nd2_import_result
+    nd2_path, output_field_i, start_cycle, n_cycles, target_mea, nd2_import_result, dst_ch_i_to_src_ch_i
 ):
     """
     Import Nikon ND2 "movie" files.
@@ -472,12 +474,12 @@ def _do_movie_import(
 
     with _nd2(nd2_path) as nd2:
         n_actual_cycles = nd2.n_fields
-        n_channels = nd2.n_channels
+        n_dst_channels = len(dst_ch_i_to_src_ch_i)
         actual_dim = nd2.dim
 
         chcy_arr = nd2_import_result.allocate_field(
             output_field_i,
-            (n_channels, n_cycles, target_mea, target_mea),
+            (n_dst_channels, n_cycles, target_mea, target_mea),
             OUTPUT_NP_TYPE,
         )
         chcy_ims = chcy_arr.arr()
@@ -488,18 +490,19 @@ def _do_movie_import(
             f"nd2 scatter requested {target_mea} which is smaller than {actual_dim}",
         )
 
-        for ch_i in range(n_channels):
+        for dst_ch_i in range(n_dst_channels):
+            src_ch_i = dst_ch_i_to_src_ch_i[dst_ch_i]
             for cy_in_i in range(start_cycle, start_cycle + n_cycles):
                 cy_out_i = cy_in_i - start_cycle
 
-                im = nd2.get_field(cy_in_i, ch_i).astype(OUTPUT_NP_TYPE)
+                im = nd2.get_field(cy_in_i, src_ch_i).astype(OUTPUT_NP_TYPE)
 
                 if actual_dim[0] != target_mea or actual_dim[1] != target_mea:
                     # CONVERT into a zero pad
                     working_im[0 : actual_dim[0], 0 : actual_dim[1]] = im
                     im = working_im
 
-                chcy_ims[ch_i, cy_out_i, :, :] = im
+                chcy_ims[dst_ch_i, cy_out_i, :, :] = im
 
         # Task: Add quality
         nd2_import_result.save_field(output_field_i, chcy_arr)
@@ -514,7 +517,7 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
         tif_paths_by_field_channel_cycle,
         npy_paths_by_field_channel_cycle,
         n_fields_true,
-        n_channels,
+        n_in_channels,
         n_cycles_true,
         dim,
     ) = _scan_files(src_dir)
@@ -525,8 +528,6 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
         new_dim = utils.next_power_of_2(target_mea)
         _convert_message(target_mea, new_dim)
         target_mea = new_dim
-
-    src_channels = list(range(n_channels))
 
     def clamp_fields(n_fields_true):
         n_fields = n_fields_true
@@ -559,6 +560,13 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
         params=ims_import_params, tsv_data=Munch(tsv_data)
     )
 
+    dst_ch_i_to_src_ch_i = ims_import_params.dst_ch_i_to_src_ch_i
+    if dst_ch_i_to_src_ch_i is None:
+        dst_ch_i_to_src_ch_i = [i for i in range(n_in_channels)]
+
+    # Sanity check
+    assert all([0 <= src_ch_i < n_in_channels for src_ch_i in dst_ch_i_to_src_ch_i])
+
     if ims_import_params.is_movie:
         start_field, n_fields = clamp_fields(len(nd2_paths))
 
@@ -579,6 +587,7 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
             n_cycles=n_cycles,
             target_mea=target_mea,
             nd2_import_result=ims_import_result,
+            dst_ch_i_to_src_ch_i=dst_ch_i_to_src_ch_i,
         )
 
     else:
@@ -599,7 +608,7 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
                 _stack=True,
                 start_field=start_field,
                 n_fields=n_fields,
-                n_channels=n_channels,
+                n_channels=n_in_channels,
                 target_mea=target_mea,
             )
 
@@ -615,7 +624,7 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
 
             # CHECK that every file exists
             for f in range(n_fields):
-                for ch in range(n_channels):
+                for ch in range(n_in_channels):
                     for cy in range(n_cycles_true):
                         expected = f"__{f:03d}-{ch:02d}-{cy:02d}.npy"
                         if expected not in results:
@@ -645,17 +654,17 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
             _process_mode=True,
             _progress=progress,
             _stack=True,
-            src_channels=src_channels,
             start_cycle=start_cycle,
             n_cycles=n_cycles,
             dim=target_mea,
             nd2_import_result=ims_import_result,
             mode=mode,
             npy_paths_by_field_channel_cycle=npy_paths_by_field_channel_cycle,
+            dst_ch_i_to_src_ch_i=dst_ch_i_to_src_ch_i,
         )
 
     ims_import_result.n_fields = len(field_iz)
-    ims_import_result.n_channels = n_channels
+    ims_import_result.n_channels = n_in_channels
     ims_import_result.n_cycles = n_cycles
     ims_import_result.dim = target_mea
     ims_import_result.dtype = np.dtype(OUTPUT_NP_TYPE).name

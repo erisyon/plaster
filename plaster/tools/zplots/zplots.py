@@ -830,7 +830,9 @@ class ZPlots:
 
         # If I do this then I break the _cols checks. But I don't know
         # why it was I needed this...
+        # It's because of cspan need in _im_setup but before _begin has done its magic
         # self.stack.append(Munch(**kws))
+        self.stack[-1].update(kws)
 
         ustack = self._u_stack()
         nan_color = ustack.get("_nan_color")

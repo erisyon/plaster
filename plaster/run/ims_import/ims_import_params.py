@@ -23,5 +23,6 @@ class ImsImportParams(Params):
             n_fields_limit=s.is_int(noneable=True),
             start_cycle=s.is_int(),
             n_cycles_limit=s.is_int(noneable=True),
+            dst_ch_i_to_src_ch_i=s.is_list(elems=s.is_int(), noneable=True)
         )
     )
