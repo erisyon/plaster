@@ -564,6 +564,8 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
     if dst_ch_i_to_src_ch_i is None:
         dst_ch_i_to_src_ch_i = [i for i in range(n_in_channels)]
 
+    n_out_channels = len(dst_ch_i_to_src_ch_i)
+
     # Sanity check
     assert all([0 <= src_ch_i < n_in_channels for src_ch_i in dst_ch_i_to_src_ch_i])
 
@@ -664,7 +666,7 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
         )
 
     ims_import_result.n_fields = len(field_iz)
-    ims_import_result.n_channels = n_in_channels
+    ims_import_result.n_channels = n_out_channels
     ims_import_result.n_cycles = n_cycles
     ims_import_result.dim = target_mea
     ims_import_result.dtype = np.dtype(OUTPUT_NP_TYPE).name

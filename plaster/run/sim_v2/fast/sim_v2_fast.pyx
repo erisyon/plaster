@@ -157,7 +157,7 @@ def sim(
         hash_factor = 1.5
         n_max_dtrs = <c.Size>(extra_factor * 250 * n_peps + 1000)
         n_max_dtr_hash_recs = int(hash_factor * n_max_dtrs)
-        n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps)
+        n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps + 1000)
         n_max_dyepep_hash_recs = int(hash_factor * n_max_dyepeps)
         dtr_mb = n_max_dtrs * n_dtr_row_bytes / 1024**2
         dyepep_mb = n_max_dyepeps * sizeof(c.DyePepRec) / 1024**2

@@ -9,6 +9,7 @@ class ImsImportParams(Params):
         n_fields_limit=None,
         start_cycle=0,
         n_cycles_limit=None,
+        dst_ch_i_to_src_ch_i=None,
     )
 
     # Note that in movie mode what is called "field" is really the "frame" since the
