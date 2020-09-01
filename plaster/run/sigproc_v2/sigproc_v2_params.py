@@ -24,7 +24,7 @@ class SigprocV2Params(Params):
         snr_thresh=2.0,
         focus_window_radius=6,
         n_fields_limit=None,
-        skip_anomaly_detection=False,
+        skip_anomaly_detection=True,
     )
 
     schema = s(
