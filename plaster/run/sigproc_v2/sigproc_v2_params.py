@@ -20,8 +20,8 @@ class SigprocV2Params(Params):
     defaults = dict(
         divs=5,
         peak_mea=11,
-        sig_limit=20.0,
-        snr_thresh=2.0,
+        sig_limit=20.0,  # Keep peaks this many times brighter than the calibration background
+        snr_thresh=2.0,  # Keep peaks with SNR greater than this
         focus_window_radius=6,
         n_fields_limit=None,
         skip_anomaly_detection=True,

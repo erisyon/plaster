@@ -976,17 +976,6 @@ def wizard_raw_images(
 
                     output_ch = res.params.input_channel_to_output_channel(input_ch)
                     im_with_marker = np.copy(raw_ims[input_ch, cycle_i])
-                    # if (
-                    #     mask_rects_for_field is not None
-                    #     and mask_rects_for_field[input_ch] is not None
-                    # ):
-                    #     mask_rects = mask_rects_for_field[input_ch][cycle_i]
-                    #     for rect in mask_rects:
-                    #         imops.edge_fill(
-                    #             im_with_marker,
-                    #             loc=XY(rect[0], rect[1]),
-                    #             dim=WH(rect[2], rect[3]),
-                    #         )
 
                     if peak_i is not None:
                         cy_rec = peak_records[peak_records.cycle_i == cycle_i].iloc[0]

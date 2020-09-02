@@ -616,6 +616,12 @@ class ZPlots:
         """
         Scatter. Adds labels of the range if not provided.
         """
+        ustack = self._u_stack()
+        _n_samples = ustack.get("_n_samples", kws.get("_n_samples"))
+        if _n_samples is not None:
+            samp_iz = arg_subsample(kws["x"], _n_samples)
+            kws["x"] = kws["x"][samp_iz]
+            kws["y"] = kws["y"][samp_iz]
         fig = self._begin(
             kws,
             dict(x=None, y=None, _label=np.arange(len(kws.get("x", [])))),
@@ -986,7 +992,9 @@ class ZPlots:
         self.im_color(red=negative, green=positive, **kws)
 
     @trap()
-    def im_clus(self, data, _n_samples=500, **kws):
+    def im_clus(self, data, **kws):
+        ustack = self._u_stack()
+        _n_samples = ustack.get("_n_samples", 500)
         im = cluster(data, n_subsample=_n_samples)
         self.im(im, **kws)
 

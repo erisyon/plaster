@@ -293,16 +293,20 @@ def zest_ImageOps():
         expected = np.array([[5, 0], [0, 9]])
         assert np.array_equal(found, expected)
 
-    def it_fills_with_clipping():
+    def it_fills():
+        im = np.ones((3, 3))
+        im = imops.edge_fill(im, 1)
+        # fmt: off
+        assert im.tolist() == [
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0]
+        ]
+        # fmt: on
+
         dst = np.ones(WH(4, 4))
         imops.fill(dst, loc=XY(1, 1), dim=WH(10, 10))
         good = np.array([[1, 1, 1, 1], [1, 0, 0, 0], [1, 0, 0, 0], [1, 0, 0, 0]])
-        assert (dst == good).all()
-
-    def it_edge_fills_with_clipping():
-        dst = np.ones(WH(4, 4))
-        imops.edge_fill(dst, loc=XY(1, 1), dim=WH(10, 10))
-        good = np.array([[1, 1, 1, 1], [1, 0, 0, 0], [1, 0, 1, 0], [1, 0, 0, 0]])
         assert (dst == good).all()
 
     def it_shifts_with_equal_ndims():

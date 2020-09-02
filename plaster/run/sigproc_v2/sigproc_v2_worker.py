@@ -967,8 +967,7 @@ def _analyze_step_3_align(cy_ims):
 
     # MASK out edge effects
     for im in fiducial_cy_ims:
-        imops.fill(im, XY(1024 - enlarge_radius * 2, 0), WH(10, 1024))
-        imops.fill(im, XY(0, 1024 - enlarge_radius * 2), WH(1024, 10))
+        imops.edge_fill(im, 20)
 
     aln_offsets, aln_scores = imops.align(fiducial_cy_ims)
     return aln_offsets, aln_scores
@@ -1232,24 +1231,28 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
     n_out_channels, n_cycles = chcy_ims.shape[0:2]
     assert n_out_channels == sigproc_v2_params.n_output_channels
 
-    # Step 2: Remove anomalies
-    if not sigproc_v2_params.skip_anomaly_detection:
-        for ch_i, cy_ims in enumerate(chcy_ims):
-            chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
+    # Step 2: Remove anomalies (at least for alignment)
+    anom_removed_chcy_ims = np.zeros_like(chcy_ims)
+    for ch_i, cy_ims in enumerate(chcy_ims):
+        anom_removed_chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
 
     # HACK
     # np.save(f"/erisyon/field_{field_i}", chcy_ims)
 
     if align_images:
         # Step 3: Find alignment offsets
-        aln_offsets, aln_scores = _analyze_step_3_align(np.mean(chcy_ims, axis=0))
+        aln_offsets, aln_scores = _analyze_step_3_align(np.mean(anom_removed_chcy_ims, axis=0))
 
         # Step 4: Composite with alignment
-        chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets)
-        # chcy_ims is now only the intersection region so it may be smaller than the original
+        anom_removed_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(anom_removed_chcy_ims, aln_offsets)
+        # no_anom_chcy_ims is now only the intersection region so it may be smaller than the original
     else:
         aln_offsets = [YX(0, 0) for cy_i in range(n_cycles)]
         aln_scores = [1.0 for cy_i in range(n_cycles)]
+
+    if not sigproc_v2_params.skip_anomaly_detection:
+        # Then use the anomaliy removed images as the images for further processing
+        chcy_ims = anom_removed_chcy_ims
 
     aln_offsets = np.array(aln_offsets)
     aln_scores = np.array(aln_scores)
@@ -1271,7 +1274,7 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
 
     mea = np.array([chcy_ims.shape[-1:]])
     if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
-        important(f"field {field_i} has bad alignment")
+        important(f"field {field_i} has bad alignment {aln_offsets}")
 
     return chcy_ims, locs[keep_mask], radmat[keep_mask], aln_offsets, aln_scores
 

@@ -441,26 +441,21 @@ def fill(tar, loc, dim, val=0, center=False):
         tar[tar_roi] = val
 
 
-def edge_fill(tar, loc, dim, val=0, center=False):
+def edge_fill(tar, thickness, val=0):
     """Fill rect edge target with value in ROI"""
-    loc = YX(loc)
-    dim = HW(dim)
-    tar_dim = HW(tar.shape)
-    if center:
-        loc -= dim // 2
-    tar_roi, _ = clip2d(loc.x, tar_dim.w, dim.w, loc.y, tar_dim.h, dim.h)
-    if tar_roi is not None:
-        # Bottom
-        tar[tar_roi[0].start, tar_roi[1].start : tar_roi[1].stop] = val
+    assert thickness < tar.shape[0] and thickness < tar.shape[1]
 
-        # Top
-        tar[tar_roi[0].stop - 1, tar_roi[1].start : tar_roi[1].stop] = val
+    # Bottom
+    tar[0:thickness, 0:tar.shape[1]] = val
 
-        # Left
-        tar[tar_roi[0].start : tar_roi[0].stop, tar_roi[1].start] = val
+    # Top
+    tar[tar.shape[0]-thickness:tar.shape[1], 0:tar.shape[1]] = val
 
-        # Right
-        tar[tar_roi[0].start : tar_roi[0].stop, tar_roi[1].stop - 1] = val
+    # Left
+    tar[0:tar.shape[0], 0:thickness] = val
+
+    # Right
+    tar[0:tar.shape[0], tar.shape[1]-thickness:tar.shape[1]] = val
 
     return tar
 
