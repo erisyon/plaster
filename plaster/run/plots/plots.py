@@ -680,7 +680,7 @@ def plot_pr_for_run(
             )
 
 
-def plot_pr_for_job(job, force_all_proteins=False, classifier="test_rf", **kwargs):
+def plot_pr_for_job(job, force_all_proteins=False, classifier="nn_v2", **kwargs):
     """
     Single plot containing relevant PR per run, with legend to indicate run.
 
