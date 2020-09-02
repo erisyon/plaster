@@ -45,7 +45,7 @@ from itertools import cycle
 import numpy as np
 from munch import Munch
 from plaster.tools.utils import utils
-from plaster.tools.utils.data import subsample, arg_subsample
+from plaster.tools.utils.data import subsample, arg_subsample, cluster
 from plaster.tools.log.log import debug
 from plaster.tools.image.coord import XY, YX, WH, HW, ROI
 
@@ -756,8 +756,8 @@ class ZPlots:
 
             if pstack.get("line_color") is not None:
                 pstack["fill_color"] = pstack.get("line_color")
-            if pstack.get("line_alpha") is not None:
-                pstack["fill_alpha"] = pstack.get("line_alpha")
+            # if pstack.get("line_alpha") is not None:
+            #     pstack["fill_alpha"] = pstack.get("line_alpha")
 
             fig.scatter(**pstack)
 
@@ -984,6 +984,11 @@ class ZPlots:
         positive = np.clip(im_data, a_min=0, a_max=None)
         negative = np.clip(-im_data, a_min=0, a_max=None)
         self.im_color(red=negative, green=positive, **kws)
+
+    @trap()
+    def im_clus(self, data, _n_samples=500, **kws):
+        im = cluster(data, n_subsample=_n_samples)
+        self.im(im, **kws)
 
     @trap()
     def im_peaks(self, im, circle_im, index_im, sig_im, snr_im, **kws):
