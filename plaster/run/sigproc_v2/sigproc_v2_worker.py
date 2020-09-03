@@ -378,9 +378,7 @@ def _background_extract(im):
     #      so we have to cast it to float64.  Alternatively we could investigate
     #      if imops.convolve really ought to require float64?
     med = float(np.nanmedian(im))
-    cim = imops.convolve(
-        np.nan_to_num(im.astype(np.float64), nan=med), kern
-    )
+    cim = imops.convolve(np.nan_to_num(im.astype(np.float64), nan=med), kern)
 
     # cim can end up with artifacts around the nans to the nan_mask
     # is dilated and splated as zeros back over the im
@@ -434,13 +432,13 @@ def _background_regional_estimate_im(im, divs, inpaint=False):
             reg_bg_mean.astype(np.float32),
             np.isnan(reg_bg_mean).astype(np.uint8),
             inpaintRadius=3,
-            flags=cv2.INPAINT_TELEA
+            flags=cv2.INPAINT_TELEA,
         )
         reg_bg_std = cv2.inpaint(
             reg_bg_std.astype(np.float32),
             np.isnan(reg_bg_std).astype(np.uint8),
             inpaintRadius=3,
-            flags=cv2.INPAINT_TELEA
+            flags=cv2.INPAINT_TELEA,
         )
 
     return reg_bg_mean, reg_bg_std
@@ -465,7 +463,9 @@ def _background_stats_ims(flzl_ims, divs):
 
     for fl_i in range(n_fields):
         for z_i in range(n_zslices):
-            reg_bg_mean, reg_bg_std = _background_regional_estimate_im(flzl_ims[fl_i, z_i], divs)
+            reg_bg_mean, reg_bg_std = _background_regional_estimate_im(
+                flzl_ims[fl_i, z_i], divs
+            )
             fl_reg_bg_mean[fl_i, :, :] = reg_bg_mean
             fl_reg_bg_std[fl_i, :, :] = reg_bg_std
 
@@ -871,7 +871,9 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     dim = chcy_ims.shape[-2:]
     for ch_i in range(n_channels):
         for cy_i in range(n_cycles):
-            reg_bg_mean, _ = _background_regional_estimate_im(dst_chcy_ims[ch_i, cy_i], divs=64, inpaint=True)
+            reg_bg_mean, _ = _background_regional_estimate_im(
+                dst_chcy_ims[ch_i, cy_i], divs=64, inpaint=True
+            )
             bg_im = imops.interp(reg_bg_mean, dim)
             dst_chcy_ims[ch_i, cy_i, :, :] = dst_chcy_ims[ch_i, cy_i, :, :] - bg_im
 
@@ -1241,7 +1243,7 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
         aln_offsets, aln_scores = _analyze_step_3_align(np.mean(chcy_ims, axis=0))
 
         # Step 4: Composite with alignment
-        anom_removed_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets)
+        chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets)
         # chcy_ims is now only the intersection region so it may be smaller than the original
     else:
         aln_offsets = [YX(0, 0) for cy_i in range(n_cycles)]
