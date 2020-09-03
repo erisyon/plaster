@@ -151,6 +151,7 @@ class SigprocV2Result(BaseResult):
         except Exception as e:
             return "SigprocResult"
 
+
     def _cache(self, prop, val=None):
         # TASK: This might be better done with a yielding context
         cache_key = f"_load_prop_cache_{prop}"

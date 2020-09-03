@@ -1232,27 +1232,20 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
     assert n_out_channels == sigproc_v2_params.n_output_channels
 
     # Step 2: Remove anomalies (at least for alignment)
-    anom_removed_chcy_ims = np.zeros_like(chcy_ims)
-    for ch_i, cy_ims in enumerate(chcy_ims):
-        anom_removed_chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
-
-    # HACK
-    # np.save(f"/erisyon/field_{field_i}", chcy_ims)
+    if not sigproc_v2_params.skip_anomaly_detection:
+        for ch_i, cy_ims in enumerate(chcy_ims):
+            chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
 
     if align_images:
         # Step 3: Find alignment offsets
-        aln_offsets, aln_scores = _analyze_step_3_align(np.mean(anom_removed_chcy_ims, axis=0))
+        aln_offsets, aln_scores = _analyze_step_3_align(np.mean(chcy_ims, axis=0))
 
         # Step 4: Composite with alignment
-        anom_removed_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(anom_removed_chcy_ims, aln_offsets)
-        # no_anom_chcy_ims is now only the intersection region so it may be smaller than the original
+        anom_removed_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets)
+        # chcy_ims is now only the intersection region so it may be smaller than the original
     else:
         aln_offsets = [YX(0, 0) for cy_i in range(n_cycles)]
         aln_scores = [1.0 for cy_i in range(n_cycles)]
-
-    if not sigproc_v2_params.skip_anomaly_detection:
-        # Then use the anomaliy removed images as the images for further processing
-        chcy_ims = anom_removed_chcy_ims
 
     aln_offsets = np.array(aln_offsets)
     aln_scores = np.array(aln_scores)
