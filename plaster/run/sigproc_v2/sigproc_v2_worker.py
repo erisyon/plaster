@@ -689,7 +689,7 @@ def _foreground_filter_locs(
     return sig, locs
 
 
-def _foreground_balance(ims_import_result, divs, sig, locs):
+def _foreground_balance(im_dim, divs, sig, locs):
     """
     Unit-testable logic of _calibrate_regional_illumination_balance().
     Use the regional medians to build a balance matrix.
@@ -706,8 +706,6 @@ def _foreground_balance(ims_import_result, divs, sig, locs):
         Therefore we have an assert to make sure this is a safe
         assumption to make in this case.
     """
-    assert ims_import_result.params.is_movie == True
-    im_dim = ims_import_result.ims[0, 0, 0].shape
     y = utils.ispace(0, im_dim[0], divs + 1)
     x = utils.ispace(0, im_dim[1], divs + 1)
     medians = np.zeros((divs, divs))
@@ -794,9 +792,9 @@ def _calibrate_step_3_regional_illumination_balance(
         )
 
         # CALCULATE the regional balance using only filtered sig,locs
-        balance = _foreground_balance(
-            ims_import_result, sigproc_v2_params.divs, sig, locs
-        )
+        assert ims_import_result.params.is_movie == True
+        im_dim = ims_import_result.ims[0, 0, 0].shape
+        balance = _foreground_balance(im_dim, sigproc_v2_params.divs, sig, locs)
         # REPLACE the all-ones values with real balance factors
         calib.add(
             {
