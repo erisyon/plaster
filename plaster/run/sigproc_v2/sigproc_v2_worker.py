@@ -709,12 +709,14 @@ def _foreground_balance(im_dim, divs, sig, locs):
     y = utils.ispace(0, im_dim[0], divs + 1)
     x = utils.ispace(0, im_dim[1], divs + 1)
     medians = np.zeros((divs, divs))
+    low, high = np.percentile(sig, (5, 95))
     for yi in range(len(y) - 1):
         for xi in range(len(x) - 1):
             loc_mask = (y[yi] <= locs[:, 0]) & (locs[:, 0] < y[yi + 1])
             loc_mask &= (x[xi] <= locs[:, 1]) & (locs[:, 1] < x[xi + 1])
             _sig = sig[loc_mask]
-            medians[yi, xi] = np.median(_sig)
+            bright_mask = (low <= _sig) & (_sig <= high)
+            medians[yi, xi] = np.nanmedian(_sig[bright_mask])
     max_regional_fg_est = np.max(medians)
     balance = max_regional_fg_est / medians
     return balance
