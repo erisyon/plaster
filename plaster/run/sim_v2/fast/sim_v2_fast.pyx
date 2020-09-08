@@ -155,8 +155,11 @@ def sim(
         #n_channels_to_n_max_dyepep_per_pep = [0, 100, 100, 100, 250, 425]
         extra_factor = 1.2
         hash_factor = 1.5
-        # constant of 8000 here is ad-hoc, based on results where very small
+        # constant here is ad-hoc, based on results where very small
         # numbers of peptides would result in a table overflow error
+        # it was initially set by ZBS at 1000, then changed to 8000 by RDH
+        # on 20200902, then to 200_000 by RDH on 20200908.
+        #TODO: better method for determining these sizes
         n_max_dtrs = <c.Size>(extra_factor * 250 * n_peps + 200000)
         n_max_dtr_hash_recs = int(hash_factor * n_max_dtrs)
         n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps + 200000)
