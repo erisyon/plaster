@@ -1093,7 +1093,7 @@ def wizard_xy_df(run, channel_i=None, result_block="sigproc_v1", **kwargs):
     )
 
     df = run[result_block].fields__n_peaks__peaks__radmat()
-    df = df.drop(["stage_x", "stage_y"], axis=1)
+    # df = df.drop(["stage_x", "stage_y"], axis=1)
 
     df = df.set_index("field_i").join(stage_df.set_index("field_i"))
 
