@@ -211,9 +211,12 @@ def _peak_find(im):
     # around zero thanks to the fact that im and kern are expected
     # to be roughly zero-centered. Therefore we estimate the threshold
     # by using the samples less than zero cim[cim<0] and taking the 99th percentile
-    thresh = np.percentile(-cim[cim < 0], 99)
-    cim[cim < thresh] = 0
-    return peak_local_max(cim, min_distance=2, threshold_abs=thresh)
+    if (cim < 0).sum() > 0:
+        thresh = np.percentile(-cim[cim < 0], 99)
+        cim[cim < thresh] = 0
+        return peak_local_max(cim, min_distance=2, threshold_abs=thresh)
+    else:
+        return np.zeros((0, 2))
 
 
 # PSF
@@ -429,18 +432,20 @@ def _background_regional_estimate_im(im, divs, inpaint=False):
 
     if inpaint:
         reg_bg_mean = cv2.inpaint(
-            reg_bg_mean.astype(np.float32),
+            np.nan_to_num(reg_bg_mean.astype(np.float32)),
             np.isnan(reg_bg_mean).astype(np.uint8),
             inpaintRadius=3,
             flags=cv2.INPAINT_TELEA,
         )
         reg_bg_std = cv2.inpaint(
-            reg_bg_std.astype(np.float32),
+            np.nan_to_num(reg_bg_std.astype(np.float32)),
             np.isnan(reg_bg_std).astype(np.uint8),
             inpaintRadius=3,
             flags=cv2.INPAINT_TELEA,
         )
 
+    assert not np.any(np.isnan(reg_bg_mean))
+    assert not np.any(np.isnan(reg_bg_std))
     return reg_bg_mean, reg_bg_std
 
 
@@ -950,7 +955,10 @@ def _analyze_step_3_align(cy_ims):
 
     fiducial_ims = []
     for im in cy_ims:
-        med = float(np.nanmedian(im))
+        if not np.all(np.isnan(im)):
+            med = float(np.nanmedian(im))
+        else:
+            med = 0
         im = np.nan_to_num(im, nan=med)
         fiducial_ims += [imops.convolve(im, kern)]
 
@@ -1236,6 +1244,7 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
     # Step 2: Remove anomalies (at least for alignment)
     if not sigproc_v2_params.skip_anomaly_detection:
         for ch_i, cy_ims in enumerate(chcy_ims):
+            debug(ch_i)
             chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
 
     if align_images:
