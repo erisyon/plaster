@@ -157,9 +157,9 @@ def sim(
         hash_factor = 1.5
         # constant of 8000 here is ad-hoc, based on results where very small
         # numbers of peptides would result in a table overflow error
-        n_max_dtrs = <c.Size>(extra_factor * 250 * n_peps + 8000)
+        n_max_dtrs = <c.Size>(extra_factor * 250 * n_peps + 200000)
         n_max_dtr_hash_recs = int(hash_factor * n_max_dtrs)
-        n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps + 8000)
+        n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps + 200000)
         n_max_dyepep_hash_recs = int(hash_factor * n_max_dyepeps)
         dtr_mb = n_max_dtrs * n_dtr_row_bytes / 1024**2
         dyepep_mb = n_max_dyepeps * sizeof(c.DyePepRec) / 1024**2
