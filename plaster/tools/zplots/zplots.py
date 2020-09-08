@@ -437,10 +437,15 @@ class ZPlots:
         allow_labels = ustack.get("_no_labels") is not True
 
         if allow_labels:
-            label_col = [] if label_col_name not in kws["source"].to_df().columns else [("label", f"@{label_col_name}")]
+            label_col = (
+                []
+                if label_col_name not in kws["source"].to_df().columns
+                else [("label", f"@{label_col_name}")]
+            )
             fig.add_tools(
                 HoverTool(
-                    tooltips=label_col + [
+                    tooltips=label_col
+                    + [
                         ("x", "$x{0,0.0}"),
                         ("y", "$y{0,0.0}"),
                         ("value", "@image{0,0.0}"),
@@ -459,9 +464,9 @@ class ZPlots:
             if (
                 ustack.get("_legend") is True
             ):  # so I'll add this for "nonspecific" use of legend...
-                self._add_prop("legend_label", str(
-                    kws["source"].to_df()[label_col_name].iloc[0]
-                ))
+                self._add_prop(
+                    "legend_label", str(kws["source"].to_df()[label_col_name].iloc[0])
+                )
 
         self._apply_fig_props(fig)
 
@@ -521,7 +526,6 @@ class ZPlots:
                     high = _cspan
 
         return low, high
-
 
     def _im_setup(self, im):
         from bokeh.models import LinearColorMapper  # Defer slow imports
@@ -836,9 +840,21 @@ class ZPlots:
 
         # If I do this then I break the _cols checks. But I don't know
         # why it was I needed this...
+
         # It's because of cspan need in _im_setup but before _begin has done its magic
         # self.stack.append(Munch(**kws))
         self.stack[-1].update(kws)
+
+        """
+        TODO:
+        There's a major problem here. The above code is updating the stack
+        which means these props are not popped off the stack.
+        The issue is that _im_setup needs props befopre it can do things
+        so that it can pass those dims and other things into _begin
+        But _begin is the one that is meant to be doing stack munging
+        not here. So I need fix this circular dependency maybe a _begin_im
+        that then calls _begin or similar?
+        """
 
         ustack = self._u_stack()
         nan_color = ustack.get("_nan_color")
@@ -869,8 +885,7 @@ class ZPlots:
         self._im_post_setup(fig, dim)
 
         fig.image(
-            color_mapper=cmap,
-            **self._p_stack(),
+            color_mapper=cmap, **self._p_stack(),
         )
 
         if nan_color is not None:
@@ -932,9 +947,7 @@ class ZPlots:
 
         self._im_post_setup(fig, dim)
 
-        fig.image_rgba(
-            ** self._p_stack(),
-        )
+        fig.image_rgba(**self._p_stack(),)
         self._end()
         return fig
 
