@@ -335,6 +335,8 @@ class SurveyV2Result(BaseResult):
             domain_loss = set(filters.requested_ptms) - set(list(df.ptm.astype(int)))
             if filters.verbose and domain_loss:
                 print(f"  ** final domain_loss: {sorted(domain_loss)}")
+        elif len(filters.requested_proteins) == 0:
+            filter_pass = 0
         else:
             filter_pass = len(df.pro_i.unique()) / len(filters.requested_proteins)
             domain_loss = set(filters.requested_proteins) - set(list(df.pro_i))
