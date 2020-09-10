@@ -232,6 +232,9 @@ class Calibration(Munch):
         self.clear()
         self.add(new_propsubs)
 
+    def psfs(self, ch_i):
+        return np.array(self[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
+
     def __init__(self, propsubs=None):
         super().__init__()
         self.add(propsubs)

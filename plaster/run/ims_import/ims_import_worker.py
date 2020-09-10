@@ -553,6 +553,7 @@ def _z_stack_import(
             # Task: Add quality
             nd2_import_result.save_field(field_i, chcy_arr)
 
+    return list(range(n_fields)), movie_n_slices_per_field 
 
 def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
     (
@@ -614,13 +615,14 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
     assert all([0 <= src_ch_i < n_in_channels for src_ch_i in dst_ch_i_to_src_ch_i])
 
     if ims_import_params.is_z_stack_single_file:
-        _z_stack_import(
-            nd2_paths[0:1],
+        field_iz, n_cycles_found = _z_stack_import(
+            nd2_paths[0],
             target_mea,
             ims_import_result,
             dst_ch_i_to_src_ch_i,
             ims_import_params.z_stack_n_slices_per_field,
         )
+        n_cycles = ims_import_params.z_stack_n_slices_per_field
 
     elif ims_import_params.is_movie:
         start_field, n_fields = clamp_fields(len(nd2_paths))
