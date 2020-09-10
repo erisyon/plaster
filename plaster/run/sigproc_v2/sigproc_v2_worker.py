@@ -559,6 +559,7 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
     It is not yet background subtracted.
     """
     n_src_zslices = zi_ims.shape[0]
+    dim = zi_ims.shape[-2:]
     divs = sigproc_v2_params.divs
     peak_dim = (sigproc_v2_params.peak_mea, sigproc_v2_params.peak_mea)
 
@@ -569,10 +570,12 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
     src_z_iz = utils.ispace(0, n_src_zslices, n_dst_zslices)
     dst_z_per_src_z = n_src_zslices / n_dst_zslices
 
+    bg_subtracted_ims = np.zeros((n_src_zslices, *dim))
     im_focuses = np.zeros((n_src_zslices,))
     for src_zi in range(n_src_zslices):
         bg_mean, _ = _background_regional_estimate_im(zi_ims[src_zi], divs=64, inpaint=True)
         im_sub = _background_subtraction(zi_ims[src_zi], bg_mean)
+        bg_subtracted_ims[src_zi] = im_sub
         im_focuses[src_zi] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
 
     src_zi_best_focus = np.argmax(im_focuses)
@@ -592,10 +595,7 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
         for src_zi in range(src_zi0, src_zi1):
             if 0 <= src_zi < n_src_zslices:
                 # Only if the source is inside the source range, accum to dst.
-                # TODO: Possible optimization: save the bg results from above
-                bg_mean, bg_std = _background_regional_estimate_im(zi_ims[src_zi], divs)
-                im_sub = _background_subtraction(zi_ims[src_zi], bg_mean)
-                _, reg_psfs = _psf_extract(im_sub, divs=divs, peak_mea=peak_dim[0])
+                _, reg_psfs = _psf_extract(bg_subtracted_ims[src_zi], divs=divs, peak_mea=peak_dim[0])
                 z_and_region_to_psf[dst_zi] += reg_psfs
 
     return z_and_region_to_psf
