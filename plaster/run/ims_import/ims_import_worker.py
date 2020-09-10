@@ -455,7 +455,7 @@ def _do_gather(
 
 
 def _do_movie_import(
-    nd2_path, output_field_i, start_cycle, n_cycles, target_mea, nd2_import_result, dst_ch_i_to_src_ch_i
+    nd2_path, output_field_i, start_cycle, n_cycles, target_mea, nd2_import_result, dst_ch_i_to_src_ch_i,
 ):
     """
     Import Nikon ND2 "movie" files.
@@ -508,6 +508,50 @@ def _do_movie_import(
         nd2_import_result.save_field(output_field_i, chcy_arr)
 
     return output_field_i, n_actual_cycles
+
+
+def _z_stack_import(
+    nd2_path, target_mea, nd2_import_result, dst_ch_i_to_src_ch_i, movie_n_slices_per_field
+):
+    """
+    A single ND2 file with multiple fields
+    """
+    working_im = np.zeros((target_mea, target_mea), OUTPUT_NP_TYPE)
+
+    with _nd2(nd2_path) as nd2:
+        n_actual_cycles = nd2.n_fields
+        n_dst_channels = len(dst_ch_i_to_src_ch_i)
+        actual_dim = nd2.dim
+
+        assert n_actual_cycles % movie_n_slices_per_field == 0
+        n_fields = n_actual_cycles // movie_n_slices_per_field
+
+        for field_i in range(n_fields):
+            chcy_arr = nd2_import_result.allocate_field(
+                field_i,
+                (n_dst_channels, movie_n_slices_per_field, target_mea, target_mea),
+                OUTPUT_NP_TYPE,
+            )
+            chcy_ims = chcy_arr.arr()
+
+            check.affirm(
+                actual_dim[0] <= target_mea and actual_dim[1] <= target_mea,
+                f"nd2 scatter requested {target_mea} which is smaller than {actual_dim}",
+            )
+
+            for dst_ch_i in range(n_dst_channels):
+                src_ch_i = dst_ch_i_to_src_ch_i[dst_ch_i]
+                for cy_out_i, cy_in_i in enumerate(range(field_i * movie_n_slices_per_field, (field_i + 1) * movie_n_slices_per_field)):
+                    im = nd2.get_field(cy_in_i, src_ch_i).astype(OUTPUT_NP_TYPE)
+                    if actual_dim[0] != target_mea or actual_dim[1] != target_mea:
+                        # CONVERT into a zero pad
+                        working_im[0 : actual_dim[0], 0 : actual_dim[1]] = im
+                        im = working_im
+
+                    chcy_ims[dst_ch_i, cy_out_i, :, :] = im
+
+            # Task: Add quality
+            nd2_import_result.save_field(field_i, chcy_arr)
 
 
 def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
@@ -569,7 +613,16 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
     # Sanity check
     assert all([0 <= src_ch_i < n_in_channels for src_ch_i in dst_ch_i_to_src_ch_i])
 
-    if ims_import_params.is_movie:
+    if ims_import_params.is_z_stack_single_file:
+        _z_stack_import(
+            nd2_paths[0:1],
+            target_mea,
+            ims_import_result,
+            dst_ch_i_to_src_ch_i,
+            ims_import_params.z_stack_n_slices_per_field,
+        )
+
+    elif ims_import_params.is_movie:
         start_field, n_fields = clamp_fields(len(nd2_paths))
 
         # In movie mode, the n_fields from the .nd2 file is becoming n_cycles
@@ -590,7 +643,9 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
             target_mea=target_mea,
             nd2_import_result=ims_import_result,
             dst_ch_i_to_src_ch_i=dst_ch_i_to_src_ch_i,
+            movie_n_slices_per_field=ims_import_params.movie_n_slices_per_field,
         )
+
 
     else:
         start_field, n_fields = clamp_fields(n_fields_true)
