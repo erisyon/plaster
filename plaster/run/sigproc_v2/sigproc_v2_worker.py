@@ -348,12 +348,9 @@ def _psf_normalize(psfs):
 
 def _background_subtraction(im, reg_bg_mean):
     """
-    Remove a regional bg_mean from an image
+    Remove a regional bg_mean from an image by interpolating the reg_bg_mean
     """
     bg_im = imops.interp(reg_bg_mean, im.shape[-2:])
-
-    # HACK
-    # bg_im = np.load("/erisyon/perfect_bg.npy").astype(float)
 
     diff_im = im - bg_im
     return diff_im
@@ -556,10 +553,17 @@ def _psf_extract(im, divs=5, keep_dist=8, peak_mea=11, locs=None):
 
 
 def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
+    """
+    The worker for _psf_stats_one_channel()
+    zi_ims is a stack of z slices of one field, one channel.
+    It is not yet background subtracted.
+    """
     n_src_zslices = zi_ims.shape[0]
     divs = sigproc_v2_params.divs
     peak_dim = (sigproc_v2_params.peak_mea, sigproc_v2_params.peak_mea)
-    n_dst_zslices = 1 + 2 * sigproc_v2_params.focus_window_radius
+
+    n_dst_zslices = 1 + 2 * sigproc_v2_params.focus_window_radius  # Odd number of z slices
+
     z_and_region_to_psf = np.zeros((n_dst_zslices, divs, divs, *peak_dim))
 
     src_z_iz = utils.ispace(0, n_src_zslices, n_dst_zslices)
@@ -567,7 +571,7 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
 
     im_focuses = np.zeros((n_src_zslices,))
     for src_zi in range(n_src_zslices):
-        bg_mean, _ = _background_regional_estimate_im(zi_ims[src_zi], divs)
+        bg_mean, _ = _background_regional_estimate_im(zi_ims[src_zi], divs=64, inpaint=True)
         im_sub = _background_subtraction(zi_ims[src_zi], bg_mean)
         im_focuses[src_zi] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
 
@@ -599,9 +603,19 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
 
 # TODO: Write a test that definitely has the focus in the center of the src stack
 # and make sure we get the whole zslices filled in
-
 # TODO: Attach progress
+
+
 def _psf_stats_one_channel(fl_zi_ims, sigproc_v2_params):
+    """
+    Build up a regional PSF for one channel on the RAW field-zstack images
+    These images are not yet background subtracted.
+
+    Do this in a paralle zap over every field and then combine the
+    fields into a singel z_and_region_to_psf which is
+
+    (n_z_layers, divs, divs, peak_mea, peak_mea)
+    """
     z_and_region_to_psf_per_field = zap.arrays(
         _do_psf_stats_one_field_one_channel,
         dict(zi_ims=fl_zi_ims),
