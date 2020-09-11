@@ -48,17 +48,18 @@ class SigprocV2Params(Params):
         self.schema.apply_defaults(self.defaults, apply_to=self, override_nones=False)
         self.schema.validate(self, context=self.__class__.__name__)
 
-        if self.mode == common.SIGPROC_V2_INSTRUMENT_CALIB:
+        if self.mode == common.SIGPROC_V2_PSF_CALIB:
             assert not local.path(
                 self.calibration_file
             ).exists(), (
-                "Calibration file cannot already exist when creating a new calib file"
+                "Calibration file cannot already exist when creating a SIGPROC_V2_PSF_CALIB"
             )
 
-        elif self.mode == common.SIGPROC_V2_INSTRUMENT_ANALYZE:
+        else:
             if self.calibration_file != "":
                 self.calibration = Calibration.load(self.calibration_file)
 
+'''
     def set_radiometry_channels_from_input_channels_if_needed(self, n_channels):
         assert n_channels == 1
         self.radiometry_channels = {f"ch_0": 0}
@@ -109,3 +110,4 @@ class SigprocV2Params(Params):
         """Not every input channel necessarily has an output; can return None"""
         # return utils.filt_first_arg(self._input_channels(), lambda x: x == in_ch)
         return 0
+'''

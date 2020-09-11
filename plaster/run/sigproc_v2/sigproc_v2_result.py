@@ -43,6 +43,7 @@ class SigprocV2Result(BaseResult):
         n_channels=(type(None), int),
         n_cycles=(type(None), int),
         calib=Calibration,
+        focus_per_field_per_channel=(type(None), list),
     )
 
     peak_df_schema = OrderedDict(
