@@ -96,7 +96,7 @@ def _background_regional_estimate_im(im, kernel, divs, inpaint=False):
     return reg_bg_mean, reg_bg_std
 
 
-def bg_remove(im, kernel):
+def bg_estimate_and_remove(im, kernel):
     reg_bg_mean, _ = _background_regional_estimate_im(im, kernel, divs=64, inpaint=True)
     bg_im = imops.interp(reg_bg_mean, im.shape[-2:])
     return im - bg_im

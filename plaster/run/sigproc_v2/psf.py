@@ -2,15 +2,15 @@ from enum import IntEnum
 import math
 import cv2
 import numpy as np
-from plaster.run.sigproc_v2.bg import bg_remove
+from plaster.run.sigproc_v2.bg import bg_estimate_and_remove
 from plaster.run.sigproc_v2.fg import peak_find
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.image.imops import sub_pixel_center
-from plaster.tools.log.log import debug, important
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
+from plaster.tools.log.log import debug, important
 
 
 def approximate_kernel():
@@ -225,7 +225,7 @@ def _do_psf_one_field_one_channel(zi_ims, peak_mea, divs, focus_window_radius):
     im_focuses = np.zeros((n_src_zslices,))
     kernel = approximate_kernel()
     for src_zi in range(n_src_zslices):
-        im_no_bg = bg_remove(zi_ims[src_zi], kernel)
+        im_no_bg = bg_estimate_and_remove(zi_ims[src_zi], kernel)
         bg_subtracted_ims[src_zi] = im_no_bg
         im_focuses[src_zi] = cv2.Laplacian(im_no_bg, cv2.CV_64F).var()
 

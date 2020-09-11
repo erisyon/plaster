@@ -238,6 +238,31 @@ def align(im_stack):
     return np.array(offsets), np.array(maxs)
 
 
+def intersection_roi_from_aln_offsets(aln_offsets, raw_dim):
+    """
+    Compute the ROI that contains pixels from all frames
+    given the aln_offsets (returned from align)
+    and the dim of the original images.
+    """
+    aln_offsets = np.array(aln_offsets)
+    check.affirm(
+        np.all(aln_offsets[0] == (0, 0)), "intersection roi must start with (0,0)"
+    )
+
+    # intersection_roi is the ROI in the coordinate space of
+    # the [0] frame that has pixels from every cycle.
+    clip_dim = (
+        np.min(aln_offsets[:, 0] + raw_dim[0]) - np.max(aln_offsets[:, 0]),
+        np.min(aln_offsets[:, 1] + raw_dim[1]) - np.max(aln_offsets[:, 1]),
+    )
+
+    b = max(0, -np.min(aln_offsets[:, 0]))
+    t = min(raw_dim[0], b + clip_dim[0])
+    l = max(0, -np.min(aln_offsets[:, 1]))
+    r = min(raw_dim[1], l + clip_dim[1])
+    return ROI(loc=YX(b, l), dim=HW(t - b, r - l))
+
+
 def thresh_filter_inplace(im, thresh=1.0):
     im[im < thresh] = 0.0
 

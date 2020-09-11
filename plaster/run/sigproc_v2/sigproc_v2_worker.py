@@ -96,24 +96,20 @@ TASKS:
 
 """
 
-from enum import IntEnum
-import math
 import cv2
 import numpy as np
 import pandas as pd
 from munch import Munch
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
-from plaster.run.sigproc_v2.psf import psf_all_fields_one_channel
-from plaster.run.sigproc_v2.fg import fg_estimate
+from plaster.run.sigproc_v2 import psf
+from plaster.run.sigproc_v2 import fg
+from plaster.run.sigproc_v2 import bg
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
-from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.image.imops import sub_pixel_center
-from plaster.tools.log.log import debug, important
 from plaster.tools.schema import check
-from plaster.tools.utils import utils
 from plaster.tools.zap import zap
+from plaster.tools.log.log import debug, important
 
 
 # Calibration
@@ -135,7 +131,7 @@ def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
     _, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
     for ch_i in range(0, n_channels):
         fl_zi_ims = ims_import_result.ims[:, ch_i, :]
-        psf_stats_ch, focus_per_field = psf_all_fields_one_channel(fl_zi_ims, sigproc_v2_params)
+        psf_stats_ch, focus_per_field = psf.psf_all_fields_one_channel(fl_zi_ims, sigproc_v2_params)
 
         prop = f"regional_psf_zstack.instrument_channel[{ch_i}]"
         calib.add({prop: psf_stats_ch})
@@ -152,7 +148,7 @@ def _calibrate_illum(calib, ims_import_result):
     n_fields, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
     for ch_i in range(0, n_channels):
         fl_ims = ims_import_result.ims[:, ch_i, 0]  # Cycle 0 because it has the most peaks
-        reg_bal = fg_estimate(fl_ims, calib.psfs(ch_i))
+        reg_bal = fg.fg_estimate(fl_ims, calib.psfs(ch_i))
         assert np.all(~np.isnan(reg_bal))
 
         prop = f"regional_illumination_balance.instrument_channel[{ch_i}]"
@@ -170,19 +166,25 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     Import channels and order them into the output order
     (evert input channel is not necessarily used).
 
-    Regionally balance and channel equalize.
+    Returns:
+        Regionally balance and channel equalized images.
 
-    Note:
-        Because the background is subtracted, the returned
-        images may contain negative values.
+    Notes:
+        * This is per-frame because there is a significant bleed of the foreground
+          into the background. That is, more peaks in a region clearly increases the background
+          and thus this needs to be done per-frame.
+
+        * Because the background is subtracted, the returned images may contain negative values.
+
+    TODO:
+        Per-channel balance
     """
     n_channels, n_cycles = chcy_ims.shape[0:2]
     dim = chcy_ims.shape[-2:]
     dst_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
+    kernel = psf.approximate_kernel()
 
     # Per-frame background estimation and removal
-    # This is per-frame because the is signficant foreground to background
-    # bleed. That is, more peaks in a region clearly increases the background.
     n_channels, n_cycles = chcy_ims.shape[0:2]
     dim = chcy_ims.shape[-2:]
     for ch_i in range(n_channels):
@@ -193,24 +195,17 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
         bal_im = imops.interp(reg_bal, dim)
 
         for cy_i in range(n_cycles):
-
+            im = np.copy(chcy_ims[ch_i, cy_i])
             if not sigproc_params.skip_regional_balance:
-HERHE!!!!!!!!!
+                im *= bal_im
+            dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_estimate_and_remove(im, kernel)
 
-                balanced_chcy_ims[ch_i] = chcy_ims[ch_i] * bal_im
-
-            reg_bg_mean, _ = _background_regional_estimate_im(
-                dst_chcy_ims[ch_i, cy_i], divs=64, inpaint=True
-            )
-            bg_im = imops.interp(reg_bg_mean, dim)
-            dst_chcy_ims[ch_i, cy_i, :, :] = dst_chcy_ims[ch_i, cy_i, :, :] - bg_im
-
-    assert n_channels == 1  # Until multi-channel
-
-    # channel_weights = _analyze_step_1a_compute_channel_weights(sigproc_params, calib)
-    # dst_chcy_ims = utils.np_fn_along(np.multiply, dst_chcy_ims, channel_weights, axis=0)
     return dst_chcy_ims
 
+'''
+Removed temporarily because this function needs signficant tuning
+and for now it is easier to remove whole fields instead of partial fields
+Also, this should be moved to FG or BG as it is really a helper
 
 def _analyze_step_2_mask_anomalies_im(im, den_threshold=300):
     """
@@ -262,11 +257,11 @@ def _analyze_step_2_mask_anomalies_im(im, den_threshold=300):
         imops.fill(im, loc=XY(rect[0], rect[1]), dim=WH(rect[2], rect[3]), val=np.nan)
 
     return im
-
+'''
 
 def _analyze_step_3_align(cy_ims):
     """
-    Align a stack of cy_ims by generating simplified fiducial for each cycle
+    Align a stack of cy_ims by generating simplified fiducials for each cycle
     (assumes camera does not move between channels)
 
     Returns:
@@ -274,7 +269,7 @@ def _analyze_step_3_align(cy_ims):
         max_score: list of max_score
     """
 
-    kern = _kernel()
+    kernel = psf.approximate_kernel()
 
     fiducial_ims = []
     for im in cy_ims:
@@ -283,7 +278,7 @@ def _analyze_step_3_align(cy_ims):
         else:
             med = 0
         im = np.nan_to_num(im, nan=med)
-        fiducial_ims += [imops.convolve(im, kern)]
+        fiducial_ims += [imops.convolve(im, kernel)]
 
     fiducial_ims = np.array(fiducial_ims) - np.median(fiducial_ims)
 
@@ -293,9 +288,9 @@ def _analyze_step_3_align(cy_ims):
 
     # ENLARGE the points
     enlarge_radius = 3
-    kern = imops.generate_circle_mask(enlarge_radius).astype(np.uint8)
+    kernel = imops.generate_circle_mask(enlarge_radius).astype(np.uint8)
     fiducial_cy_ims = np.array(
-        [cv2.dilate(im, kern, iterations=1) for im in fiducial_ims]
+        [cv2.dilate(im, kernel, iterations=1) for im in fiducial_ims]
     ).astype(float)
 
     # MASK out edge effects
@@ -306,38 +301,18 @@ def _analyze_step_3_align(cy_ims):
     return aln_offsets, aln_scores
 
 
-def _intersection_roi_from_aln_offsets(aln_offsets, raw_dim):
-    """
-    Compute the ROI that contains pixels from all frames
-    given the aln_offsets (returned from align_chcy_ims)
-    and the dim of the original images.
-    """
-    aln_offsets = np.array(aln_offsets)
-    check.affirm(
-        np.all(aln_offsets[0] == (0, 0)), "intersection roi must start with (0,0)"
-    )
-
-    # intersection_roi is the ROI in the coordinate space of
-    # the [0] frame that has pixels from every cycle.
-    clip_dim = (
-        np.min(aln_offsets[:, 0] + raw_dim[0]) - np.max(aln_offsets[:, 0]),
-        np.min(aln_offsets[:, 1] + raw_dim[1]) - np.max(aln_offsets[:, 1]),
-    )
-
-    b = max(0, -np.min(aln_offsets[:, 0]))
-    t = min(raw_dim[0], b + clip_dim[0])
-    l = max(0, -np.min(aln_offsets[:, 1]))
-    r = min(raw_dim[1], l + clip_dim[1])
-    return ROI(loc=YX(b, l), dim=HW(t - b, r - l))
-
-
 def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     """
     Given the alignment_offsets, create a new image stack that
     has the dimensions of the intersection ROI (ie the overlapping
     region that contains pixels from all cycles)
 
-    Note:
+    Returns:
+        A newly allocated ndarray(n_channels, n_cycles, ROI)
+        where ROI is the region of interest determined by the
+        pixels that all cycles ahve in common
+
+    Notes:
         The returned image is likely smaller than the chcy_ims shape.
     """
     n_channels, n_cycles = chcy_ims.shape[0:2]
@@ -345,7 +320,7 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     assert n_cycles == aln_offsets.shape[0]
 
     raw_dim = chcy_ims.shape[-2:]
-    roi = _intersection_roi_from_aln_offsets(aln_offsets, raw_dim)
+    roi = imops.intersection_roi_from_aln_offsets(aln_offsets, raw_dim)
     roi_dim = (roi[0].stop - roi[0].start, roi[1].stop - roi[1].start)
 
     aligned_chcy_ims = np.zeros((n_channels, n_cycles, *roi_dim))
@@ -358,104 +333,33 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     return aligned_chcy_ims
 
 
-def _analyze_step_5_find_peaks(chcy_ims):
-    # Step 5: Peak find on combined channels
-    # The goal of previous channel equalization and regional balancing is that
-    # all pixels are now on an equal footing so we can now use
-    # a single values for fg_thresh and bg_thresh.
+def _analyze_step_5_find_peaks(chcy_ims, kernel):
+    """
+    Step 5: Peak find on combined channels
+
+    The goal of previous channel equalization and regional balancing is that
+    all pixels are now on an equal footing so we can now use
+    a single values for fg_thresh and bg_thresh.
+
+    Returns:
+        locs: ndarray (n_peaks, 2)  where the second dimaension is in y, x order
+    """
     ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
-    locs = _peak_find(ch_mean_of_cy0_im)
+    locs = fg.peak_find(ch_mean_of_cy0_im, kernel)
     return locs
 
 
-'''
-MOVE
-
-def _analyze_step_6a_peak_radiometry(
-    peak_im, psf_kernel, center_weighted_mask, allow_non_unity_psf_kernel=False
-):
+def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     """
-    Helper for _analyze_step_6_radiometry() to compute
-    radiometry on a single peak.
+    Extract radiometry (signal and noise) from the field chcy stack.
 
     Arguments:
-        peak_im: a small regional image of a peak roughly centered.
-                 This expected to be from a regionally balance and channel equalized
-                 source image with the regional background already subtracted
-
-        psf_kernel: The kernel appropriate for the region (from calibration)
+        chcy_ims: (n_channels, n_cycles, width, height)
+        locs: (n_peaks, 2). The second dimension is in (y, x) order
+        calib: Calibration (needed for psf)
 
     Returns:
-        signal: The area under the kernel (always >= 0)
-        noise: The standard deviation of the residuals (always >= 0)
-
-    Notes:
-        I think that allow_non_unity_psf_kernel is no longer needed. It only
-        seems to be referenced in a (probably old) notebook.
-    """
-    check.array_t(peak_im, ndim=2, is_square=True)
-    check.array_t(psf_kernel, ndim=2, is_square=True)
-    check.array_t(center_weighted_mask, ndim=2, is_square=True)
-    assert peak_im.shape == psf_kernel.shape
-    assert psf_kernel.shape == center_weighted_mask.shape
-
-    if not allow_non_unity_psf_kernel:
-        try:
-            assert 1.0 - np.sum(psf_kernel) < 1e-6
-        except AssertionError:
-            debug("np.sum(psf_kernel)", np.sum(psf_kernel))
-            raise
-
-    # Weight the peak_im by the centering_kernel to eliminate
-    # noise from neighbors during COM calculations
-
-    # SHIFT peak_im to center with sub-pixel alignment
-    # Note, we scale peak_im by the centering_kernel so that
-    # the COM will not be polluted by neighbors
-
-    com_before = imops.com((center_weighted_mask * peak_im) ** 2)
-    center_pixel = np.array(peak_im.shape) / 2
-    peak_im = center_weighted_mask * imops.sub_pixel_shift(
-        peak_im, center_pixel - com_before
-    )
-
-    # WEIGH the data with the psf_kernel and then normalize
-    # by the psf_kernel_sum_squared to estimate signal
-    psf_kernel_sum_squared = np.sum(psf_kernel ** 2)
-    signal = 0.0
-    if psf_kernel_sum_squared > 0.0:
-        signal = np.sum(psf_kernel * peak_im) / psf_kernel_sum_squared
-
-    # COMPUTE the noise by examining the residuals
-    residuals = peak_im - signal * psf_kernel
-    var_residuals = np.var(residuals)
-    noise = 0.0
-    if psf_kernel_sum_squared > 0.0:
-        noise = np.sqrt(var_residuals / psf_kernel_sum_squared)
-
-    # if noise <= 0.0 or signal <= 0.0:
-    #     signal = np.nan
-    #     noise = np.nan
-
-    return signal, noise
-
-# TODO: Name z_reg_psf  (13, 5, 5, 11, 11) => is always most focused at index 6
-
-
-
-
-def _analyze_step_6_radiometry(chcy_ims, locs, calib, sigproc_v2_params):
-    """
-    Use the PSFs to compute the Area-Under-Curve of the data in chcy_ims
-    for each peak location of locs.
-
-    Arguments:
-        chcy_ims: (n_output_channels, n_cycles, width, height)
-        locs: (n_peaks, 2). The second dimension is in (y, x) order
-        ch_z_reg_psfs: (n_output_channels, n_z_slices, divs, divs, peak_mea, peak_mea)
-        cycle_to_z_index: (n_cycles).
-            This is the best z-slice of the ch_z_reg_psfs to use for
-            each cycle determined by a focal fit.
+        radmat: ndarray(n_locs, n_channels, n_cycles, 2)  Where the last dim is (signal, noise)
     """
     check.array_t(chcy_ims, ndim=4)
     check.array_t(locs, ndim=2, shape=(None, 2))
@@ -463,68 +367,31 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib, sigproc_v2_params):
     n_locs = len(locs)
     n_channels, n_cycles = chcy_ims.shape[0:2]
 
-    radmat = np.full((n_locs, n_channels, n_cycles, 2), np.nan)  # 2 is (sig, noi)
-
-    center_weighted_mask = imops.generate_center_weighted_tanh(
-        sigproc_v2_params.peak_mea, radius=2.0
-    )
+    radmat = np.full((n_locs, n_channels, n_cycles, 2), np.nan)
 
     for ch_i in range(n_channels):
         z_reg_psfs = np.array(calib[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
-        psf_dim = z_reg_psfs.shape[-2:]
-
-        assert z_reg_psfs.shape[1] == sigproc_v2_params.divs
-        assert z_reg_psfs.shape[2] == sigproc_v2_params.divs
-        assert z_reg_psfs.shape[3] == sigproc_v2_params.peak_mea
-        assert z_reg_psfs.shape[4] == sigproc_v2_params.peak_mea
 
         for cy_i in range(n_cycles):
             im = chcy_ims[ch_i, cy_i]
 
-            best_focus_zslice_i = _fit_focus(z_reg_psfs, locs, im)
+            signal, noise = fg.radiometry_one_channel_one_cycle(im, z_reg_psfs, locs)
 
-            reg_psfs = z_reg_psfs[best_focus_zslice_i, :, :, :, :]
-            for loc_i, loc in enumerate(locs):
-                peak_im = imops.crop(im, off=YX(loc), dim=HW(psf_dim), center=True)
-                if peak_im.shape != psf_dim:
-                    # Skip near edges
-                    continue
+            radmat[:, ch_i, cy_i, 0] = signal
+            radmat[:, ch_i, cy_i, 1] = noise
 
-                if np.any(np.isnan(peak_im)):
-                    # Skip nan collisions
-                    continue
-
-                # TODO: Functionalizing? "Give me the best PSF you can"
-
-                # There is a small issue here -- when the regional PSFs
-                # are computed they divide up the image over the full width
-                # but the locs here are actually referring to the aligned
-                # space which is typically a little smaller. This might
-                # cause problems if alignment is very poor but is probably
-                # too small of an effect to worry about in typical operations.
-                psf_kernel = reg_psfs[
-                    int(sigproc_v2_params.divs * loc[0] / im.shape[0]),
-                    int(sigproc_v2_params.divs * loc[1] / im.shape[1]),
-                ]
-
-                if np.sum(psf_kernel) == 0.0:
-                    signal, noise = np.nan, np.nan
-                else:
-                    signal, noise = _analyze_step_6a_peak_radiometry(
-                        peak_im, psf_kernel, center_weighted_mask=center_weighted_mask
-                    )
-
-                radmat[loc_i, ch_i, cy_i, :] = (signal, noise)
     return radmat
-'''
 
+
+'''
+Temporaily removed until a better metric can be established
 
 def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
     keep_mask = np.ones((radmat.shape[0],), dtype=bool)
 
-    for out_ch_i in range(sigproc_v2_params.n_output_channels):
-        in_ch_i = sigproc_v2_params.output_channel_to_input_channel(out_ch_i)
-        bg_std = np.min(calib[f"regional_bg_std.instrument_channel[{in_ch_i}]"])
+    n_channels, n_cycles, _ = radmat.shape
+    for ch_i in range(n_channels):
+        bg_std = np.min(calib[f"regional_bg_std.instrument_channel[{ch_i}]"])
         keep_mask = keep_mask | np.any(
             radmat[:, out_ch_i, :, 0] > sigproc_v2_params.sig_limit * bg_std, axis=1
         )
@@ -535,53 +402,48 @@ def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
         keep_mask = keep_mask & np.any(snr > sigproc_v2_params.snr_thresh, axis=(1, 2))
 
     return keep_mask
+'''
 
-
-def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_i=None):
+def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib):
     """
     Analyze one field --
         * Regional and channel balance
-        * remove anomalies
-        * Align cycles, Composite aligned (if in analyze mode)
+        * remove anomalies (temporarily removed)
+        * Align cycles
+        * Composite aligned
         * Peak find
         * Radiometry
-        * Filtering
+        * Filtering (temporarily removed)
 
     Arguments:
-        chcy_ims: In input order (from ims_import_result)
+        chcy_ims: from ims_import_result
         sigproc_v2_params: The SigprocParams
-        snr_thresh: if non-None keeps only locs with S/R > snr_thresh
-            This is useful for debugging.
+        calib: calibration
     """
 
     # Step 1: Load the images in output channel order, balance, equalize
     chcy_ims = _analyze_step_1_import_balanced_images(
         chcy_ims, sigproc_v2_params, calib
     )
-    # At this point, chcy_ims has its background subtracted and it is
-    # regionally balanced and channel equalized. It may contain negative
-    # values
-    #
-    # NOTE: at this point, chcy_ims are in OUTPUT CHANNEL order!
-    n_out_channels, n_cycles = chcy_ims.shape[0:2]
-    assert n_out_channels == sigproc_v2_params.n_output_channels
+    # At this point, chcy_ims has its background subtracted and is
+    # regionally and channel balanced. It may contain negative values.
 
+    '''
+    Removed temporarily see _analyze_step_2_mask_anomalies_im for explanation
     # Step 2: Remove anomalies (at least for alignment)
     if not sigproc_v2_params.skip_anomaly_detection:
         for ch_i, cy_ims in enumerate(chcy_ims):
-            debug(ch_i)
             chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
+    '''
 
-    if align_images:
-        # Step 3: Find alignment offsets
-        aln_offsets, aln_scores = _analyze_step_3_align(np.mean(chcy_ims, axis=0))
+    # Step 3: Find alignment offsets by using the mean of all channels
+    # Note that this requires that the channel balancing has equalized the channel weights
+    aln_offsets, aln_scores = _analyze_step_3_align(np.mean(chcy_ims, axis=0))
 
-        # Step 4: Composite with alignment
-        chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets)
-        # chcy_ims is now only the intersection region so it may be smaller than the original
-    else:
-        aln_offsets = [YX(0, 0) for cy_i in range(n_cycles)]
-        aln_scores = [1.0 for cy_i in range(n_cycles)]
+    # Step 4: Composite with alignment
+    chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets)
+    # chcy_ims is now only the shape of only intersection region so is likely
+    # to be smaller than the original and not necessarily a power of 2.
 
     aln_offsets = np.array(aln_offsets)
     aln_scores = np.array(aln_scores)
@@ -590,22 +452,16 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, align_images=True
     # The goal of previous channel equalization and regional balancing is that
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
-    locs = _analyze_step_5_find_peaks(chcy_ims)
+    kernel = psf.approximate_kernel()
+    locs = _analyze_step_5_find_peaks(chcy_ims, kernel)
 
     # Step 6: Radiometry over each channel, cycle
-    # TASK: Eventually this will examine each cycle and decide
-    # which z-depth of the PSFs is best fit to that cycle.
-    # The result will be a per-cycle index into the chcy_regional_psfs
-    # Until then the index is hard-coded to the middle index of regional_psf_zstack
-    radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib, sigproc_v2_params)
+    radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib)
 
-    keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
+    # Temporaily removed until a better metric can be found
+    # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
 
-    mea = np.array([chcy_ims.shape[-1:]])
-    if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
-        important(f"field {field_i} has bad alignment {aln_offsets}")
-
-    return chcy_ims, locs[keep_mask], radmat[keep_mask], aln_offsets, aln_scores
+    return chcy_ims, locs, radmat, aln_offsets, aln_scores
 
 
 def _do_sigproc_analyze_and_save_field(
@@ -618,8 +474,12 @@ def _do_sigproc_analyze_and_save_field(
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
     chcy_ims, locs, radmat, aln_offsets, aln_scores = _sigproc_analyze_field(
-        chcy_ims, sigproc_v2_params, calib, field_i=field_i
+        chcy_ims, sigproc_v2_params, calib
     )
+
+    mea = np.array([chcy_ims.shape[-1:]])
+    if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
+        important(f"field {field_i} has bad alignment {aln_offsets}")
 
     # Assign 0 to "peak_i" in the following DF because that is the GLOBAL peak_i
     # which is not computable until all fields are processed. It will be fixed up later

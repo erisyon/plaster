@@ -6,30 +6,6 @@ from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
 from plaster.tools.schema import check
 
-'''
-def balance_chcy_ims(chcy_ims, calib):
-    """
-    Balance images according to calibration data.
-
-    Returns:
-       balanced_chcy_ims: The balanced chcy_ims (regionally and by channel)
-
-    TODO:
-        Per-channel balance
-    """
-    n_channels, n_cycles = chcy_ims.shape[0:2]
-    balanced_chcy_ims = np.zeros_like(chcy_ims)
-    dim = chcy_ims.shape[-2:]
-    for ch in range(n_channels):
-        reg_bal = np.array(
-            calib[f"regional_illumination_balance.instrument_channel[{ch}]"]
-        )
-        assert np.all(~np.isnan(reg_bal))
-        bal_im = imops.interp(reg_bal, dim)
-        balanced_chcy_ims[ch] = chcy_ims[ch] * bal_im
-
-    return balanced_chcy_ims
-'''
 
 def peak_find(im, kernel):
     """
@@ -72,7 +48,7 @@ def _fit_focus(z_reg_psfs, locs, im):
     Here we sub-sample peaks locs on im to decide which
     PSF z-slice best describes this images.
 
-    Note, if the instrument was perfect at mainrtaining the z-focus
+    Note, if the instrument was perfect at maintaining the z-focus
     then this function would ALWAYS return 6.
     """
 
@@ -147,14 +123,10 @@ def _radiometry_one_peak(
     if psf_kernel_sum_squared > 0.0:
         noise = np.sqrt(var_residuals / psf_kernel_sum_squared)
 
-    # if noise <= 0.0 or signal <= 0.0:
-    #     signal = np.nan
-    #     noise = np.nan
-
     return signal, noise
 
 
-def _radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
+def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
     """
     Use the PSFs to compute the Area-Under-Curve of the data in chcy_ims
     for each peak location of locs.
@@ -163,6 +135,9 @@ def _radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
         im: One image (one channel, cycle)
         z_reg_psfs: (n_z_slices, divs, divs, peak_mea, peak_mea)
         locs: (n_peaks, 2). The second dimension is in (y, x) order
+
+    Returns:
+        signal, noise
     """
     check.array_t(im, ndim=2)
     check.array_t(z_reg_psfs, ndim=5)
@@ -185,6 +160,10 @@ def _radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
     assert z_reg_psfs.shape[3] == peak_mea
     assert z_reg_psfs.shape[4] == peak_mea
 
+    # TASK: Eventually this will examine which z-depth of the PSFs is best fit for this cycle.
+    # The result will be a per-cycle index into the chcy_regional_psfs
+    # Until then the index is hard-coded to the middle index of regional_psf_zstack
+    # See _fit_focus
     best_focus_zslice_i = _fit_focus(z_reg_psfs, locs, im)
 
     reg_psfs = z_reg_psfs[best_focus_zslice_i, :, :, :, :]
@@ -249,13 +228,13 @@ def fg_estimate(fl_ims, z_reg_psfs):
 
     for fl_i in range(n_fields):
         # REMOVE BG
-        im_no_bg = bg.bg_remove(fl_ims[fl_i], kernel)
+        im_no_bg = bg.bg_estimate_and_remove(fl_ims[fl_i], kernel)
 
         # FIND PEAKS
         locs = peak_find(im_no_bg, kernel)
 
         # RADIOMETRY
-        signals, _ = _radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)
+        signals, _ = radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)
 
         # FIND outliers
         low, high = np.percentile(signals, (10, 90))
@@ -384,6 +363,28 @@ def _foreground_balance(im_dim, divs, sig, locs):
     balance = max_regional_fg_est / medians
     return balance
 
+def balance_chcy_ims(chcy_ims, calib):
+    """
+    Balance images according to calibration data.
+
+    Returns:
+       balanced_chcy_ims: The balanced chcy_ims (regionally and by channel)
+
+    TODO:
+        Per-channel balance
+    """
+    n_channels, n_cycles = chcy_ims.shape[0:2]
+    balanced_chcy_ims = np.zeros_like(chcy_ims)
+    dim = chcy_ims.shape[-2:]
+    for ch in range(n_channels):
+        reg_bal = np.array(
+            calib[f"regional_illumination_balance.instrument_channel[{ch}]"]
+        )
+        assert np.all(~np.isnan(reg_bal))
+        bal_im = imops.interp(reg_bal, dim)
+        balanced_chcy_ims[ch] = chcy_ims[ch] * bal_im
+
+    return balanced_chcy_ims
 
 '''
 
