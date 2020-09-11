@@ -881,7 +881,8 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
         in_ch = sigproc_params.output_channel_to_input_channel(out_ch)
         dst_chcy_ims[out_ch, :] = chcy_ims[in_ch]
 
-    dst_chcy_ims = _regional_balance_chcy_ims(dst_chcy_ims, calib)
+    if not sigproc_params.skip_regional_balance:
+        dst_chcy_ims = _regional_balance_chcy_ims(dst_chcy_ims, calib)
 
     # Per-frame background estimation and removal
     # This is per-frame because the is signficant foreground to background
