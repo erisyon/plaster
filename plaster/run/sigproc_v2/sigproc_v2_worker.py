@@ -844,7 +844,7 @@ def _analyze_step_1a_compute_channel_weights(sigproc_params, calib):
 def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     """
     Import channels and order them into the output order
-    (evert input channel is not necessarily used).
+    (every input channel is not necessarily used).
 
     Regionally balance and channel equalize.
 
