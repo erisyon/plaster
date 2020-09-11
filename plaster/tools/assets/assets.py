@@ -19,7 +19,7 @@ def validate_job_folder(job_folder, search_if_not_present=False):
     basename = local.path(job_folder).name
     if not utils.is_symbol(basename):
         raise ValueError(
-            "job name must be a lower-case Python symbol (ie start with [a-z_] followed by [a-z0-9_]"
+            f"job name must be a lower-case Python symbol (ie start with [a-z_] followed by [a-z0-9_] found '{basename}'"
         )
 
     p = local.path(job_folder)

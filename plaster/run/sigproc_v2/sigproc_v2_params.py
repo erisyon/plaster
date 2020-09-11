@@ -25,6 +25,7 @@ class SigprocV2Params(Params):
         focus_window_radius=6,
         n_fields_limit=None,
         skip_anomaly_detection=True,
+        skip_regional_balance=False,
     )
 
     schema = s(
@@ -38,6 +39,7 @@ class SigprocV2Params(Params):
             focus_window_radius=s.is_int(),
             n_fields_limit=s.is_int(noneable=True),
             skip_anomaly_detection=s.is_bool(),
+            skip_regional_balance=s.is_bool(),
         )
     )
 

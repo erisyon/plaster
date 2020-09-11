@@ -211,9 +211,12 @@ def _peak_find(im):
     # around zero thanks to the fact that im and kern are expected
     # to be roughly zero-centered. Therefore we estimate the threshold
     # by using the samples less than zero cim[cim<0] and taking the 99th percentile
-    thresh = np.percentile(-cim[cim < 0], 99)
-    cim[cim < thresh] = 0
-    return peak_local_max(cim, min_distance=2, threshold_abs=thresh)
+    if (cim < 0).sum() > 0:
+        thresh = np.percentile(-cim[cim < 0], 99)
+        cim[cim < thresh] = 0
+        return peak_local_max(cim, min_distance=2, threshold_abs=thresh)
+    else:
+        return np.zeros((0, 2))
 
 
 # PSF
@@ -258,7 +261,7 @@ def _psf_estimate(im, locs, mea, keep_dist=8, threshold_abs=None, return_reasons
     from scipy.spatial.distance import cdist  # Defer slow import
 
     # Sanity check that background is removed
-    assert np.nanmedian(im) < 10.0
+    #assert np.nanmedian(im) < 10.0
 
     n_locs = len(locs)
     dist = cdist(locs, locs, metric="euclidean")
@@ -345,12 +348,9 @@ def _psf_normalize(psfs):
 
 def _background_subtraction(im, reg_bg_mean):
     """
-    Remove a regional bg_mean from an image
+    Remove a regional bg_mean from an image by interpolating the reg_bg_mean
     """
     bg_im = imops.interp(reg_bg_mean, im.shape[-2:])
-
-    # HACK
-    # bg_im = np.load("/erisyon/perfect_bg.npy").astype(float)
 
     diff_im = im - bg_im
     return diff_im
@@ -429,18 +429,20 @@ def _background_regional_estimate_im(im, divs, inpaint=False):
 
     if inpaint:
         reg_bg_mean = cv2.inpaint(
-            reg_bg_mean.astype(np.float32),
+            np.nan_to_num(reg_bg_mean.astype(np.float32)),
             np.isnan(reg_bg_mean).astype(np.uint8),
             inpaintRadius=3,
             flags=cv2.INPAINT_TELEA,
         )
         reg_bg_std = cv2.inpaint(
-            reg_bg_std.astype(np.float32),
+            np.nan_to_num(reg_bg_std.astype(np.float32)),
             np.isnan(reg_bg_std).astype(np.uint8),
             inpaintRadius=3,
             flags=cv2.INPAINT_TELEA,
         )
 
+    assert not np.any(np.isnan(reg_bg_mean))
+    assert not np.any(np.isnan(reg_bg_std))
     return reg_bg_mean, reg_bg_std
 
 
@@ -551,19 +553,29 @@ def _psf_extract(im, divs=5, keep_dist=8, peak_mea=11, locs=None):
 
 
 def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
+    """
+    The worker for _psf_stats_one_channel()
+    zi_ims is a stack of z slices of one field, one channel.
+    It is not yet background subtracted.
+    """
     n_src_zslices = zi_ims.shape[0]
+    dim = zi_ims.shape[-2:]
     divs = sigproc_v2_params.divs
     peak_dim = (sigproc_v2_params.peak_mea, sigproc_v2_params.peak_mea)
-    n_dst_zslices = 1 + 2 * sigproc_v2_params.focus_window_radius
+
+    n_dst_zslices = 1 + 2 * sigproc_v2_params.focus_window_radius  # Odd number of z slices
+
     z_and_region_to_psf = np.zeros((n_dst_zslices, divs, divs, *peak_dim))
 
     src_z_iz = utils.ispace(0, n_src_zslices, n_dst_zslices)
     dst_z_per_src_z = n_src_zslices / n_dst_zslices
 
+    bg_subtracted_ims = np.zeros((n_src_zslices, *dim))
     im_focuses = np.zeros((n_src_zslices,))
     for src_zi in range(n_src_zslices):
-        bg_mean, _ = _background_regional_estimate_im(zi_ims[src_zi], divs)
+        bg_mean, _ = _background_regional_estimate_im(zi_ims[src_zi], divs=64, inpaint=True)
         im_sub = _background_subtraction(zi_ims[src_zi], bg_mean)
+        bg_subtracted_ims[src_zi] = im_sub
         im_focuses[src_zi] = cv2.Laplacian(im_sub, cv2.CV_64F).var()
 
     src_zi_best_focus = np.argmax(im_focuses)
@@ -583,10 +595,7 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
         for src_zi in range(src_zi0, src_zi1):
             if 0 <= src_zi < n_src_zslices:
                 # Only if the source is inside the source range, accum to dst.
-                # TODO: Possible optimization: save the bg results from above
-                bg_mean, bg_std = _background_regional_estimate_im(zi_ims[src_zi], divs)
-                im_sub = _background_subtraction(zi_ims[src_zi], bg_mean)
-                _, reg_psfs = _psf_extract(im_sub, divs=divs, peak_mea=peak_dim[0])
+                _, reg_psfs = _psf_extract(bg_subtracted_ims[src_zi], divs=divs, peak_mea=peak_dim[0])
                 z_and_region_to_psf[dst_zi] += reg_psfs
 
     return z_and_region_to_psf
@@ -594,9 +603,19 @@ def _do_psf_stats_one_field_one_channel(zi_ims, sigproc_v2_params):
 
 # TODO: Write a test that definitely has the focus in the center of the src stack
 # and make sure we get the whole zslices filled in
-
 # TODO: Attach progress
+
+
 def _psf_stats_one_channel(fl_zi_ims, sigproc_v2_params):
+    """
+    Build up a regional PSF for one channel on the RAW field-zstack images
+    These images are not yet background subtracted.
+
+    Do this in a paralle zap over every field and then combine the
+    fields into a singel z_and_region_to_psf which is
+
+    (n_z_layers, divs, divs, peak_mea, peak_mea)
+    """
     z_and_region_to_psf_per_field = zap.arrays(
         _do_psf_stats_one_field_one_channel,
         dict(zi_ims=fl_zi_ims),
@@ -862,7 +881,8 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
         in_ch = sigproc_params.output_channel_to_input_channel(out_ch)
         dst_chcy_ims[out_ch, :] = chcy_ims[in_ch]
 
-    dst_chcy_ims = _regional_balance_chcy_ims(dst_chcy_ims, calib)
+    if not sigproc_params.skip_regional_balance:
+        dst_chcy_ims = _regional_balance_chcy_ims(dst_chcy_ims, calib)
 
     # Per-frame background estimation and removal
     # This is per-frame because the is signficant foreground to background
@@ -950,7 +970,10 @@ def _analyze_step_3_align(cy_ims):
 
     fiducial_ims = []
     for im in cy_ims:
-        med = float(np.nanmedian(im))
+        if not np.all(np.isnan(im)):
+            med = float(np.nanmedian(im))
+        else:
+            med = 0
         im = np.nan_to_num(im, nan=med)
         fiducial_ims += [imops.convolve(im, kern)]
 
@@ -1236,6 +1259,7 @@ def _sigproc_field(chcy_ims, sigproc_v2_params, calib, align_images=True, field_
     # Step 2: Remove anomalies (at least for alignment)
     if not sigproc_v2_params.skip_anomaly_detection:
         for ch_i, cy_ims in enumerate(chcy_ims):
+            debug(ch_i)
             chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
 
     if align_images:
