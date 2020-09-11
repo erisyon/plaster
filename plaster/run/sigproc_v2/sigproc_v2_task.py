@@ -19,8 +19,14 @@ class SigprocV2Task(PipelineTask):
             ims_import_result.n_channels
         )
 
-        if sigproc_v2_params.mode == common.SIGPROC_V2_INSTRUMENT_CALIB:
-            sigproc_v2_instrument_calib_result = worker.sigproc_instrument_calib(
+        if sigproc_v2_params.mode == common.SIGPROC_V2_PSF_CALIB:
+            sigproc_v2_instrument_calib_result = worker.sigproc_psf_calib(
+                sigproc_v2_params, ims_import_result, self.progress
+            )
+            sigproc_v2_instrument_calib_result.save()
+
+        if sigproc_v2_params.mode == common.SIGPROC_V2_ILLUM_CALIB:
+            sigproc_v2_instrument_calib_result = worker.sigproc_illum_calib(
                 sigproc_v2_params, ims_import_result, self.progress
             )
             sigproc_v2_instrument_calib_result.save()
@@ -30,5 +36,6 @@ class SigprocV2Task(PipelineTask):
                 sigproc_v2_params, ims_import_result, self.progress
             )
             sigproc_v2_result.save()
+
         else:
             raise ValueError("Unknown sigproc_v2 mode")

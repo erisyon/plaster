@@ -1369,7 +1369,7 @@ def hack_perfect_psf(calib):
     calib["regional_psf_zstack.instrument_channel[0]"] = im.tolist()
 
 
-def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
+def sigproc_psf_calib(sigproc_v2_params, ims_import_result, progress):
     """
     Entrypoint for instrument calibration.
 
@@ -1381,6 +1381,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
 
     if progress:
         progress(0, 3, False)
+
     # 1:40 on val_calib. Probably don't need to sample every image...
     # low-hanging-fruit would be to sub-sample the images
     calib = _calibrate_step_1_background_stats(
@@ -1403,6 +1404,36 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress):
         progress(3, 3, False)
 
     calib.save(sigproc_v2_params.calibration_file)
+    return SigprocV2Result(
+        params=sigproc_v2_params,
+        n_input_channels=None,
+        n_channels=None,
+        n_cycles=None,
+        channel_weights=None,
+        calib=calib,
+    )
+
+
+def sigproc_illum_calib(sigproc_v2_params, ims_import_result, progress):
+    """
+    Entrypoint for instrument calibration.
+
+    It will take the 1-count 1-channel (future multi-channel) ims_import_result
+    and it generates a PSF and Regional Illumination Balance calibration
+    into sigproc_v2_params.calibration_file.
+    """
+    calib = Calibration()
+
+    # TODO: Probably subsampling like the _calibrate_step_1_background_stats
+    # would be fine.
+    calib = _calibrate_step_3_regional_illumination_balance(
+        calib, ims_import_result, sigproc_v2_params
+    )
+    if progress:
+        progress(3, 3, False)
+
+    calib.save(sigproc_v2_params.calibration_file)
+
     return SigprocV2Result(
         params=sigproc_v2_params,
         n_input_channels=None,

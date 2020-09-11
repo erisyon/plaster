@@ -176,6 +176,8 @@ class BaseGenerator(Munch):
 
     markdown_block = Munch(cell_type="markdown", metadata=Munch(), source=[])
 
+    has_report = True
+
     def __init__(self, **kwargs):
         # APPLY defaults and then ask user for any elements that are not declared
 
@@ -524,6 +526,9 @@ class BaseGenerator(Munch):
 
     def report_assemble(self):
         """Assemble the report from its pieces. A giant Munch is returned"""
+        if not self.has_report:
+            return None
+
         report = Munch(**self.report_metadata)
         report.cells = []
 

@@ -76,7 +76,7 @@ def sigproc_v2_analyze(calibration_file):
     )
 
 
-def sigproc_v2_instrument_calib(calibration_file):
+def sigproc_v2_psf_calib(calibration_file):
     """
     TODO: subject_id
     """
@@ -87,7 +87,24 @@ def sigproc_v2_instrument_calib(calibration_file):
             inputs=Munch(ims_import="../ims_import"),
             parameters=Munch(
                 calibration_file=calibration_file,
-                mode=sigproc_v2_common.SIGPROC_V2_INSTRUMENT_CALIB,
+                mode=sigproc_v2_common.SIGPROC_V2_PSF_CALIB,
+            ),
+        )
+    )
+
+
+def sigproc_v2_illum_calib(calibration_file):
+    """
+    TODO: subject_id
+    """
+    assert calibration_file is not None
+    return Munch(
+        sigproc_v2=Munch(
+            version="1.0",
+            inputs=Munch(ims_import="../ims_import"),
+            parameters=Munch(
+                calibration_file=calibration_file,
+                mode=sigproc_v2_common.SIGPROC_V2_ILLUM_CALIB,
             ),
         )
     )
