@@ -143,7 +143,7 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
     check.array_t(z_reg_psfs, ndim=5)
     check.array_t(locs, ndim=2, shape=(None, 2))
 
-    n_z_slices, peak_mea, _, divs, _ = z_reg_psfs.shape
+    n_z_slices, divs, _, peak_mea, _ = z_reg_psfs.shape
     n_locs = len(locs)
 
     signal = np.full((n_locs,), np.nan)
@@ -183,14 +183,14 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
         ]
 
         if np.sum(psf_kernel) == 0.0:
-            signal, noise = np.nan, np.nan
+            _signal, _noise = np.nan, np.nan
         else:
-            signal, noise = _radiometry_one_peak(
+            _signal, _noise = _radiometry_one_peak(
                 peak_im, psf_kernel, center_weighted_mask=center_weighted_mask
             )
 
-        signal[loc_i, :] = signal
-        noise[loc_i, :] = noise
+        signal[loc_i] = _signal
+        noise[loc_i] = _noise
 
     return signal, noise
 

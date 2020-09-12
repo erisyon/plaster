@@ -227,7 +227,10 @@ def _do_psf_one_field_one_channel(zi_ims, peak_mea, divs, focus_window_radius):
     for src_zi in range(n_src_zslices):
         im_no_bg = bg_estimate_and_remove(zi_ims[src_zi], kernel)
         bg_subtracted_ims[src_zi] = im_no_bg
-        im_focuses[src_zi] = cv2.Laplacian(im_no_bg, cv2.CV_64F).var()
+
+        # ksize=9 was found empirically. The default is too small
+        # and results in very bad focus estimation
+        im_focuses[src_zi] = cv2.Laplacian(im_no_bg, cv2.CV_64F, ksize=9).var()
 
     src_zi_best_focus = np.argmax(im_focuses)
 
@@ -274,7 +277,6 @@ def psf_all_fields_one_channel(fl_zi_ims, sigproc_v2_params):
     z_and_region_to_psf_per_field, im_focuses_per_field = zap.arrays(
         _do_psf_one_field_one_channel,
         dict(zi_ims=fl_zi_ims),
-        sigproc_v2_params=sigproc_v2_params,
         _stack=True,
         peak_mea=sigproc_v2_params.peak_mea,
         divs=sigproc_v2_params.divs,

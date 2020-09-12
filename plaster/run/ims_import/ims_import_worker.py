@@ -645,7 +645,6 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
             target_mea=target_mea,
             nd2_import_result=ims_import_result,
             dst_ch_i_to_src_ch_i=dst_ch_i_to_src_ch_i,
-            movie_n_slices_per_field=ims_import_params.movie_n_slices_per_field,
         )
 
 

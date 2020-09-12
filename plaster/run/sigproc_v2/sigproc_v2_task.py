@@ -19,7 +19,7 @@ class SigprocV2Task(PipelineTask):
         #     ims_import_result.n_channels
         # )
 
-        if sigproc_v2_params.mode in (common.SIGPROC_V2_PSF_CALIB, common.SIGPROC_V2_PSF_CALIB):
+        if sigproc_v2_params.mode in (common.SIGPROC_V2_PSF_CALIB, common.SIGPROC_V2_ILLUM_CALIB):
             sigproc_v2_instrument_calib_result = worker.sigproc_instrument_calib(
                 sigproc_v2_params, ims_import_result, self.progress
             )
