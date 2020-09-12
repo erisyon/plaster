@@ -749,7 +749,7 @@ def distribution_aspect_ratio(im):
     """
 
     eig_vals, _, _ = distribution_eigen(im)
-    return np.max(eig_vals) / np.min(eig_vals)
+    return utils.np_safe_divide(np.max(eig_vals), np.min(eig_vals))
 
 
 def gauss2_rot_form(amp, std_x, std_y, pos_x, pos_y, rot, const, mea):

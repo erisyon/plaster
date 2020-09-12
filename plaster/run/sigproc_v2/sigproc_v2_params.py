@@ -22,7 +22,8 @@ class SigprocV2Params(Params):
         peak_mea=11,
         sig_limit=20.0,  # Keep peaks this many times brighter than the calibration background
         snr_thresh=2.0,  # Keep peaks with SNR greater than this
-        focus_window_radius=6,
+        n_dst_zslices=9,
+        n_src_zslices=15,
         n_fields_limit=None,
         skip_anomaly_detection=True,
         skip_regional_balance=False,
@@ -36,7 +37,8 @@ class SigprocV2Params(Params):
             peak_mea=s.is_int(),
             sig_limit=s.is_float(),
             snr_thresh=s.is_float(),
-            focus_window_radius=s.is_int(),
+            n_dst_zslices=s.is_int(),
+            n_src_zslices=s.is_int(),
             n_fields_limit=s.is_int(noneable=True),
             skip_anomaly_detection=s.is_bool(),
             skip_regional_balance=s.is_bool(),
@@ -52,7 +54,7 @@ class SigprocV2Params(Params):
             assert not local.path(
                 self.calibration_file
             ).exists(), (
-                "Calibration file cannot already exist when creating a SIGPROC_V2_PSF_CALIB"
+                f"Calibration file '{self.calibration_file}' already exists when creating a SIGPROC_V2_PSF_CALIB. Will not overwrite."
             )
 
         else:

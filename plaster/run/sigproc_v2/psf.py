@@ -2,8 +2,8 @@ from enum import IntEnum
 import math
 import cv2
 import numpy as np
-from plaster.run.sigproc_v2.bg import bg_estimate_and_remove
-from plaster.run.sigproc_v2.fg import peak_find
+from plaster.run.sigproc_v2 import bg
+from plaster.run.sigproc_v2 import fg
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.image.imops import sub_pixel_center
@@ -204,35 +204,41 @@ def _psf_one_z_slice(im, locs, divs=5, keep_dist=8, peak_mea=11):
     return locs[accepted > 0], reg_psfs
 
 
-def _do_psf_one_field_one_channel(zi_ims, peak_mea, divs, focus_window_radius):
+def _do_psf_one_field_one_channel(zi_ims, peak_mea, divs, n_dst_zslices, n_src_zslices):
     """
     The worker for _psf_stats_one_channel()
-    zi_ims is a stack of z slices of one field, one channel.
-    It is not yet background subtracted.
+
+    Arguments:
+        zi_ims: stack of z slices of one field, one channel. It is not yet background subtracted.
+        peak_mea: size of extracted square inside of which will be the PSF sample
+        divs: regional divisions
+        n_dst_zslices: NUmber of dst z_slices
+        n_src_zslices: The range of z_slices centered on the most-in-focus to consider
     """
-    n_src_zslices = zi_ims.shape[0]
-    dim = zi_ims.shape[-2:]
+    assert n_dst_zslices % 2 == 1
+
+    n_src_zslices_actual = zi_ims.shape[0]
     divs = divs
     peak_dim = (peak_mea, peak_mea)
-
-    n_dst_zslices = 1 + 2 * focus_window_radius  # Odd number of z slices
 
     z_and_region_to_psf = np.zeros((n_dst_zslices, divs, divs, *peak_dim))
 
     dst_z_per_src_z = n_src_zslices / n_dst_zslices
 
-    bg_subtracted_ims = np.zeros((n_src_zslices, *dim))
-    im_focuses = np.zeros((n_src_zslices,))
     kernel = approximate_kernel()
-    for src_zi in range(n_src_zslices):
-        im_no_bg = bg_estimate_and_remove(zi_ims[src_zi], kernel)
-        bg_subtracted_ims[src_zi] = im_no_bg
+    im_focuses = np.zeros((n_src_zslices_actual,))
+    for src_zi in range(n_src_zslices_actual):
+        im = zi_ims[src_zi]
 
         # ksize=9 was found empirically. The default is too small
         # and results in very bad focus estimation
-        im_focuses[src_zi] = cv2.Laplacian(im_no_bg, cv2.CV_64F, ksize=9).var()
+        im_focuses[src_zi] = cv2.Laplacian(im, cv2.CV_64F, ksize=9).var()
 
     src_zi_best_focus = np.argmax(im_focuses)
+
+    # FIND peaks on the best in focus and re-use those locs
+    im = bg.bg_estimate_and_remove(zi_ims[src_zi_best_focus], kernel)
+    locs = fg.peak_find(im, kernel)
 
     for dst_zi in range(n_dst_zslices):
         src_zi0 = math.floor(
@@ -247,16 +253,46 @@ def _do_psf_one_field_one_channel(zi_ims, peak_mea, divs, focus_window_radius):
         )
 
         for src_zi in range(src_zi0, src_zi1):
-            if 0 <= src_zi < n_src_zslices:
+            if 0 <= src_zi < n_src_zslices_actual:
                 # Only if the source is inside the source range, accum to dst.
-                im = bg_subtracted_ims[src_zi]
-                locs = peak_find(im, kernel)
+                im = zi_ims[src_zi]
                 _, reg_psfs = _psf_one_z_slice(
                     im, divs=divs, peak_mea=peak_dim[0], locs=locs
                 )
                 z_and_region_to_psf[dst_zi] += reg_psfs
 
     return z_and_region_to_psf, im_focuses
+
+
+def _psf_normalize(z_and_region_to_psf):
+    """
+    The PSF tends to have some bias and needs to have a unit area-under-curve
+    The bias is removed by fitting to a Gaussian including the offset
+    and then removing the offset.
+    """
+
+    n_z_slices, divs = z_and_region_to_psf.shape[0:2]
+    for z_i in range(n_z_slices):
+        for y in range(divs):
+            for x in range(divs):
+
+                psf = z_and_region_to_psf[z_i, y, x]
+
+                if np.sum(psf) > 0:
+
+                    # FIT to Gaussian to get the offset
+                    fit_params, _ = imops.fit_gauss2(psf)
+                    bias = fit_params[6]
+
+                    psf = (psf - bias).clip(min=0)
+
+                    # NORMALIZE so that all PSF estimates have unit area-under-curve
+                    # The z_and_region_to_psf can have all-zero elements thus we use np_safe_divide below
+                    denominator = psf.sum()
+                    z_and_region_to_psf[z_i, y, x] = utils.np_safe_divide(psf, denominator)
+
+    return z_and_region_to_psf
+
 
 
 def psf_all_fields_one_channel(fl_zi_ims, sigproc_v2_params):
@@ -280,14 +316,13 @@ def psf_all_fields_one_channel(fl_zi_ims, sigproc_v2_params):
         _stack=True,
         peak_mea=sigproc_v2_params.peak_mea,
         divs=sigproc_v2_params.divs,
-        focus_window_radius=sigproc_v2_params.focus_window_radius,
+        n_dst_zslices=sigproc_v2_params.n_dst_zslices,
+        n_src_zslices=sigproc_v2_params.n_src_zslices,
     )
 
     # SUM over fields
     z_and_region_to_psf = np.sum(z_and_region_to_psf_per_field, axis=0)
 
-    # NORMALIZE so that all PSF estimates have unit area-under-curve
-    # The z_and_region_to_psf can have all-zero elements thus we use np_safe_divide below
-    denominator = np.sum(z_and_region_to_psf, axis=(3, 4))[:, :, :, None, None]
-    z_and_region_to_psf = utils.np_safe_divide(z_and_region_to_psf, denominator)
+    z_and_region_to_psf = _psf_normalize(z_and_region_to_psf)
+
     return z_and_region_to_psf.tolist(), im_focuses_per_field

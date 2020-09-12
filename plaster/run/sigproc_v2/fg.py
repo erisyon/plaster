@@ -237,7 +237,7 @@ def fg_estimate(fl_ims, z_reg_psfs):
         signals, _ = radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)
 
         # FIND outliers
-        low, high = np.percentile(signals, (10, 90))
+        low, high = np.nanpercentile(signals, (10, 90))
 
         # SPLAT circles of the intensity of the signal into an accumulator
         for loc, sig in zip(locs, signals):

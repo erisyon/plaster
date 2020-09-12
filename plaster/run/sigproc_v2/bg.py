@@ -8,7 +8,7 @@ import numpy as np
 from plaster.tools.image import imops
 
 
-def _background_extract(im, kernel):
+def background_extract(im, kernel):
     """
     Using an approximate peak kernel, separate FG and BG regionally
     and return the bg mean and std.
@@ -18,6 +18,7 @@ def _background_extract(im, kernel):
 
     Returns:
         bg_im, fg_mask
+        bg_im has nan's where the fg_mask is True
     """
     # mask_radius in pixels of extra space added around FG candidates
     mask_radius = 2  # Empirical
@@ -53,22 +54,12 @@ def _background_extract(im, kernel):
     return bg_im, fg_mask
 
 
-def _background_regional_estimate_im(im, kernel, divs, inpaint=False):
+def background_regional_estimate_im_with_bg_im(bg_im, divs=64, inpaint=True):
     """
-    Using an approximate peak kernel, separate FG and BG regionally
-    and return the bg mean and std.
+    See _background_regional_estimate_im
 
-    Arguments:
-        im: a single frame
-        divs:
-            Regional divisions (both horiz and vert)
-        inpaint: If True then fill NaNs
-
-    Returns:
-        regional bg_mean and bg_std
+    bg_im: Should have nan's where the FG pixels are
     """
-
-    bg_im, fg_mask = _background_extract(im, kernel)
 
     def nanstats(dat):
         if np.all(np.isnan(dat)):
@@ -96,10 +87,39 @@ def _background_regional_estimate_im(im, kernel, divs, inpaint=False):
     return reg_bg_mean, reg_bg_std
 
 
-def bg_estimate_and_remove(im, kernel):
-    reg_bg_mean, _ = _background_regional_estimate_im(im, kernel, divs=64, inpaint=True)
-    bg_im = imops.interp(reg_bg_mean, im.shape[-2:])
+def background_regional_estimate_im(im, kernel, divs=64, inpaint=True):
+    """
+    Using an approximate peak kernel, separate FG and BG regionally
+    and return the bg mean and std.
+
+    Arguments:
+        im: a single frame
+        divs:
+            Regional divisions (both horiz and vert)
+        inpaint: If True then fill NaNs
+
+    Returns:
+        regional bg_mean and bg_std
+    """
+
+    bg_im, _ = background_extract(im, kernel)
+    return background_regional_estimate_im_with_bg_im(bg_im, divs=divs, inpaint=inpaint)
+
+
+def bg_remove(im, reg_bg):
+    """
+    Expand the reg_bg to match im and remove it.
+    """
+    bg_im = imops.interp(reg_bg, im.shape[-2:])
     return im - bg_im
+
+
+def bg_estimate_and_remove(im, kernel):
+    """
+    Extract the bg and subtract it
+    """
+    reg_bg, _ = background_regional_estimate_im(im, kernel)
+    return bg_remove(im, reg_bg)
 
 
 

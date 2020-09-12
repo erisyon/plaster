@@ -146,14 +146,15 @@ def _calibrate_illum(calib, ims_import_result):
     """
 
     n_fields, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
+    debug(n_fields, n_channels, n_zslices)
     for ch_i in range(0, n_channels):
         fl_ims = ims_import_result.ims[:, ch_i, 0]  # Cycle 0 because it has the most peaks
         reg_bal = fg.fg_estimate(fl_ims, calib.psfs(ch_i))
-        import pudb; pudb.set_trace()
         assert np.all(~np.isnan(reg_bal))
 
         prop = f"regional_illumination_balance.instrument_channel[{ch_i}]"
         calib.add({prop: reg_bal.tolist()})
+        debug(calib.keys())
 
     return calib
 
@@ -190,7 +191,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     dim = chcy_ims.shape[-2:]
     for ch_i in range(n_channels):
         reg_bal = np.array(
-            calib[f"regional_illumination_balance.instrument_channel[{ch}]"]
+            calib[f"regional_illumination_balance.instrument_channel[{ch_i}]"]
         )
         assert np.all(~np.isnan(reg_bal))
         bal_im = imops.interp(reg_bal, dim)
@@ -531,6 +532,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
     """
 
     focus_per_field_per_channel = None
+    calib = None
 
     if sigproc_v2_params.mode == common.SIGPROC_V2_PSF_CALIB:
         calib = Calibration()
@@ -538,7 +540,10 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
 
     elif sigproc_v2_params.mode == common.SIGPROC_V2_ILLUM_CALIB:
         calib = Calibration.load(sigproc_v2_params.calibration_file)
+        debug(calib.keys())
         calib = _calibrate_illum(calib, ims_import_result)
+
+    debug(calib.keys())
 
     return SigprocV2Result(
         params=sigproc_v2_params,
@@ -546,7 +551,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
         n_channels=None,
         n_cycles=None,
         channel_weights=None,
-        calib=calib,
+        calib=Calibration(calib),
         focus_per_field_per_channel=focus_per_field_per_channel,
     )
 

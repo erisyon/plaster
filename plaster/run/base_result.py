@@ -134,6 +134,9 @@ class BaseResult(Munch):
                 raise ValueError(
                     f"Property '{prop}' of wrong type; expected '{type_}' found '{type(self[prop])}'"
                 )
+            debug(prop, type_)
+            if prop == "calib":
+                debug(self[prop].keys())
 
         # Note, self.filename is a class member set in the subclass
         utils.indexed_pickler_dump(self, self._folder / self.filename)
