@@ -840,6 +840,7 @@ def fit_gauss2(im):
         ).ravel()
 
     im_1d = im.reshape((mea ** 2,))
+    minimum = np.min(im_1d)
 
     def moments():
         """
@@ -847,25 +848,27 @@ def fit_gauss2(im):
         the gaussian parameters of a 2D distribution by calculating its moments
         # https://scipy-cookbook.readthedocs.io/items/FittingData.html
         """
-        total = im.sum()
-        pos_y, pos_x = np.indices(im.shape)
-        pos_y = (pos_y * im).sum() / total
-        pos_x = (pos_x * im).sum() / total
-        pos_y = min(im.shape[0] - 1, max(0, pos_y))
-        pos_x = min(im.shape[1] - 1, max(0, pos_x))
-        col = im[:, int(pos_x)]
-        amp = np.sum(im)
+        _im = im.copy()
+        _im = _im - minimum
+        total = _im.sum()
+        pos_y, pos_x = np.indices(_im.shape)
+        pos_y = (pos_y * _im).sum() / total
+        pos_x = (pos_x * _im).sum() / total
+        pos_y = min(_im.shape[0] - 1, max(0, pos_y))
+        pos_x = min(_im.shape[1] - 1, max(0, pos_x))
+        col = _im[:, int(pos_x)]
+        amp = np.sum(_im)
         std_x = np.abs((np.arange(col.size) - pos_x) ** 2 * col).sum() / col.sum()
         std_x = max(0, std_x)
         std_x = np.sqrt(std_x)
-        row = im[int(pos_y), :]
+        row = _im[int(pos_y), :]
 
         std_y = np.abs((np.arange(row.size) - pos_y) ** 2 * row).sum() / row.sum()
         std_y = max(0, std_y)
         std_y = np.sqrt(std_y)
         return amp, std_x, std_y, pos_x, pos_y
 
-    guess_params = (*moments(), 0.0, np.min(im_1d))
+    guess_params = (*moments(), 0.0, minimum)
 
     try:
         popt, pcov = curve_fit(

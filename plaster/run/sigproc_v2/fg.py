@@ -149,16 +149,18 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
     signal = np.full((n_locs,), np.nan)
     noise = np.full((n_locs,), np.nan)
 
-    # TODO: Try removing this center_weighted_mask, I suspect it makes things worse
-    center_weighted_mask = imops.generate_center_weighted_tanh(
-        peak_mea, radius=2.0
-    )
-
     psf_dim = z_reg_psfs.shape[-2:]
     assert z_reg_psfs.shape[1] == divs
     assert z_reg_psfs.shape[2] == divs
     assert z_reg_psfs.shape[3] == peak_mea
     assert z_reg_psfs.shape[4] == peak_mea
+
+    # TODO: Try removing this center_weighted_mask, I suspect it makes things worse
+    # center_weighted_mask = imops.generate_center_weighted_tanh(
+    #    peak_mea, radius=2.0
+    # )
+    # All ones center_weighted_mask
+    center_weighted_mask = np.ones(psf_dim)
 
     # TASK: Eventually this will examine which z-depth of the PSFs is best fit for this cycle.
     # The result will be a per-cycle index into the chcy_regional_psfs
@@ -256,7 +258,7 @@ def fg_estimate(fl_ims, z_reg_psfs):
 
     # RETURN the balance adjustment. That is, multiply by this matrix
     # to balance an image. In other words, the brightest region will == 1.0
-    return np.max(bal) / bal
+    return np.max(bal) / bal, mean_im
 
 
 '''

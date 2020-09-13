@@ -79,6 +79,7 @@ def _psf_accumulate(im, locs, mea, keep_dist=8, threshold_abs=None, return_reaso
 
     # Aligned peaks will accumulate into this psf matrix
     dim = (mea, mea)
+    dim2 = (mea+2, mea+2)
     psf = np.zeros(dim)
 
     n_reason_mask_fields = len(PSFEstimateMaskFields)
@@ -86,9 +87,11 @@ def _psf_accumulate(im, locs, mea, keep_dist=8, threshold_abs=None, return_reaso
 
     for i, (loc, closest_neighbor_dist) in enumerate(zip(locs, closest_dist)):
         reason_masks[i, PSFEstimateMaskFields.considered] = 1
-        peak_im = imops.crop(im, off=YX(loc), dim=HW(dim), center=True)
 
-        if peak_im.shape != dim:
+        # EXTRACT a peak with extra pixels around the edges (dim2 not dim)
+        peak_im = imops.crop(im, off=YX(loc), dim=HW(dim2), center=True)
+
+        if peak_im.shape != dim2:
             # Skip near edges
             reason_masks[i, PSFEstimateMaskFields.skipped_near_edges] = 1
             continue
@@ -104,7 +107,9 @@ def _psf_accumulate(im, locs, mea, keep_dist=8, threshold_abs=None, return_reaso
         # Sub-pixel align the peak to the center
         assert not np.any(np.isnan(peak_im))
         centered_peak_im = sub_pixel_center(peak_im)
-        centered_peak_im = np.clip(centered_peak_im, a_min=0.0, a_max=None)
+
+        # Removing ckipping as the noise should cancel out
+        # centered_peak_im = np.clip(centered_peak_im, a_min=0.0, a_max=None)
         peak_max = np.max(centered_peak_im)
         if peak_max == 0.0:
             reason_masks[i, PSFEstimateMaskFields.skipped_empty] = 1
@@ -119,6 +124,9 @@ def _psf_accumulate(im, locs, mea, keep_dist=8, threshold_abs=None, return_reaso
         if r > 2.0:
             reason_masks[i, PSFEstimateMaskFields.skipped_too_oval] = 1
             continue
+
+        # TRIM off the extra now
+        centered_peak_im = centered_peak_im[1:-1, 1:-1]
 
         psf += centered_peak_im / np.sum(centered_peak_im)
         reason_masks[i, PSFEstimateMaskFields.accepted] = 1
@@ -264,12 +272,14 @@ def _do_psf_one_field_one_channel(zi_ims, peak_mea, divs, n_dst_zslices, n_src_z
     return z_and_region_to_psf, im_focuses
 
 
-def _psf_normalize(z_and_region_to_psf):
+def psf_normalize(z_and_region_to_psf):
     """
     The PSF tends to have some bias and needs to have a unit area-under-curve
     The bias is removed by fitting to a Gaussian including the offset
     and then removing the offset.
     """
+
+    normalized = np.zeros_like(z_and_region_to_psf)
 
     n_z_slices, divs = z_and_region_to_psf.shape[0:2]
     for z_i in range(n_z_slices):
@@ -289,9 +299,41 @@ def _psf_normalize(z_and_region_to_psf):
                     # NORMALIZE so that all PSF estimates have unit area-under-curve
                     # The z_and_region_to_psf can have all-zero elements thus we use np_safe_divide below
                     denominator = psf.sum()
-                    z_and_region_to_psf[z_i, y, x] = utils.np_safe_divide(psf, denominator)
+                    normalized[z_i, y, x] = utils.np_safe_divide(psf, denominator)
 
-    return z_and_region_to_psf
+    return normalized
+
+
+
+def psf_gaussianify(z_and_region_to_psf):
+    """
+    Fit to a Gaussian, remove bias, and resample
+    """
+    normalized = np.zeros_like(z_and_region_to_psf)
+    h, w = z_and_region_to_psf.shape[-2:]
+    n_z_slices, divs = z_and_region_to_psf.shape[0:2]
+    for z_i in range(n_z_slices):
+        for y in range(divs):
+            for x in range(divs):
+
+                psf = z_and_region_to_psf[z_i, y, x]
+
+                if np.sum(psf) > 0:
+
+                    # FIT to Gaussian to get the offset
+                    fit_params, _ = imops.fit_gauss2(psf)
+                    fit_params = list(fit_params)
+                    fit_params[6] = 0
+                    fit_params[3] = h // 2
+                    fit_params[4] = w // 2
+                    psf = imops.gauss2_rho_form(*fit_params)
+
+                    # NORMALIZE so that all PSF estimates have unit area-under-curve
+                    # The z_and_region_to_psf can have all-zero elements thus we use np_safe_divide below
+                    denominator = psf.sum()
+                    normalized[z_i, y, x] = utils.np_safe_divide(psf, denominator)
+
+    return normalized
 
 
 
@@ -323,6 +365,6 @@ def psf_all_fields_one_channel(fl_zi_ims, sigproc_v2_params):
     # SUM over fields
     z_and_region_to_psf = np.sum(z_and_region_to_psf_per_field, axis=0)
 
-    z_and_region_to_psf = _psf_normalize(z_and_region_to_psf)
+    z_and_region_to_psf = psf_normalize(z_and_region_to_psf)
 
     return z_and_region_to_psf.tolist(), im_focuses_per_field

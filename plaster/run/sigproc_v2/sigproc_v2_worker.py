@@ -144,17 +144,18 @@ def _calibrate_illum(calib, ims_import_result):
     """
     Extract a per-channel regional balance by using the foreground peaks as estimators
     """
-
     n_fields, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
+    fg_means = np.zeros((n_channels, ims_import_result.dim, ims_import_result.dim))
     for ch_i in range(0, n_channels):
         fl_ims = ims_import_result.ims[:, ch_i, 0]  # Cycle 0 because it has the most peaks
-        reg_bal = fg.fg_estimate(fl_ims, calib.psfs(ch_i))
+        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i))
+        fg_means[ch_i] = fg_mean
         assert np.all(~np.isnan(reg_bal))
 
         prop = f"regional_illumination_balance.instrument_channel[{ch_i}]"
         calib.add({prop: reg_bal.tolist()})
 
-    return calib
+    return calib, fg_means
 
 
 # Analyze Functions
@@ -372,6 +373,8 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     for ch_i in range(n_channels):
         z_reg_psfs = np.array(calib[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
 
+        z_reg_psfs = psf.psf_gaussianify(z_reg_psfs)
+
         for cy_i in range(n_cycles):
             im = chcy_ims[ch_i, cy_i]
 
@@ -531,6 +534,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
 
     focus_per_field_per_channel = None
     calib = None
+    fg_means = None
 
     if sigproc_v2_params.mode == common.SIGPROC_V2_PSF_CALIB:
         calib = Calibration()
@@ -538,7 +542,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
 
     elif sigproc_v2_params.mode == common.SIGPROC_V2_ILLUM_CALIB:
         calib = Calibration.load(sigproc_v2_params.calibration_file)
-        calib = _calibrate_illum(calib, ims_import_result)
+        calib, fg_means = _calibrate_illum(calib, ims_import_result)
 
     return SigprocV2Result(
         params=sigproc_v2_params,
@@ -547,6 +551,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
         channel_weights=None,
         calib=calib,
         focus_per_field_per_channel=focus_per_field_per_channel,
+        _fg_means=fg_means,
     )
 
 
