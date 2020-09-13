@@ -146,7 +146,6 @@ def _calibrate_illum(calib, ims_import_result):
     """
 
     n_fields, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
-    debug(n_fields, n_channels, n_zslices)
     for ch_i in range(0, n_channels):
         fl_ims = ims_import_result.ims[:, ch_i, 0]  # Cycle 0 because it has the most peaks
         reg_bal = fg.fg_estimate(fl_ims, calib.psfs(ch_i))
@@ -154,7 +153,6 @@ def _calibrate_illum(calib, ims_import_result):
 
         prop = f"regional_illumination_balance.instrument_channel[{ch_i}]"
         calib.add({prop: reg_bal.tolist()})
-        debug(calib.keys())
 
     return calib
 
@@ -540,18 +538,14 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
 
     elif sigproc_v2_params.mode == common.SIGPROC_V2_ILLUM_CALIB:
         calib = Calibration.load(sigproc_v2_params.calibration_file)
-        debug(calib.keys())
         calib = _calibrate_illum(calib, ims_import_result)
-
-    debug(calib.keys())
 
     return SigprocV2Result(
         params=sigproc_v2_params,
-        n_input_channels=None,
         n_channels=None,
         n_cycles=None,
         channel_weights=None,
-        calib=Calibration(calib),
+        calib=calib,
         focus_per_field_per_channel=focus_per_field_per_channel,
     )
 
@@ -576,6 +570,7 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         n_channels=ims_import_result.n_channels,
         n_cycles=ims_import_result.n_cycles,
         calib=calib,
+        focus_per_field_per_channel=None,
     )
 
     n_fields = ims_import_result.n_fields
