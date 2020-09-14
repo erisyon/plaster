@@ -213,7 +213,7 @@ class SigprocV2Result(BaseResult):
             start = 0
             stop = self.n_fields
         elif isinstance(fields, slice):
-            start = fields.start
+            start = fields.start or 0
             stop = fields.stop or self.n_fields
             assert fields.step in (None, 1)
         elif isinstance(fields, int):
