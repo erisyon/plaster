@@ -144,7 +144,7 @@ def _calibrate_illum(calib, ims_import_result):
     """
     Extract a per-channel regional balance by using the foreground peaks as estimators
     """
-    n_fields, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
+    n_fields, n_channels, n_cycles = ims_import_result.n_fields_channel_cycles()
     fg_means = np.zeros((n_channels, ims_import_result.dim, ims_import_result.dim))
     for ch_i in range(0, n_channels):
         fl_ims = ims_import_result.ims[:, ch_i, 0]  # Cycle 0 because it has the most peaks

@@ -26,7 +26,7 @@ class SigprocV2CalibGenerator(BaseGenerator):
             raise ValueError(f"Calibrations can have only one sigproc_source")
 
         ims_import_task = task_templates.ims_import(
-            self.sigproc_source[0], is_movie=True
+            self.sigproc_source[0], is_movie=(self.mode=="psf")
         )
 
         modes = dict(
