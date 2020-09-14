@@ -22,7 +22,8 @@ class SigprocV2Params(Params):
         peak_mea=11,
         sig_limit=20.0,  # Keep peaks this many times brighter than the calibration background
         snr_thresh=2.0,  # Keep peaks with SNR greater than this
-        focus_window_radius=6,
+        n_dst_zslices=9,
+        n_src_zslices=15,
         n_fields_limit=None,
         skip_anomaly_detection=True,
         skip_regional_balance=False,
@@ -36,7 +37,8 @@ class SigprocV2Params(Params):
             peak_mea=s.is_int(),
             sig_limit=s.is_float(),
             snr_thresh=s.is_float(),
-            focus_window_radius=s.is_int(),
+            n_dst_zslices=s.is_int(),
+            n_src_zslices=s.is_int(),
             n_fields_limit=s.is_int(noneable=True),
             skip_anomaly_detection=s.is_bool(),
             skip_regional_balance=s.is_bool(),
@@ -48,17 +50,18 @@ class SigprocV2Params(Params):
         self.schema.apply_defaults(self.defaults, apply_to=self, override_nones=False)
         self.schema.validate(self, context=self.__class__.__name__)
 
-        if self.mode == common.SIGPROC_V2_INSTRUMENT_CALIB:
+        if self.mode == common.SIGPROC_V2_PSF_CALIB:
             assert not local.path(
                 self.calibration_file
             ).exists(), (
-                "Calibration file cannot already exist when creating a new calib file"
+                f"Calibration file '{self.calibration_file}' already exists when creating a SIGPROC_V2_PSF_CALIB. Will not overwrite."
             )
 
-        elif self.mode == common.SIGPROC_V2_INSTRUMENT_ANALYZE:
+        else:
             if self.calibration_file != "":
                 self.calibration = Calibration.load(self.calibration_file)
 
+'''
     def set_radiometry_channels_from_input_channels_if_needed(self, n_channels):
         assert n_channels == 1
         self.radiometry_channels = {f"ch_0": 0}
@@ -109,3 +112,4 @@ class SigprocV2Params(Params):
         """Not every input channel necessarily has an output; can return None"""
         # return utils.filt_first_arg(self._input_channels(), lambda x: x == in_ch)
         return 0
+'''

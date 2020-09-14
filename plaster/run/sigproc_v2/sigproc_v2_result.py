@@ -39,10 +39,10 @@ class SigprocV2Result(BaseResult):
     required_props = OrderedDict(
         # Note that these do not include props in the save_field
         params=SigprocV2Params,
-        n_input_channels=(type(None), int),
         n_channels=(type(None), int),
         n_cycles=(type(None), int),
         calib=Calibration,
+        focus_per_field_per_channel=(type(None), list),
     )
 
     peak_df_schema = OrderedDict(
@@ -176,9 +176,9 @@ class SigprocV2Result(BaseResult):
             + 1
         )
 
-    @property
-    def calib(self):
-        return Calibration(self.params.calibration)
+    # @property
+    # def calib(self):
+    #     return Calibration(self.params.calibration)
 
     def fl_ch_cy_iter(self):
         return itertools.product(
