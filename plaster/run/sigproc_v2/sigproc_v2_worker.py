@@ -165,7 +165,7 @@ def _calibrate_illum(calib, ims_import_result):
 def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     """
     Import channels and order them into the output order
-    (evert input channel is not necessarily used).
+    (every input channel is not necessarily used).
 
     Returns:
         Regionally balance and channel equalized images.
