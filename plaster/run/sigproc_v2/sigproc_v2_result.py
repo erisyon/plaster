@@ -284,19 +284,19 @@ class SigprocV2Result(BaseResult):
     #     )
 
     def sig(self, fields=None, **kwargs):
-        return self.flat_if_requested(
+        return np.nan_to_num(self.flat_if_requested(
             self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 0], **kwargs
-        )
+        ))
 
     def noi(self, fields=None, **kwargs):
-        return self.flat_if_requested(
+        return np.nan_to_num(self.flat_if_requested(
             self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 1], **kwargs
-        )
+        ))
 
     def snr(self, fields=None, **kwargs):
-        return utils.np_safe_divide(
+        return np.nan_to_num(utils.np_safe_divide(
             self.sig(fields=fields, **kwargs), self.noi(fields=fields, **kwargs)
-        )
+        ))
 
     # def noise_radmat_for_field(self, field_i, **kwargs):
     #     return self.flat_if_requested(
