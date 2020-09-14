@@ -153,16 +153,18 @@ def sim(
         # labels and others. So fo now I'm coverting it to a constant.
         #n_channels_to_n_max_dtr_per_pep = [0, 8, 8, 16, 100, 250]
         #n_channels_to_n_max_dyepep_per_pep = [0, 100, 100, 100, 250, 425]
+        n_peps_exp_factor = 1.2
         extra_factor = 1.2
         hash_factor = 1.5
         # constant here is ad-hoc, based on results where very small
         # numbers of peptides would result in a table overflow error
         # it was initially set by ZBS at 1000, then changed to 8000 by RDH
         # on 20200902, then to 200_000 by RDH on 20200908.
+        # on 20200914 DHW changed this back to 1000, but added exponential factor
         #TODO: better method for determining these sizes
-        n_max_dtrs = <c.Size>(extra_factor * 250 * n_peps + 200000)
+        n_max_dtrs = <c.Size>(extra_factor * 250 * n_peps**n_peps_exp_factor + 1000)
         n_max_dtr_hash_recs = int(hash_factor * n_max_dtrs)
-        n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps + 200000)
+        n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps**n_peps_exp_factor)
         n_max_dyepep_hash_recs = int(hash_factor * n_max_dyepeps)
         dtr_mb = n_max_dtrs * n_dtr_row_bytes / 1024**2
         dyepep_mb = n_max_dyepeps * sizeof(c.DyePepRec) / 1024**2
