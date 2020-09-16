@@ -274,7 +274,7 @@ void context_start(NNV2FastContext *ctx) {
     ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
 
     if(ctx->n_threads > 1) {
-        trace("WARNING. Multi-thread nn_v2 broken, reverting to single thread\n");
+        // trace("WARNING. Multi-thread nn_v2 broken, reverting to single thread\n");
         ctx->n_threads = 1;
     }
 

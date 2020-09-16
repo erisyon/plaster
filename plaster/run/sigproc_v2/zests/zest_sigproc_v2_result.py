@@ -103,10 +103,10 @@ def zest_v2_all_df():
     )
 
     def it_np_signal_radmat():
-        assert np_array_same(res.signal_radmat(), props.radmat[:, :, :, 0])
+        assert np_array_same(res.sig(), props.radmat[:, :, :, 0])
 
     def it_np_noise_radmat():
-        assert np_array_same(res.noise_radmat(), props.radmat[:, :, :, 1])
+        assert np_array_same(res.noi(), props.radmat[:, :, :, 1])
 
     # All of the following are testing the DataFrames
 

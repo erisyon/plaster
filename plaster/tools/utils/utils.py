@@ -1066,6 +1066,20 @@ def np_within(x, target, bounds):
     return (x - target) ** 2 < bounds ** 2
 
 
+def np_shift(arr, num, fill_value=np.nan):
+    # From https://stackoverflow.com/a/42642326
+    result = np.empty_like(arr)
+    if num > 0:
+        result[:num] = fill_value
+        result[num:] = arr[:-num]
+    elif num < 0:
+        result[num:] = fill_value
+        result[:num] = arr[-num:]
+    else:
+        result[:] = arr
+    return result
+
+
 def is_power_of_2(num):
     return num != 0 and ((num & (num - 1)) == 0)
 

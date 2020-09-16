@@ -31,6 +31,7 @@ class ImsImportResult(BaseResult):
         dim=int,
         tsv_data=(type(None), Munch),
         dtype=str,
+        src_dir=str,
     )
 
     _metadata_columns = (

@@ -28,7 +28,7 @@ def _alex_track_photometries_csv(sigproc_result, threshold):
     df = pd.DataFrame()
 
     for ch in range(sigproc_result.n_channels):
-        rad = sigproc_result.signal_radmat()[:, ch, :]
+        rad = sigproc_result.sig()[:, ch, :]
         data_df = pd.DataFrame(
             rad, columns=[f"FRAME {i}" for i in range(sigproc_result.n_cycles)]
         )

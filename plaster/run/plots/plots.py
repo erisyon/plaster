@@ -802,7 +802,7 @@ def _raw_peak_i_zoom(
     field_i = int(peak_records.iloc[0].field_i)
 
     im = res.raw_chcy_ims(field_i)
-    all_sig = res.signal_radmat()
+    all_sig = res.sig()
 
     square = cspan[1] * imops.generate_square_mask(square_radius)
 
@@ -894,7 +894,7 @@ def wizard_raw_images(
         else:
             peak_i = None
 
-        all_sig = res.signal_radmat()
+        all_sig = res.sig()
 
         # mask_rects_for_field = res.raw_mask_rects_df()[field_i]
         # Temporarily removed. This is going to involve some groupby Super-Pandas-Kungfu(tm)
@@ -988,17 +988,6 @@ def wizard_raw_images(
 
                     output_ch = res.params.input_channel_to_output_channel(input_ch)
                     im_with_marker = np.copy(raw_ims[input_ch, cycle_i])
-                    # if (
-                    #     mask_rects_for_field is not None
-                    #     and mask_rects_for_field[input_ch] is not None
-                    # ):
-                    #     mask_rects = mask_rects_for_field[input_ch][cycle_i]
-                    #     for rect in mask_rects:
-                    #         imops.edge_fill(
-                    #             im_with_marker,
-                    #             loc=XY(rect[0], rect[1]),
-                    #             dim=WH(rect[2], rect[3]),
-                    #         )
 
                     if peak_i is not None:
                         cy_rec = peak_records[peak_records.cycle_i == cycle_i].iloc[0]
@@ -1091,7 +1080,7 @@ def wizard_scat_df(
     interact(scat, x_name=x_name_wid, y_name=y_name_wid, x_noise=0.1)
 
 
-def wizard_xy_df(run, channel_i=None, result_block="sigproc_v1", **kwargs):
+def wizard_xy_df(run, channel_i=None, result_block="sigproc_v1", ignore_fields=None, red_bottom=False, **kwargs):
     """
     Wizard to explore sigprocv2 data as a function of the stage
 
@@ -1101,6 +1090,10 @@ def wizard_xy_df(run, channel_i=None, result_block="sigproc_v1", **kwargs):
     Goal:
         Allow user to see:
             Any anomalies that are occuring as a result of the stage position
+
+    Options:
+        ignore_fields allows you to remove certain fields from
+        consideration because they mess up the auto-scale.
     """
     from ipywidgets import interact  # Defer slow imports
     from bokeh.models import ColorBar  # Defer slow imports
@@ -1116,7 +1109,12 @@ def wizard_xy_df(run, channel_i=None, result_block="sigproc_v1", **kwargs):
     )
 
     df = run[result_block].fields__n_peaks__peaks__radmat()
-    df = df.drop(["stage_x", "stage_y"], axis=1)
+    # df = df.drop(["stage_x", "stage_y"], axis=1)
+
+    if ignore_fields is not None:
+        stage_df = stage_df[~stage_df.field_i.isin(ignore_fields)]
+        df = df[~df.field_i.isin(ignore_fields)]
+
 
     df = df.set_index("field_i").join(stage_df.set_index("field_i"))
 
@@ -1159,7 +1157,8 @@ def wizard_xy_df(run, channel_i=None, result_block="sigproc_v1", **kwargs):
             # with the heatmap using this scheme, I find that it is drawing my attention to
             # some interesting things, so I'm leaving it for now.
             palette = list(Viridis256)
-            palette[0] = "#FF0000"
+            if red_bottom:
+                palette[0] = "#FF0000"
 
             mapper = linear_cmap(
                 field_name=heat_name, palette=palette, low=min_, high=max_
@@ -1230,13 +1229,13 @@ def plot_channel_signal_histograms(
 
     def get_signal():
         signal = (
-            run.sigproc_v1.signal_radmat()
+            run.sigproc_v1.sig()
             if limit_field is None
             else run.sigproc_v1.signal_radmat_for_field(limit_field)
         )
         if div_noise:
             noise = (
-                run.sigproc_v1.noise_radmat()
+                run.sigproc_v1.noi()
                 if limit_field is None
                 else run.sigproc_v1.noise_radmat_for_field(limit_field)
             )

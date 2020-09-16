@@ -232,6 +232,18 @@ class Calibration(Munch):
         self.clear()
         self.add(new_propsubs)
 
+    def psfs(self, ch_i):
+        return np.array(self[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
+
     def __init__(self, propsubs=None):
         super().__init__()
         self.add(propsubs)
+
+    # @classmethod
+    # def fixture_uniform(cls, bg_mean=150, bg_std=15, ):
+    #
+    #     re.compile("regional_illumination_balance\." + instrument_channel_pat),
+    #     re.compile("regional_fg_threshold\." + instrument_channel_pat),
+    #     re.compile("regional_bg_mean\." + instrument_channel_pat),
+    #     re.compile("regional_bg_std\." + instrument_channel_pat),
+    #     re.compile("regional_psf_zstack\." + instrument_channel_pat),
