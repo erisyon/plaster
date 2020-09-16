@@ -726,6 +726,7 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
     ims_import_result.n_cycles = n_cycles
     ims_import_result.dim = target_mea
     ims_import_result.dtype = np.dtype(OUTPUT_NP_TYPE).name
+    ims_import_result.src_dir = src_dir
 
     # CLEAN
     for file in local.cwd // "__*":
