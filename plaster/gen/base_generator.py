@@ -7,11 +7,11 @@ from collections import defaultdict
 import numpy as np
 from munch import Munch
 from plaster.gen import helpers, task_templates
+from plaster.run.sigproc_v2 import sigproc_v2_common
 from plaster.tools.log.log import debug
 from plaster.tools.schema import check
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.schema.schema import SchemaValidationFailed
-from plaster.run.sigproc_v2 import sigproc_v2_common
 from plaster.tools.utils import utils
 from plumbum import local
 
@@ -265,7 +265,7 @@ class BaseGenerator(Munch):
         return ims_import
 
     def sigprocs_v1(self):
-        tasks = {}
+        tasks = []
         if self.sigproc_source:
             ims_import = self.ims_imports(self.sigproc_source)
             sigproc = task_templates.sigproc_v1()
@@ -273,7 +273,7 @@ class BaseGenerator(Munch):
             sigproc.sigproc_v1.parameters.peak_find_n_cycles = self.peak_find_n_cycles
             sigproc.sigproc_v1.parameters.peak_find_start = self.peak_find_start
             sigproc.sigproc_v1.parameters.anomaly_iqr_cutoff = self.anomaly_iqr_cutoff
-            tasks = Munch(**ims_import, **sigproc)
+            tasks += [Munch(**ims_import, **sigproc)]
         return tasks
 
     # def sigprocs_v2(self, **kwargs):
