@@ -120,34 +120,3 @@ def bg_estimate_and_remove(im, kernel):
     """
     reg_bg, _ = background_regional_estimate_im(im, kernel)
     return bg_remove(im, reg_bg)
-
-
-
-'''
-def _background_stats_ims(flzl_ims, divs):
-    """
-    Loops over ims calling _background_regional_estimate_im
-
-    Arguments:
-        flzl_ims: frame, zslices ims to be analyzed (one channel)
-        divs: divisions (in two dims) of image for regional stats
-
-    Returns:
-        bg_mean, bg_std averaged over all fields
-    """
-    check.array_t(flzl_ims, ndim=4)
-    n_fields, n_zslices = flzl_ims.shape[0:2]
-
-    fl_reg_bg_mean = np.zeros((n_fields, divs, divs))
-    fl_reg_bg_std = np.zeros((n_fields, divs, divs))
-
-    for fl_i in range(n_fields):
-        for z_i in range(n_zslices):
-            reg_bg_mean, reg_bg_std = _background_regional_estimate_im(
-                flzl_ims[fl_i, z_i], divs
-            )
-            fl_reg_bg_mean[fl_i, :, :] = reg_bg_mean
-            fl_reg_bg_std[fl_i, :, :] = reg_bg_std
-
-    return np.mean(fl_reg_bg_mean, axis=0), np.mean(fl_reg_bg_std, axis=0)
-'''

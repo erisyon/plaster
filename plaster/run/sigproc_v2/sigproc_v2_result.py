@@ -151,7 +151,6 @@ class SigprocV2Result(BaseResult):
         except Exception as e:
             return "SigprocResult"
 
-
     def _cache(self, prop, val=None):
         # TASK: This might be better done with a yielding context
         cache_key = f"_load_prop_cache_{prop}"
@@ -175,10 +174,6 @@ class SigprocV2Result(BaseResult):
             * np.max(self.fields().cycle_i)
             + 1
         )
-
-    # @property
-    # def calib(self):
-    #     return Calibration(self.params.calibration)
 
     def fl_ch_cy_iter(self):
         return itertools.product(
@@ -220,7 +215,9 @@ class SigprocV2Result(BaseResult):
             start = fields
             stop = fields + 1
         else:
-            raise TypeError(f"fields of unknown type in _load_ndarray_prop_from_fields. {type(fields)}")
+            raise TypeError(
+                f"fields of unknown type in _load_ndarray_prop_from_fields. {type(fields)}"
+            )
         return start, stop
 
     def _load_ndarray_prop_from_fields(self, fields, prop, vstack=True):
@@ -242,27 +239,8 @@ class SigprocV2Result(BaseResult):
 
         return val
 
-    # def _radmat_indexer(self, sig_noi):
-    #     def foo(fl, ch, cy):
-    #         #debug(fl, ch, cy)
-    #         a = self._load_field_prop(fl, "radmat")
-    #         #debug(a)
-    #         return a[:, ch, cy, sig_noi]
-    #
-    #
-    #     return FancyIndexer(
-    #         (self.n_fields, self.n_channels, self.n_cycles),
-    #         # lookup_fn=lambda fl, ch, cy: self._load_field_prop(fl, "radmat")[ch, cy, sig_noi],
-    #         lookup_fn=foo,
-    #     )
-
     # ndarray returns
     # ----------------------------------------------------------------
-
-    # def locs_for_field(self, field_i):
-    #     """Return peak locations in array form"""
-    #     df = self.peaks()
-    #     return df[df.field_i == field_i][["aln_y", "aln_x"]].values
 
     def locs(self, fields=None):
         """Return peak locations in array form"""
@@ -277,37 +255,28 @@ class SigprocV2Result(BaseResult):
             return utils.mat_flatter(mat)
         return mat
 
-    # def signal_radmat_for_field(self, field_i, **kwargs):
-    #     return self.flat_if_requested(
-    #         np.nan_to_num(self._load_field_prop(field_i, "radmat")[:, :, :, 0]),
-    #         **kwargs,
-    #     )
-
     def sig(self, fields=None, **kwargs):
-        return np.nan_to_num(self.flat_if_requested(
-            self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 0], **kwargs
-        ))
+        return np.nan_to_num(
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 0],
+                **kwargs,
+            )
+        )
 
     def noi(self, fields=None, **kwargs):
-        return np.nan_to_num(self.flat_if_requested(
-            self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 1], **kwargs
-        ))
+        return np.nan_to_num(
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 1],
+                **kwargs,
+            )
+        )
 
     def snr(self, fields=None, **kwargs):
-        return np.nan_to_num(utils.np_safe_divide(
-            self.sig(fields=fields, **kwargs), self.noi(fields=fields, **kwargs)
-        ))
-
-    # def noise_radmat_for_field(self, field_i, **kwargs):
-    #     return self.flat_if_requested(
-    #         self._load_field_prop(field_i, "radmat")[:, :, :, 1], **kwargs
-    #     )
-    #
-    # def snr_for_field(self, field_i, **kwargs):
-    #     return utils.np_safe_divide(
-    #         self.signal_radmat_for_field(field_i, **kwargs),
-    #         self.noise_radmat_for_field(field_i, **kwargs),
-    #     )
+        return np.nan_to_num(
+            utils.np_safe_divide(
+                self.sig(fields=fields, **kwargs), self.noi(fields=fields, **kwargs)
+            )
+        )
 
     def aln_chcy_ims(self, field_i):
         if field_i not in self._cache_aln_chcy_ims:
@@ -321,14 +290,6 @@ class SigprocV2Result(BaseResult):
         # Only for compatibility with wizard_raw_images
         # this can be deprecated once sigproc_v2 is deprecated
         return self.aln_chcy_ims(field_i)
-
-    # @property
-    # def sig(self):
-    #     return self._radmat_indexer(sig_noi=0)
-    #
-    # @property
-    # def noi(self):
-    #     return self._radmat_indexer(sig_noi=1)
 
     @property
     def aln_ims(self):
@@ -453,5 +414,3 @@ class SigprocV2Result(BaseResult):
         )
 
         return df
-
-
