@@ -98,7 +98,7 @@ def grid_walk(divs):
             yield x, y
 
 
-# @zest.skip(reason="SLOW")
+@zest.skip(reason="Need a massive overhaul since refactor")
 def zest_sigproc_v2_calibration():
     divs = None
     tgt_mean = None
