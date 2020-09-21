@@ -43,6 +43,40 @@ cdef void _progress(int complete, int total, int retry):
         global_progress_callback(complete, total, retry)
 
 
+def max_counts_from_n_peps(n_peps):
+    """
+    See https://docs.google.com/spreadsheets/d/1GIuox8Rm5H6V3HbazYC713w0grnPSHgEsDD7iH0PwS0/edit#gid=0
+
+    Based on experiments using the count_only option
+    I found that n_dyts and n_max_dyepeps grow linearly w/ n_peps
+
+    After some fidding and fiddling I think the following
+
+    So, for 5 channels, 15 cycles, 750_000 peptides:
+      Dyts = (8 + 8 + 5 * 15) = 91 * 250 * 750_000 = 17_062_500_000 = 17GB
+      DyePepRec = (8 + 8 + 8) = 24 * 450 * 750_000 = 8_100_000_000 = 8GB
+      Total = 25 GB
+
+    So, that's a lot, but that's an extreme case...
+    I could bring it down in several ways:
+    I could store all as 32-bit which would make it:
+      Dyts = (4 + 4 + 5 * 15) = 91 * 250 * 750_000 = 15_562_500_000 = 15GB
+      DyePepRec = (4 + 4 + 4) = 12 * 450 * 750_000 = 4_050_000_000 = 4GB
+      Total = 19GB
+
+    Or, I could stochasitcally remove low-count dyecounts
+    which would be a sort of garbage collection operation
+    which would probably better than half memory but at more compute time.
+
+    For now, a channel counts I'm likely to run I don't think it will be a problem.
+
+
+    """
+    n_max_dyts = 200 * n_peps + 100_000
+    n_max_dyepeps = 450 * n_peps + 100_000
+    return n_max_dyts, n_max_dyepeps
+
+
 # Wrapper for sim that prepares buffers for csim
 def sim(
     pcbs,  # pcb = (p)ep_i, (c)h_i, (b)right_prob
@@ -102,6 +136,7 @@ def sim(
     pep_i_to_pcb_i = np.unique(pcbs[:, 0], return_index=1)[1].astype(np.uint64)
     pep_i_to_pcb_i_view = pep_i_to_pcb_i
     n_peps = pep_i_to_pcb_i.shape[0]
+
     n_cycles = cycles.shape[0]
     n_channels = _n_channels
     n_samples = _n_samples
@@ -116,60 +151,21 @@ def sim(
         n_max_dyt_hash_recs = 100_000_000
         n_max_dyepeps = 1
         n_max_dyepep_hash_recs = 100_000_000
-    else:
-        # Based on experiments using the count_only option above
-        # I found that n_dyts and n_max_dyepeps grow linearly w/ n_peps
-        # I ran experiments over n_channels @ 5000 samples
-        #
-        # n_ch    |  n_dyt/pep |  n_dyepeps/pep
-        # --------|------------|---------------
-        #       1 |          4 |             64
-        #       2 |          4 |             64
-        #       3 |         16 |             97
-        #       4 |         87 |            248
-        #       5 |        233 |            425
-        #
-        # After some fidding and fiddling I think the following
 
-        # So, for 5 channels, 15 cycles, 750_000 peptides:
-        #   Dyts = (8 + 8 + 5 * 15) = 91 * 250 * 750_000 = 17_062_500_000 = 17GB
-        #   DyePepRec = (8 + 8 + 8) = 24 * 450 * 750_000 = 8_100_000_000 = 8GB
-        #   Total = 25 GB
-        #
-        # So, that's a lot, but that's an extreme case...
-        # I could bring it down in several ways:
-        # I could store all as 32-bit which would make it:
-        #   Dyts = (4 + 4 + 5 * 15) = 91 * 250 * 750_000 = 15_562_500_000 = 15GB
-        #   DyePepRec = (4 + 4 + 4) = 12 * 450 * 750_000 = 4_050_000_000 = 4GB
-        #   Total = 19GB
-        #
-        # Or, I could stochasitcally remove low-count dyecounts
-        # which would be a sort of garbage collection operation
-        # which would probably better than half memory but at more compute time.
-        #
-        # For now, a channel counts I'm likely to run I don't think it will be a problem.
-        #
-        # Actually this turns out to be pretty dependent on the form of the
-        # labels and others. So fo now I'm coverting it to a constant.
-        #n_channels_to_n_max_dyt_per_pep = [0, 8, 8, 16, 100, 250]
-        #n_channels_to_n_max_dyepep_per_pep = [0, 100, 100, 100, 250, 425]
-        n_peps_exp_factor = 1.2
-        extra_factor = 1.2
+    else:
+        n_max_dyts, n_max_dyepeps = max_counts_from_n_peps(n_peps)
+
         hash_factor = 1.5
-        # constant here is ad-hoc, based on results where very small
-        # numbers of peptides would result in a tab overflow error
-        # it was initially set by ZBS at 1000, then changed to 8000 by RDH
-        # on 20200902, then to 200_000 by RDH on 20200908.
-        # on 20200914 DHW changed this back to 1000, but added exponential factor
-        #TODO: better method for determining these sizes
-        n_max_dyts = <c.Size>(extra_factor * 250 * n_peps**n_peps_exp_factor + 1000)
         n_max_dyt_hash_recs = int(hash_factor * n_max_dyts)
-        n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps**n_peps_exp_factor)
         n_max_dyepep_hash_recs = int(hash_factor * n_max_dyepeps)
-        dyt_mb = n_max_dyts * n_dyt_row_bytes / 1024**2
-        dyepep_mb = n_max_dyepeps * sizeof(c.DyePepRec) / 1024**2
-        if dyt_mb + dyepep_mb > 1000:
-            important(f"Warning: sim_v2 buffers consuming more than 1 GB ({dyt_mb + dyepep_mb:4.1f} MB)")
+
+        dyt_gb = n_max_dyts * n_dyt_row_bytes / 1024**3
+        dyepep_gb = n_max_dyepeps * sizeof(c.DyePepRec) / 1024**3
+        if dyt_gb + dyepep_gb > 10:
+            important(
+                f"Warning: sim_v2 buffers consuming more than 10 GB ({dyt_gb + dyepep_gb:4.1f} GB), "
+                f"dyt_gb={dyt_gb}, dyepep_gb={dyepep_gb}, n_max_dyts={n_max_dyts}, n_max_dyepeps={n_max_dyepeps}"
+            )
 
     # Memory
     cdef c.Uint8 *dyts_buf = <c.Uint8 *>calloc(n_max_dyts, n_dyt_row_bytes)
@@ -211,7 +207,7 @@ def sim(
         ctx.pep_recalls = &pep_recalls_view[0]
 
         # See sim.c for table and hash definitions
-        ctx.dyts = c.tab_by_size(dyts_buf, n_max_dyts * n_dyt_row_bytes, n_dyt_row_bytes, c.TAB_GROWABLE)
+        ctx.dyts = c.tab_by_n_rows(dyts_buf, n_max_dyts, n_dyt_row_bytes, c.TAB_GROWABLE)
         ctx.dyepeps = c.tab_by_size(dyepeps_buf, n_max_dyepeps * sizeof(c.DyePepRec), sizeof(c.DyePepRec), c.TAB_GROWABLE)
         ctx.dyt_hash = csim.hash_init(dyt_hash_buf, n_max_dyt_hash_recs)
         ctx.dyepep_hash = csim.hash_init(dyepep_hash_buf, n_max_dyepep_hash_recs)
