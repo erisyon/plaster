@@ -42,7 +42,7 @@ cdef extern from "c_common.h":
     void table_set_row(Table *table, Index row_i, void *src)
 
     ctypedef struct DyePepRec:
-        Index dtr_i
+        Index dyt_i
         Index pep_i
         Size n_reads
 

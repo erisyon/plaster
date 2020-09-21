@@ -34,7 +34,7 @@ Algorithm:
                   * "Image" by suming up the remaining dyes.
             * We now have a dyetrack
             * Make a 64 bit hash key from that dyetrack
-            * Look up the dyetrack in the Dye Track Record (DTR) Hash;
+            * Look up the dyetrack in the Dye Tracks (Dyts) Hash;
               if it has never been seen before, add it; increment count.
             * Make another 64 bit hash key by combining the dyetrack hash key
               with the pep_i.
@@ -42,22 +42,22 @@ Algorithm:
               if it has never been seen before, add it; increment count.
 
 Definitions:
-    DTR = Dye Track Record
+    Dyt = Dye Track
     DyePepRec = A record that associates (dye_i, pep_i, count)
-    Table = A generic object that tracks how many rows have been added
-        into a growing array. The pre-allocated table buffer must large
+    Tab = A generic object that tracks how many rows have been added
+        into a growing array. The pre-allocated tab buffer must large
         enough to accommodate the row or an assertion will be thrown.
-    Hash = A simple 64-bit hashkey table that maintains a pointer value.
+    Hash = A simple 64-bit hashkey tab that maintains a pointer value.
     SimV2FastContext = All of the context (parameters, buffers, inputs, etc)
         that are needed in order to run the simulation
 
-There are two Tables maintained in the context:
-    dtrs: (count, dtr_i, array(n_channels, n_cycles))
-    dyepeps: (count, dtr_i, pep_i)
+There are two Tabs maintained in the context:
+    dyts: (count, dyt_i, array(n_channels, n_cycles))
+    dyepeps: (count, dyt_i, pep_i)
 
-There are two hash tables:
-    dtr_hash: key=dyetrack (note: not dtr_i), val=(count, dtr_i)
-    dyepep_hash: key=(dyetrack, pep_i) , val=(count, dtr_i, pep_i)
+There are two hash tabs:
+    dyt_hash: key=dyetrack (note: not dyt_i), val=(count, dyt_i)
+    dyepep_hash: key=(dyetrack, pep_i) , val=(count, dyt_i, pep_i)
 */
 
 
@@ -102,8 +102,8 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
         return 6;
     }
 
-    if(sizeof(DTR) != 16) {
-        printf("Failed sanity check: DTR size\n");
+    if(sizeof(Dyt) != 16) {
+        printf("Failed sanity check: Dyt size\n");
         return 7;
     }
 
@@ -131,15 +131,15 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
 }
 
 
-// dtrs = Dye Track Records
+// Dyts = Dye tracks
 //=========================================================================================
 
-HashKey dtr_get_hashkey(DTR *dtr, Size n_channels, Size n_cycles) {
-    // Get a hashkey for the DTR by a dot product with a set of random 64-bit
+HashKey dyt_get_hashkey(Dyt *dyt, Size n_channels, Size n_cycles) {
+    // Get a hashkey for the Dyt by a dot product with a set of random 64-bit
     // values initialized in the hashkey_factors
     HashKey key = 0;
     Uint64 *p = hashkey_factors;
-    DyeType *d = dtr->chcy_dye_counts;
+    DyeType *d = dyt->chcy_dye_counts;
     for(Index i=0; i < n_channels * n_cycles; i++) {
         key += (*p++) * (Uint64)(*d++);
     }
@@ -147,66 +147,66 @@ HashKey dtr_get_hashkey(DTR *dtr, Size n_channels, Size n_cycles) {
 }
 
 
-Size dtr_n_bytes(Size n_channels, Size n_cycles) {
-    // Return aligned DTR size
-    Size size = sizeof(DTR) + sizeof(DyeType) * n_cycles * n_channels;
+Size dyt_n_bytes(Size n_channels, Size n_cycles) {
+    // Return aligned Dyt size
+    Size size = sizeof(Dyt) + sizeof(DyeType) * n_cycles * n_channels;
     int over = size % 8;
     int padding = over == 0 ? 0 : 8 - over;
     return size + padding;
 }
 
 
-void dtr_set_chcy(DTR *dst, DyeType src_val, Size n_channels, Size n_cycles, Index ch_i, Index cy_i) {
-    // DTR chcy_dye_counts is a 2D array (n_channels, n_cycles)
-    ensure_only_in_debug(0 <= ch_i && ch_i < n_channels && 0 <= cy_i && cy_i < n_cycles, "dtr set out of bounds");
+void dyt_set_chcy(Dyt *dst, DyeType src_val, Size n_channels, Size n_cycles, Index ch_i, Index cy_i) {
+    // Dyt chcy_dye_counts is a 2D array (n_channels, n_cycles)
+    ensure_only_in_debug(0 <= ch_i && ch_i < n_channels && 0 <= cy_i && cy_i < n_cycles, "dyt set out of bounds");
     Uint64 index = (n_cycles * ch_i) + cy_i;
-    ensure_only_in_debug(0 <= index && index < n_channels * n_cycles, "dtr set out of bounds index");
+    ensure_only_in_debug(0 <= index && index < n_channels * n_cycles, "dyt set out of bounds index");
     dst->chcy_dye_counts[index] = src_val;
 }
 
 
-void dtr_clear(DTR *dst, Size n_channels, Size n_cycles) {
-    // Clear a single DTR
+void dyt_clear(Dyt *dst, Size n_channels, Size n_cycles) {
+    // Clear a single Dyt
     memset(dst->chcy_dye_counts, 0, sizeof(DyeType) * n_channels * n_cycles);
 }
 
 
-Size dtr_sum(DTR *dtr, Size n_chcy) {
+Size dyt_sum(Dyt *dyt, Size n_chcy) {
     // return the sum of all channel, all cycles (for debugging)
     Size sum = 0;
     for(Index i=0; i<n_chcy; i++) {
-        sum += dtr->chcy_dye_counts[i];
+        sum += dyt->chcy_dye_counts[i];
     }
     return sum;
 }
 
 
-void dtr_dump_one(DTR *dtr, Size n_channels, Size n_cycles) {
+void dyt_dump_one(Dyt *dyt, Size n_channels, Size n_cycles) {
     // debugging
     for(Index ch_i=0; ch_i<n_channels; ch_i++) {
         for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
-            printf("%d ", dtr->chcy_dye_counts[ch_i*n_cycles + cy_i]);
+            printf("%d ", dyt->chcy_dye_counts[ch_i*n_cycles + cy_i]);
         }
         printf("  ");
     }
-    printf(": count=%4ld\n", dtr->count);
+    printf(": count=%4ld\n", dyt->count);
 }
 
 
-void dtr_dump_all(Table *dtrs, Size n_channels, Size n_cycles) {
+void dyt_dump_all(Tab *dyts, Size n_channels, Size n_cycles) {
     // debugging
-    for(Index i=0; i<dtrs->n_rows; i++) {
-        DTR *dtr = table_get_row(dtrs, i, DTR);
-        dtr_dump_one(dtr, n_channels, n_cycles);
+    for(Index i=0; i<dyts->n_rows; i++) {
+        tab_var(Dyt, dyt, dyts, i);
+        dyt_dump_one(dyt, n_channels, n_cycles);
     }
 }
 
-void dtr_dump_one_hex(DTR *dtrs, Size n_dtrs, Size n_channels, Size n_cycles) {
+void dyt_dump_one_hex(Dyt *dyts, Size n_dyts, Size n_channels, Size n_cycles) {
     // debugging
-    DTR *rec = dtrs;
-    Uint8 *ptr = (Uint8 *)dtrs;
-    for(Index i=0; i<n_dtrs; i++) {
-        HashKey key = dtr_get_hashkey(rec, n_channels, n_cycles);
+    Dyt *rec = dyts;
+    Uint8 *ptr = (Uint8 *)dyts;
+    for(Index i=0; i<n_dyts; i++) {
+        HashKey key = dyt_get_hashkey(rec, n_channels, n_cycles);
         printf("%016lX ", key);
         for(Index i=0; i<8; i++) {
             printf("%02x", *ptr++);
@@ -227,11 +227,11 @@ void dtr_dump_one_hex(DTR *dtrs, Size n_dtrs, Size n_channels, Size n_cycles) {
 // DyePep
 //=========================================================================================
 
-HashKey dyepep_get_hashkey(HashKey dtr_hashkey, Index pep_i) {
+HashKey dyepep_get_hashkey(HashKey dyt_hashkey, Index pep_i) {
     // Note, 0 is an illegal return but is very unlikely except
     // under very weird circumstances. The check is therefore only
     // performec under DEBUG
-    HashKey key = dtr_hashkey * hashkey_factors[0] + pep_i * hashkey_factors[1] + 1;  // + 1 to reserve 0
+    HashKey key = dyt_hashkey * hashkey_factors[0] + pep_i * hashkey_factors[1] + 1;  // + 1 to reserve 0
     ensure_only_in_debug(key != 0, "dyepep hash == 0");
     return key;
 }
@@ -239,14 +239,14 @@ HashKey dyepep_get_hashkey(HashKey dtr_hashkey, Index pep_i) {
 
 void dyepep_dump_one(DyePepRec *dyepep) {
     // Debugging
-    printf("%4ld %4ld %4ld\n", dyepep->dtr_i, dyepep->pep_i, dyepep->n_reads);
+    printf("%4ld %4ld %4ld\n", dyepep->dyt_i, dyepep->pep_i, dyepep->n_reads);
 }
 
 
-void dyepep_dump_all(Table *dyepeps) {
+void dyepep_dump_all(Tab *dyepeps) {
     // Debugging
     for(Index i=0; i<dyepeps->n_rows; i++) {
-        dyepep_dump_one(table_get_row(dyepeps, i, DyePepRec));
+        dyepep_dump_one(tab_ptr(DyePepRec, dyepeps, i));
     }
 }
 
@@ -254,10 +254,10 @@ void dyepep_dump_all(Table *dyepeps) {
 // sim
 //=========================================================================================
 
-Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Size n_aas) {
+Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Tab *pcb_block, Size n_aas) {
     // Runs the Monte-Carlo simulation of one peptide flu over n_samples
     // See algorithm described at top of file.
-    // Returns the number of NEW dtrs
+    // Returns the number of NEW dyts
 
     // Make local copies of inner-loop variables
     DyeType ch_sums[N_MAX_CHANNELS];
@@ -268,21 +268,21 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Siz
     Uint64 pi_bleach = ctx->pi_bleach;
     Uint64 pi_detach = ctx->pi_detach;
     Uint64 pi_edman_success = ctx->pi_edman_success;
-    Table *dtrs = &ctx->dtrs;
-    Table *dyepeps = &ctx->dyepeps;
-    Hash dtr_hash = ctx->dtr_hash;
+    Tab *dyts = &ctx->dyts;
+    Tab *dyepeps = &ctx->dyepeps;
+    Hash dyt_hash = ctx->dyt_hash;
     Hash dyepep_hash = ctx->dyepep_hash;
     Size n_flu_bytes = sizeof(DyeType) * n_aas;
-    Size n_new_dtrs = 0;
+    Size n_new_dyts = 0;
     Size n_new_dyepeps = 0;
 
     if(ctx->count_only) {
-        // Add one record to both dtr and dyepeps
-        if(dtrs->n_rows == 0) {
-            table_add(dtrs, 0, 0, "dtrs");
+        // Add one record to both dyt and dyepeps
+        if(dyts->n_rows == 0) {
+            tab_add(dyts, 0, TAB_NO_LOCK);
         }
         if(dyepeps->n_rows == 0) {
-            table_add(dyepeps, 0, 0, "dyepeps");
+            tab_add(dyepeps, 0, TAB_NO_LOCK);
         }
     }
 
@@ -290,7 +290,7 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Siz
     DyeType *working_flu = (DyeType *)alloca(n_flu_bytes);
     PIType *pi_bright = (PIType *)alloca(sizeof(PIType) * n_aas);
     for(Index aa_i=0; aa_i<n_aas; aa_i++) {
-        PCB *pcb_row = table_get_row(pcb_block, aa_i, PCB);
+        tab_var(PCB, pcb_row, pcb_block, aa_i);
 
         ensure_only_in_debug((Index)pcb_row->pep_i == pep_i, "Mismatching pep_i in pcb_row pep_i=%ld row_pep_i=%ld aa_i=%ld", pep_i, (Index)pcb_row->pep_i, aa_i);
 
@@ -306,13 +306,13 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Siz
         working_flu[aa_i] = (DyeType)0;
     }
 
-    // working_dtr is volatile stack copy of the out-going DTR
-    Size n_dyetrack_bytes = dtr_n_bytes(ctx->n_channels, ctx->n_cycles);
-    DTR *working_dtr = (DTR *)alloca(n_dyetrack_bytes);
-    memset(working_dtr, 0, n_dyetrack_bytes);
+    // working_dyt is volatile stack copy of the out-going Dyt
+    Size n_dyetrack_bytes = dyt_n_bytes(ctx->n_channels, ctx->n_cycles);
+    Dyt *working_dyt = (Dyt *)alloca(n_dyetrack_bytes);
+    memset(working_dyt, 0, n_dyetrack_bytes);
 
-    DTR *nul_dtr = (DTR *)alloca(n_dyetrack_bytes);
-    memset(nul_dtr, 0, n_dyetrack_bytes);
+    Dyt *nul_dyt = (Dyt *)alloca(n_dyetrack_bytes);
+    memset(nul_dyt, 0, n_dyetrack_bytes);
 
     // CHECK for unlabelled peptide
     int has_any_dye = 0;
@@ -337,7 +337,7 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Siz
         // GENERATE the working_dyetrack sample (Monte Carlo)
         //-------------------------------------------------------
         memcpy(working_flu, flu, n_flu_bytes);
-        dtr_clear(working_dtr, n_channels, n_cycles);
+        dyt_clear(working_dyt, n_channels, n_cycles);
 
         // MODEL dark-dyes (dyes dark before the first image)
         // These darks are the product of various dye factors which
@@ -381,7 +381,7 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Siz
                 ch_sums[working_flu[aa_i]] ++;
             }
             for(Index ch_i=0; ch_i<n_channels; ch_i++) {
-                dtr_set_chcy(working_dtr, ch_sums[ch_i], n_channels, n_cycles, ch_i, cy_i);
+                dyt_set_chcy(working_dyt, ch_sums[ch_i], n_channels, n_cycles, ch_i, cy_i);
             }
 
             // TODO: Explain why BLEACH is treated POST image
@@ -397,11 +397,11 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Siz
             }
         }
 
-        // At this point we have the flu sampled into working_dtr
-        // Now we look it up in the hash tables.
+        // At this point we have the flu sampled into working_dyt
+        // Now we look it up in the hash tabs.
         //-------------------------------------------------------
 
-        if(memcmp(working_dtr, nul_dtr, n_dyetrack_bytes) == 0) {
+        if(memcmp(working_dyt, nul_dyt, n_dyetrack_bytes) == 0) {
             // The row was empty, note this and continue to try another sample
             n_dark_samples++;
             continue;
@@ -409,38 +409,38 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Siz
 
         n_non_dark_samples++;
 
-        HashKey dtr_hashkey = dtr_get_hashkey(working_dtr, n_channels, n_cycles);
-        HashRec *dtr_hash_rec = hash_get(dtr_hash, dtr_hashkey);
-        DTR *dtr;
-        ensure(dtr_hash_rec != (HashRec*)0, "dtr_hash full");
-        if(dtr_hash_rec->key == 0) {
+        HashKey dyt_hashkey = dyt_get_hashkey(working_dyt, n_channels, n_cycles);
+        HashRec *dyt_hash_rec = hash_get(dyt_hash, dyt_hashkey);
+        Dyt *dyt;
+        ensure(dyt_hash_rec != (HashRec*)0, "dyt_hash full");
+        if(dyt_hash_rec->key == 0) {
             // New record
-            n_new_dtrs ++;
-            Index dtr_i = 0;
+            n_new_dyts ++;
+            Index dyt_i = 0;
             if( ! ctx->count_only) {
-                dtr_i = table_add(dtrs, working_dtr, ctx->n_threads > 1 ? &ctx->table_lock : 0, "dtrs");
+                dyt_i = tab_add(dyts, working_dyt, ctx->n_threads > 1 ? &ctx->tab_lock : TAB_NO_LOCK);
             }
-            dtr = table_get_row(dtrs, dtr_i, DTR);
-            dtr_hash_rec->key = dtr_hashkey;
-            dtr->count++;
-            dtr->dtr_i = dtr_i;
-            dtr_hash_rec->val = dtr;
+            dyt = tab_ptr(Dyt, dyts, dyt_i);
+            dyt_hash_rec->key = dyt_hashkey;
+            dyt->count++;
+            dyt->dyt_i = dyt_i;
+            dyt_hash_rec->val = dyt;
         }
         else {
             // Existing record
             // Because this is a MonteCarlo sampling it really doesn't
             // matter if we occasionally mis-count due to thread
             // contention therefore there is no lock here.
-            dtr = (DTR *)(dtr_hash_rec->val);
-            table_validate_only_in_debug(dtrs, dtr, "after val lookup");
-            dtr->count++;
+            dyt = (Dyt *)(dyt_hash_rec->val);
+            tab_validate_only_in_debug(dyts, dyt);
+            dyt->count++;
         }
-        table_validate_only_in_debug(dtrs, dtr, "after dtr setup");
+        tab_validate_only_in_debug(dyts, dyt);
 
-        // SAVE the (dtr_i, pep_i) into dyepeps
+        // SAVE the (dyt_i, pep_i) into dyepeps
         // (or inc count if it already exists)
         //-------------------------------------------------------
-        HashKey dyepep_hashkey = dyepep_get_hashkey(dtr_hashkey, pep_i);
+        HashKey dyepep_hashkey = dyepep_get_hashkey(dyt_hashkey, pep_i);
         HashRec *dyepep_hash_rec = hash_get(dyepep_hash, dyepep_hashkey);
         ensure(dyepep_hash_rec != (HashRec*)0, "dyepep_hash full");
         if(dyepep_hash_rec->key == 0) {
@@ -449,11 +449,11 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Siz
             n_new_dyepeps ++;
             Index dyepep_i = 0;
             if( ! ctx->count_only ) {
-                dyepep_i = table_add(dyepeps, 0, ctx->n_threads > 1 ? &ctx->table_lock : 0, "dyepeps");
+                dyepep_i = tab_add(dyepeps, NULL, ctx->n_threads > 1 ? &ctx->tab_lock : TAB_NO_LOCK);
             }
-            DyePepRec *dyepep = table_get_row(dyepeps, dyepep_i, DyePepRec);
+            tab_var(DyePepRec, dyepep, dyepeps, dyepep_i);
             dyepep_hash_rec->key = dyepep_hashkey;
-            dyepep->dtr_i = dtr->dtr_i;
+            dyepep->dyt_i = dyt->dyt_i;
             dyepep->pep_i = pep_i;
             dyepep->n_reads++;
             dyepep_hash_rec->val = dyepep;
@@ -462,7 +462,7 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Siz
             // Existing record
             // Same argument as above
             DyePepRec *dpr = (DyePepRec *)dyepep_hash_rec->val;
-            table_validate_only_in_debug(dyepeps, dpr, "dyepep hash inc");
+            tab_validate_only_in_debug(dyepeps, dpr);
             dpr->n_reads++;
         }
     }
@@ -475,7 +475,7 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Table *pcb_block, Siz
     }
 
     Counts counts;
-    counts.n_new_dtrs = n_new_dtrs;
+    counts.n_new_dyts = n_new_dyts;
     counts.n_new_dyepeps = n_new_dyepeps;
     return counts;
 }
@@ -507,10 +507,10 @@ void *context_work_orders_worker(void *_ctx) {
     SimV2FastContext *ctx = (SimV2FastContext *)_ctx;
     if(ctx->count_only) {
         ensure(ctx->n_threads == 1, "n_therads must be 1 when counting");
-        trace("Counting n_dtrs and n_dyepeps for %ld peps\n", ctx->n_peps);
-        trace("pep_i, n_dtrs, n_dyepeps\n");
+        trace("Counting n_dyts and n_dyepeps for %ld peps\n", ctx->n_peps);
+        trace("pep_i, n_dyts, n_dyepeps\n");
     }
-    Size n_dtrs = 0;
+    Size n_dyts = 0;
     Size n_dyepeps = 0;
     while(1) {
         Index pep_i_plus_1 = context_work_orders_pop(ctx);
@@ -518,24 +518,24 @@ void *context_work_orders_worker(void *_ctx) {
             break;
         }
         Index pep_i = pep_i_plus_1 - 1;
-        Index pcb_i = *table_get_row(&ctx->pep_i_to_pcb_i, pep_i, Index);
-        Index pcb_i_plus_1 = *table_get_row(&ctx->pep_i_to_pcb_i, pep_i + 1, Index);
+        Index pcb_i = tab_get(Index, &ctx->pep_i_to_pcb_i, pep_i);
+        Index pcb_i_plus_1 = tab_get(Index, &ctx->pep_i_to_pcb_i, pep_i + 1);
         Size n_aas = pcb_i_plus_1 - pcb_i;
-        Table pcb_block = table_init_subset(&ctx->pcbs, pcb_i, n_aas, 1);
+        Tab pcb_block = tab_subset(&ctx->pcbs, pcb_i, n_aas);
 
         Counts counts = context_sim_flu(ctx, pep_i, &pcb_block, n_aas);
 
-        n_dtrs += counts.n_new_dtrs;
+        n_dyts += counts.n_new_dyts;
         n_dyepeps += counts.n_new_dyepeps;
         if(ctx->count_only && pep_i % 100 == 0) {
-            trace("%ld, %ld, %ld\n", pep_i, n_dtrs, n_dyepeps);
+            trace("%ld, %ld, %ld\n", pep_i, n_dyts, n_dyepeps);
         }
         if(pep_i % 100 == 0) {
             ctx->progress_fn(pep_i, ctx->n_peps, 0);
         }
     }
     ctx->progress_fn(ctx->n_peps, ctx->n_peps, 0);
-    ctx->output_n_dtrs = n_dtrs;
+    ctx->output_n_dyts = n_dyts;
     ctx->output_n_dyepeps = n_dyepeps;
     return (void *)0;
 }
@@ -551,20 +551,20 @@ void context_work_orders_start(SimV2FastContext *ctx) {
     ctx->next_pep_i = 0;
 
     // Add a nul-row
-    Size n_dyetrack_bytes = dtr_n_bytes(ctx->n_channels, ctx->n_cycles);
-    DTR *nul_rec = (DTR *)alloca(n_dyetrack_bytes);
+    Size n_dyetrack_bytes = dyt_n_bytes(ctx->n_channels, ctx->n_cycles);
+    Dyt *nul_rec = (Dyt *)alloca(n_dyetrack_bytes);
     memset(nul_rec, 0, n_dyetrack_bytes);
-    HashKey dtr_hashkey = dtr_get_hashkey(nul_rec, ctx->n_channels, ctx->n_cycles);
-    HashRec *dtr_hash_rec = hash_get(ctx->dtr_hash, dtr_hashkey);
-    ensure(dtr_hash_rec->key == 0, "dtr hash should not have found nul row");
+    HashKey dyt_hashkey = dyt_get_hashkey(nul_rec, ctx->n_channels, ctx->n_cycles);
+    HashRec *dyt_hash_rec = hash_get(ctx->dyt_hash, dyt_hashkey);
+    ensure(dyt_hash_rec->key == 0, "dyt hash should not have found nul row");
 
-    Table *dtrs = &ctx->dtrs;
-    Index nul_i = table_add(dtrs, nul_rec, (void*)0, "dtrs");
-    DTR *nul_dtr = table_get_row(dtrs, nul_i, DTR);
-    dtr_hash_rec->key = dtr_hashkey;
-    nul_dtr->count++;
-    nul_dtr->dtr_i = nul_i;
-    dtr_hash_rec->val = nul_dtr;
+    Tab *dyts = &ctx->dyts;
+    Index nul_i = tab_add(dyts, nul_rec, TAB_NO_LOCK);
+    tab_var(Dyt, nul_dyt, dyts, nul_i);
+    dyt_hash_rec->key = dyt_hashkey;
+    nul_dyt->count++;
+    nul_dyt->dyt_i = nul_i;
+    dyt_hash_rec->val = nul_dyt;
 
     pthread_t ids[256];
     ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
@@ -573,7 +573,7 @@ void context_work_orders_start(SimV2FastContext *ctx) {
         int ret = pthread_mutex_init(&ctx->work_order_lock, NULL);
         ensure(ret == 0, "pthread lock create failed");
 
-        ret = pthread_mutex_init(&ctx->table_lock, NULL);
+        ret = pthread_mutex_init(&ctx->tab_lock, NULL);
         ensure(ret == 0, "pthread lock create failed");
     }
 
@@ -586,24 +586,24 @@ void context_work_orders_start(SimV2FastContext *ctx) {
         pthread_join(ids[i], NULL);
     }
 
-    // trace("dtrs n_rows = %ld\n", ctx->dtrs.n_rows);
+    // trace("dyts n_rows = %ld\n", ctx->dyts.n_rows);
 }
 
 
-Index context_dtr_get_count(SimV2FastContext *ctx, Index dtr_i) {
-    DTR *dtr = table_get_row(&ctx->dtrs, dtr_i, DTR);
-    return dtr->count;
+Index context_dyt_get_count(SimV2FastContext *ctx, Index dyt_i) {
+    tab_var(Dyt, dyt, &ctx->dyts, dyt_i);
+    return dyt->count;
 }
 
 
-DyeType *context_dtr_dyetrack(SimV2FastContext *ctx, Index dtr_i) {
-    DTR *dtr = table_get_row(&ctx->dtrs, dtr_i, DTR);
-    return dtr->chcy_dye_counts;
+DyeType *context_dyt_dyetrack(SimV2FastContext *ctx, Index dyt_i) {
+    tab_var(Dyt, dyt, &ctx->dyts, dyt_i);
+    return dyt->chcy_dye_counts;
 }
 
 
 DyePepRec *context_dyepep(SimV2FastContext *ctx, Index dyepep_i) {
-    return table_get_row(&ctx->dyepeps, dyepep_i, DyePepRec);
+    return tab_ptr(DyePepRec, &ctx->dyepeps, dyepep_i);
 }
 
 
@@ -623,79 +623,3 @@ void context_dump(SimV2FastContext *ctx) {
     // Some are left out
 }
 
-
-/*
-void _context_generate_test_pepflus(SimV2FastContext *ctx) {
-    // Mock flues for testing purposes
-    ctx->flus = (DyeType **)calloc(sizeof(DyeType *), ctx->n_peps);
-    ctx->n_aas = (Size *)calloc(sizeof(Size), ctx->n_peps);
-    Size n_channels = ctx->n_channels;
-    for(Index pep_i=0; pep_i<ctx->n_peps; pep_i++) {
-        Size n_aa = 5 + rand() % 20;
-        ctx->n_aas[pep_i] = n_aa;
-        ctx->flus[pep_i] = (DyeType *)calloc(sizeof(DyeType), n_aa);
-        for(Index i=0; i<n_aa; i++) {
-            ctx->flus[pep_i][i] = NO_LABEL;
-            for(Index ch_i=(rand() % n_channels); ch_i<n_channels; ch_i++) {
-                if(!(rand() % 4)) {
-                    ctx->flus[pep_i][i] = (DyeType)(ch_i % n_channels);
-                    break;
-                }
-            }
-        }
-    }
-}
-
-
-int main() {
-    // Tests (not run by production code, see fast_sim.pyx)
-    // Setup context
-    SimV2FastContext ctx;
-
-    ctx.n_peps = 100;
-    ctx.n_samples = 5000;
-    ctx.n_channels = 3;
-    ctx.n_cycles = 15;
-
-    if(setup_and_sanity_check(ctx.n_channels, ctx.n_cycles) != 0) {
-        return 1;
-    }
-
-    ctx.pi_bleach = prob_to_p_i(0.06);
-    ctx.pi_detach = prob_to_p_i(0.04);
-    ctx.pi_edman_success = prob_to_p_i(1.0 - 0.05);
-    ctx.cycles[0] = CYCLE_TYPE_PRE;
-    for(Index i=0; i<ctx.n_cycles; i++) {
-        ctx.cycles[i] = i==0 ? CYCLE_TYPE_PRE : CYCLE_TYPE_EDMAN;
-    }
-    _context_generate_test_pepflus(&ctx);
-
-    Size n_trials = 20;
-    //Uint64 start = now();
-    for(Index i=0; i<n_trials; i++) {
-        Size n_max_dtrs = 8 * ctx.n_peps * ctx.n_samples / 10;
-        Size n_dtr_row_bytes = dtr_n_bytes(ctx.n_channels, ctx.n_cycles);
-        ctx.dtrs = table_init(calloc(n_max_dtrs, n_dtr_row_bytes), n_max_dtrs * n_dtr_row_bytes, n_dtr_row_bytes);
-
-        Size n_max_dtr_hash_recs = 2 * n_max_dtrs;
-        HashRec *dtr_hash_buffer = (HashRec *)calloc(n_max_dtr_hash_recs, sizeof(HashRec));
-        ctx.dtr_hash = hash_init(dtr_hash_buffer, n_max_dtr_hash_recs);
-
-        Size n_max_dyepeps = 3 * n_max_dtrs;
-        ctx.dyepeps = table_init(calloc(n_max_dyepeps, sizeof(DyePepRec)), n_max_dyepeps * sizeof(DyePepRec), sizeof(DyePepRec));
-
-        Size n_max_dyepep_hash_recs = 2 * n_max_dyepeps;
-        HashRec *dyepep_hash_buffer = (HashRec *)calloc(n_max_dyepep_hash_recs, sizeof(HashRec));
-        ctx.dyepep_hash = hash_init(dyepep_hash_buffer, n_max_dyepep_hash_recs);
-
-        ctx.next_pep_i = 0;
-
-        ctx.n_threads = 2;
-        context_work_orders_start(&ctx);
-    }
-    //Uint64 stop = now();
-    //trace("dtrs n_rows = %ld\n", ctx.dtrs.n_rows);
-    //trace("%f sec per trial\n", (double)(stop-start) / ((double)n_trials * 1000.0*1000.0) );
-    return 0;
-}
-*/

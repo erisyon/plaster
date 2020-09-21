@@ -60,7 +60,7 @@ def sim(
     Run the Virtual Fluoro Sequence Monte-Carlo simulator via Cython to
     the C implemntation in csim_v2_fast.c.
 
-    pcbs: ndarray[n,3] is a table of derived from a dataframe.values (float64)
+    pcbs: ndarray[n,3] is a tab of derived from a dataframe.values (float64)
     with columns (pep_i, ch_i, p_bright). These have been sorted
     and we can therefore operate on groups.
 
@@ -68,16 +68,16 @@ def sim(
         dyetracks: ndarray(shape=(n_uniq_dyetracks, n_channels * n_cycles))
         dyepeps: ndarray(shape=(n_dyepep_rows, 3))
             Where:
-                n_dyepep_rows is a unique row for each (dtr_i, pep_i)
-                3 columns are: dtr_i, pep_i, count
+                n_dyepep_rows is a unique row for each (dyt_i, pep_i)
+                3 columns are: dyt_i, pep_i, count
     """
     cdef c.Uint64 i, j, n_chcy
-    cdef csim.DTR dtr
-    cdef c.Index dtr_count
+    cdef csim.Dyt dyt
+    cdef c.Index dyt_count
     cdef c.DyeType *dyetrack
     cdef c.DyePepRec *dyepeprec
     cdef c.Size n_peps, n_cycles, n_channels, n_samples
-    cdef c.Size n_max_dtrs, n_max_dtr_hash_recs
+    cdef c.Size n_max_dyts, n_max_dyt_hash_recs
     cdef c.Size n_max_dyepeps, n_max_dyepep_hash_recs
     cdef c.Size count_only = 0  # Set to 1 to use the counting mechanisms
     cdef csim.SimV2FastContext ctx
@@ -106,22 +106,22 @@ def sim(
     n_channels = _n_channels
     n_samples = _n_samples
 
-    cdef c.Size n_dtr_row_bytes = csim.dtr_n_bytes(n_channels, n_cycles)
+    cdef c.Size n_dyt_row_bytes = csim.dyt_n_bytes(n_channels, n_cycles)
 
     # How many dyetrack records are needed?
     # I need to run some experiments to find out where I don't allocate
 
     if count_only == 1:
-        n_max_dtrs = <c.Size>1
-        n_max_dtr_hash_recs = 100_000_000
+        n_max_dyts = <c.Size>1
+        n_max_dyt_hash_recs = 100_000_000
         n_max_dyepeps = 1
         n_max_dyepep_hash_recs = 100_000_000
     else:
         # Based on experiments using the count_only option above
-        # I found that n_dtrs and n_max_dyepeps grow linearly w/ n_peps
+        # I found that n_dyts and n_max_dyepeps grow linearly w/ n_peps
         # I ran experiments over n_channels @ 5000 samples
         #
-        # n_ch    |  n_dtr/pep |  n_dyepeps/pep
+        # n_ch    |  n_dyt/pep |  n_dyepeps/pep
         # --------|------------|---------------
         #       1 |          4 |             64
         #       2 |          4 |             64
@@ -132,14 +132,14 @@ def sim(
         # After some fidding and fiddling I think the following
 
         # So, for 5 channels, 15 cycles, 750_000 peptides:
-        #   DTRs = (8 + 8 + 5 * 15) = 91 * 250 * 750_000 = 17_062_500_000 = 17GB
+        #   Dyts = (8 + 8 + 5 * 15) = 91 * 250 * 750_000 = 17_062_500_000 = 17GB
         #   DyePepRec = (8 + 8 + 8) = 24 * 450 * 750_000 = 8_100_000_000 = 8GB
         #   Total = 25 GB
         #
         # So, that's a lot, but that's an extreme case...
         # I could bring it down in several ways:
         # I could store all as 32-bit which would make it:
-        #   DTRs = (4 + 4 + 5 * 15) = 91 * 250 * 750_000 = 15_562_500_000 = 15GB
+        #   Dyts = (4 + 4 + 5 * 15) = 91 * 250 * 750_000 = 15_562_500_000 = 15GB
         #   DyePepRec = (4 + 4 + 4) = 12 * 450 * 750_000 = 4_050_000_000 = 4GB
         #   Total = 19GB
         #
@@ -151,30 +151,30 @@ def sim(
         #
         # Actually this turns out to be pretty dependent on the form of the
         # labels and others. So fo now I'm coverting it to a constant.
-        #n_channels_to_n_max_dtr_per_pep = [0, 8, 8, 16, 100, 250]
+        #n_channels_to_n_max_dyt_per_pep = [0, 8, 8, 16, 100, 250]
         #n_channels_to_n_max_dyepep_per_pep = [0, 100, 100, 100, 250, 425]
         n_peps_exp_factor = 1.2
         extra_factor = 1.2
         hash_factor = 1.5
         # constant here is ad-hoc, based on results where very small
-        # numbers of peptides would result in a table overflow error
+        # numbers of peptides would result in a tab overflow error
         # it was initially set by ZBS at 1000, then changed to 8000 by RDH
         # on 20200902, then to 200_000 by RDH on 20200908.
         # on 20200914 DHW changed this back to 1000, but added exponential factor
         #TODO: better method for determining these sizes
-        n_max_dtrs = <c.Size>(extra_factor * 250 * n_peps**n_peps_exp_factor + 1000)
-        n_max_dtr_hash_recs = int(hash_factor * n_max_dtrs)
+        n_max_dyts = <c.Size>(extra_factor * 250 * n_peps**n_peps_exp_factor + 1000)
+        n_max_dyt_hash_recs = int(hash_factor * n_max_dyts)
         n_max_dyepeps = <c.Size>(extra_factor * 425 * n_peps**n_peps_exp_factor)
         n_max_dyepep_hash_recs = int(hash_factor * n_max_dyepeps)
-        dtr_mb = n_max_dtrs * n_dtr_row_bytes / 1024**2
+        dyt_mb = n_max_dyts * n_dyt_row_bytes / 1024**2
         dyepep_mb = n_max_dyepeps * sizeof(c.DyePepRec) / 1024**2
-        if dtr_mb + dyepep_mb > 1000:
-            important(f"Warning: sim_v2 buffers consuming more than 1 GB ({dtr_mb + dyepep_mb:4.1f} MB)")
+        if dyt_mb + dyepep_mb > 1000:
+            important(f"Warning: sim_v2 buffers consuming more than 1 GB ({dyt_mb + dyepep_mb:4.1f} MB)")
 
     # Memory
-    cdef c.Uint8 *dtrs_buf = <c.Uint8 *>calloc(n_max_dtrs, n_dtr_row_bytes)
+    cdef c.Uint8 *dyts_buf = <c.Uint8 *>calloc(n_max_dyts, n_dyt_row_bytes)
     cdef c.Uint8 *dyepeps_buf = <c.Uint8 *>calloc(n_max_dyepeps, sizeof(c.DyePepRec))
-    cdef csim.HashRec *dtr_hash_buf = <csim.HashRec *>calloc(n_max_dtr_hash_recs, sizeof(csim.HashRec))
+    cdef csim.HashRec *dyt_hash_buf = <csim.HashRec *>calloc(n_max_dyt_hash_recs, sizeof(csim.HashRec))
     cdef csim.HashRec *dyepep_hash_buf = <csim.HashRec *>calloc(n_max_dyepep_hash_recs, sizeof(csim.HashRec))
     cdef c.Index *pep_i_to_pcb_i_buf = <c.Index *>calloc(n_peps + 1, sizeof(c.Index))  # Why +1? see above
 
@@ -198,11 +198,11 @@ def sim(
             ctx.cycles[i] = cycles[i]
 
         pcbs_view = pcbs
-        ctx.pcbs = c.table_init_readonly(<c.Uint8 *>&pcbs_view[0, 0], pcbs.nbytes, sizeof(csim.PCB))
+        ctx.pcbs = c.tab_by_size(<c.Uint8 *>&pcbs_view[0, 0], pcbs.nbytes, sizeof(csim.PCB), c.TAB_NOT_GROWABLE)
 
         memcpy(pep_i_to_pcb_i_buf, <const void *>&pep_i_to_pcb_i_view[0], sizeof(c.Index) * n_peps);
         pep_i_to_pcb_i_buf[n_peps] = pcbs.shape[0]
-        ctx.pep_i_to_pcb_i = c.table_init_readonly(<c.Uint8 *>pep_i_to_pcb_i_buf, (n_peps + 1) * sizeof(c.Index), sizeof(c.Index));
+        ctx.pep_i_to_pcb_i = c.tab_by_n_rows(<c.Uint8 *>pep_i_to_pcb_i_buf, n_peps + 1, sizeof(c.Index), c.TAB_NOT_GROWABLE);
 
         ctx.progress_fn = <c.ProgressFn>_progress
 
@@ -211,25 +211,25 @@ def sim(
         ctx.pep_recalls = &pep_recalls_view[0]
 
         # See sim.c for table and hash definitions
-        ctx.dtrs = c.table_init(dtrs_buf, n_max_dtrs * n_dtr_row_bytes, n_dtr_row_bytes)
-        ctx.dyepeps = c.table_init(dyepeps_buf, n_max_dyepeps * sizeof(c.DyePepRec), sizeof(c.DyePepRec))
-        ctx.dtr_hash = csim.hash_init(dtr_hash_buf, n_max_dtr_hash_recs)
+        ctx.dyts = c.tab_by_size(dyts_buf, n_max_dyts * n_dyt_row_bytes, n_dyt_row_bytes, c.TAB_GROWABLE)
+        ctx.dyepeps = c.tab_by_size(dyepeps_buf, n_max_dyepeps * sizeof(c.DyePepRec), sizeof(c.DyePepRec), c.TAB_GROWABLE)
+        ctx.dyt_hash = csim.hash_init(dyt_hash_buf, n_max_dyt_hash_recs)
         ctx.dyepep_hash = csim.hash_init(dyepep_hash_buf, n_max_dyepep_hash_recs)
 
         # Now do the work in the C file
         csim.context_work_orders_start(&ctx)
 
         if count_only:
-            print(f"n_dtrs={ctx.output_n_dtrs}")
+            print(f"n_dyts={ctx.output_n_dyts}")
             print(f"n_dyepeps={ctx.output_n_dyepeps}")
             return None, None, None
 
-        # The results are in ctx.dtrs and ctx.dyepeps
+        # The results are in ctx.dyts and ctx.dyepeps
         # So now allocate the numpy arrays that will be returned
         # to the caller and copy into those arrays from the
         # much larger arrays that were used during the context_work_orders_start()
         n_chcy = ctx.n_channels * ctx.n_cycles
-        dyetracks = np.zeros((ctx.dtrs.n_rows, n_chcy), dtype=DyeType)
+        dyetracks = np.zeros((ctx.dyts.n_rows, n_chcy), dtype=DyeType)
 
         # We need a special record at 0 for nul so we need to add one here
         dyepeps = np.zeros((ctx.dyepeps.n_rows + 1, 3), dtype=Size)
@@ -239,9 +239,9 @@ def sim(
         dyetracks_view = dyetracks
         dyepeps_view = dyepeps
 
-        for i in range(ctx.dtrs.n_rows):
-            dtr_count = csim.context_dtr_get_count(&ctx, i)
-            dyetrack = csim.context_dtr_dyetrack(&ctx, i)
+        for i in range(ctx.dyts.n_rows):
+            dyt_count = csim.context_dyt_get_count(&ctx, i)
+            dyetrack = csim.context_dyt_dyetrack(&ctx, i)
             for j in range(n_chcy):
                 dyetracks_view[i, j] = dyetrack[j]
 
@@ -251,15 +251,15 @@ def sim(
         dyepeps_view[0, 2] = 0
         for i in range(ctx.dyepeps.n_rows):
             dyepeprec = csim.context_dyepep(&ctx, i)
-            dyepeps_view[i+1, 0] = dyepeprec.dtr_i
+            dyepeps_view[i+1, 0] = dyepeprec.dyt_i
             dyepeps_view[i+1, 1] = dyepeprec.pep_i
             dyepeps_view[i+1, 2] = dyepeprec.n_reads
 
         return dyetracks, dyepeps, pep_recalls
 
     finally:
-        free(dtrs_buf)
+        free(dyts_buf)
         free(dyepeps_buf)
-        free(dtr_hash_buf)
+        free(dyt_hash_buf)
         free(dyepep_hash_buf)
         free(pep_i_to_pcb_i_buf)

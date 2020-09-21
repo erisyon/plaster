@@ -51,7 +51,7 @@ typedef struct {
 
 
 typedef struct {
-    Index dtr_i;
+    Index dyt_i;
     Index pep_i;
     Size n_reads;
 } DyePepRec;
@@ -155,6 +155,8 @@ Tab tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, int b_growable)
 Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int b_growable);
 void *_tab_get(Tab *tab, Index row_i, char *file, int line);
 void _tab_set(Tab *tab, Index row_i, void *src, char *file, int line);
+Index _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file, int line);
+void _tab_validate(Tab *tab, void *ptr, char *file, int line);
 
 
 #define TAB_NOT_GROWABLE (0)
@@ -168,6 +170,12 @@ void _tab_set(Tab *tab, Index row_i, void *src, char *file, int line);
 #define tab_set(tab, row_i, src) _tab_set(tab, row_i, src, __FILE__, __LINE__)
 #define tab_add(tab, src, lock) _tab_add(tab, src, lock, __FILE__, __LINE__)
 #define tab_validate(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)
+
+#ifdef DEBUG
+    #define tab_validate_only_in_debug(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)
+#else
+    #define tab_validate_only_in_debug(...) ((void)0)
+#endif
 
 #define tab_alloca(table_name, n_rows, n_bytes_per_row) \
 	void *buf##__LINE__ = (void *)alloca(n_rows * n_bytes_per_row); \
