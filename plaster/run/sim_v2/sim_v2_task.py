@@ -15,3 +15,6 @@ class SimV2Task(PipelineTask):
             sim_v2_params, prep_result, progress=self.progress, pipeline=self
         )
         sim_result_v2.save()
+
+        if sim_v2_params.dump_debug:
+            sim_result_v2.dump_debug()

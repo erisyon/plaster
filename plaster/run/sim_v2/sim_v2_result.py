@@ -159,3 +159,22 @@ class SimV2Result(BaseResult):
             .sort_index()
             .reset_index()
         )
+
+    def dump_debug(self):
+        """
+        Save properties out as numpy arrays for easier export
+        """
+
+        props = (
+            "train_dyemat",
+            "train_pep_recalls",
+            "train_dyepeps",
+            "train_radmat",
+            "train_true_pep_iz",
+            "train_true_dye_iz",
+            "test_radmat",
+            "test_true_dye_iz",
+            "test_true_pep_iz",
+        )
+        for prop in props:
+            np.save(f"_{prop}.npy", getattr(self, prop))
