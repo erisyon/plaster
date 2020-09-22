@@ -264,8 +264,12 @@ def sigproc_v2_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
 
     circle_im = circle_locs(im, locs, inner_radius=6, outer_radius=7, fill_mode="one")
     index_im = circle_locs(im, locs, inner_radius=0, outer_radius=7, fill_mode="index")
-    sig_im = circle_locs(im, locs, inner_radius=0, outer_radius=7, fill_mode="vals", vals=sig)
-    snr_im = circle_locs(im, locs, inner_radius=0, outer_radius=7, fill_mode="vals", vals=snr)
+    sig_im = circle_locs(
+        im, locs, inner_radius=0, outer_radius=7, fill_mode="vals", vals=sig
+    )
+    snr_im = circle_locs(
+        im, locs, inner_radius=0, outer_radius=7, fill_mode="vals", vals=snr
+    )
 
     z.im_peaks(im, circle_im, index_im, sig_im, snr_im, **kwargs)
 

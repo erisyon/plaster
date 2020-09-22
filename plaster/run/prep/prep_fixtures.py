@@ -123,11 +123,7 @@ def result_random_fixture(n_proteins):
 
 
 def result_4_count_fixture():
-    prep_params = PrepParams(
-        proteins=[
-            Munch(name="pro1", sequence=".A.A.A.A"),
-        ]
-    )
+    prep_params = PrepParams(proteins=[Munch(name="pro1", sequence=".A.A.A.A"),])
 
     pros = pd.DataFrame(
         dict(
@@ -155,12 +151,7 @@ def result_4_count_fixture():
     # fmt: on
 
     peps = pd.DataFrame(
-        dict(
-            pep_i=[0, 1],
-            pep_start=[0, 0],
-            pep_stop=[1, 8],
-            pro_i=[0, 1],
-        )
+        dict(pep_i=[0, 1], pep_start=[0, 0], pep_stop=[1, 8], pro_i=[0, 1],)
     )
 
     # fmt: off
@@ -189,5 +180,3 @@ def result_4_count_fixture():
         _peps=peps,
         _pep_seqs=pep_seqs,
     )
-
-

@@ -254,5 +254,3 @@ def clip2d(tar_x, tar_w, src_w, tar_y, tar_h, src_h):
         src_roi = ROI(XY(src_l, src_t), WH(src_w, src_h))
 
     return tar_roi, src_roi
-
-

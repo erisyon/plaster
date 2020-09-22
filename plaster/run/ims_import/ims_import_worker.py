@@ -455,7 +455,13 @@ def _do_gather(
 
 
 def _do_movie_import(
-    nd2_path, output_field_i, start_cycle, n_cycles, target_mea, nd2_import_result, dst_ch_i_to_src_ch_i,
+    nd2_path,
+    output_field_i,
+    start_cycle,
+    n_cycles,
+    target_mea,
+    nd2_import_result,
+    dst_ch_i_to_src_ch_i,
 ):
     """
     Import Nikon ND2 "movie" files.
@@ -511,7 +517,11 @@ def _do_movie_import(
 
 
 def _z_stack_import(
-    nd2_path, target_mea, nd2_import_result, dst_ch_i_to_src_ch_i, movie_n_slices_per_field
+    nd2_path,
+    target_mea,
+    nd2_import_result,
+    dst_ch_i_to_src_ch_i,
+    movie_n_slices_per_field,
 ):
     """
     A single ND2 file with multiple fields
@@ -541,7 +551,12 @@ def _z_stack_import(
 
             for dst_ch_i in range(n_dst_channels):
                 src_ch_i = dst_ch_i_to_src_ch_i[dst_ch_i]
-                for cy_out_i, cy_in_i in enumerate(range(field_i * movie_n_slices_per_field, (field_i + 1) * movie_n_slices_per_field)):
+                for cy_out_i, cy_in_i in enumerate(
+                    range(
+                        field_i * movie_n_slices_per_field,
+                        (field_i + 1) * movie_n_slices_per_field,
+                    )
+                ):
                     im = nd2.get_field(cy_in_i, src_ch_i).astype(OUTPUT_NP_TYPE)
                     if actual_dim[0] != target_mea or actual_dim[1] != target_mea:
                         # CONVERT into a zero pad
@@ -553,7 +568,8 @@ def _z_stack_import(
             # Task: Add quality
             nd2_import_result.save_field(field_i, chcy_arr)
 
-    return list(range(n_fields)), movie_n_slices_per_field 
+    return list(range(n_fields)), movie_n_slices_per_field
+
 
 def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
     (
@@ -646,7 +662,6 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
             nd2_import_result=ims_import_result,
             dst_ch_i_to_src_ch_i=dst_ch_i_to_src_ch_i,
         )
-
 
     else:
         start_field, n_fields = clamp_fields(n_fields_true)
