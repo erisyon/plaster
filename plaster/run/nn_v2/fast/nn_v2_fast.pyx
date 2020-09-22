@@ -163,52 +163,60 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
         ctx.n_cols = n_cols
         ctx.progress_fn = <c.ProgressFn>_progress
 
-        ctx.test_unit_radmat = c.table_init_readonly(
+        ctx.test_unit_radmat = c.tab_by_size(
             <c.Uint8 *>&test_unit_radmat_view[0, 0],
             test_unit_radmat.nbytes,
-            test_unit_radmat.itemsize * test_unit_radmat.shape[1]
+            test_unit_radmat.itemsize * test_unit_radmat.shape[1],
+            0
         )
 
-        ctx.train_dyemat = c.table_init_readonly(
+        ctx.train_dyemat = c.tab_by_size(
             <c.Uint8 *>&train_dyemat_as_radtype[0],
             train_dyemat_n_elems * sizeof(c.RadType),
-            n_cols * sizeof(c.RadType)
+            n_cols * sizeof(c.RadType),
+            0
         )
 
-        ctx.train_dyepeps = c.table_init_readonly(
+        ctx.train_dyepeps = c.tab_by_size(
             <c.Uint8 *>&train_dyepeps_view[0, 0],
             dyepep_n_rows * sizeof(c.Index) * 3,
-            sizeof(c.Index) * 3
+            sizeof(c.Index) * 3,
+            0
         )
 
-        ctx.train_dye_i_to_dyepep_offset = c.table_init_readonly(
+        ctx.train_dye_i_to_dyepep_offset = c.tab_by_size(
             <c.Uint8 *>&dye_i_to_dyepep_offset[0],
             sizeof(c.Index) * n_dyetracks,
             sizeof(c.Index),
+            0
         )
 
-        ctx.output_pred_pep_iz = c.table_init(
+        ctx.output_pred_pep_iz = c.tab_by_size(
             <c.Uint8 *>&output_pred_pep_iz_view[0],
             output_pred_pep_iz.nbytes,
-            output_pred_pep_iz.itemsize
+            output_pred_pep_iz.itemsize,
+            0
         )
 
-        ctx.output_pred_dye_iz = c.table_init(
+        ctx.output_pred_dye_iz = c.tab_by_size(
             <c.Uint8 *>&output_pred_dye_iz_view[0],
             output_pred_dye_iz.nbytes,
-            output_pred_dye_iz.itemsize
+            output_pred_dye_iz.itemsize,
+            0
         )
 
-        ctx.output_scores = c.table_init(
+        ctx.output_scores = c.tab_by_size(
             <c.Uint8 *>&output_scores_view[0],
             output_scores.nbytes,
-            output_scores.itemsize
+            output_scores.itemsize,
+            0
         )
 
-        ctx.train_dyetrack_weights = c.table_init_readonly(
+        ctx.train_dyetrack_weights = c.tab_by_size(
             <c.Uint8 *>&dyetrack_weights_float[0],
             train_dyemat_n_rows * sizeof(c.WeightType),
-            sizeof(c.WeightType)
+            sizeof(c.WeightType),
+            0
         )
 
         ctx.n_threads = n_threads
@@ -226,4 +234,3 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
         free(dye_i_to_dyepep_offset)
 
     return output_pred_pep_iz, output_scores, output_pred_dye_iz
-
