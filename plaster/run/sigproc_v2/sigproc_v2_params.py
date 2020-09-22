@@ -53,13 +53,12 @@ class SigprocV2Params(Params):
         if self.mode == common.SIGPROC_V2_PSF_CALIB:
             assert not local.path(
                 self.calibration_file
-            ).exists(), (
-                f"Calibration file '{self.calibration_file}' already exists when creating a SIGPROC_V2_PSF_CALIB. Will not overwrite."
-            )
+            ).exists(), f"Calibration file '{self.calibration_file}' already exists when creating a SIGPROC_V2_PSF_CALIB. Will not overwrite."
 
         else:
             if self.calibration_file != "":
                 self.calibration = Calibration.load(self.calibration_file)
+
 
 '''
     def set_radiometry_channels_from_input_channels_if_needed(self, n_channels):

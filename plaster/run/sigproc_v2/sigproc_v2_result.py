@@ -7,8 +7,8 @@ import pandas as pd
 import itertools
 from collections import OrderedDict
 from plumbum import local
-
 from plaster.tools.schema import check
+from plaster.tools.image.coord import ROI, YX, HW
 import numpy as np
 from plaster.tools.utils import utils
 from plaster.tools.utils.fancy_indexer import FancyIndexer
@@ -414,3 +414,83 @@ class SigprocV2Result(BaseResult):
         )
 
         return df
+
+    def sig_from_df_filter(
+        self,
+        df,
+        fields=None,
+        reject_fields=None,
+        roi=None,
+        cycles=None,
+        dark=None,
+        on_though_cy_i=None,
+        off_at_cy_i=None,
+        monotonic=None,
+        min_intensity_cy_0=None,
+        max_intensity_cy_0=None,
+        max_intensity_any_cycle=None,
+        min_intensity_per_cycle=None,
+        max_intensity_per_cycle=None,
+        **kwargs,
+    ):
+        if fields is None:
+            fields = list(range(df.field_i.max() + 1))
+
+        if reject_fields is not None:
+            fields = list(filter(lambda x: x not in reject_fields, fields))
+
+        if roi is None:
+            roi = ROI(YX(0, 0), HW(df.raw_y.max(), df.raw_x.max()))
+        if cycles is None:
+            cycles = list(range(df.cycle_i.max() + 1))
+
+        _df = df[
+            (df.field_i.isin(fields))
+            & (df.cycle_i.isin(cycles))
+            & (roi[0].start <= df.raw_y)
+            & (df.raw_y < roi[0].stop)
+            & (roi[1].start <= df.raw_x)
+            & (df.raw_x < roi[1].stop)
+        ].reset_index(drop=True)
+
+        radmat = (
+            pd.pivot_table(
+                _df, values="signal", index=["field_i", "peak_i"], columns=["cycle_i"]
+            )
+            .reset_index()
+            .rename_axis(None, axis=1)
+            .drop(columns=["field_i", "peak_i"])
+        ).values
+
+        keep_mask = np.ones((radmat.shape[0],), dtype=bool)
+        if on_though_cy_i is not None:
+            assert dark is not None
+            keep_mask &= np.all(radmat[:, 0 : on_though_cy_i + 1] > dark, axis=1)
+
+        if off_at_cy_i is not None:
+            keep_mask &= np.all(radmat[:, off_at_cy_i:] < dark, axis=1)
+
+        if monotonic is not None:
+            d = np.diff(radmat, axis=1)
+            keep_mask &= np.all(d < monotonic, axis=1)
+
+        if min_intensity_cy_0 is None:
+            keep_mask &= radmat[:, 0] >= min_intensity_cy_0
+
+        if max_intensity_cy_0:
+            keep_mask &= radmat[:, 0] <= max_intensity_cy_0
+
+        if max_intensity_any_cycle:
+            keep_mask &= np.all(radmat[:, :] <= max_intensity_any_cycle, axis=1)
+
+        if min_intensity_per_cycle is not None:
+            for cy_i, inten in enumerate(min_intensity_per_cycle):
+                if inten is not None:
+                    keep_mask &= radmat[:, cy_i] >= inten
+
+        if max_intensity_per_cycle is not None:
+            for cy_i, inten in enumerate(max_intensity_per_cycle):
+                if inten is not None:
+                    keep_mask &= radmat[:, cy_i] <= inten
+
+        return np.nan_to_num(radmat[keep_mask])

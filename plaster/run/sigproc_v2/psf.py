@@ -45,7 +45,9 @@ class PSFEstimateMaskFields(IntEnum):
     accepted = 7
 
 
-def _psf_accumulate(im, locs, mea, keep_dist=8, threshold_abs=None, return_reasons=True):
+def _psf_accumulate(
+    im, locs, mea, keep_dist=8, threshold_abs=None, return_reasons=True
+):
     """
     Given a single im, typically a regional sub-image, accumulate
     PSF evidence from each locs that meets a set of criteria.
@@ -79,7 +81,7 @@ def _psf_accumulate(im, locs, mea, keep_dist=8, threshold_abs=None, return_reaso
 
     # Aligned peaks will accumulate into this psf matrix
     dim = (mea, mea)
-    dim2 = (mea+2, mea+2)
+    dim2 = (mea + 2, mea + 2)
     psf = np.zeros(dim)
 
     n_reason_mask_fields = len(PSFEstimateMaskFields)
@@ -304,7 +306,6 @@ def psf_normalize(z_and_region_to_psf):
     return normalized
 
 
-
 def psf_gaussianify(z_and_region_to_psf):
     """
     Fit to a Gaussian, remove bias, and resample
@@ -334,7 +335,6 @@ def psf_gaussianify(z_and_region_to_psf):
                     normalized[z_i, y, x] = utils.np_safe_divide(psf, denominator)
 
     return normalized
-
 
 
 def psf_all_fields_one_channel(fl_zi_ims, sigproc_v2_params):

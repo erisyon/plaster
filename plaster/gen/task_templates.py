@@ -81,10 +81,7 @@ def sigproc_v2_calib(calibration_file, mode):
         sigproc_v2=Munch(
             version="1.0",
             inputs=Munch(ims_import="../ims_import"),
-            parameters=Munch(
-                calibration_file=calibration_file,
-                mode=mode,
-            ),
+            parameters=Munch(calibration_file=calibration_file, mode=mode,),
         )
     )
 
