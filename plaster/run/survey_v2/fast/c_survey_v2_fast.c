@@ -24,7 +24,7 @@ void dump_dyepeps(SurveyV2FastContext *ctx) {
     Index last_pep_i = 0xFFFFFFFFFFFFFFFF;
     for(Index i=0; i<ctx->dyepeps.n_rows; i++) {
         tab_var(DyePepRec, dyepep, &ctx->dyepeps, i);
-        tab_var(Index, mlpep_i, &ctx->dyt_i_to_mlpep_i, dyepep->dtr_i);
+        tab_var(Index, mlpep_i, &ctx->dyt_i_to_mlpep_i, dyepep->dyt_i);
 
         if(last_pep_i != dyepep->pep_i) {
             trace("pep_i%lu\n", dyepep->pep_i);
@@ -32,9 +32,9 @@ void dump_dyepeps(SurveyV2FastContext *ctx) {
         }
 
         //if(*mlpep_i != dyepep->pep_i) {
-            trace("  dyt_i:%-4lu n_reads:%-8lu  mlpep_i:%-4lu   ", dyepep->dtr_i, dyepep->n_reads, *mlpep_i);
+            trace("  dyt_i:%-4lu n_reads:%-8lu  mlpep_i:%-4lu   ", dyepep->dyt_i, dyepep->n_reads, *mlpep_i);
 
-            tab_var(DyeType, dyt, &ctx->dyemat, dyepep->dtr_i);
+            tab_var(DyeType, dyt, &ctx->dyemat, dyepep->dyt_i);
             for (Index k=0; k<ctx->dyemat.n_bytes_per_row; k++) {
                 trace("%d ", dyt[k]);
             }
@@ -159,7 +159,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     // using the dyt_iz referenced in the dyepeps table.
     for(Index i=0; i<n_local_dyts; i++) {
         tab_var(DyePepRec, dyepep_row, &dyepeps, i);
-        tab_var(DyeType, src, &ctx->dyemat, dyepep_row->dtr_i);
+        tab_var(DyeType, src, &ctx->dyemat, dyepep_row->dyt_i);
         tab_var(DyeType, dst, &local_dyemat, i);
         memcpy(dst, src, dyt_row_n_bytes);
     }
@@ -208,7 +208,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
 		// Reminder: dyepeps is the LOCAL dyepeps for pep_i only
         tab_var(DyePepRec, dyepep_row, &dyepeps, dyt_i);
 
-        Index mlpep_i_for_this_dyt_i = tab_get(Index, &ctx->dyt_i_to_mlpep_i, dyepep_row->dtr_i);
+        Index mlpep_i_for_this_dyt_i = tab_get(Index, &ctx->dyt_i_to_mlpep_i, dyepep_row->dyt_i);
 
 		// Get pointers to the nearest neighbor (nn) records (closest neighbot dy_y and
 		// distance) that FLANN returned to us for this dyt_i
@@ -219,14 +219,14 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
 
         if(show_debug) {
             trace("  dyt_i:%-4lu  n_reads:%-8lu  mlpep_i:%-4lu  is_local:%1d  ",
-                dyepep_row->dtr_i,
+                dyepep_row->dyt_i,
                 dyepep_row->n_reads,
                 mlpep_i_for_this_dyt_i,
                 is_local
             );
 
             // DRAW the dyetracl
-            tab_var(DyeType, dyt, &ctx->dyemat, dyepep_row->dtr_i);
+            tab_var(DyeType, dyt, &ctx->dyemat, dyepep_row->dyt_i);
             for (Index k=0; k<ctx->dyemat.n_bytes_per_row; k++) {
                 trace("%d ", dyt[k]);
             }
@@ -246,7 +246,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
             	"Illegal dyt in nn lookup: %ld %ld", global_dyt_i_of_nn_i, n_global_dyts
 			);
 
-            if(dyepep_row->dtr_i == global_dyt_i_of_nn_i) {
+            if(dyepep_row->dyt_i == global_dyt_i_of_nn_i) {
                 // Do not compare a dyetrack to itself, it will always be zero
                 continue;
             }

@@ -20,7 +20,7 @@ class SimV2Result(BaseResult):
         params=SimV2Params,
         train_dyemat=np.ndarray,  # unique (n_rows, n_channels * n_cycles)
         train_pep_recalls=np.ndarray,
-        train_dyepeps=np.ndarray,  # (n, 3) where 3 are: (dtr_i, pep_i, count)
+        train_dyepeps=np.ndarray,  # (n, 3) where 3 are: (dyt_i, pep_i, count)
         train_radmat=(type(None), np.ndarray),
         train_true_pep_iz=(type(None), np.ndarray),
         train_true_dye_iz=(type(None), np.ndarray),
@@ -159,3 +159,22 @@ class SimV2Result(BaseResult):
             .sort_index()
             .reset_index()
         )
+
+    def dump_debug(self):
+        """
+        Save properties out as numpy arrays for easier export
+        """
+
+        props = (
+            "train_dyemat",
+            "train_pep_recalls",
+            "train_dyepeps",
+            "train_radmat",
+            "train_true_pep_iz",
+            "train_true_dye_iz",
+            "test_radmat",
+            "test_true_dye_iz",
+            "test_true_pep_iz",
+        )
+        for prop in props:
+            np.save(f"_{prop}.npy", getattr(self, prop))

@@ -45,6 +45,7 @@ class SimV2Params(Params):
         is_survey=False,
         train_includes_radmat=False,
         test_includes_dyemat=False,
+        dump_debug=False,
     )
 
     schema = s(
@@ -72,6 +73,7 @@ class SimV2Params(Params):
             enable_ptm_labels=s.is_bool(required=False, noneable=True),
             train_includes_radmat=s.is_bool(required=False, noneable=True),
             test_includes_dyemat=s.is_bool(required=False, noneable=True),
+            dump_debug=s.is_bool(),
         )
     )
 
