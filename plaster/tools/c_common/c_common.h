@@ -64,6 +64,10 @@ typedef struct {
 
 Uint64 now();
 
+#define max(a,b) ((a) > (b) ? (a) : (b))
+#define min(a,b) ((a) < (b) ? (a) : (b))
+
+
 // Ensure
 void ensure(int expr, const char *fmt, ...);
 #ifdef DEBUG

@@ -69,10 +69,8 @@ def max_counts_from_n_peps(n_peps):
     which would probably better than half memory but at more compute time.
 
     For now, a channel counts I'm likely to run I don't think it will be a problem.
-
-
     """
-    n_max_dyts = 200 * n_peps + 100_000
+    n_max_dyts = 300 * n_peps + 100_000
     n_max_dyepeps = 450 * n_peps + 100_000
     return n_max_dyts, n_max_dyepeps
 

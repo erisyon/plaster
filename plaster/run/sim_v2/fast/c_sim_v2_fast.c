@@ -501,10 +501,21 @@ Index context_work_orders_pop(SimV2FastContext *ctx) {
 }
 
 
-void *context_work_orders_worker(void *_ctx) {
+typedef struct {
+    Index thread_i;
+    SimV2FastContext *ctx;
+    Sint64 pep_i_status;
+    pthread_t id;
+} ThreadContext;
+#define THREAD_STATE_STARTED (-2)
+#define THREAD_STATE_DONE (-1)
+
+
+void *context_work_orders_worker(void *_tctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
-    SimV2FastContext *ctx = (SimV2FastContext *)_ctx;
+    ThreadContext *tctx = (ThreadContext *)_tctx;
+    SimV2FastContext *ctx = tctx->ctx;
     if(ctx->count_only) {
         ensure(ctx->n_threads == 1, "n_therads must be 1 when counting");
         trace("Counting n_dyts and n_dyepeps for %ld peps\n", ctx->n_peps);
@@ -530,13 +541,13 @@ void *context_work_orders_worker(void *_ctx) {
         if(ctx->count_only && pep_i % 100 == 0) {
             trace("%ld, %ld, %ld\n", pep_i, n_dyts, n_dyepeps);
         }
-        if(pep_i % 100 == 0) {
-            ctx->progress_fn(pep_i, ctx->n_peps, 0);
-        }
+        tctx->pep_i_status = (Sint64)pep_i;
     }
-    ctx->progress_fn(ctx->n_peps, ctx->n_peps, 0);
-    ctx->output_n_dyts = n_dyts;
-    ctx->output_n_dyepeps = n_dyepeps;
+    if(ctx->count_only) {
+        ctx->output_n_dyts = n_dyts;
+        ctx->output_n_dyepeps = n_dyepeps;
+    }
+    tctx->pep_i_status = THREAD_STATE_DONE;
     return (void *)0;
 }
 
@@ -566,7 +577,7 @@ void context_work_orders_start(SimV2FastContext *ctx) {
     nul_dyt->dyt_i = nul_i;
     dyt_hash_rec->val = nul_dyt;
 
-    pthread_t ids[256];
+    ThreadContext thread_contexts[256];
     ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
 
     if(ctx->n_threads > 1) {
@@ -577,16 +588,45 @@ void context_work_orders_start(SimV2FastContext *ctx) {
         ensure(ret == 0, "pthread lock create failed");
     }
 
-    for(Index i=0; i<ctx->n_threads; i++) {
-        int ret = pthread_create(&ids[i], NULL, context_work_orders_worker, ctx);
+    for(Index thread_i=0; thread_i<ctx->n_threads; thread_i++) {
+        thread_contexts[thread_i].thread_i = thread_i;
+        thread_contexts[thread_i].ctx = ctx;
+        thread_contexts[thread_i].pep_i_status = THREAD_STATE_STARTED;
+        int ret = pthread_create(
+            &thread_contexts[thread_i].id,
+            NULL,
+            context_work_orders_worker,
+            &thread_contexts[thread_i]
+        );
         ensure(ret == 0, "Thread not created.");
     }
 
-    for(Index i=0; i<ctx->n_threads; i++) {
-        pthread_join(ids[i], NULL);
+    // MONITOR progress and callback from this main thread
+    // Python doesn't seem to like callbacks coming from other threads
+    while(1) {
+        Size n_threads_done = 0;
+        Sint64 largest_pep_i_done = 0;
+        for(Index thread_i=0; thread_i<ctx->n_threads; thread_i++) {
+            if(thread_contexts[thread_i].pep_i_status == THREAD_STATE_DONE) {
+                n_threads_done++;
+            }
+            largest_pep_i_done = max(
+                largest_pep_i_done,
+                thread_contexts[thread_i].pep_i_status
+            );
+        }
+        if(n_threads_done == ctx->n_threads) {
+            break;
+        }
+        if(largest_pep_i_done > 0 && largest_pep_i_done % 100 == 0) {
+            ctx->progress_fn(largest_pep_i_done, ctx->n_peps, 0);
+        }
+        usleep(10000);  // 10 ms
     }
 
-    // trace("dyts n_rows = %ld\n", ctx->dyts.n_rows);
+    for(Index thread_i=0; thread_i<ctx->n_threads; thread_i++) {
+        pthread_join(thread_contexts[thread_i].id, NULL);
+    }
 }
 
 
