@@ -211,6 +211,9 @@ class SigprocV1Result(BaseResult):
     def signal_radmat_for_field(self, field_i):
         return self._load_field_prop(field_i, "signal_radmat")
 
+    def sig(self):
+        return self.signal_radmat()
+
     def signal_radmat(self):
         """
         Returns ndarray(n_peaks, n_channels, n_cycles)
@@ -227,6 +230,9 @@ class SigprocV1Result(BaseResult):
 
     def noise_radmat_for_field(self, field_i):
         return self._load_field_prop(field_i, "noise_radmat")
+
+    def noi(self):
+        return self.noise_radmat()
 
     def noise_radmat(self):
         """

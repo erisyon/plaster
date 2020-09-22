@@ -24,7 +24,6 @@ def MockND2(**kwargs):
     yield _MockND2(**kwargs)
 
 
-@zest.group("integration")
 def zest_ims_import():
     tmp_src = tempfile.NamedTemporaryFile()
     tmp_dst = tempfile.TemporaryDirectory()
@@ -113,6 +112,15 @@ def zest_ims_import():
             assert result.n_cycles == n_cycles - 1
             assert result.n_channels == n_channels
 
+        def it_respects_channel_map():
+            ims_import_params.dst_ch_i_to_src_ch_i = [1, 0]
+            result = worker.ims_import(src_path, ims_import_params)
+            assert result.n_fields == n_fields
+            assert result.n_cycles == n_cycles
+            assert result.n_channels == 2
+            assert np.all(result.field_chcy_ims(0)[0, :, :, :] == float(1))
+            assert np.all(result.field_chcy_ims(0)[1, :, :, :] == float(0))
+
         def movies():
             def _before():
                 nonlocal ims_import_params, nd2
@@ -159,6 +167,21 @@ def zest_ims_import():
                         64,
                         64,
                     )
+
+            def it_respects_channel_map():
+                nonlocal ims_import_params, nd2
+                ims_import_params = ImsImportParams(is_movie=True)
+                m_nd2.hook_to_call = lambda _: _make_nd2(64)  # Channel mode
+                m_scan_nd2_files.returns(cycle_files)
+                m_scan_tif_files.returns([])
+
+                ims_import_params.dst_ch_i_to_src_ch_i = [1, 0]
+                result = worker.ims_import(src_path, ims_import_params)
+                assert result.n_cycles == n_fields
+                assert result.n_fields == n_cycles
+                assert result.n_channels == 2
+                assert np.all(result.field_chcy_ims(0)[0, :, :, :] == float(1))
+                assert np.all(result.field_chcy_ims(0)[1, :, :, :] == float(0))
 
             zest()
 

@@ -12,6 +12,19 @@ from plaster.tools.log.log import debug
 class PrepResult(BaseResult):
     """
     Follows the "Composite DataFrame Pattern"
+
+    _pros DataFrame:
+        pro_id, pro_is_decoy, pro_i, pro_ptm_locs, pro_report
+
+    _pro_seqs DataFrame:
+        pro_i, aa
+
+    _peps DataFrame:
+        pep_i, pep_start, pep_stop (positions in the parent protein), pro_i (parent protein)
+
+    _pep_seqs DataFrame:
+        pep_i, aa, pep_offset_in_pro
+
     """
 
     name = "prep"

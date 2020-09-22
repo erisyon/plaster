@@ -45,7 +45,7 @@ from itertools import cycle
 import numpy as np
 from munch import Munch
 from plaster.tools.utils import utils
-from plaster.tools.utils.data import subsample, arg_subsample
+from plaster.tools.utils.data import subsample, arg_subsample, cluster
 from plaster.tools.log.log import debug
 from plaster.tools.image.coord import XY, YX, WH, HW, ROI
 
@@ -92,6 +92,7 @@ class ZPlots:
         Resets color cycling.
         """
         cols = self.stack[-1].get("_cols")
+
         this_merge = self.stack[-1].get("_merge")
         stack_merge = self._u_stack(exclude_last=True).get("_merge")
         if this_merge is not None and stack_merge is None:
@@ -250,6 +251,9 @@ class ZPlots:
             filter=lambda prop: prop.startswith("f_"), transform=lambda prop: prop[2:],
         )
 
+    def _add_prop(self, key, val):
+        self.stack[-1][key] = val
+
     def _apply_fig_props(self, fig):
         ustack = self._u_stack()
         if ustack.get("_size"):
@@ -334,7 +338,7 @@ class ZPlots:
 
     def _build_column_data_source(self, kws, source_defaults):
         """
-        Builds a Column Dat Source from the kws and source_defaults
+        Builds a Column Data Source from the kws and source_defaults
         """
         n_rows = None
         source_kwargs = {}
@@ -433,12 +437,18 @@ class ZPlots:
         allow_labels = ustack.get("_no_labels") is not True
 
         if allow_labels:
+            label_col = (
+                []
+                if label_col_name not in kws["source"].to_df().columns
+                else [("label", f"@{label_col_name}")]
+            )
             fig.add_tools(
                 HoverTool(
-                    tooltips=[
-                        ("label", f"@{label_col_name}"),
-                        ("x", "$x"),
-                        ("y", "$y"),
+                    tooltips=label_col
+                    + [
+                        ("x", "$x{0,0.0}"),
+                        ("y", "$y{0,0.0}"),
+                        ("value", "@image{0,0.0}"),
                     ],
                 )
             )
@@ -454,8 +464,8 @@ class ZPlots:
             if (
                 ustack.get("_legend") is True
             ):  # so I'll add this for "nonspecific" use of legend...
-                self.stack[-1]["legend_label"] = str(
-                    kws["source"].to_df()[label_col_name].iloc[0]
+                self._add_prop(
+                    "legend_label", str(kws["source"].to_df()[label_col_name].iloc[0])
                 )
 
         self._apply_fig_props(fig)
@@ -479,44 +489,9 @@ class ZPlots:
 
         self.stack.pop()
 
-    def _im_setup(self, im, fig):
-        from bokeh.models import LinearColorMapper  # Defer slow imports
-
-        _im = im
-        assert _im.ndim == 2
-
+    def _cspan(self, _im, **kws):
         ustack = self._u_stack()
-
-        y = 0
-        if ustack.get("_flip_y"):
-            assert "f_y_range" not in ustack
-            _im = np.flip(_im, axis=0)
-            y = _im.shape[0]
-
-        dim = HW(_im.shape)
-
-        if dim.w == 0 or dim.h == 0:
-            # Deal with zero dims gracefully
-            dim = HW(max(1, dim.h), max(1, dim.w))
-            _im = np.zeros(dim)
-
-        full_w, full_h = (ustack.get("_full_w", False), ustack.get("_full_h", False))
-        if ustack.get("_full"):
-            full_w, full_h = (True, True)
-
-        if full_h:
-            full_h = dim.h + 40  # TASK: This value is weird, need a way to derive it
-            if ustack.get("_min_h") is not None:
-                full_h = max(full_h, ustack.get("_min_h"))
-
-        if full_w:
-            full_w = dim.w + 20  # TASK: This value is weird, need a way to derive it
-            if ustack.get("_min_w") is not None:
-                full_w = max(full_w, ustack.get("_min_w"))
-
-        _nan = ustack.get("_nan")
-        if _nan is not None:
-            _im = np.nan_to_num(_im)
+        ustack.update(kws)
 
         _cper = ustack.get("_cper")
         if _cper is not None:
@@ -550,6 +525,35 @@ class ZPlots:
                     low = 0
                     high = _cspan
 
+        return low, high
+
+    def _im_setup(self, im):
+        from bokeh.models import LinearColorMapper  # Defer slow imports
+
+        _im = im
+        assert _im.ndim == 2
+
+        ustack = self._u_stack()
+
+        y = 0
+        if ustack.get("_flip_y"):
+            assert "f_y_range" not in ustack
+            _im = np.flip(_im, axis=0)
+            y = _im.shape[0]
+
+        dim = HW(_im.shape)
+
+        if dim.w == 0 or dim.h == 0:
+            # Deal with zero dims gracefully
+            dim = HW(max(1, dim.h), max(1, dim.w))
+            _im = np.zeros(dim)
+
+        _nan = ustack.get("_nan")
+        if _nan is not None:
+            _im = np.nan_to_num(_im)
+
+        low, high = self._cspan(_im)
+
         pal = ustack.get("_palette", "viridis")
         if pal == "viridis":
             from bokeh.palettes import viridis
@@ -573,13 +577,30 @@ class ZPlots:
 
         cmap = LinearColorMapper(palette=pal, low=low, high=high)
 
+        return dim, cmap, _im, y
+
+    def _im_post_setup(self, fig, dim):
+        ustack = self._u_stack()
+        full_w, full_h = (ustack.get("_full_w", False), ustack.get("_full_h", False))
+
+        if ustack.get("_full"):
+            full_w, full_h = (True, True)
+
+        if full_h:
+            full_h = dim.h + 40  # TASK: This value is weird, need a way to derive it
+            if ustack.get("_min_h") is not None:
+                full_h = max(full_h, ustack.get("_min_h"))
+
+        if full_w:
+            full_w = dim.w + 20  # TASK: This value is weird, need a way to derive it
+            if ustack.get("_min_w") is not None:
+                full_w = max(full_w, ustack.get("_min_w"))
+
         if full_w:
             fig.plot_width = full_w
 
         if full_h:
             fig.plot_height = full_h
-
-        return dim, cmap, _im, y
 
     def color_reset(self):
         ustack = self._u_stack()
@@ -599,6 +620,12 @@ class ZPlots:
         """
         Scatter. Adds labels of the range if not provided.
         """
+        ustack = self._u_stack()
+        _n_samples = ustack.get("_n_samples", kws.get("_n_samples"))
+        if _n_samples is not None:
+            samp_iz = arg_subsample(kws["x"], _n_samples)
+            kws["x"] = kws["x"][samp_iz]
+            kws["y"] = kws["y"][samp_iz]
         fig = self._begin(
             kws,
             dict(x=None, y=None, _label=np.arange(len(kws.get("x", [])))),
@@ -739,8 +766,8 @@ class ZPlots:
 
             if pstack.get("line_color") is not None:
                 pstack["fill_color"] = pstack.get("line_color")
-            if pstack.get("line_alpha") is not None:
-                pstack["fill_alpha"] = pstack.get("line_alpha")
+            # if pstack.get("line_alpha") is not None:
+            #     pstack["fill_alpha"] = pstack.get("line_alpha")
 
             fig.scatter(**pstack)
 
@@ -810,25 +837,55 @@ class ZPlots:
         _nan_color: What color to use to draw nan (bokeh named colors, etc.)
         """
         assert self._u_stack().get("source") is None
-        fig = self._begin(kws, dict())
+
+        # If I do this then I break the _cols checks. But I don't know
+        # why it was I needed this...
+
+        # It's because of cspan need in _im_setup but before _begin has done its magic
+        # self.stack.append(Munch(**kws))
+        self.stack[-1].update(kws)
+
+        """
+        TODO:
+        There's a major problem here. The above code is updating the stack
+        which means these props are not popped off the stack.
+        The issue is that _im_setup needs props befopre it can do things
+        so that it can pass those dims and other things into _begin
+        But _begin is the one that is meant to be doing stack munging
+        not here. So I need fix this circular dependency maybe a _begin_im
+        that then calls _begin or similar?
+        """
 
         ustack = self._u_stack()
         nan_color = ustack.get("_nan_color")
-
-        dim, cmap, im_data, y = self._im_setup(im_data, fig)
 
         if nan_color is not None:
             is_nan_im = np.isnan(im_data)
             im_data = np.where(is_nan_im, 0, im_data)
 
+        dim, cmap, im_data, y = self._im_setup(im_data)
+
+        # See: "Image Hover" here https://docs.bokeh.org/en/latest/docs/user_guide/tools.html
+        fig = self._begin(
+            kws,
+            dict(
+                image=[im_data],
+                x=kws.get("_x", [0]),
+                y=kws.get("_y", [y]),
+                dw=kws.get("_dim_w", [dim.w]),
+                dh=kws.get("_dim_h", [dim.h]),
+            ),
+            image="image",
+            x="x",
+            y="y",
+            dw="dw",
+            dh="dh",
+        )
+
+        self._im_post_setup(fig, dim)
+
         fig.image(
-            image=[im_data],
-            x=kws.get("_x", [0]),
-            y=kws.get("_y", [y]),
-            dw=kws.get("_dim_w", [dim.w]),
-            dh=kws.get("_dim_h", [dim.h]),
-            color_mapper=cmap,
-            **self._p_stack(),
+            color_mapper=cmap, **self._p_stack(),
         )
 
         if nan_color is not None:
@@ -852,9 +909,7 @@ class ZPlots:
         Blend image with an alpha map.
         """
         assert self._u_stack().get("source") is None
-        fig = self._begin(kws, dict())
-
-        dim, cmap, im_data, y = self._im_setup(im_data, fig)
+        dim, cmap, im_data, y = self._im_setup(im_data)
 
         n_colors = len(cmap.palette)
         rpal = np.array([int(p[1:3], 16) for p in cmap.palette])
@@ -863,17 +918,36 @@ class ZPlots:
 
         cmap_delta = cmap.high - cmap.low
         normalized_im = (im_data - cmap.low) / cmap_delta
-        pallete_scaled_im = (n_colors * normalized_im).astype(int).clip(min=0, max=255)
+        palette_scaled_im = (n_colors * normalized_im).astype(int).clip(min=0, max=255)
 
         color_im = np.zeros(dim, dtype=np.uint32)
         view = color_im.view(dtype=np.uint8).reshape((dim.h, dim.w, 4))
 
-        view[:, :, 0] = rpal[pallete_scaled_im]
-        view[:, :, 1] = gpal[pallete_scaled_im]
-        view[:, :, 2] = bpal[pallete_scaled_im]
+        view[:, :, 0] = rpal[palette_scaled_im]
+        view[:, :, 1] = gpal[palette_scaled_im]
+        view[:, :, 2] = bpal[palette_scaled_im]
         view[:, :, 3] = (255.0 * alpha_im).astype(int)
-        fig.image_rgba(image=[color_im], x=[0], y=[y], dw=[dim.w], dh=[dim.h])
 
+        # See: "Image Hover" here https://docs.bokeh.org/en/latest/docs/user_guide/tools.html
+        fig = self._begin(
+            kws,
+            dict(
+                image=[color_im],
+                x=kws.get("_x", [0]),
+                y=kws.get("_y", [y]),
+                dw=kws.get("_dim_w", [dim.w]),
+                dh=kws.get("_dim_h", [dim.h]),
+            ),
+            image="image",
+            x="x",
+            y="y",
+            dw="dw",
+            dh="dh",
+        )
+
+        self._im_post_setup(fig, dim)
+
+        fig.image_rgba(**self._p_stack(),)
         self._end()
         return fig
 
@@ -929,6 +1003,89 @@ class ZPlots:
         positive = np.clip(im_data, a_min=0, a_max=None)
         negative = np.clip(-im_data, a_min=0, a_max=None)
         self.im_color(red=negative, green=positive, **kws)
+
+    @trap()
+    def im_clus(self, data, **kws):
+        ustack = self._u_stack()
+        _n_samples = ustack.get("_n_samples", 500)
+        im = cluster(data, n_subsample=_n_samples)
+        self.im(im, **kws)
+
+    @trap()
+    def im_peaks(self, im, circle_im, index_im, sig_im, snr_im, **kws):
+        """
+        This is a custom plot for drawing information about sigproc data
+        """
+        from bokeh.colors import named
+        from bokeh.models import HoverTool
+        from bokeh.models import LinearColorMapper  # Defer slow imports
+        from bokeh.palettes import gray
+
+        pal = gray(256)
+        dim = HW(im.shape)
+
+        low, high = self._cspan(im, **kws)
+        cmap = LinearColorMapper(palette=pal, low=low, high=high)
+        n_colors = len(cmap.palette)
+
+        rpal = np.array([int(p[1:3], 16) for p in cmap.palette])
+        gpal = np.array([int(p[3:5], 16) for p in cmap.palette])
+        bpal = np.array([int(p[5:7], 16) for p in cmap.palette])
+
+        cmap_delta = cmap.high - cmap.low
+        normalized_im = (im - cmap.low) / cmap_delta
+        palette_scaled_im = (n_colors * normalized_im).astype(int).clip(min=0, max=255)
+
+        color_im = np.zeros(dim, dtype=np.uint32)
+        view = color_im.view(dtype=np.uint8).reshape((dim.h, dim.w, 4))
+        view[:, :, 0] = rpal[palette_scaled_im]
+        view[:, :, 1] = gpal[palette_scaled_im]
+        view[:, :, 2] = bpal[palette_scaled_im]
+        view[:, :, 3] = 255
+        view[circle_im > 0, 1] = 180
+        view[circle_im > 0, 2] = 255
+
+        # See: "Image Hover" here https://docs.bokeh.org/en/latest/docs/user_guide/tools.html
+        self._add_prop("_no_labels", True)
+
+        fig = self._begin(
+            kws,
+            dict(
+                image=[color_im],
+                x=[0],
+                y=[0],
+                dw=[dim.w],
+                dh=[dim.h],
+                peak_i=[index_im],
+                sig=[sig_im],
+                snr=[snr_im],
+                val=[im],
+            ),
+            image="image",
+            x="x",
+            y="y",
+            dw="dw",
+            dh="dh",
+        )
+
+        self._im_post_setup(fig, dim)
+
+        fig.add_tools(
+            HoverTool(
+                tooltips=[
+                    ("x", "$x"),
+                    ("y", "$y"),
+                    ("peak_i", "@peak_i"),
+                    ("value", "@val{0,0.0}"),
+                    ("sig", "@sig{0,0.0}"),
+                    ("snr", "@snr{0,0.0}"),
+                ],
+            )
+        )
+
+        fig.image_rgba(**self._p_stack())
+
+        self._end()
 
 
 def notebook_full_width():

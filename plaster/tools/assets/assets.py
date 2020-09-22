@@ -12,14 +12,23 @@ def get_user():
     return user
 
 
-def validate_job_folder(job_folder):
+def validate_job_folder(job_folder, search_if_not_present=False):
     """
     job_folder can be Python symbols
     """
     basename = local.path(job_folder).name
     if not utils.is_symbol(basename):
         raise ValueError(
-            "job name must be a lower-case Python symbol (ie start with [a-z_] followed by [a-z0-9_]"
+            f"job name must be a lower-case Python symbol (ie start with [a-z_] followed by [a-z0-9_] found '{basename}'"
         )
 
-    return local.path(job_folder)
+    p = local.path(job_folder)
+    if p.exists():
+        return p
+
+    if search_if_not_present:
+        _p = local.path(local.env["JOBS_FOLDER"]) / job_folder
+        if _p.exists():
+            return _p
+
+    return p

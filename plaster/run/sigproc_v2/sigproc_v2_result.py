@@ -8,15 +8,14 @@ import itertools
 from collections import OrderedDict
 from plumbum import local
 from plaster.tools.schema import check
-from munch import Munch
+from plaster.tools.image.coord import ROI, YX, HW
 import numpy as np
 from plaster.tools.utils import utils
 from plaster.tools.utils.fancy_indexer import FancyIndexer
-from plaster.tools.image.coord import Rect
 from plaster.run.base_result import BaseResult
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
-from plaster.tools.log.log import debug
 from plaster.tools.calibration.calibration import Calibration
+from plaster.tools.log.log import debug
 
 
 class SigprocV2Result(BaseResult):
@@ -40,10 +39,10 @@ class SigprocV2Result(BaseResult):
     required_props = OrderedDict(
         # Note that these do not include props in the save_field
         params=SigprocV2Params,
-        n_input_channels=(type(None), int),
         n_channels=(type(None), int),
         n_cycles=(type(None), int),
         calib=Calibration,
+        focus_per_field_per_channel=(type(None), list),
     )
 
     peak_df_schema = OrderedDict(
@@ -135,7 +134,7 @@ class SigprocV2Result(BaseResult):
         ]
 
         if save_full_signal_radmat_npy:
-            radmat = self.signal_radmat()
+            radmat = self.sig()
             np.save(
                 str(self._folder / "full_signal_radmat.npy"), radmat, allow_pickle=False
             )
@@ -176,10 +175,6 @@ class SigprocV2Result(BaseResult):
             + 1
         )
 
-    @property
-    def calib(self):
-        return Calibration(self.params.calibration)
-
     def fl_ch_cy_iter(self):
         return itertools.product(
             range(self.n_fields), range(self.n_channels), range(self.n_cycles)
@@ -208,74 +203,79 @@ class SigprocV2Result(BaseResult):
             self._cache(prop, val)
         return val
 
-    def _load_ndarray_prop_from_all_fields(self, prop, vstack=True):
+    def _fields_to_start_stop(self, fields):
+        if fields is None:
+            start = 0
+            stop = self.n_fields
+        elif isinstance(fields, slice):
+            start = fields.start or 0
+            stop = fields.stop or self.n_fields
+            assert fields.step in (None, 1)
+        elif isinstance(fields, int):
+            start = fields
+            stop = fields + 1
+        else:
+            raise TypeError(
+                f"fields of unknown type in _load_ndarray_prop_from_fields. {type(fields)}"
+            )
+        return start, stop
+
+    def _load_ndarray_prop_from_fields(self, fields, prop, vstack=True):
         """
         Stack the ndarray that is in prop along all fields
         """
-        val = self._cache(prop)
-        if val is None:
-            list_ = [
-                self._load_field_prop(field_i, prop) for field_i in range(self.n_fields)
-            ]
 
-            if vstack:
-                val = np.vstack(list_)
-            else:
-                val = np.stack(list_)
+        field_start, field_stop = self._fields_to_start_stop(fields)
 
-            self._cache(prop, val)
+        list_ = [
+            self._load_field_prop(field_i, prop)
+            for field_i in range(field_start, field_stop)
+        ]
+
+        if vstack:
+            val = np.vstack(list_)
+        else:
+            val = np.stack(list_)
+
         return val
 
     # ndarray returns
     # ----------------------------------------------------------------
 
-    def locs_for_field(self, field_i):
+    def locs(self, fields=None):
         """Return peak locations in array form"""
         df = self.peaks()
-        return df[df.field_i == field_i][["aln_y", "aln_x"]].values
-
-    def locs(self):
-        """Return peak locations in array form"""
-        return self.peaks()[["aln_y", "aln_x"]].values
+        field_start, field_stop = self._fields_to_start_stop(fields)
+        field_stop -= 1  # Because the following is inclusive
+        df = df[df.field_i.between(field_start, field_stop, inclusive=True)]
+        return df[["aln_y", "aln_x"]].values
 
     def flat_if_requested(self, mat, flat_chcy=False):
         if flat_chcy:
             return utils.mat_flatter(mat)
         return mat
 
-    def signal_radmat_for_field(self, field_i, **kwargs):
-        return self.flat_if_requested(
-            np.nan_to_num(self._load_field_prop(field_i, "radmat")[:, :, :, 0]),
-            **kwargs,
+    def sig(self, fields=None, **kwargs):
+        return np.nan_to_num(
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 0],
+                **kwargs,
+            )
         )
 
-    def signal_radmat(self, **kwargs):
-        return self.flat_if_requested(
-            np.nan_to_num(
-                self._load_ndarray_prop_from_all_fields("radmat")[:, :, :, 0]
-            ),
-            **kwargs,
+    def noi(self, fields=None, **kwargs):
+        return np.nan_to_num(
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 1],
+                **kwargs,
+            )
         )
 
-    def noise_radmat_for_field(self, field_i, **kwargs):
-        return self.flat_if_requested(
-            self._load_field_prop(field_i, "radmat")[:, :, :, 1], **kwargs
-        )
-
-    def noise_radmat(self, **kwargs):
-        return self.flat_if_requested(
-            self._load_ndarray_prop_from_all_fields("radmat")[:, :, :, 1], **kwargs
-        )
-
-    def snr_for_field(self, field_i, **kwargs):
-        return utils.np_safe_divide(
-            self.signal_radmat_for_field(field_i, **kwargs),
-            self.noise_radmat_for_field(field_i, **kwargs),
-        )
-
-    def snr(self, **kwargs):
-        return utils.np_safe_divide(
-            self.signal_radmat(**kwargs), self.noise_radmat(**kwargs)
+    def snr(self, fields=None, **kwargs):
+        return np.nan_to_num(
+            utils.np_safe_divide(
+                self.sig(fields=fields, **kwargs), self.noi(fields=fields, **kwargs)
+            )
         )
 
     def aln_chcy_ims(self, field_i):
@@ -321,8 +321,8 @@ class SigprocV2Result(BaseResult):
         """
         Unwind a radmat into a giant dataframe with peak, channel, cycle
         """
-        sigs = self.signal_radmat()
-        nois = self.noise_radmat()
+        sigs = self.sig()
+        nois = self.noi()
         snr = self.snr()
 
         signal = sigs.reshape((sigs.shape[0] * sigs.shape[1] * sigs.shape[2]))
@@ -414,3 +414,88 @@ class SigprocV2Result(BaseResult):
         )
 
         return df
+
+
+def sig_from_df_filter(
+    df,
+    fields=None,
+    reject_fields=None,
+    roi=None,
+    cycles=None,
+    dark=None,
+    on_through_cy_i=None,
+    off_at_cy_i=None,
+    monotonic=None,
+    min_intensity_cy_0=None,
+    max_intensity_cy_0=None,
+    max_intensity_any_cycle=None,
+    min_intensity_per_cycle=None,
+    max_intensity_per_cycle=None,
+    **kwargs,
+):
+    """
+    A general filtering tools to go from a sigproc_v2.fields__n_peaks__peaks__radmat()
+    into a signal using various filters
+    """
+    if fields is None:
+        fields = list(range(df.field_i.max() + 1))
+
+    if reject_fields is not None:
+        fields = list(filter(lambda x: x not in reject_fields, fields))
+
+    if roi is None:
+        roi = ROI(YX(0, 0), HW(df.raw_y.max(), df.raw_x.max()))
+    if cycles is None:
+        cycles = list(range(df.cycle_i.max() + 1))
+
+    _df = df[
+        (df.field_i.isin(fields))
+        & (df.cycle_i.isin(cycles))
+        & (roi[0].start <= df.raw_y)
+        & (df.raw_y < roi[0].stop)
+        & (roi[1].start <= df.raw_x)
+        & (df.raw_x < roi[1].stop)
+    ].reset_index(drop=True)
+
+    radmat = (
+        pd.pivot_table(
+            _df, values="signal", index=["field_i", "peak_i"], columns=["cycle_i"]
+        )
+        .reset_index()
+        .rename_axis(None, axis=1)
+        .drop(columns=["field_i", "peak_i"])
+    ).values
+
+    keep_mask = np.ones((radmat.shape[0],), dtype=bool)
+    if on_through_cy_i is not None:
+        assert dark is not None
+        keep_mask &= np.all(radmat[:, 0 : on_through_cy_i + 1] > dark, axis=1)
+
+    if off_at_cy_i is not None:
+        assert dark is not None
+        keep_mask &= np.all(radmat[:, off_at_cy_i:] < dark, axis=1)
+
+    if monotonic is not None:
+        d = np.diff(radmat, axis=1)
+        keep_mask &= np.all(d < monotonic, axis=1)
+
+    if min_intensity_cy_0 is not None:
+        keep_mask &= radmat[:, 0] >= min_intensity_cy_0
+
+    if max_intensity_cy_0 is not None:
+        keep_mask &= radmat[:, 0] <= max_intensity_cy_0
+
+    if max_intensity_any_cycle is not None:
+        keep_mask &= np.all(radmat[:, :] <= max_intensity_any_cycle, axis=1)
+
+    if min_intensity_per_cycle is not None:
+        for cy_i, inten in enumerate(min_intensity_per_cycle):
+            if inten is not None:
+                keep_mask &= radmat[:, cy_i] >= inten
+
+    if max_intensity_per_cycle is not None:
+        for cy_i, inten in enumerate(max_intensity_per_cycle):
+            if inten is not None:
+                keep_mask &= radmat[:, cy_i] <= inten
+
+    return np.nan_to_num(radmat[keep_mask])

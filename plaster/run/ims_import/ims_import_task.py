@@ -17,4 +17,5 @@ class ImsImportTask(PipelineTask):
             pipeline=self,
         )
 
+        ims_import_result.s3_src_dir = ims_import_params.get("_src_dir")
         ims_import_result.save()

@@ -186,7 +186,7 @@ class RunPipeline(Pipeline):
                             local["aws"]["s3", "sync", src_path, dst_path] & FG
 
                         # COPY the old src_path by prefixing with underscore
-                        task.inputs["_" + input_name] = str(src_path)
+                        task.parameters["_" + input_name] = str(src_path)
 
                         # RESET the input to the new dst_path
                         task.inputs[input_name] = str(dst_path)

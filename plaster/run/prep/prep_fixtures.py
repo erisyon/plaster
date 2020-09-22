@@ -120,3 +120,63 @@ def result_random_fixture(n_proteins):
         _peps=peps_df,
         _pep_seqs=pep_seqs_df,
     )
+
+
+def result_4_count_fixture():
+    prep_params = PrepParams(proteins=[Munch(name="pro1", sequence=".A.A.A.A"),])
+
+    pros = pd.DataFrame(
+        dict(
+            pro_id=["nul", "four_count"],
+            pro_is_decoy=[False, False],
+            pro_i=[0, 1],
+            pro_ptm_locs=[None, None],
+            pro_report=[None, None],
+        )
+    )
+
+    # fmt: off
+    pro_seqs = pd.DataFrame(
+        dict(
+            pro_i=[
+                0,
+                1, 1, 1, 1, 1, 1, 1, 1,
+            ],
+            aa=[
+                ".",
+                ".", "A", ".", "A", ".", "A", ".", "A",
+            ],
+        )
+    )
+    # fmt: on
+
+    peps = pd.DataFrame(
+        dict(pep_i=[0, 1], pep_start=[0, 0], pep_stop=[1, 8], pro_i=[0, 1],)
+    )
+
+    # fmt: off
+    pep_seqs = pd.DataFrame(
+        dict(
+            pep_i=[
+                0,
+                1, 1, 1, 1, 1, 1, 1, 1,
+            ],
+            aa=[
+                ".",
+                ".", "A", ".", "A", ".", "A", ".", "A",
+            ],
+            pep_offset_in_pro=[
+                0,
+                0, 1, 2, 3, 4, 5, 6, 7,
+            ],
+        )
+    )
+    # fmt: on
+
+    return PrepResult(
+        params=prep_params,
+        _pros=pros,
+        _pro_seqs=pro_seqs,
+        _peps=peps,
+        _pep_seqs=pep_seqs,
+    )

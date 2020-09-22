@@ -9,18 +9,14 @@ Guidelines:
 """
 
 from munch import Munch
-from plaster.tools.utils import utils
-from plaster.tools.schema import check
-from plaster.tools.aaseq.aaseq import aa_list_to_str
-from plaster.run.sim_v1.sim_v1_params import SimV1Params
 from plaster.run.sigproc_v2 import sigproc_v2_common
 from plaster.run.sim_v2.sim_v2_params import SimV2Params
 from plaster.run.error_model import ErrorModel
 from plaster.run.sim_v1.sim_v1_params import SimV1Params
 from plaster.tools.aaseq.aaseq import aa_list_to_str
-from plaster.tools.log.log import debug
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
+from plaster.tools.log.log import debug
 
 
 def erisyon(generator_name="", sample="", run_name="", **kwargs):
@@ -76,7 +72,7 @@ def sigproc_v2_analyze(calibration_file):
     )
 
 
-def sigproc_v2_instrument_calib(calibration_file):
+def sigproc_v2_calib(calibration_file, mode):
     """
     TODO: subject_id
     """
@@ -85,10 +81,7 @@ def sigproc_v2_instrument_calib(calibration_file):
         sigproc_v2=Munch(
             version="1.0",
             inputs=Munch(ims_import="../ims_import"),
-            parameters=Munch(
-                calibration_file=calibration_file,
-                mode=sigproc_v2_common.SIGPROC_V2_INSTRUMENT_CALIB,
-            ),
+            parameters=Munch(calibration_file=calibration_file, mode=mode,),
         )
     )
 
