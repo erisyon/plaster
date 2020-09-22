@@ -4,7 +4,7 @@ import pandas as pd
 from zest import zest
 from plaster.tools.utils import utils
 from plaster.run.call_bag import CallBag
-
+from plaster.run.prep import prep_fixtures
 
 from plaster.tools.log.log import debug
 
@@ -60,35 +60,102 @@ def zest_pr_curve_edge_cases():
     one_pr_result = [[1.0, 1.0], [1.0, 1.0], [0.5, 0.0], [1.0, 1.0]]
 
     def it_computes_zero_pr():
-        p, r, s, a = cb_all_wrong.pr_curve(n_steps=2)
+        p, r, s, a = cb_all_wrong.pr_curve_pep(n_steps=2)
         assert utils.np_array_same([p, r, s, a], zero_pr_result)
 
     def it_computes_zero_pr_for_subset():
-        p, r, s, a = cb_all_wrong.pr_curve(pep_iz_subset=[1], n_steps=2)
+        p, r, s, a = cb_all_wrong.pr_curve_pep(pep_iz_subset=[1], n_steps=2)
         assert utils.np_array_same([p, r, s, a], zero_pr_result)
 
-        p, r, s, a = cb_all_wrong.pr_curve(pep_iz_subset=[2], n_steps=2)
+        p, r, s, a = cb_all_wrong.pr_curve_pep(pep_iz_subset=[2], n_steps=2)
         assert utils.np_array_same([p, r, s, a], zero_pr_result)
 
         # peptide 2 does not show up in true/pred at all so should get zero pr curve
-        p, r, s, a = cb_all_right.pr_curve(pep_iz_subset=[2], n_steps=2)
+        p, r, s, a = cb_all_right.pr_curve_pep(pep_iz_subset=[2], n_steps=2)
         assert utils.np_array_same([p, r, s, a], zero_pr_result)
 
     def it_computes_one_pr():
-        p, r, s, a = cb_all_right.pr_curve(n_steps=2)
+        p, r, s, a = cb_all_right.pr_curve_pep(n_steps=2)
         # ugh, can't use utils.flatten bc elems are ndarray, not list or tuple
         compare = [a == b for a, b in zip([p, r, s, a], one_pr_result)]
         compare = [list(el) if type(el) is np.ndarray else el for el in compare]
         assert all(compare)
 
     def it_computes_one_pr_for_subset():
-        p, r, s, a = cb_all_right.pr_curve(pep_iz_subset=[1], n_steps=2)
+        p, r, s, a = cb_all_right.pr_curve_pep(pep_iz_subset=[1], n_steps=2)
         compare = [a == b for a, b in zip([p, r, s, a], one_pr_result)]
         compare = [list(el) if type(el) is np.ndarray else el for el in compare]
         assert all(compare)
 
     def it_handles_all_rows_no_recall():
-        p, r, s, a = cb_all_wrong.pr_curve()
+        p, r, s, a = cb_all_wrong.pr_curve_pep()
+        assert np.all(r == 0.0)
+
+    zest()
+
+
+def zest_pr_pro_curve():
+    """
+    Testing situations in which calls are all wrong or all right,
+    for pr_curve_pro (protein rather than peptide based)
+    """
+    # first entry is null peptide
+    stub_sim_result = Munch(train_pep_recalls=np.array([-1.0, 1.0, 1.0, 1.0]))
+    stub_prep_result = prep_fixtures.result_simple_fixture()
+
+    # CallBag: all right / all wrong
+    true_pep_iz = [1] * 10
+    pred_pep_iz_1 = [1] * 10
+    pred_pep_iz_2 = [2] * 10
+    scores = [0.5] * 10
+    cb_all_right = CallBag(
+        sim_result=stub_sim_result,
+        prep_result=stub_prep_result,
+        true_pep_iz=true_pep_iz,
+        pred_pep_iz=pred_pep_iz_1,
+        scores=scores,
+    )
+    cb_all_wrong = CallBag(
+        sim_result=stub_sim_result,
+        prep_result=stub_prep_result,
+        true_pep_iz=true_pep_iz,
+        pred_pep_iz=pred_pep_iz_2,
+        scores=scores,
+    )
+
+    zero_pr_result = [[0.0, 0.0], [0.0, 0.0], [0.5, 0.0], [0.0, 0.0]]
+    one_pr_result = [[1.0, 1.0], [1.0, 1.0], [0.5, 0.0], [1.0, 1.0]]
+
+    def it_computes_zero_pr():
+        p, r, s, a = cb_all_wrong.pr_curve_pro(n_steps=2)
+        assert utils.np_array_same([p, r, s, a], zero_pr_result)
+
+    def it_computes_zero_pr_for_subset():
+        p, r, s, a = cb_all_wrong.pr_curve_pro(pep_iz_subset=[1], n_steps=2)
+        assert utils.np_array_same([p, r, s, a], zero_pr_result)
+
+        p, r, s, a = cb_all_wrong.pr_curve_pro(pep_iz_subset=[2], n_steps=2)
+        assert utils.np_array_same([p, r, s, a], zero_pr_result)
+
+        # peptide 2 does not show up in true/pred at all so should get zero pr curve
+        p, r, s, a = cb_all_right.pr_curve_pro(pep_iz_subset=[2], n_steps=2)
+        assert utils.np_array_same([p, r, s, a], zero_pr_result)
+
+    def it_computes_one_pr():
+        p, r, s, a = cb_all_right.pr_curve_pro(n_steps=2)
+        # ugh, can't use utils.flatten bc elems are ndarray, not list or tuple
+        compare = [a == b for a, b in zip([p, r, s, a], one_pr_result)]
+        compare = [list(el) if type(el) is np.ndarray else el for el in compare]
+        assert all(compare)
+
+    def it_computes_one_pr_for_subset():
+        p, r, s, a = cb_all_right.pr_curve_pro(pep_iz_subset=[1], n_steps=2)
+        compare = [a == b for a, b in zip([p, r, s, a], one_pr_result)]
+        compare = [list(el) if type(el) is np.ndarray else el for el in compare]
+        assert all(compare)
+
+    def it_handles_all_rows_no_recall():
+        p, r, s, a = cb_all_wrong.pr_curve_pro()
         assert np.all(r == 0.0)
 
     zest()
@@ -177,13 +244,13 @@ def zest_pr_curve_no_tied_scores():
     # recall_at_thresh = np.append([0.0], recall_at_thresh)
 
     def it_computes_combined_pr():
-        p, r, s, a = cb.pr_curve(n_steps=10)
+        p, r, s, a = cb.pr_curve_pep(n_steps=10)
         assert np.array_equal(p, prec)
         assert np.allclose(s, np.linspace(0.8, 0.0, 9))
         assert np.array_equal(r, reca)
 
     def it_computes_subset_pr():
-        p, r, s, a = cb.pr_curve(pep_iz_subset=[1], n_steps=10)
+        p, r, s, a = cb.pr_curve_pep(pep_iz_subset=[1], n_steps=10)
 
         # t[1.       1.       1.  1.                     3.     ]
         # p[2.       1.       2.  2.                     1.     ]
@@ -246,7 +313,7 @@ def zest_pr_curve_no_tied_scores():
         #
         # Test again for a different subset.
         #
-        p, r, s, a = cb.pr_curve(pep_iz_subset=[2], n_steps=10)
+        p, r, s, a = cb.pr_curve_pep(pep_iz_subset=[2], n_steps=10)
         #          t[1.  2.    1.  1.  2.   2.   2.  ]
         #          p[2.  2.    2.  2.  3.   3.   2.  ]
         #          s[0.9 0.85  0.7 0.6 0.55 0.54 0.53]
