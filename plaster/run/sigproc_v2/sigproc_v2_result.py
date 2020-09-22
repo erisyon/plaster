@@ -474,13 +474,13 @@ class SigprocV2Result(BaseResult):
             d = np.diff(radmat, axis=1)
             keep_mask &= np.all(d < monotonic, axis=1)
 
-        if min_intensity_cy_0 is None:
+        if min_intensity_cy_0 is not None:
             keep_mask &= radmat[:, 0] >= min_intensity_cy_0
 
-        if max_intensity_cy_0:
+        if max_intensity_cy_0 is not None:
             keep_mask &= radmat[:, 0] <= max_intensity_cy_0
 
-        if max_intensity_any_cycle:
+        if max_intensity_any_cycle is not None:
             keep_mask &= np.all(radmat[:, :] <= max_intensity_any_cycle, axis=1)
 
         if min_intensity_per_cycle is not None:
