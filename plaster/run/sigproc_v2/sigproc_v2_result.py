@@ -423,7 +423,7 @@ def sig_from_df_filter(
     roi=None,
     cycles=None,
     dark=None,
-    on_though_cy_i=None,
+    on_through_cy_i=None,
     off_at_cy_i=None,
     monotonic=None,
     min_intensity_cy_0=None,
@@ -467,9 +467,9 @@ def sig_from_df_filter(
     ).values
 
     keep_mask = np.ones((radmat.shape[0],), dtype=bool)
-    if on_though_cy_i is not None:
+    if on_through_cy_i is not None:
         assert dark is not None
-        keep_mask &= np.all(radmat[:, 0 : on_though_cy_i + 1] > dark, axis=1)
+        keep_mask &= np.all(radmat[:, 0 : on_through_cy_i + 1] > dark, axis=1)
 
     if off_at_cy_i is not None:
         assert dark is not None
