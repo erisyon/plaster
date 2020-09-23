@@ -398,6 +398,10 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         test_radmat=test_radmat,
         test_true_pep_iz=test_true_pep_iz,
         test_true_dye_iz=test_true_dye_iz,
+        _flus=None,
     )
-    sim_result_v2._generate_flu_info(prep_result)
+
+    if sim_v2_params.generate_flus:
+        sim_result_v2._generate_flu_info(prep_result)
+
     return sim_result_v2

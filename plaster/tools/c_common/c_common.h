@@ -114,6 +114,8 @@ void table_dump(Table *table, char *msg);
 //RLEBlock rle_index_get(Table *rle_table, Index pos);
 
 typedef void (*ProgressFn)(int complete, int total, int retry);
+typedef int (*CheckKeyboardInterruptFn)();
+
 
 int sanity_check();
 
