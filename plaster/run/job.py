@@ -23,7 +23,9 @@ class JobResult:
     """
 
     def __init__(self, job_folder, include_manifest=True):
-        self.job_folder = assets.validate_job_folder(job_folder, search_if_not_present=True)
+        self.job_folder = assets.validate_job_folder(
+            job_folder, search_if_not_present=True
+        )
         self._run_results = {
             run_folder.name: RunResult(run_folder, include_manifest=include_manifest)
             for run_folder in self.job_folder

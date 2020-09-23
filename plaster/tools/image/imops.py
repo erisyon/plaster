@@ -471,16 +471,16 @@ def edge_fill(tar, thickness, val=0):
     assert thickness < tar.shape[0] and thickness < tar.shape[1]
 
     # Bottom
-    tar[0:thickness, 0:tar.shape[1]] = val
+    tar[0:thickness, 0 : tar.shape[1]] = val
 
     # Top
-    tar[tar.shape[0]-thickness:tar.shape[1], 0:tar.shape[1]] = val
+    tar[tar.shape[0] - thickness : tar.shape[1], 0 : tar.shape[1]] = val
 
     # Left
-    tar[0:tar.shape[0], 0:thickness] = val
+    tar[0 : tar.shape[0], 0:thickness] = val
 
     # Right
-    tar[0:tar.shape[0], tar.shape[1]-thickness:tar.shape[1]] = val
+    tar[0 : tar.shape[0], tar.shape[1] - thickness : tar.shape[1]] = val
 
     return tar
 

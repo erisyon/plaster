@@ -115,6 +115,7 @@ from plaster.tools.log.log import debug, important
 # Calibration
 # ---------------------------------------------------------------------------------------------
 
+
 def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
     """
     Arguments:
@@ -131,7 +132,9 @@ def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
     _, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
     for ch_i in range(0, n_channels):
         fl_zi_ims = ims_import_result.ims[:, ch_i, :]
-        psf_stats_ch, focus_per_field = psf.psf_all_fields_one_channel(fl_zi_ims, sigproc_v2_params)
+        psf_stats_ch, focus_per_field = psf.psf_all_fields_one_channel(
+            fl_zi_ims, sigproc_v2_params
+        )
 
         prop = f"regional_psf_zstack.instrument_channel[{ch_i}]"
         calib.add({prop: psf_stats_ch})
@@ -147,7 +150,9 @@ def _calibrate_illum(calib, ims_import_result):
     n_fields, n_channels, n_cycles = ims_import_result.n_fields_channel_cycles()
     fg_means = np.zeros((n_channels, ims_import_result.dim, ims_import_result.dim))
     for ch_i in range(0, n_channels):
-        fl_ims = ims_import_result.ims[:, ch_i, 0]  # Cycle 0 because it has the most peaks
+        fl_ims = ims_import_result.ims[
+            :, ch_i, 0
+        ]  # Cycle 0 because it has the most peaks
         reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i))
         fg_means[ch_i] = fg_mean
         assert np.all(~np.isnan(reg_bal))
@@ -202,6 +207,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_estimate_and_remove(im, kernel)
 
     return dst_chcy_ims
+
 
 '''
 Removed temporarily because this function needs signficant tuning
@@ -259,6 +265,7 @@ def _analyze_step_2_mask_anomalies_im(im, den_threshold=300):
 
     return im
 '''
+
 
 def _analyze_step_3_align(cy_ims):
     """
@@ -386,7 +393,7 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     return radmat
 
 
-'''
+"""
 Temporaily removed until a better metric can be established
 
 def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
@@ -405,7 +412,8 @@ def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
         keep_mask = keep_mask & np.any(snr > sigproc_v2_params.snr_thresh, axis=(1, 2))
 
     return keep_mask
-'''
+"""
+
 
 def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib):
     """
@@ -431,13 +439,13 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib):
     # At this point, chcy_ims has its background subtracted and is
     # regionally and channel balanced. It may contain negative values.
 
-    '''
+    """
     Removed temporarily see _analyze_step_2_mask_anomalies_im for explanation
     # Step 2: Remove anomalies (at least for alignment)
     if not sigproc_v2_params.skip_anomaly_detection:
         for ch_i, cy_ims in enumerate(chcy_ims):
             chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
-    '''
+    """
 
     # Step 3: Find alignment offsets by using the mean of all channels
     # Note that this requires that the channel balancing has equalized the channel weights
@@ -538,7 +546,9 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
 
     if sigproc_v2_params.mode == common.SIGPROC_V2_PSF_CALIB:
         calib = Calibration()
-        calib, focus_per_field_per_channel = _calibrate_psf(calib, ims_import_result, sigproc_v2_params)
+        calib, focus_per_field_per_channel = _calibrate_psf(
+            calib, ims_import_result, sigproc_v2_params
+        )
 
     elif sigproc_v2_params.mode == common.SIGPROC_V2_ILLUM_CALIB:
         calib = Calibration.load(sigproc_v2_params.calibration_file)

@@ -6,11 +6,11 @@
 
 typedef struct {
     Size count;
-    Index dtr_i;
+    Index dyt_i;
     DyeType chcy_dye_counts[];
     // Note, this is a variable sized record
-    // See dtr_* functions for manipulating it
-} DTR;  // DTR = Dye Track Record
+    // See dyt_* functions for manipulating it
+} Dyt;  // Dye-track record
 
 
 typedef struct {
@@ -21,7 +21,7 @@ typedef struct {
 
 
 typedef struct {
-    Size n_new_dtrs;
+    Size n_new_dyts;
     Size n_new_dyepeps;
 } Counts;
 
@@ -35,21 +35,21 @@ typedef struct {
     Uint64 pi_detach;
     Uint64 pi_edman_success;
     CycleKindType cycles[N_MAX_CYCLES];
-    Table dtrs;
-    Hash dtr_hash;
-    Table dyepeps;
+    Tab dyts;
+    Hash dyt_hash;
+    Tab dyepeps;
     Hash dyepep_hash;
-    Table pcbs;
-    Table pep_i_to_pcb_i;
+    Tab pcbs;
+    Tab pep_i_to_pcb_i;
     RecallType *pep_recalls;
     Index next_pep_i;
     Size count_only;
-    Size output_n_dtrs;
+    Size output_n_dyts;
     Size output_n_dyepeps;
     Size n_threads;
     Uint64 rng_seed;
     pthread_mutex_t work_order_lock;
-    pthread_mutex_t table_lock;
+    pthread_mutex_t tab_lock;
     ProgressFn progress_fn;
 } SimV2FastContext;
 
@@ -57,10 +57,10 @@ typedef struct {
 int setup_sanity_checks(Size n_channels, Size n_cycles);
 Uint64 prob_to_p_i(double p);
 void rand64_seed(Uint64 seed);
-Size dtr_n_bytes(Size n_channels, Size n_cycles);
+Size dyt_n_bytes(Size n_channels, Size n_cycles);
 void context_work_orders_start(SimV2FastContext *ctx);
-Index context_dtr_get_count(SimV2FastContext *ctx, Index dtr_i);
-DyeType *context_dtr_dyetrack(SimV2FastContext *ctx, Index dtr_i);
+Index context_dyt_get_count(SimV2FastContext *ctx, Index dyt_i);
+DyeType *context_dyt_dyetrack(SimV2FastContext *ctx, Index dyt_i);
 DyePepRec *context_dyepep(SimV2FastContext *ctx, Index dyepep_i);
 void context_dump(SimV2FastContext *ctx);
 

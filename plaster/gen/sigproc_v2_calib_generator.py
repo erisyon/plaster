@@ -26,7 +26,7 @@ class SigprocV2CalibGenerator(BaseGenerator):
             raise ValueError(f"Calibrations can have only one sigproc_source")
 
         ims_import_task = task_templates.ims_import(
-            self.sigproc_source[0], is_movie=(self.mode=="psf")
+            self.sigproc_source[0], is_movie=(self.mode == "psf")
         )
 
         modes = dict(
@@ -37,14 +37,11 @@ class SigprocV2CalibGenerator(BaseGenerator):
         assert mode is not None
 
         sigproc_v2_calib_task = task_templates.sigproc_v2_calib(
-            self.calibration_file,
-            mode=mode,
+            self.calibration_file, mode=mode,
         )
 
         run = Munch(
-            run_name=f"sigproc_v2_calib",
-            **ims_import_task,
-            **sigproc_v2_calib_task,
+            run_name=f"sigproc_v2_calib", **ims_import_task, **sigproc_v2_calib_task,
         )
 
         if self.force_run_name is not None:

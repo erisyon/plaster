@@ -53,7 +53,7 @@ def text_prep_and_sim_info(run):
         Allow the user to understand the experimental setup
         and the high-level overview of the label space.
     """
-    if hasattr(run,'sim_v1'):
+    if hasattr(run, "sim_v1"):
         n_train_non_zero_recall_peps = (run.sim_v1.train_pep_recalls > 0.0).sum()
         n_train_zero_recall_peps = (run.sim_v1.train_pep_recalls == 0.0).sum()
         n_train_peps = n_train_non_zero_recall_peps + n_train_zero_recall_peps
@@ -81,7 +81,7 @@ def text_prep_and_sim_info(run):
             f"    {n_test_zero_recall_peps} ({100 * n_test_zero_recall_peps / n_test_peps:2.0f}%) had zero recall (unlabelable)\n"
         )
     else:
-        #TODO: find sim_v2 appropriate replacements for sim_v1 params listed above
+        # TODO: find sim_v2 appropriate replacements for sim_v1 params listed above
         print(
             f"The preparation consisted of:\n"
             f"  Proteins: {len(run.prep.pros()) - 1}.\n"
@@ -745,7 +745,7 @@ def standard_run_report(run, display_run_title=True, classifier=None):
     # to do with classification
     hd("h3", f"Prep and simulation")
     text_prep_and_sim_info(run)
-    if hasattr(run,'sim_v1'):
+    if hasattr(run, "sim_v1"):
         plot_peptide_effective_labelability(run)
         plot_peptides_per_fluorosequence(run)
 
@@ -1080,7 +1080,14 @@ def wizard_scat_df(
     interact(scat, x_name=x_name_wid, y_name=y_name_wid, x_noise=0.1)
 
 
-def wizard_xy_df(run, channel_i=None, result_block="sigproc_v1", ignore_fields=None, red_bottom=False, **kwargs):
+def wizard_xy_df(
+    run,
+    channel_i=None,
+    result_block="sigproc_v1",
+    ignore_fields=None,
+    red_bottom=False,
+    **kwargs,
+):
     """
     Wizard to explore sigprocv2 data as a function of the stage
 
@@ -1114,7 +1121,6 @@ def wizard_xy_df(run, channel_i=None, result_block="sigproc_v1", ignore_fields=N
     if ignore_fields is not None:
         stage_df = stage_df[~stage_df.field_i.isin(ignore_fields)]
         df = df[~df.field_i.isin(ignore_fields)]
-
 
     df = df.set_index("field_i").join(stage_df.set_index("field_i"))
 
