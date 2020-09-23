@@ -2,7 +2,7 @@ from plaster.tools.pipeline.pipeline import PipelineTask
 from plaster.run.prep.prep_result import PrepResult
 from plaster.run.sim_v2.sim_v2_params import SimV2Params
 from plaster.run.sim_v2.sim_v2_worker import sim_v2
-from plaster.tools.log.log import debug
+from plaster.tools.log.log import debug, prof
 
 
 class SimV2Task(PipelineTask):
@@ -14,6 +14,7 @@ class SimV2Task(PipelineTask):
         sim_result_v2 = sim_v2(
             sim_v2_params, prep_result, progress=self.progress, pipeline=self
         )
+
         sim_result_v2.save()
 
         if sim_v2_params.dump_debug:

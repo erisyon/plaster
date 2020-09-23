@@ -47,12 +47,14 @@ cdef extern from "c_sim_v2_fast.h":
         c.Size n_threads
         c.Uint64 rng_seed
         c.ProgressFn progress_fn
+        c.CheckKeyboardInterruptFn check_keyboard_interrupt_fn
+
 
     int setup_sanity_checks(c.Size n_channels, c.Size n_cycles)
     c.Uint64 prob_to_p_i(double p)
     c.Size dyt_n_bytes(c.Size n_channels, c.Size n_cycles)
     Hash hash_init(HashRec *buffer, c.Size n_max_recs)
-    void context_work_orders_start(SimV2FastContext *ctx)
+    int context_work_orders_start(SimV2FastContext *ctx)
     c.Index context_dyt_get_count(SimV2FastContext *ctx, c.Index dyt_i)
     c.DyeType *context_dyt_dyetrack(SimV2FastContext *ctx, c.Index dyt_i)
     c.DyePepRec *context_dyepep(SimV2FastContext *ctx, c.Index dyepep_i)

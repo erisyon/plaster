@@ -506,6 +506,7 @@ typedef struct {
     SimV2FastContext *ctx;
     Sint64 pep_i_status;
     pthread_t id;
+    int stop_requested;
 } ThreadContext;
 #define THREAD_STATE_STARTED (-2)
 #define THREAD_STATE_DONE (-1)
@@ -523,7 +524,7 @@ void *context_work_orders_worker(void *_tctx) {
     }
     Size n_dyts = 0;
     Size n_dyepeps = 0;
-    while(1) {
+    while(!tctx->stop_requested) {
         Index pep_i_plus_1 = context_work_orders_pop(ctx);
         if(pep_i_plus_1 == 0) {
             break;
@@ -552,7 +553,7 @@ void *context_work_orders_worker(void *_tctx) {
 }
 
 
-void context_work_orders_start(SimV2FastContext *ctx) {
+int context_work_orders_start(SimV2FastContext *ctx) {
     // context_dump(ctx);
 
     // Initialize mutex and start the worker thread(s).
@@ -592,6 +593,7 @@ void context_work_orders_start(SimV2FastContext *ctx) {
         thread_contexts[thread_i].thread_i = thread_i;
         thread_contexts[thread_i].ctx = ctx;
         thread_contexts[thread_i].pep_i_status = THREAD_STATE_STARTED;
+        thread_contexts[thread_i].stop_requested = 0;
         int ret = pthread_create(
             &thread_contexts[thread_i].id,
             NULL,
@@ -603,6 +605,7 @@ void context_work_orders_start(SimV2FastContext *ctx) {
 
     // MONITOR progress and callback from this main thread
     // Python doesn't seem to like callbacks coming from other threads
+    int interrupted = 0;
     while(1) {
         Size n_threads_done = 0;
         Sint64 largest_pep_i_done = 0;
@@ -621,12 +624,22 @@ void context_work_orders_start(SimV2FastContext *ctx) {
         if(largest_pep_i_done > 0 && largest_pep_i_done % 100 == 0) {
             ctx->progress_fn(largest_pep_i_done, ctx->n_peps, 0);
         }
+        int got_interrupt = ctx->check_keyboard_interrupt_fn();
+        if(got_interrupt) {
+            for(Index thread_i=0; thread_i<ctx->n_threads; thread_i++) {
+                thread_contexts[thread_i].stop_requested = 1;
+            }
+            interrupted = 1;
+            break;
+        }
         usleep(10000);  // 10 ms
     }
 
     for(Index thread_i=0; thread_i<ctx->n_threads; thread_i++) {
         pthread_join(thread_contexts[thread_i].id, NULL);
     }
+
+    return interrupted;
 }
 
 

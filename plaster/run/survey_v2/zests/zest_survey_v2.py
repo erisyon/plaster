@@ -9,6 +9,7 @@ from plaster.tools.utils import tmp
 from plaster.tools.log.log import debug
 
 
+@zest.skip(reason="broken")
 def zest_survey_v2_pyx():
     # TODO: This
 

@@ -47,6 +47,7 @@ cdef extern from "c_common.h":
         Size n_reads
 
     ctypedef void (*ProgressFn)(int complete, int total, int retry)
+    ctypedef int (*CheckKeyboardInterruptFn)()
 
     ctypedef struct Tab:
         void *base
