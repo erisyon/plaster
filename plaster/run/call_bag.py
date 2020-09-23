@@ -318,11 +318,11 @@ class CallBag:
                                 scores, \
                                 true_in_subset_mask, \
                                 pred_in_subset_mask, \
-                                pop_iz_subset=pep_iz_subset, \
+                                level_iz_subset=pep_iz_subset, \
                                 n_steps=n_steps)
 
 
-    def pr_curve_pro(self, pep_iz_subset=None, n_steps=50):
+    def pr_curve_pro(self, pro_iz_subset=None, n_steps=50):
         """
         Similar format to pr_curve_pep, but is PR curve for proteins, not peptides
         Returns a tuple of arrays; each row of the arrays is an increasing score threshold. The arrays are:
@@ -330,24 +330,27 @@ class CallBag:
         """
 
         # Obtain a reverse sorted calls: true, pred, score
-        true = self.true_peps__pros()["pro_i"].values
-        pred = self.pred_peps__pros()["pro_i"].values
+        true = self.true_peps__pros().pro_i.values
+        pred = self.pred_peps__pros().pro_i.values
         scores = self.df["scores"].values
 
-        #FIXME: determine if this is a true statement, fix if not
-        # At this point true, pred, scores are sorted WHOLE SET OF ALL PEPTIDES
+        # At this point true, pred, scores are sorted WHOLE SET OF ALL PROTEINS
 
-        #FIXME: what should 'pep_iz_subset' be named now?
         # If a subset is not requested then assume ALL are wanted
-        if pep_iz_subset is None:
-            pep_iz_subset = np.unique(
-                np.concatenate((self.df.true_pep_iz[1:], self.df.pred_pep_iz))
-                # 1: => don't include the null peptide class from true
-            )
+        if pro_iz_subset is None:
+            if len(true) > 0 and len(pred) > 0:
+                pro_iz_subset = np.unique(
+                    #FIXME: this should 
+                    np.concatenate((np.array(true),np.array(pred)))
+                )
+            elif len(pred) > 0:
+                pro_iz_subset = np.unique(np.array(true))
+            else:
+                pro_iz_subset = np.array([])
 
         # MASK calls in the subset
-        true_in_subset_mask = np.isin(true, pep_iz_subset)
-        pred_in_subset_mask = np.isin(pred, pep_iz_subset)
+        true_in_subset_mask = np.isin(true, pro_iz_subset)
+        pred_in_subset_mask = np.isin(pred, pro_iz_subset)
 
         return self.pr_curve_either('pro', \
                                 true, \
@@ -355,13 +358,17 @@ class CallBag:
                                 scores, \
                                 true_in_subset_mask, \
                                 pred_in_subset_mask, \
-                                pop_iz_subset=pep_iz_subset, \
+                                level_iz_subset=pro_iz_subset, \
                                 n_steps=n_steps)
 
 
-    def pr_curve_either(self,pop,true,pred,scores,true_in_subset_mask, pred_in_subset_mask, pop_iz_subset, n_steps=50):
+    def pr_curve_either(self,level,true,pred,scores,true_in_subset_mask, pred_in_subset_mask, level_iz_subset, n_steps=50):
+        # Throughout this function, "level" (e.g. level_iz_subset) refers to "peptide or protein" (or
+        # potentially, in the future, PTM or whatever else we might make a PR curve of)
+
         # At this point, true_ and pred_in_subset_mask are masks on the original set.
         # We now reduce to the set of interest so that we sort a smaller set
+
         true_or_pred_subset_mask = true_in_subset_mask | pred_in_subset_mask
         true = true[true_or_pred_subset_mask]
         pred = pred[true_or_pred_subset_mask]
@@ -442,19 +449,27 @@ class CallBag:
 
         # EXTRACT training recalls from the subset of peps or pros.
         # This will leave NANs for all those that are not in the subset.
-        if self._sim_result is not None:
-            filtered_pop_recalls = np.full_like(
+        if self._sim_result is not None and level=='pep':
+            filtered_level_recalls = np.full_like(
                 self._sim_result.train_pep_recalls, np.nan
             )
-            filtered_pop_recalls[pop_iz_subset] = self._sim_result.train_pep_recalls[
-                pop_iz_subset
+            filtered_level_recalls[level_iz_subset] = self._sim_result.train_pep_recalls[
+                level_iz_subset
             ]
+        elif self._sim_result is not None and level=='pro':
+            #FIXME: create the protein equivalent of train_pep_recalls
+            filtered_level_recalls = np.full((prsa.shape[0],), np.nan)
+            #for protein in level_iz_subset
+            #  for peptide in prep_result.pros__peps()
+            #    filtered_level_recalls[i] += self._sim_result.train_pep_recalls
+            #...or...
+            #for peptide in prep_result.
         else:
-            filtered_pop_recalls = np.full((prsa.shape[0],), 1.0)
+            filtered_level_recalls = np.full((prsa.shape[0],), 1.0)
 
         # Use nanmean to ignore al those nans (the peps not in the subset)
         # And then use np.nan_to_num in case the subset was empty, we want get 0 not nan
-        mean_recall = np.nan_to_num(np.nanmean(filtered_pop_recalls))
+        mean_recall = np.nan_to_num(np.nanmean(filtered_level_recalls))
         assert 0.0 <= mean_recall <= 1.0
 
         # SCALE-DOWN all recall

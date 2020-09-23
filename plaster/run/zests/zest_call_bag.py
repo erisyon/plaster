@@ -131,14 +131,14 @@ def zest_pr_pro_curve():
         assert utils.np_array_same([p, r, s, a], zero_pr_result)
 
     def it_computes_zero_pr_for_subset():
-        p, r, s, a = cb_all_wrong.pr_curve_pro(pep_iz_subset=[1], n_steps=2)
+        p, r, s, a = cb_all_wrong.pr_curve_pro(pro_iz_subset=[1], n_steps=2)
         assert utils.np_array_same([p, r, s, a], zero_pr_result)
 
-        p, r, s, a = cb_all_wrong.pr_curve_pro(pep_iz_subset=[2], n_steps=2)
+        p, r, s, a = cb_all_wrong.pr_curve_pro(pro_iz_subset=[2], n_steps=2)
         assert utils.np_array_same([p, r, s, a], zero_pr_result)
 
         # peptide 2 does not show up in true/pred at all so should get zero pr curve
-        p, r, s, a = cb_all_right.pr_curve_pro(pep_iz_subset=[2], n_steps=2)
+        p, r, s, a = cb_all_right.pr_curve_pro(pro_iz_subset=[2], n_steps=2)
         assert utils.np_array_same([p, r, s, a], zero_pr_result)
 
     def it_computes_one_pr():
@@ -149,7 +149,7 @@ def zest_pr_pro_curve():
         assert all(compare)
 
     def it_computes_one_pr_for_subset():
-        p, r, s, a = cb_all_right.pr_curve_pro(pep_iz_subset=[1], n_steps=2)
+        p, r, s, a = cb_all_right.pr_curve_pro(pro_iz_subset=[1], n_steps=2)
         compare = [a == b for a, b in zip([p, r, s, a], one_pr_result)]
         compare = [list(el) if type(el) is np.ndarray else el for el in compare]
         assert all(compare)
