@@ -45,7 +45,6 @@ cdef void _progress(int complete, int total, int retry):
 
 
 cdef int _check_keyboard_interrupt_callback():
-    #with gil:
     try:
         PyErr_CheckSignals()
     except KeyboardInterrupt:
