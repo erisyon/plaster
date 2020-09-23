@@ -9,6 +9,7 @@ from cython.view cimport array as cvarray
 from libc.stdlib cimport calloc, free
 from libc.string cimport memcpy
 from plaster.tools.log.log import important
+from cpython.exc cimport PyErr_CheckSignals
 
 
 # Local helpers
@@ -41,6 +42,14 @@ global_progress_callback = None
 cdef void _progress(int complete, int total, int retry):
     if global_progress_callback is not None:
         global_progress_callback(complete, total, retry)
+
+
+cdef int _check_keyboard_interrupt_callback():
+    try:
+        PyErr_CheckSignals()
+    except KeyboardInterrupt:
+        return 1
+    return 0
 
 
 def max_counts_from_n_peps(n_peps):
@@ -199,6 +208,7 @@ def sim(
         ctx.pep_i_to_pcb_i = c.tab_by_n_rows(<c.Uint8 *>pep_i_to_pcb_i_buf, n_peps + 1, sizeof(c.Index), c.TAB_NOT_GROWABLE);
 
         ctx.progress_fn = <c.ProgressFn>_progress
+        ctx.check_keyboard_interrupt_fn = <c.CheckKeyboardInterruptFn>_check_keyboard_interrupt_callback
 
         pep_recalls = np.zeros((ctx.n_peps), dtype=RecallType)
         pep_recalls_view = pep_recalls
@@ -211,7 +221,9 @@ def sim(
         ctx.dyepep_hash = csim.hash_init(dyepep_hash_buf, n_max_dyepep_hash_recs)
 
         # Now do the work in the C file
-        csim.context_work_orders_start(&ctx)
+        ret = csim.context_work_orders_start(&ctx)
+        if ret != 0:
+            raise Exception("Worker ended prematurely")
 
         if count_only:
             print(f"n_dyts={ctx.output_n_dyts}")
