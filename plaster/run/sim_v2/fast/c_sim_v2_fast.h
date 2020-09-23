@@ -51,6 +51,7 @@ typedef struct {
     pthread_mutex_t work_order_lock;
     pthread_mutex_t tab_lock;
     ProgressFn progress_fn;
+    CheckKeyboardInterruptFn check_keyboard_interrupt_fn;
 } SimV2FastContext;
 
 
@@ -58,7 +59,7 @@ int setup_sanity_checks(Size n_channels, Size n_cycles);
 Uint64 prob_to_p_i(double p);
 void rand64_seed(Uint64 seed);
 Size dyt_n_bytes(Size n_channels, Size n_cycles);
-void context_work_orders_start(SimV2FastContext *ctx);
+int context_work_orders_start(SimV2FastContext *ctx);
 Index context_dyt_get_count(SimV2FastContext *ctx, Index dyt_i);
 DyeType *context_dyt_dyetrack(SimV2FastContext *ctx, Index dyt_i);
 DyePepRec *context_dyepep(SimV2FastContext *ctx, Index dyepep_i);
