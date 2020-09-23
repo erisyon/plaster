@@ -457,13 +457,17 @@ class CallBag:
                 level_iz_subset
             ]
         elif self._sim_result is not None and level=='pro':
-            #FIXME: create the protein equivalent of train_pep_recalls
-            filtered_level_recalls = np.full((prsa.shape[0],), np.nan)
-            #for protein in level_iz_subset
-            #  for peptide in prep_result.pros__peps()
-            #    filtered_level_recalls[i] += self._sim_result.train_pep_recalls
-            #...or...
-            #for peptide in prep_result.
+            pro_pep_df = self._prep_result.pros__peps()
+            n_pro = pro_pep_df.pro_id.nunique()
+            filtered_level_recalls = np.full((n_pro,), np.nan)
+            filtered_level_recalls[level_iz_subset] = 0.0
+            for protein_index in level_iz_subset:
+                for peptide_index in pro_pep_df.loc[pro_pep_df['pro_i'] == protein_index].pep_i:
+                    #NOTE: we are assuming here that the recall of the best performing peptide of a given
+                    #      protein is a good approximation of the protein as a whole.  Some initial literature
+                    #      research indicates this is a decent starting approximation, but it may need to
+                    #      be revisited in the future.
+                    filtered_level_recalls[protein_index] = max(filtered_level_recalls[protein_index],self._sim_result.train_pep_recalls[peptide_index])
         else:
             filtered_level_recalls = np.full((prsa.shape[0],), 1.0)
 
