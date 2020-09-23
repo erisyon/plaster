@@ -14,11 +14,12 @@ cdef extern from "c_nn_v2_fast.h":
         c.Tab output_pred_dye_iz
         c.Tab output_scores
         c.ProgressFn progress_fn
+        c.CheckKeyboardInterruptFn check_keyboard_interrupt_fn
 
         c.Size n_threads
         c.Size n_rows
         c.Index next_row_i
         c.Size n_rows_per_block
 
-    void context_start(NNV2FastContext *ctx)
+    int context_start(NNV2FastContext *ctx)
     void context_free(NNV2FastContext *ctx)

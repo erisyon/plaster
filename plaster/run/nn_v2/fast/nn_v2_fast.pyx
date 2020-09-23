@@ -7,6 +7,7 @@ cimport numpy as np
 from cython.view cimport array as cvarray
 from libc.stdlib cimport calloc, free
 from plaster.tools.schema import check
+from cpython.exc cimport PyErr_CheckSignals
 
 
 # Local helpers
@@ -34,6 +35,14 @@ cdef void _progress(int complete, int total, int retry):
     # print(f"progress {complete} {total} {retry}", file=sys.stderr)
     if global_progress_callback is not None:
         global_progress_callback(complete, total, retry)
+
+
+cdef int _check_keyboard_interrupt_callback():
+    try:
+        PyErr_CheckSignals()
+    except KeyboardInterrupt:
+        return 1
+    return 0
 
 
 def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_threads, progress=None):
@@ -153,6 +162,7 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
 
             last_dye_i = dye_i
             last_count = train_dyepeps_view[i, 2]
+            PyErr_CheckSignals()
 
         # DOWNCAST weights to Float32
         for i in range(train_dyemat_n_rows):
@@ -162,6 +172,7 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
         ctx.n_neighbors = n_neighbors
         ctx.n_cols = n_cols
         ctx.progress_fn = <c.ProgressFn>_progress
+        ctx.check_keyboard_interrupt_fn = <c.CheckKeyboardInterruptFn>_check_keyboard_interrupt_callback
 
         ctx.test_unit_radmat = c.tab_by_size(
             <c.Uint8 *>&test_unit_radmat_view[0, 0],
@@ -225,7 +236,9 @@ def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_thread
         ctx.n_rows_per_block = 1024 * 16
 
         # Handoff to the C code...
-        cnn.context_start(&ctx)
+        ret = cnn.context_start(&ctx)
+        if ret != 0:
+            raise Exception("Worker ended prematurely")
 
     finally:
         free(train_dyemat_as_radtype)

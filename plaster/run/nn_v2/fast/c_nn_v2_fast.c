@@ -44,6 +44,7 @@ void score_weighted_inv_square(
 
 
 void score_weighted_gaussian_mixture(
+    NNV2FastContext *ctx,
     int n_neighbors,
     Size n_cols,
     int *neighbor_dye_iz,  // array((n_neighbors,), type=int): indices to dyetrack
@@ -81,6 +82,10 @@ void score_weighted_gaussian_mixture(
         double wpdf = (double)neighbor_weight * pdf;
         weighted_pdf[nn_i] = wpdf;
         weighted_pdf_sum += wpdf;
+
+        if(ctx->stop_requested) {
+            return;
+        }
     }
 
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
@@ -91,6 +96,10 @@ void score_weighted_gaussian_mixture(
         }
         else {
             output_scores[nn_i] = (Score)0;
+        }
+
+        if(ctx->stop_requested) {
+            return;
         }
     }
 }
@@ -153,6 +162,7 @@ void context_classify_unit_radrows(
         */
 
         score_weighted_gaussian_mixture(
+            ctx,
             n_neighbors,
             ctx->n_cols,
             row_neighbor_dye_iz,
@@ -161,6 +171,10 @@ void context_classify_unit_radrows(
             &ctx->train_dyetrack_weights,
             _output_scores
         );
+
+        if(ctx->stop_requested) {
+            break;
+        }
 
         // PICK dyetrack winner
         Score highest_score = (Score)0;
@@ -237,12 +251,18 @@ void progress_thread_safe(NNV2FastContext* ctx, int complete, int total, int ret
     }
 }
 
+typedef struct {
+    pthread_t id;
+    int complete;
+    NNV2FastContext *ctx;
+} ThreadContext;
 
-void *context_work_orders_worker(void *_ctx) {
+void *context_work_orders_worker(void *_tctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
-    NNV2FastContext *ctx = (NNV2FastContext *)_ctx;
-    while(1) {
+    ThreadContext* tctx= (ThreadContext *)_tctx;
+    NNV2FastContext *ctx = tctx->ctx;
+    while(!ctx->stop_requested) {
         Index row_i_plus_1 = context_work_orders_pop(ctx);
         if(row_i_plus_1 == 0) {
             break;
@@ -258,11 +278,11 @@ void *context_work_orders_worker(void *_ctx) {
         progress_thread_safe(ctx, row_i, ctx->n_rows, 0);
     }
     progress_thread_safe(ctx, ctx->n_rows, ctx->n_rows, 0);
+    tctx->complete = 1;
     return (void *)0;
 }
 
-
-void context_start(NNV2FastContext *ctx) {
+int context_start(NNV2FastContext *ctx) {
     ensure(sanity_check() == 0, "Sanity checks failed");
     ensure(
         ctx->n_neighbors <= ctx->train_dyemat.n_rows,
@@ -279,6 +299,7 @@ void context_start(NNV2FastContext *ctx) {
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
     ctx->flann_index_id = 0;
     ctx->flann_params.cores = 1;
+    ctx->stop_requested = 0;
 
     // CREATE the ANN index
     float speedup = 0.0f;
@@ -290,7 +311,7 @@ void context_start(NNV2FastContext *ctx) {
         &ctx->flann_params
     );
 
-    pthread_t ids[256];
+    ThreadContext tctxs[256];
     ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
 
     if(ctx->n_threads > 1) {
@@ -302,13 +323,42 @@ void context_start(NNV2FastContext *ctx) {
     }
 
     for(Index i=0; i<ctx->n_threads; i++) {
-        int ret = pthread_create(&ids[i], NULL, context_work_orders_worker, ctx);
+        tctxs[i].ctx = ctx;
+        tctxs[i].complete = 0;
+        int ret = pthread_create(&tctxs[i].id, NULL, context_work_orders_worker, &tctxs[i]);
         ensure(ret == 0, "Thread not created.");
     }
 
-    for(Index i=0; i<ctx->n_threads; i++) {
-        pthread_join(ids[i], NULL);
+    int interrupted = 0;
+    while(1) {
+        int complete = 1;
+        for(Index i=0; i<ctx->n_threads; i++) {
+            if(!tctxs[i].complete) {
+                complete = 0;
+                break;
+            }
+        }
+
+        int got_interrupt = ctx->check_keyboard_interrupt_fn();
+        if(got_interrupt) {
+            printf("Ctrl-C received, please wait a few seconds until all threads complete\n");
+            ctx->stop_requested = 1;
+            interrupted = 1;
+            break;
+        }
+
+        if(complete) {
+            break;
+        }
+        // Calling ctx->check_keyboard_interrupt_fn too often results in a segfault
+        usleep(50000);
     }
+
+    for(Index i=0; i<ctx->n_threads; i++) {
+        pthread_join(tctxs[i].id, NULL);
+    }
+
+    return interrupted;
 }
 
 

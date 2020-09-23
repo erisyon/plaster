@@ -5,7 +5,6 @@
 #include "c_common.h"
 #include "flann.h"
 
-
 typedef struct {
     // The following are set by the .pyx file
     Size n_neighbors;
@@ -27,14 +26,16 @@ typedef struct {
     pthread_mutex_t work_order_lock;
     pthread_mutex_t flann_index_lock;
     ProgressFn progress_fn;
+    CheckKeyboardInterruptFn check_keyboard_interrupt_fn;
 
     // The following are internal to the .c file; freed by context_free()
     struct FLANNParameters flann_params;
     flann_index_t flann_index_id;
+    int stop_requested;
 } NNV2FastContext;
 
 
-void context_start(NNV2FastContext *ctx);
+int context_start(NNV2FastContext *ctx);
 void context_free(NNV2FastContext *ctx);
 void context_print(NNV2FastContext *ctx);
 int test_flann();
