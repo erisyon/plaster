@@ -1009,7 +1009,9 @@ class ZPlots:
         ustack = self._u_stack()
         _n_samples = ustack.get("_n_samples", 500)
         im = cluster(data, n_subsample=_n_samples)
-        self.im(im, **kws)
+        f_title = kws.pop("f_title", "")
+        f_title += f" n_rows={data.shape[0]}"
+        self.im(im, f_title=f_title, **kws)
 
     @trap()
     def im_peaks(self, im, circle_im, index_im, sig_im, snr_im, **kws):
