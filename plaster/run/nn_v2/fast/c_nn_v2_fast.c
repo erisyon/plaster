@@ -60,7 +60,7 @@ void score_weighted_gaussian_mixture(
 
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_i = neighbor_dye_iz[nn_i];
-        RadType *neighbor_target_dt = tab_row(train_dyemat, neighbor_i);
+        RadType *neighbor_target_dt = tab_ptr(RadType, train_dyemat, neighbor_i);
         WeightType neighbor_weight = tab_get(WeightType, dyetrack_weights, neighbor_i);
         weights[nn_i] = (double)neighbor_weight;
 
@@ -132,7 +132,7 @@ void context_classify_unit_radrows(
     // FETCH a batch of neighbors from FLANN in one call.
     flann_find_nearest_neighbors_index_float(
         ctx->flann_index_id,
-        tab_row(&unit_radrows, 0),
+        tab_ptr(RadType, &unit_radrows, 0),
         n_rows,
         neighbor_dye_iz,
         neighbor_dists,
@@ -145,7 +145,7 @@ void context_classify_unit_radrows(
     }
 
     for (Index row_i=0; row_i<n_rows; row_i++) {
-        RadType *unit_radrow = tab_row(&unit_radrows, row_i);
+        RadType *unit_radrow = tab_ptr(RadType, &unit_radrows, row_i);
         int *row_neighbor_dye_iz = &neighbor_dye_iz[row_i * n_neighbors];
         Score _output_scores[N_MAX_NEIGHBORS];
 
@@ -195,7 +195,7 @@ void context_classify_unit_radrows(
         // the .pyx asserts that these are sorted by highest
         // count so we can just pick [0] from the correct dyepep
         Index dyepeps_offset = tab_get(Index, &ctx->train_dye_i_to_dyepep_offset, most_likely_dye_i);
-        Index *dyepeps_block = tab_row(&ctx->train_dyepeps, dyepeps_offset);
+        Index *dyepeps_block = tab_ptr(Index, &ctx->train_dyepeps, dyepeps_offset);
         ensure_only_in_debug(most_likely_dye_i == 0 || dyepeps_block[0] == most_likely_dye_i, "dyepeps_block points to wrong block");
         Index most_likely_pep_i = dyepeps_block[1];
 
@@ -304,7 +304,7 @@ int context_start(NNV2FastContext *ctx) {
     // CREATE the ANN index
     float speedup = 0.0f;
     ctx->flann_index_id = flann_build_index_float(
-        tab_row(&ctx->train_dyemat, 0),
+        tab_ptr(RadType, &ctx->train_dyemat, 0),
         ctx->train_dyemat.n_rows,
         ctx->n_cols,
         &speedup,
@@ -376,7 +376,7 @@ void context_print(NNV2FastContext *ctx) {
     printf("train_dyemat.n_rows=%ld\n", ctx->train_dyemat.n_rows);
     printf("test_unit_radmat.n_rows=%ld\n", ctx->test_unit_radmat.n_rows);
     for(Index row_i=0; row_i<ctx->test_unit_radmat.n_rows; row_i++) {
-        RadType *radrow = tab_row(&ctx->test_unit_radmat, row_i);
+        RadType *radrow = tab_ptr(RadType, &ctx->test_unit_radmat, row_i);
         for(Index c=0; c<ctx->n_cols; c++) {
             printf("%2.1f ", radrow[c]);
         }
