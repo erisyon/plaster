@@ -210,13 +210,13 @@ class CallBag:
         return n_calls, avg_scores
 
     def true_peps__pros(self):
-        self.df["Order"] = np.arange(len(self.df))
+        self.df["order"] = np.arange(len(self.df))
         return (
-            self.df[["Order","true_pep_iz"]]
+            self.df[["order","true_pep_iz"]]
             .rename(columns=dict(true_pep_iz="pep_i"))
             .set_index("pep_i")
             .join(self._prep_result.pros__peps().set_index("pep_i"), how="left")
-            .sort_values("Order")
+            .sort_values("order")
             .reset_index()
         )
 
@@ -231,13 +231,13 @@ class CallBag:
         )
 
     def pred_peps__pros(self):
-        self.df["Order"] = np.arange(len(self.df))
+        self.df["order"] = np.arange(len(self.df))
         return (
-            self.df[["Order","pred_pep_iz"]]
+            self.df[["order","pred_pep_iz"]]
             .rename(columns=dict(pred_pep_iz="pep_i"))
             .set_index("pep_i")
             .join(self._prep_result.pros__peps().set_index("pep_i"), how="left")
-            .sort_values("Order")
+            .sort_values("order")
             .reset_index()
         )
 
@@ -476,7 +476,7 @@ class CallBag:
             filtered_level_recalls = np.full((prsa.shape[0],), 1.0)
 
         # Use nanmean to ignore al those nans (the peps not in the subset)
-        # And then use np.nan_to_num in case the subset was empty, we want get 0 not nan
+        # And then use np.nan_to_num in case the subset was empty, we want 0 not nan
         mean_recall = np.nan_to_num(np.nanmean(filtered_level_recalls))
         assert 0.0 <= mean_recall <= 1.0
 
