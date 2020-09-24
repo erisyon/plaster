@@ -1,9 +1,10 @@
 import numpy as np
-from plaster.run.nn_v2.nn_v2_result import NNV2Result
-from plaster.run.nn_v2.fast import nn_v2_fast
 from plaster.run.call_bag import CallBag
-from plaster.tools.log.log import prof
+from plaster.run.nn_v2.fast import nn_v2_fast
+from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.sim_v2.sim_v2_result import RadType
+from plaster.tools.log.log import prof
+from plaster.tools.zap.zap import get_cpu_limit
 
 
 def nn_v2(
@@ -43,7 +44,7 @@ def nn_v2(
         sim_v2_result.flat_train_dyemat(),
         sim_v2_result.train_dyepeps,
         n_neighbors=nn_v2_params.n_neighbors,
-        n_threads=4,
+        n_threads=get_cpu_limit(),
         progress=progress,
     )
 
@@ -83,7 +84,7 @@ def nn_v2(
             sim_v2_result.flat_train_dyemat(),
             sim_v2_result.train_dyepeps,
             n_neighbors=nn_v2_params.n_neighbors,
-            n_threads=4,
+            n_threads=get_cpu_limit(),
             progress=progress,
         )
     else:
