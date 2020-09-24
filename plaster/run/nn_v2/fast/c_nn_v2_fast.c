@@ -241,13 +241,13 @@ Index context_work_orders_pop(NNV2FastContext *ctx) {
 
 void progress_thread_safe(NNV2FastContext* ctx, int complete, int total, int retry) {
     if(ctx->n_threads > 1) {
-        pthread_mutex_lock(&ctx->work_order_lock);
+        pthread_mutex_lock(&ctx->pyfunction_lock);
     }
 
     ctx->progress_fn(complete, total, retry);
 
     if(ctx->n_threads > 1) {
-        pthread_mutex_unlock(&ctx->work_order_lock);
+        pthread_mutex_unlock(&ctx->pyfunction_lock);
     }
 }
 
@@ -320,6 +320,9 @@ int context_start(NNV2FastContext *ctx) {
 
         ret = pthread_mutex_init(&ctx->flann_index_lock, NULL);
         ensure(ret == 0, "pthread lock create failed");
+
+        ret = pthread_mutex_init(&ctx->pyfunction_lock, NULL);
+        ensure(ret == 0, "pthread lock create failed");
     }
 
     for(Index i=0; i<ctx->n_threads; i++) {
@@ -339,7 +342,14 @@ int context_start(NNV2FastContext *ctx) {
             }
         }
 
+        if(ctx->n_threads > 1) {
+            pthread_mutex_lock(&ctx->pyfunction_lock);
+        }
         int got_interrupt = ctx->check_keyboard_interrupt_fn();
+        if(ctx->n_threads > 1) {
+            pthread_mutex_unlock(&ctx->pyfunction_lock);
+        }
+
         if(got_interrupt) {
             printf("Ctrl-C received, please wait a few seconds until all threads complete\n");
             ctx->stop_requested = 1;
