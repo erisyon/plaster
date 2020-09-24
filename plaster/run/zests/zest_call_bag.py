@@ -94,7 +94,7 @@ def zest_pr_curve_edge_cases():
     zest()
 
 
-def zest_pr_pro_curve():
+def zest_pr_pro_curve_edge_cases():
     """
     Testing situations in which calls are all wrong or all right,
     for pr_curve_pro (protein rather than peptide based)
@@ -357,6 +357,138 @@ def zest_pr_curve_no_tied_scores():
                 2.0 / 4.0,  # 0.2
                 2.0 / 4.0,  # 0.1
                 2.0 / 4.0,  # 0.0
+            ]
+        )
+
+        assert np.array_equal(p, prec)
+        assert np.array_equal(r, reca)
+        assert np.allclose(s, np.linspace(0.8, 0.0, 9))
+
+    zest()
+
+
+def zest_pr_curve_pro_no_tied_scores():
+    """
+    Testing situations with some right and some wrong calls, but no tied scores.
+    """
+
+    # first entry is null peptide
+    stub_sim_result = Munch(train_pep_recalls=np.array([-1.0] + [1.0] * 3))
+    stub_prep_result = prep_fixtures.result_simple_fixture()
+
+    # pep 1 is predicted correctly 1/4, #2 is 1/2, #3 is 3/4
+    true_pep_iz = np.array([1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3])
+    #true pro iz would be [1,1,1,1,2,2,2,2,2,2,2,2]
+    pred_pep_iz = np.array([1, 2, 2, 2, 2, 2, 1, 1, 3, 3, 3, 1])
+    #pred pro iz would be [1,2,2,2,2,2,1,1,2,2,2,1]
+    scores = np.array(
+        [0.8, 0.9, 0.7, 0.6, 0.85, 0.53, 0.54, 0.55, 0.75, 0.4, 0.3, 0.35]
+    )
+
+    cb = CallBag(
+        sim_result=stub_sim_result,
+        prep_result=stub_prep_result,
+        true_pep_iz=true_pep_iz,
+        pred_pep_iz=pred_pep_iz,
+        scores=scores,
+    )
+
+    prec = np.array(
+        [
+            2.0 / 3.0,  # 0.8
+            3.0 / 5.0,  # 0.7
+            3.0 / 6.0,  # 0.6
+            4.0 / 9.0,  # 0.5
+            5.0 / 10.0,  # 0.4
+            6.0 / 12.0,  # 0.3
+            6.0 / 12.0,  # 0.2
+            6.0 / 12.0,  # 0.1
+            6.0 / 12.0,  # 0.0
+        ]
+    )
+    reca = np.array(
+        [
+            2.0 / 12.0,  # 0.8
+            3.0 / 12.0,  # 0.7
+            3.0 / 12.0,  # 0.6
+            4.0 / 12.0,  # 0.5
+            5.0 / 12.0,  # 0.4
+            6.0 / 12.0,  # 0.3
+            6.0 / 12.0,  # 0.2
+            6.0 / 12.0,  # 0.1
+            6.0 / 12.0,  # 0.0
+        ]
+    )
+
+    def it_computes_combined_pr():
+        p, r, s, a = cb.pr_curve_pro(n_steps=10)
+        assert np.array_equal(p, prec)
+        assert np.allclose(s, np.linspace(0.8, 0.0, 9))
+        assert np.array_equal(r, reca)
+
+    def it_computes_subset_pr():
+        p, r, s, a = cb.pr_curve_pro(pro_iz_subset=[1], n_steps=10)
+
+        prec = np.array(
+            [
+                1.0 / 1.0,  # 0.8
+                1.0 / 1.0,  # 0.7
+                1.0 / 1.0,  # 0.6
+                1.0 / 3.0,  # 0.5
+                1.0 / 3.0,  # 0.4
+                1.0 / 4.0,  # 0.3
+                1.0 / 4.0,  # 0.2
+                1.0 / 4.0,  # 0.1
+                1.0 / 4.0,  # 0.0
+            ]
+        )
+        reca = np.array(
+            [
+                1.0 / 4.0,  # 0.8
+                1.0 / 4.0,  # 0.7
+                1.0 / 4.0,  # 0.6
+                1.0 / 4.0,  # 0.5
+                1.0 / 4.0,  # 0.4
+                1.0 / 4.0,  # 0.3
+                1.0 / 4.0,  # 0.2
+                1.0 / 4.0,  # 0.1
+                1.0 / 4.0,  # 0.0
+            ]
+        )
+
+        assert np.array_equal(p, prec)
+        assert np.array_equal(r, reca)
+        assert np.allclose(s, np.linspace(0.8, 0.0, 9))
+
+        #
+        # Test again for a different subset.
+        #
+        p, r, s, a = cb.pr_curve_pro(pro_iz_subset=[2], n_steps=10)
+
+        prec = np.array(
+            [
+                1.0 / 2.0,  # 0.8
+                2.0 / 4.0,  # 0.7
+                2.0 / 5.0,  # 0.6
+                3.0 / 6.0,  # 0.5
+                4.0 / 7.0,  # 0.4
+                5.0 / 8.0,  # 0.3
+                5.0 / 8.0,  # 0.2
+                5.0 / 8.0,  # 0.1
+                5.0 / 8.0,  # 0.0
+            ]
+        )
+        reca = np.array(
+            [
+                1.0 / 8.0,  # 0.8
+                2.0 / 8.0,  # 0.7
+                2.0 / 8.0,  # 0.6
+                3.0 / 8.0,  # 0.5
+                4.0 / 8.0,  # 0.4
+                5.0 / 8.0,  # 0.3
+                5.0 / 8.0,  # 0.2
+                5.0 / 8.0,  # 0.1
+                5.0 / 8.0,  # 0.0
             ]
         )
 

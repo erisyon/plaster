@@ -210,11 +210,13 @@ class CallBag:
         return n_calls, avg_scores
 
     def true_peps__pros(self):
+        self.df["Order"] = np.arange(len(self.df))
         return (
-            self.df[["true_pep_iz"]]
+            self.df[["Order","true_pep_iz"]]
             .rename(columns=dict(true_pep_iz="pep_i"))
             .set_index("pep_i")
             .join(self._prep_result.pros__peps().set_index("pep_i"), how="left")
+            .sort_values("Order")
             .reset_index()
         )
 
@@ -229,11 +231,13 @@ class CallBag:
         )
 
     def pred_peps__pros(self):
+        self.df["Order"] = np.arange(len(self.df))
         return (
-            self.df[["pred_pep_iz"]]
+            self.df[["Order","pred_pep_iz"]]
             .rename(columns=dict(pred_pep_iz="pep_i"))
             .set_index("pep_i")
             .join(self._prep_result.pros__peps().set_index("pep_i"), how="left")
+            .sort_values("Order")
             .reset_index()
         )
 
@@ -340,14 +344,13 @@ class CallBag:
         if pro_iz_subset is None:
             if len(true) > 0 and len(pred) > 0:
                 pro_iz_subset = np.unique(
-                    #FIXME: this should 
                     np.concatenate((np.array(true),np.array(pred)))
                 )
             elif len(pred) > 0:
                 pro_iz_subset = np.unique(np.array(true))
             else:
                 pro_iz_subset = np.array([])
-
+        
         # MASK calls in the subset
         true_in_subset_mask = np.isin(true, pro_iz_subset)
         pred_in_subset_mask = np.isin(pred, pro_iz_subset)
@@ -381,6 +384,7 @@ class CallBag:
         true = true[sorted_iz]
         pred = pred[sorted_iz]
         scores = scores[sorted_iz]
+
         true_in_subset_mask = true_in_subset_mask[sorted_iz]
         pred_in_subset_mask = pred_in_subset_mask[sorted_iz]
 
