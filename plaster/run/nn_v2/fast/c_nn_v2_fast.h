@@ -25,6 +25,7 @@ typedef struct {
     Size n_rows_per_block;
     pthread_mutex_t work_order_lock;
     pthread_mutex_t flann_index_lock;
+    pthread_mutex_t pyfunction_lock;
     ProgressFn progress_fn;
     CheckKeyboardInterruptFn check_keyboard_interrupt_fn;
 
