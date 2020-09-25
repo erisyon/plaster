@@ -379,11 +379,11 @@ def zest_pr_curve_pro_no_tied_scores():
     # pep 1 is predicted correctly 1/4, #2 is 1/2, #3 is 3/4
     # we have mispredictions of #2 and #3 always be to #1, to avoid
     # the unrealistic case of getting the peptide wrong but getting
-    # the protein right anyway, which in reality is expected to be rare 
+    # the protein right anyway, which in reality is expected to be rare
     true_pep_iz = np.array([1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3])
-    #true pro iz will be [1,1,1,1,2,2,2,2,2,2,2,2]
+    # true pro iz will be [1,1,1,1,2,2,2,2,2,2,2,2]
     pred_pep_iz = np.array([1, 2, 2, 2, 2, 2, 1, 1, 3, 3, 3, 1])
-    #pred pro iz will be [1,2,2,2,2,2,1,1,2,2,2,1]
+    # pred pro iz will be [1,2,2,2,2,2,1,1,2,2,2,1]
     scores = np.array(
         [0.8, 0.9, 0.7, 0.6, 0.85, 0.53, 0.54, 0.55, 0.75, 0.4, 0.3, 0.35]
     )

@@ -212,7 +212,7 @@ class CallBag:
     def true_peps__pros(self):
         self.df["order"] = np.arange(len(self.df))
         return (
-            self.df[["order","true_pep_iz"]]
+            self.df[["order", "true_pep_iz"]]
             .rename(columns=dict(true_pep_iz="pep_i"))
             .set_index("pep_i")
             .join(self._prep_result.pros__peps().set_index("pep_i"), how="left")
@@ -233,7 +233,7 @@ class CallBag:
     def pred_peps__pros(self):
         self.df["order"] = np.arange(len(self.df))
         return (
-            self.df[["order","pred_pep_iz"]]
+            self.df[["order", "pred_pep_iz"]]
             .rename(columns=dict(pred_pep_iz="pep_i"))
             .set_index("pep_i")
             .join(self._prep_result.pros__peps().set_index("pep_i"), how="left")
@@ -286,7 +286,6 @@ class CallBag:
         zero_padded_dx = np.concatenate(([0], x))
         return (np.diff(zero_padded_dx) * y).sum()
 
-
     def pr_curve_pep(self, pep_iz_subset=None, n_steps=50):
         """
         See: https://docs.google.com/document/d/1MW92KNTaNtuL1bR_p0U1FwfjaiomHD3fRldiSVF74pY/edit#bookmark=id.4nqatzscuyw7
@@ -316,15 +315,16 @@ class CallBag:
         true_in_subset_mask = np.isin(true, pep_iz_subset)
         pred_in_subset_mask = np.isin(pred, pep_iz_subset)
 
-        return self.pr_curve_either('pep', \
-                                true, \
-                                pred, \
-                                scores, \
-                                true_in_subset_mask, \
-                                pred_in_subset_mask, \
-                                level_iz_subset=pep_iz_subset, \
-                                n_steps=n_steps)
-
+        return self.pr_curve_either(
+            "pep",
+            true,
+            pred,
+            scores,
+            true_in_subset_mask,
+            pred_in_subset_mask,
+            level_iz_subset=pep_iz_subset,
+            n_steps=n_steps,
+        )
 
     def pr_curve_pro(self, pro_iz_subset=None, n_steps=50):
         """
@@ -344,28 +344,39 @@ class CallBag:
         if pro_iz_subset is None:
             if len(true) > 0 and len(pred) > 0:
                 pro_iz_subset = np.unique(
-                    np.concatenate((np.array(true),np.array(pred)))
+                    np.concatenate((np.array(true), np.array(pred)))
                 )
             elif len(pred) > 0:
                 pro_iz_subset = np.unique(np.array(true))
             else:
                 pro_iz_subset = np.array([])
-        
+
         # MASK calls in the subset
         true_in_subset_mask = np.isin(true, pro_iz_subset)
         pred_in_subset_mask = np.isin(pred, pro_iz_subset)
 
-        return self.pr_curve_either('pro', \
-                                true, \
-                                pred, \
-                                scores, \
-                                true_in_subset_mask, \
-                                pred_in_subset_mask, \
-                                level_iz_subset=pro_iz_subset, \
-                                n_steps=n_steps)
+        return self.pr_curve_either(
+            "pro",
+            true,
+            pred,
+            scores,
+            true_in_subset_mask,
+            pred_in_subset_mask,
+            level_iz_subset=pro_iz_subset,
+            n_steps=n_steps,
+        )
 
-
-    def pr_curve_either(self,level,true,pred,scores,true_in_subset_mask, pred_in_subset_mask, level_iz_subset, n_steps=50):
+    def pr_curve_either(
+        self,
+        level,
+        true,
+        pred,
+        scores,
+        true_in_subset_mask,
+        pred_in_subset_mask,
+        level_iz_subset,
+        n_steps=50,
+    ):
         # Throughout this function, "level" (e.g. level_iz_subset) refers to "peptide or protein" (or
         # potentially, in the future, PTM or whatever else we might make a PR curve of)
 
@@ -453,25 +464,30 @@ class CallBag:
 
         # EXTRACT training recalls from the subset of peps or pros.
         # This will leave NANs for all those that are not in the subset.
-        if self._sim_result is not None and level=='pep':
+        if self._sim_result is not None and level == "pep":
             filtered_level_recalls = np.full_like(
                 self._sim_result.train_pep_recalls, np.nan
             )
-            filtered_level_recalls[level_iz_subset] = self._sim_result.train_pep_recalls[
+            filtered_level_recalls[
                 level_iz_subset
-            ]
-        elif self._sim_result is not None and level=='pro':
+            ] = self._sim_result.train_pep_recalls[level_iz_subset]
+        elif self._sim_result is not None and level == "pro":
             pro_pep_df = self._prep_result.pros__peps()
             n_pro = pro_pep_df.pro_id.nunique()
             filtered_level_recalls = np.full((n_pro,), np.nan)
             filtered_level_recalls[level_iz_subset] = 0.0
             for protein_index in level_iz_subset:
-                for peptide_index in pro_pep_df.loc[pro_pep_df['pro_i'] == protein_index].pep_i:
-                    #NOTE: we are assuming here that the recall of the best performing peptide of a given
+                for peptide_index in pro_pep_df.loc[
+                    pro_pep_df["pro_i"] == protein_index
+                ].pep_i:
+                    # NOTE: we are assuming here that the recall of the best performing peptide of a given
                     #      protein is a good approximation of the protein as a whole.  Some initial literature
                     #      research indicates this is a decent starting approximation, but it may need to
                     #      be revisited in the future.
-                    filtered_level_recalls[protein_index] = max(filtered_level_recalls[protein_index],self._sim_result.train_pep_recalls[peptide_index])
+                    filtered_level_recalls[protein_index] = max(
+                        filtered_level_recalls[protein_index],
+                        self._sim_result.train_pep_recalls[peptide_index],
+                    )
         else:
             filtered_level_recalls = np.full((prsa.shape[0],), 1.0)
 
@@ -497,7 +513,6 @@ class CallBag:
             filtered_prsa[:, 2],  # Score thresholds
             filtered_prsa[:, 3],  # AUC
         )
-
 
     def pr_curve_by_pep(
         self, return_auc=False, pep_iz=None, force_compute=False, progress=None
