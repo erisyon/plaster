@@ -221,7 +221,7 @@ class ClassifyGenerator(BaseGenerator):
                     )
                     sim_v1_task.sim_v1.parameters.random_seed = self.random_seed
 
-                lnfit_task = self.lnfits()
+                lnfit_task = self.lnfits("v2")
 
                 e_block = self.erisyon_block(aa_list, protease, err_set)
 
