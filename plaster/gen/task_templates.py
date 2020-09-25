@@ -86,10 +86,12 @@ def sigproc_v2_calib(calibration_file, mode):
     )
 
 
-def lnfit():
+def lnfit(sigproc_version):
     return Munch(
         lnfit=Munch(
-            version="1.0", inputs=Munch(sigproc_dir="../sigproc_v1"), parameters=Munch()
+            version="1.0",
+            inputs=Munch(sigproc_dir=f"../sigproc_{sigproc_version}"),
+            parameters=Munch(),
         )
     )
 

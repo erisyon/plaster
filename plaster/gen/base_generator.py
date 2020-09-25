@@ -284,7 +284,7 @@ class BaseGenerator(Munch):
     #         tasks = Munch(**ims_import, **sigproc)
     #     return tasks
 
-    def lnfits(self):
+    def lnfits(self, sigproc_version):
         # It is common to have multiple lnfit tasks for a single run, so this fn returns a
         # block with potentially multiple lnfit tasks using unique task names when more
         # than one is present.
@@ -310,7 +310,7 @@ class BaseGenerator(Munch):
             for i, (params, thresh, name, photometry_only) in enumerate(
                 zip(self.lnfit_params, dye_thresholds, lnfit_names, photometries_only)
             ):
-                task = task_templates.lnfit()
+                task = task_templates.lnfit(sigproc_version=sigproc_version)
                 task.lnfit.parameters["lognormal_fitter_v2_params"] = params
                 task.lnfit.parameters["dye_on_threshold"] = thresh
                 task.lnfit.parameters["photometry_only"] = photometry_only.lower() in (

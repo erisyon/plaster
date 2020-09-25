@@ -44,7 +44,7 @@ class SigprocV1Generator(BaseGenerator):
             )
 
         for sigproc_i, sigproc_task in enumerate(sigproc_tasks):
-            lnfit_tasks = self.lnfits()
+            lnfit_tasks = self.lnfits(sigproc_version="v1")
 
             sigproc_source = ""
             for k, v in sigproc_task.items():
