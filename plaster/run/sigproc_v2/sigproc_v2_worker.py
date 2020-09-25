@@ -100,6 +100,7 @@ import cv2
 import numpy as np
 import pandas as pd
 from munch import Munch
+from plumbum import local
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.run.sigproc_v2 import psf
@@ -551,6 +552,11 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
         )
 
     elif sigproc_v2_params.mode == common.SIGPROC_V2_ILLUM_CALIB:
+        if not local.path(sigproc_v2_params.calibration_file).exists():
+            raise FileNotFoundError(
+                "SIGPROC_V2_ILLUM_CALIB requires an existing calibration file"
+            )
+
         calib = Calibration.load(sigproc_v2_params.calibration_file)
         calib, fg_means = _calibrate_illum(calib, ims_import_result)
 

@@ -5,6 +5,7 @@
 
 from plaster.tools.pipeline.pipeline import PipelineTask
 from plaster.run.sigproc_v1.sigproc_v1_result import SigprocV1Result
+from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
 from plaster.run.lnfit.lnfit_params import LNFitParams
 from plaster.run.lnfit.lnfit_worker import lnfit
 
@@ -13,7 +14,10 @@ class LNFitTask(PipelineTask):
     def start(self):
         lnfit_params = LNFitParams(**self.config.parameters)
 
-        sigproc_result = SigprocV1Result.load_from_folder(self.inputs.sigproc_dir)
+        try:
+            sigproc_result = SigprocV1Result.load_from_folder(self.inputs.sigproc_dir)
+        except FileNotFoundError:
+            sigproc_result = SigprocV2Result.load_from_folder(self.inputs.sigproc_dir)
 
         lnfit_result = lnfit(lnfit_params, sigproc_result)
 
