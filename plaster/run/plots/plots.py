@@ -860,13 +860,13 @@ def _raw_peak_i_zoom(
 
 def wizard_raw_images(
     run,
-    max_bright=15_000,
+    max_bright=1_000,
     show_circles=True,
     peak_i_square=True,
     square_radius=4,
     cycle_stride=1,
     horizontal_layout=False,
-    result_block="sigproc_v1",
+    result_block="sigproc_v2",
 ):
     """
     Wizard to explore raw images
@@ -885,8 +885,10 @@ def wizard_raw_images(
     res = run[result_block]
     df = res.fields__n_peaks__peaks()
 
-    def show_raw(peak_i, field_i, max_bright, show_circles):
+    def show_raw(peak_i, field_i, channel_i, cycle_i, max_bright, show_circles):
         field_i = int(field_i) if field_i != "" else None
+        channel_i = int(channel_i)
+        cycle_i=int(cycle_i)
         if field_i is None:
             peak_i = int(peak_i)
             peak_records = df[df.peak_i == peak_i]
@@ -925,110 +927,86 @@ def wizard_raw_images(
         cspan = (0, max_bright)
         circle = cspan[1] * imops.generate_donut_mask(4, 3)
         square = cspan[1] * imops.generate_square_mask(square_radius)
+
         z = ZPlots()
-        for input_ch in range(res.n_channels):
-            display(HTML(f"<h3>Channel {input_ch}</h3>"))
-            sig_for_channel = all_sig[:, input_ch, :]
-            sig_top = np.median(sig_for_channel) + np.percentile(sig_for_channel, 99.9)
+        sig_for_channel = all_sig[:, channel_i, :]
+        sig_top = np.median(sig_for_channel) + np.percentile(sig_for_channel, 99.9)
 
-            if peak_i is not None:
-                rad = sig_for_channel[peak_i]
-                rad = rad.reshape(1, rad.shape[0])
-                print(
-                    "\n".join(
-                        [
-                            f"    cycle {cycle:2d}: {r:6.0f}"
-                            for cycle, r in enumerate(rad[0])
-                        ]
-                    )
+        if peak_i is not None:
+            rad = sig_for_channel[peak_i]
+            rad = rad.reshape(1, rad.shape[0])
+            print(
+                "\n".join(
+                    [
+                        f"    cycle {cycle:2d}: {r:6.0f}"
+                        for cycle, r in enumerate(rad[0])
+                    ]
                 )
-                z.scat(x=range(len(rad[0])), y=rad[0])
-                z.im(rad, _cspan=(0, sig_top), f_plot_height=50, _notools=True)
+            )
+            z.scat(x=range(len(rad[0])), y=rad[0])
+            z.im(rad, _cspan=(0, sig_top), f_plot_height=50, _notools=True)
 
-                # This is inefficient because the function we will call
-                # does the same image load, but I'd prefer to not repeat
-                # the code here and want to be able to call this fn
-                # from notebooks:
-                _raw_peak_i_zoom(
-                    field_i,
-                    res,
-                    df,
-                    peak_i,
-                    input_ch,
-                    zoom=3.0,
-                    square_radius=square_radius,
-                    x_pad=1,
-                    cspan=cspan,
-                    separate=False,
-                    show_circles=show_circles,
-                )
+            # This is inefficient because the function we will call
+            # does the same image load, but I'd prefer to not repeat
+            # the code here and want to be able to call this fn
+            # from notebooks:
+            _raw_peak_i_zoom(
+                field_i,
+                res,
+                df,
+                peak_i,
+                channel_i,
+                zoom=3.0,
+                square_radius=square_radius,
+                x_pad=1,
+                cspan=cspan,
+                separate=False,
+                show_circles=show_circles,
+            )
 
-        # Note that raw_ims has ALL channels but the sigprocv2 might only
-        # have operated on some of them
-        raw_ims = res.raw_chcy_ims(field_i)
+        im = res.aln_ims[field_i, channel_i, cycle_i].copy()
 
-        n_input_channels = res.n_input_channels
+        if peak_i is not None:
+            cy_rec = peak_records[peak_records.cycle_i == cycle_i].iloc[0]
+            im_marker = square if peak_i_square else circle
+            imops.accum_inplace(
+                im,
+                im_marker,
+                loc=XY(cy_rec.raw_x, cy_rec.raw_y),
+                center=True,
+            )
 
-        cycle_iz = list(range(0, res.n_cycles, cycle_stride))
-        if res.n_cycles - 1 not in cycle_iz:
-            cycle_iz += [res.n_cycles - 1]
+        elif show_circles:
+            peak_records = df[
+                (df.field_i == field_i) & (df.cycle_i == cycle_i)
+            ]
 
-        input_channel_iz = range(n_input_channels)
-
-        row_iz = cycle_iz if not horizontal_layout else input_channel_iz
-        col_iz = input_channel_iz if not horizontal_layout else cycle_iz
-
-        with z(_cols=len(col_iz), _cspan=cspan):
-
-            for row_i in row_iz:
-                for col_i in col_iz:
-
-                    cycle_i = row_i if not horizontal_layout else col_i
-                    input_ch = col_i if not horizontal_layout else row_i
-
-                    output_ch = res.params.input_channel_to_output_channel(input_ch)
-                    im_with_marker = np.copy(raw_ims[input_ch, cycle_i])
-
-                    if peak_i is not None:
-                        cy_rec = peak_records[peak_records.cycle_i == cycle_i].iloc[0]
-                        im_marker = square if peak_i_square else circle
-                        imops.accum_inplace(
-                            im_with_marker,
-                            im_marker,
-                            loc=XY(cy_rec.raw_x, cy_rec.raw_y),
-                            center=True,
-                        )
-                    elif show_circles and output_ch is not None:
-                        # Note that peaks are peaks in all channels - it's tools to have a peptide
-                        # with multiple channel/labels - but it does not mean you'll see signal
-                        # in a given channel.
-                        peak_records = df[
-                            (df.field_i == field_i) & (df.cycle_i == cycle_i)
-                        ]
-                        # In the case of a field with no peaks, n_peaks may be NaN, so check that we have
-                        # some peaks before passing NaNs to imops.
-                        if peak_records.n_peaks.iloc[0] > 0:
-                            for i, peak in peak_records.iterrows():
-                                imops.accum_inplace(
-                                    im_with_marker,
-                                    circle,
-                                    loc=XY(peak.raw_x, peak.raw_y),
-                                    center=True,
-                                )
-
-                    z.im(
-                        im_with_marker,
-                        f_title=f"CH{input_ch}  cycle {cycle_i}  field {field_i}",
-                        _full=True,
-                        _noaxes=True,
-                        _cspan=(0, float(max_bright)),
+            # In the case of a field with no peaks, n_peaks may be NaN, so check that we have
+            # some peaks before passing NaNs to imops.
+            if peak_records.n_peaks.iloc[0] > 0:
+                for i, peak in peak_records.iterrows():
+                    imops.accum_inplace(
+                        im,
+                        circle,
+                        loc=XY(peak.raw_x, peak.raw_y),
+                        center=True,
                     )
+
+        z.im(
+            im,
+            f_title=f"ch_i={channel_i}  cy_i={cycle_i}  fl_i={field_i}",
+            _full=True,
+            _noaxes=True,
+            _cspan=(0, float(max_bright)),
+        )
         displays.fix_auto_scroll()
 
     interact_manual(
         show_raw,
         peak_i="1",
         field_i="",
+        channel_i="0",
+        cycle_i="0",
         max_bright=max_bright,
         show_circles=show_circles,
     )
@@ -1039,7 +1017,7 @@ def wizard_scat_df(
     default_x="field_i",
     default_y="signal",
     channel_i=None,
-    result_block="sigproc_v1",
+    result_block="sigproc_v2",
 ):
     """
     Wizard to explore sigprocv2 data on any pivot.
@@ -1083,7 +1061,7 @@ def wizard_scat_df(
 def wizard_xy_df(
     run,
     channel_i=None,
-    result_block="sigproc_v1",
+    result_block="sigproc_v2",
     ignore_fields=None,
     red_bottom=False,
     **kwargs,

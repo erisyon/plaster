@@ -431,6 +431,7 @@ def sig_from_df_filter(
     max_intensity_any_cycle=None,
     min_intensity_per_cycle=None,
     max_intensity_per_cycle=None,
+    radmat_field="signal",
     **kwargs,
 ):
     """
@@ -459,7 +460,7 @@ def sig_from_df_filter(
 
     radmat = (
         pd.pivot_table(
-            _df, values="signal", index=["field_i", "peak_i"], columns=["cycle_i"]
+            _df, values=radmat_field, index=["field_i", "peak_i"], columns=["cycle_i"]
         )
         .reset_index()
         .rename_axis(None, axis=1)
