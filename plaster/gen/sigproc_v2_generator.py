@@ -3,6 +3,7 @@ from plaster.gen.base_generator import BaseGenerator
 from plaster.gen import task_templates
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
+from plaster.tools.log.log import debug
 from plaster.tools.calibration.calibration import Calibration
 from plumbum import local
 
@@ -33,7 +34,12 @@ class SigprocV2Generator(BaseGenerator):
             self.sigproc_source[0], is_movie=False
         )
 
-        sigproc_v2_task = task_templates.sigproc_v2_analyze(self.calibration_file)
+        calib_src_path = local.path(self.calibration_file)
+        calib_dst_path = local.path(self.local_sources_tmp_folder) / calib_src_path.name
+        calib_src_path.copy(calib_dst_path)
+        sigproc_v2_task = task_templates.sigproc_v2_analyze(
+            self.gen_sources_folder / calib_src_path.name
+        )
 
         run = Munch(
             run_name=f"sigproc_v2", **ims_import_task, **sigproc_v2_task, **lnfit_tasks

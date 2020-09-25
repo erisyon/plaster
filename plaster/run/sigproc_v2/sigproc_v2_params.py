@@ -2,8 +2,9 @@ import re
 
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.log.log import debug
-from plaster.tools.schema.schema import Params
+from plaster.tools.schema.schema import Params, SchemaValidationFailed
 from plaster.tools.schema.schema import Schema as s
+from plaster.tools.log import log
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.tools.utils import utils
 from plumbum import local
@@ -51,13 +52,21 @@ class SigprocV2Params(Params):
         self.schema.validate(self, context=self.__class__.__name__)
 
         if self.mode == common.SIGPROC_V2_PSF_CALIB:
-            assert not local.path(
-                self.calibration_file
-            ).exists(), f"Calibration file '{self.calibration_file}' already exists when creating a SIGPROC_V2_PSF_CALIB. Will not overwrite."
+            if local.path(self.calibration_file).exists():
+                if not log.confirm_yn(
+                    f"\nCalibration file '{self.calibration_file}' already exists "
+                    "when creating a SIGPROC_V2_PSF_CALIB. Overwrite?",
+                    "y",
+                ):
+                    raise SchemaValidationFailed(
+                        f"Not overwriting calibration file '{self.calibration_file}'"
+                    )
 
         else:
             if self.calibration_file != "":
                 self.calibration = Calibration.load(self.calibration_file)
+
+        return True
 
 
 '''

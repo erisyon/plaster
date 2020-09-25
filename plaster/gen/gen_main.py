@@ -481,12 +481,6 @@ class GenApp(cli.Application, GenFuncs):
         survey=SurveyGenerator,
     )
 
-    # files spec'd to gen will be copied here for this job, and moved to
-    # the job folder if the generator succeeds.
-    job_uuid = uuid.uuid4().hex
-    local_sources_tmp_folder = local.path(tempfile.gettempdir()) / job_uuid
-    local_sources_tmp_folder.mkdir()
-
     def _print(self, line):
         """Mock-point"""
         print(line)
@@ -598,6 +592,11 @@ class GenApp(cli.Application, GenFuncs):
         only work on a functional instance (ie you can not raise the Help
         exception during construction).
         """
+        # files spec'd to gen will be copied here for this job, and moved to
+        # the job folder if the generator succeeds.
+        cls.job_uuid = uuid.uuid4().hex
+        cls.local_sources_tmp_folder = local.path(tempfile.gettempdir()) / cls.job_uuid
+        cls.local_sources_tmp_folder.mkdir()
         cls.construct_fail = False
 
         if not argv or len(argv) < 2 or argv[1].startswith("--"):
@@ -735,8 +734,11 @@ class GenApp(cli.Application, GenFuncs):
 
         # Intentionally run the generate before the job folder is written
         # so that if generate fails it doesn't leave around a partial job.
+        gen_sources_folder = job_folder / "_gen_sources"
         try:
             generator_args["force_run_name"] = self.run_name
+            generator_args["local_sources_tmp_folder"] = self.local_sources_tmp_folder
+            generator_args["gen_sources_folder"] = gen_sources_folder
             generator = self.generator_klass(**generator_args)
             run_descs = generator.generate()
         except (SchemaValidationFailed, ValidationError) as e:
@@ -746,8 +748,8 @@ class GenApp(cli.Application, GenFuncs):
 
         # WRITE the job & copy any file sources
         self._write_runs(job_folder, run_descs, props=self.prop)
-        (job_folder / "_gen_sources").delete()
-        self.local_sources_tmp_folder.move(job_folder / "_gen_sources")
+        gen_sources_folder.delete()
+        self.local_sources_tmp_folder.move(gen_sources_folder)
 
         if not self.skip_report:
             report = generator.report_assemble()
