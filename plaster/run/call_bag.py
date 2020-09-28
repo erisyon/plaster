@@ -1,12 +1,14 @@
-from munch import Munch
+import traceback
+
 import numpy as np
 import pandas as pd
-from plaster.tools.schema import check
-from plaster.tools.utils.data import ConfMat
-from plaster.tools.utils import utils
+from munch import Munch
 from plaster.tools.aaseq.aaseq import aa_str_to_list
+from plaster.tools.log.log import debug, exception, info, prof
+from plaster.tools.schema import check
+from plaster.tools.utils import utils
+from plaster.tools.utils.data import ConfMat
 from plaster.tools.zap import zap
-from plaster.tools.log.log import info, debug, prof
 
 
 def _do_pep_pr_curve(bag, pep_i):
@@ -598,6 +600,10 @@ class CallBag:
         inherently parallel in that PR is computed for all pep_iz at once via the
         conf_mat routines precision() and recall() -- so not sure if it is worth
         trying to parallelize further (on n_steps?)
+
+        DHW 9/28/2020 - I profiled some of the calls in the n_steps loops, and in general, on my machine,
+                        self.conf_mat_at_score_threshold and conf_mat.scale_by_abundance are each on the order of 1 second,
+                        and conf_mat.precision()[pep_iz], conf_mat.recall()[pep_iz], and calculating auc are each on the order of 100m
         """
 
         # TODO: write some tests that assert these two fns return the same
@@ -640,6 +646,8 @@ class CallBag:
         # score_thresh_column = 2
         # auc_column = 3
 
+        # This loop can take 2-3 minutes
+        # Not necessarily advantageous to parallize this as we're probably already parallelized at the run level
         for prsa_i, score_thresh in enumerate(np.linspace(1 - step_size, 0, n_steps)):
             if progress:
                 progress(prsa_i, n_steps, retry=False)
@@ -647,6 +655,7 @@ class CallBag:
             # doing all peps - creates smaller confusion matrix.
             conf_mat = self.conf_mat_at_score_threshold(score_thresh)
             assert pep_abundance is not None
+
             conf_mat = conf_mat.scale_by_abundance(pep_abundance)
             p = conf_mat.precision()[pep_iz]
             r = conf_mat.recall()[pep_iz]
@@ -692,6 +701,7 @@ class CallBag:
             ],
             columns=["pep_i", "prec", "recall", "score"],
         )
+
         if return_auc:
             a_df = pd.DataFrame(
                 [
