@@ -540,7 +540,7 @@ def plot_pr_aggregate(run, pep_iz=None, classifier=None, **kwargs):
         and instead rely on with z.Opts(_merge=True) when the need to be overlaid.
     """
     cb = run.test_call_bag(classifier=classifier)
-    prsa = cb.pr_curve(pep_iz_subset=pep_iz)
+    prsa = cb.pr_curve_pep(pep_iz_subset=pep_iz)
     utils.set_defaults(
         kwargs, f_title=f"{cb.classifier_name.upper()} P/R over all peptides"
     )
@@ -1911,7 +1911,7 @@ def _get_prs_for_ptm_positions(run, positions=None):
             # end debug
             ####################################################
 
-        p, r, s, _ = df.pr_curve(
+        p, r, s, _ = df.pr_curve_pep(
             true_col_name=true_col_name,
             pred_col_name=pred_col_name,
             scores_col_name=scores_col_name,
