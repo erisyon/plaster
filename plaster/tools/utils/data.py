@@ -150,7 +150,7 @@ class ConfMat(np.ndarray):
 
     def scale_by_abundance(self, abundance):
         """
-        DHW 9/28/2020 - I profiled the check.array_t and the assert and they each appear to generally be <1ms
+        DHW 9/28/2020 - I profiled the check.array_t and the assert and in practice the impact appears minimal (<1ms in my test case)
         """
         check.array_t(abundance, shape=(self.shape[1],))
         assert np.all((abundance >= 1.0) | (abundance == 0.0))
