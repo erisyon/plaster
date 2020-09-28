@@ -514,6 +514,46 @@ class CallBag:
             filtered_prsa[:, 3],  # AUC
         )
 
+    def pr_curve_sklearn(self, pep_i):
+        """
+        See: https://docs.google.com/document/d/1MW92KNTaNtuL1bR_p0U1FwfjaiomHD3fRldiSVF74pY/edit#bookmark=id.4nqatzscuyw7
+        This is "method (2)" in which we've kept all scores and will use sklearn routines to generate a
+        PR-curve based on the true class and the scores assigned to the true class.
+        We may need to do some sampling but for now this includes ALL reads.
+        """
+
+        from sklearn.metrics import precision_recall_curve  # defer import
+
+        prsa = (None, None, None, None)
+
+        try:
+            true_binarized = self.true_pep_iz == pep_i
+
+            # The true_pep_iz are numbered for ALL peptide classes, but the score matrix only
+            # includes peptide classes that are observable, so we a need a lookup that takes
+            # into account the 'collapsed' nature of this scoring matrix.
+            true_pep_iz = sorted(self.df.true_pep_iz.unique())
+            pep_i_to_score_i = [-1] * (max(true_pep_iz) + 1)
+            for n, p_i in enumerate(true_pep_iz):
+                pep_i_to_score_i[p_i] = n
+
+            score_i = pep_i_to_score_i[pep_i]
+            if score_i == -1:
+                return prsa  # Nones, for unobservable class
+
+            true_proba_scores = self._all_class_scores[:, score_i]
+            p, r, s = precision_recall_curve(true_binarized, true_proba_scores)
+            s = np.append(s, [1.0])  # SKLearn doesn't put a threshold on the last elem
+
+            # reverse what sklearn gives us to go from highscore->lowscore and highprec->lowprec
+            prsa = (p[::-1], r[::-1], s[::-1], None)
+        except:
+            # this fn is optional/experimental and relies on all_class_scores which is not
+            # required and may not be available.
+            pass
+
+        return prsa
+
     def pr_curve_by_pep(
         self, return_auc=False, pep_iz=None, force_compute=False, progress=None
     ):
