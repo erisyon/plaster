@@ -353,6 +353,7 @@ def plot_peptide_observability_vs_precision(
     """
     bag = run.test_call_bag(classifier=classifier)
     pr_by_pep_all = bag.pr_curve_by_pep()
+    pr_by_pep_all = bag.pr_curve_by_pep()
 
     pep_iz_all = list(pr_by_pep_all.pep_i.unique())
     pep_iz_poi = pep_iz_in_report(run, with_ptms=False)
