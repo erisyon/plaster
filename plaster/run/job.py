@@ -82,11 +82,7 @@ class JobResult:
                 if not retry:
                     progress.update()
 
-            df_list = zap.work_orders(
-                work_orders,
-                _progress=progress_callback,
-                _cpu_limit=-4,  # TODO: what should this value be?
-            )
+            df_list = zap.work_orders(work_orders, _progress=progress_callback,)
 
             progress.close()
         else:

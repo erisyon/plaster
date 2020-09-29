@@ -118,7 +118,6 @@ class ConfMat(np.ndarray):
     def from_true_pred(cls, true, pred, true_dim, pred_dim):
         assert true.ndim == 1 and pred.ndim == 1
         # This assert can take upwards of 50ms, and given that this fn is called as an inner loop, we can save some time if we omit it
-        # @ZBS, is it safe to remove this assert?
         # assert np.all((0 <= true) & (true < true_dim) & (0 <= pred) & (pred < pred_dim))
         index = (pred * true_dim + true).astype(int)
         return cls(
