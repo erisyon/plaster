@@ -2,11 +2,11 @@
 Common data tools such as clustering, sub-sampling, etc.
 """
 import numpy as np
-from scipy.spatial.distance import pdist, cdist, squareform
-from scipy.cluster.hierarchy import linkage, to_tree, leaves_list
-from plaster.tools.log.log import debug
-from plaster.tools.utils import utils
+from plaster.tools.log.log import debug, prof
 from plaster.tools.schema import check
+from plaster.tools.utils import utils
+from scipy.cluster.hierarchy import leaves_list, linkage, to_tree
+from scipy.spatial.distance import cdist, pdist, squareform
 
 
 def cluster(data, n_subsample=None, **kwargs):
@@ -117,7 +117,8 @@ class ConfMat(np.ndarray):
     @classmethod
     def from_true_pred(cls, true, pred, true_dim, pred_dim):
         assert true.ndim == 1 and pred.ndim == 1
-        assert np.all((0 <= true) & (true < true_dim) & (0 <= pred) & (pred < pred_dim))
+        # This assert can take upwards of 50ms, and given that this fn is called as an inner loop, we can save some time if we omit it
+        # assert np.all((0 <= true) & (true < true_dim) & (0 <= pred) & (pred < pred_dim))
         index = (pred * true_dim + true).astype(int)
         return cls(
             np.reshape(
@@ -147,6 +148,9 @@ class ConfMat(np.ndarray):
         return np.sum(self[1:, 1:])
 
     def scale_by_abundance(self, abundance):
+        """
+        DHW 9/28/2020 - I profiled the check.array_t and the assert and in practice the impact appears minimal (<1ms in my test case)
+        """
         check.array_t(abundance, shape=(self.shape[1],))
         assert np.all((abundance >= 1.0) | (abundance == 0.0))
         return self * abundance.astype(int)
