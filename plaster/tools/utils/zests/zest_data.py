@@ -1,8 +1,8 @@
 import numpy as np
-from zest import zest
-from plaster.tools.utils.data import ConfMat, cluster, subsample, arg_subsample
 from plaster.tools.log.log import debug
 from plaster.tools.schema import check
+from plaster.tools.utils.data import ConfMat, arg_subsample, cluster, subsample
+from zest import zest
 
 
 def zest_data():
@@ -57,9 +57,10 @@ def zest_ConfMat():
         cm = ConfMat.from_true_pred(true, pred, true_dim=4, pred_dim=4)
         assert np.all(cm == [[0, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
 
-        def it_asserts_that_no_elements_are_outside_of_dim():
-            with zest.raises(AssertionError):
-                ConfMat.from_true_pred(true, pred, true_dim=2, pred_dim=2)
+        # 9/28/2020 DHW - I removed the assert in from_true_pred for performance reasons
+        # def it_asserts_that_no_elements_are_outside_of_dim():
+        #     with zest.raises(AssertionError):
+        #         ConfMat.from_true_pred(true, pred, true_dim=2, pred_dim=2)
 
         zest()
 

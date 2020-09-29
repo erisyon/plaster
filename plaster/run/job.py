@@ -9,12 +9,14 @@ This module organizes all-run results.
 """
 
 import pandas as pd
-from plumbum import local
 from plaster.run.run import RunResult
 from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
-from plaster.tools.schema import check
 from plaster.tools.assets import assets
 from plaster.tools.log.log import debug
+from plaster.tools.schema import check
+from plaster.tools.zap import zap
+from plumbum import local
+from tqdm.auto import tqdm
 
 
 class JobResult:
@@ -49,7 +51,7 @@ class JobResult:
     def __getitem__(self, item):
         return list(self._run_results.values())[item]
 
-    def all_dfs(self, fn):
+    def all_dfs(self, fn, parallel=False):
         """
         Run fn on every run, assert that each returns af DataFrame
         and then pd.concat all the results into one adding a run_i
@@ -59,12 +61,37 @@ class JobResult:
             df = job.all_dfs(lambda run: run.prep.pros())
         """
         df_list = []
-        for run_i, run in enumerate(self._run_results.values()):
-            res_df = fn(run)
-            assert isinstance(res_df, pd.DataFrame)
-            res_df["run_i"] = run_i
-            res_df["run_name"] = run.manifest.run_name
-            df_list += [res_df]
+        if parallel:
+
+            def wrap_fn(run, run_i):
+                res_df = fn(run)
+                assert isinstance(res_df, pd.DataFrame)
+                res_df["run_i"] = run_i
+                res_df["run_name"] = run.manifest.run_name
+                return res_df
+
+            work_orders = [
+                {"fn": wrap_fn, "args": [run, run_i]}
+                for run_i, run in enumerate(self._run_results.values())
+            ]
+
+            # TODO: it would be nice to integrate this progress stuff into zap as an optional argument
+            progress = tqdm(total=len(work_orders))
+
+            def progress_callback(i, j, retry):
+                if not retry:
+                    progress.update()
+
+            df_list = zap.work_orders(work_orders, _progress=progress_callback,)
+
+            progress.close()
+        else:
+            for run_i, run in enumerate(self._run_results.values()):
+                res_df = fn(run)
+                assert isinstance(res_df, pd.DataFrame)
+                res_df["run_i"] = run_i
+                res_df["run_name"] = run.manifest.run_name
+                df_list += [res_df]
         return pd.concat(df_list).reset_index(drop=True)
 
     def all_lists(self, fn):
@@ -155,7 +182,8 @@ class JobResult:
                 force_compute_prs=force_compute_prs,
                 pr_with_abundance=pr_with_abundance,
                 classifier=classifier,
-            )
+            ),
+            parallel=True,
         )
 
     @staticmethod
