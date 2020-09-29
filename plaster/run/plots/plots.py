@@ -513,13 +513,15 @@ def _plot_pr_curve(prsa, **kwargs):
     )
 
 
-def plot_pr_aggregate(run, pep_iz=None, classifier=None, **kwargs):
+def plot_pr_aggregate(run, pro_iz=None, pep_iz=None, classifier=None, **kwargs):
     """
     Show P/R for all some set aggregate set of peptides
     (ie. renders a single line for the set. See also: plot_pr_breakout)
 
     Arguments:
         pep_iz: If None computes over all peps, otherwise the subset
+        pro_iz: Same as for pep_iz.  Which one is present dictates if we are plotting
+                    over peptides or proteins
         classifier: None to use any available preferred classifier, or one of the
                     supported classifiers in RunResult::test_call_bag(), e.g. 'rf', 'nn'
         kwargs: Passed to the zplot
@@ -541,9 +543,17 @@ def plot_pr_aggregate(run, pep_iz=None, classifier=None, **kwargs):
         and instead rely on with z.Opts(_merge=True) when the need to be overlaid.
     """
     cb = run.test_call_bag(classifier=classifier)
-    prsa = cb.pr_curve_pep(pep_iz_subset=pep_iz)
+    if pro_iz is not None:
+        prsa = cb.pr_curve_pro(pro_iz_subset=pro_iz)
+        title_end = "proteins of interest"
+    else:
+        prsa = cb.pr_curve_pep(pep_iz_subset=pep_iz)
+        if pep_iz is not None:
+            title_end = "peptides of interest"
+        else:
+            title_end = "peptides"
     utils.set_defaults(
-        kwargs, f_title=f"{cb.classifier_name.upper()} P/R over all peptides"
+        kwargs, f_title=f"{cb.classifier_name.upper()} P/R over all {title_end}"
     )
     _plot_pr_curve(prsa, **kwargs)
 
@@ -889,7 +899,7 @@ def wizard_raw_images(
     def show_raw(peak_i, field_i, channel_i, cycle_i, max_bright, show_circles):
         field_i = int(field_i) if field_i != "" else None
         channel_i = int(channel_i)
-        cycle_i=int(cycle_i)
+        cycle_i = int(cycle_i)
         if field_i is None:
             peak_i = int(peak_i)
             peak_records = df[df.peak_i == peak_i]
@@ -971,26 +981,18 @@ def wizard_raw_images(
             cy_rec = peak_records[peak_records.cycle_i == cycle_i].iloc[0]
             im_marker = square if peak_i_square else circle
             imops.accum_inplace(
-                im,
-                im_marker,
-                loc=XY(cy_rec.raw_x, cy_rec.raw_y),
-                center=True,
+                im, im_marker, loc=XY(cy_rec.raw_x, cy_rec.raw_y), center=True,
             )
 
         elif show_circles:
-            peak_records = df[
-                (df.field_i == field_i) & (df.cycle_i == cycle_i)
-            ]
+            peak_records = df[(df.field_i == field_i) & (df.cycle_i == cycle_i)]
 
             # In the case of a field with no peaks, n_peaks may be NaN, so check that we have
             # some peaks before passing NaNs to imops.
             if peak_records.n_peaks.iloc[0] > 0:
                 for i, peak in peak_records.iterrows():
                     imops.accum_inplace(
-                        im,
-                        circle,
-                        loc=XY(peak.raw_x, peak.raw_y),
-                        center=True,
+                        im, circle, loc=XY(peak.raw_x, peak.raw_y), center=True,
                     )
 
         z.im(
