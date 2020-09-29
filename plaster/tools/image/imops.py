@@ -139,8 +139,18 @@ def extract_with_mask(im, mask, loc, center=False):
     Extracts the values from im at loc using the mask.
     Returns zero where the mask was False
     """
-    a = im[ROI(loc, mask.shape, center=center)]
-    return np.where(mask, a, 0.0)
+    try:
+        a = im[ROI(loc, mask.shape, center=center)]
+        return np.where(mask, a, 0.0)
+    except ValueError:
+        debug(
+            loc,
+            im.shape,
+            mask.shape,
+            center,
+            a.shape,
+            ROI(loc, mask.shape, center=center),
+        )
 
 
 def shift(src, loc=XY(0, 0)):

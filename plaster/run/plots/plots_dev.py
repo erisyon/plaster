@@ -249,12 +249,7 @@ def circle_locs(im, locs, inner_radius=3, outer_radius=4, fill_mode="nan", vals=
         return circle_im
 
 
-def sigproc_v2_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
-    im = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_i]
-    locs = run.sigproc_v2.locs(fl_i)
-    sig = run.sigproc_v2.sig(fl_i)[:, ch_i, cy_i]
-    snr = run.sigproc_v2.snr(fl_i)[:, ch_i, cy_i]
-
+def _sigproc_v2_im(im, locs, sig, snr, keep_mask=None, **kwargs):
     if keep_mask is not None:
         locs = locs[keep_mask]
         sig = sig[keep_mask]
@@ -273,7 +268,11 @@ def sigproc_v2_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
 
     z.im_peaks(im, circle_im, index_im, sig_im, snr_im, **kwargs)
 
-    # with z(_merge=True, _full=True):
-    #     z.im(im)
-    #     alpha_im = np.where(circle_im.astype(int) == 0, 0, 1)
-    #     z.im_blend(clr_im, alpha_im, _palette="inferno", _nan=0)
+
+def sigproc_v2_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
+    im = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_i]
+    locs = run.sigproc_v2.locs(fl_i)
+    sig = run.sigproc_v2.sig(fl_i)[:, ch_i, cy_i]
+    snr = run.sigproc_v2.snr(fl_i)[:, ch_i, cy_i]
+
+    _sigproc_v2_im(im, locs, sig, snr, keep_mask=None, **kwargs)

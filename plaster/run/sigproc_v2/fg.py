@@ -21,12 +21,20 @@ def peak_find(im, kernel):
 
     cim = imops.convolve(np.nan_to_num(im, nan=float(np.nanmedian(im))), kernel)
 
+    # CLEAN the edges
+    # ZBS: Added because there were often edge effect from the convolutin
+    # that created false stray edge peaks.
+    imops.edge_fill(cim, kernel.shape[0])
+
     # The background is well-described by the the histogram centered
     # around zero thanks to the fact that im and kern are expected
     # to be roughly zero-centered. Therefore we estimate the threshold
     # by using the samples less than zero cim[cim<0] and taking the 99th percentile
     if (cim < 0).sum() > 0:
-        thresh = np.percentile(-cim[cim < 0], 99)
+        thresh = np.percentile(-cim[cim < 0], 99.999)
+        # ZBS: Upped percentile to 99.999 based on simulations
+        # the original value of 99 was letting in way too much noise
+
         cim[cim < thresh] = 0
         return peak_local_max(cim, min_distance=2, threshold_abs=thresh)
     else:
@@ -62,7 +70,11 @@ def _fit_focus(z_reg_psfs, locs, im):
 
 
 def _radiometry_one_peak(
-    peak_im, psf_kernel, center_weighted_mask, allow_non_unity_psf_kernel=False
+    peak_im,
+    psf_kernel,
+    center_weighted_mask,
+    allow_non_unity_psf_kernel=False,
+    allow_subpixel_shift=True,
 ):
     """
     Helper for _analyze_step_6_radiometry() to compute
@@ -103,11 +115,12 @@ def _radiometry_one_peak(
     # Note, we scale peak_im by the centering_kernel so that
     # the COM will not be polluted by neighbors
 
-    com_before = imops.com((center_weighted_mask * peak_im) ** 2)
-    center_pixel = np.array(peak_im.shape) / 2
-    peak_im = center_weighted_mask * imops.sub_pixel_shift(
-        peak_im, center_pixel - com_before
-    )
+    if allow_subpixel_shift:
+        com_before = imops.com((center_weighted_mask * peak_im) ** 2)
+        center_pixel = np.array(peak_im.shape) / 2
+        peak_im = center_weighted_mask * imops.sub_pixel_shift(
+            peak_im, center_pixel - com_before
+        )
 
     # WEIGH the data with the psf_kernel and then normalize
     # by the psf_kernel_sum_squared to estimate signal
