@@ -136,7 +136,10 @@ def _radiometry_one_peak(
     if psf_kernel_sum_squared > 0.0:
         noise = np.sqrt(var_residuals / psf_kernel_sum_squared)
 
-    return signal, noise
+    # COMPUTE aspect ratio
+    aspect_ratio = imops.distribution_aspect_ratio(peak_im)
+
+    return signal, noise, aspect_ratio
 
 
 def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
@@ -150,7 +153,7 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
         locs: (n_peaks, 2). The second dimension is in (y, x) order
 
     Returns:
-        signal, noise
+        signal, noise, aspect_ratio
     """
     check.array_t(im, ndim=2)
     check.array_t(z_reg_psfs, ndim=5)
@@ -161,6 +164,7 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
 
     signal = np.full((n_locs,), np.nan)
     noise = np.full((n_locs,), np.nan)
+    aspect_ratio = np.full((n_locs,), np.nan)
 
     psf_dim = z_reg_psfs.shape[-2:]
     assert z_reg_psfs.shape[1] == divs
@@ -197,16 +201,17 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
         ]
 
         if np.sum(psf_kernel) == 0.0:
-            _signal, _noise = np.nan, np.nan
+            _signal, _noise, _aspect_ratio = np.nan, np.nan, np.nan
         else:
-            _signal, _noise = _radiometry_one_peak(
+            _signal, _noise, _aspect_ratio = _radiometry_one_peak(
                 peak_im, psf_kernel, center_weighted_mask=center_weighted_mask
             )
 
         signal[loc_i] = _signal
         noise[loc_i] = _noise
+        aspect_ratio[loc_i] = _aspect_ratio
 
-    return signal, noise
+    return signal, noise, aspect_ratio
 
 
 def fg_estimate(fl_ims, z_reg_psfs):
@@ -248,7 +253,7 @@ def fg_estimate(fl_ims, z_reg_psfs):
         locs = peak_find(im_no_bg, kernel)
 
         # RADIOMETRY
-        signals, _ = radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)
+        signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)
 
         # FIND outliers
         low, high = np.nanpercentile(signals, (10, 90))

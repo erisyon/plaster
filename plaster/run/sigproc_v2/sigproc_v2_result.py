@@ -78,6 +78,7 @@ class SigprocV2Result(BaseResult):
         signal=float,
         noise=float,
         snr=float,
+        aspect_ratio=float,
     )
 
     # mask_rects_df_schema = dict(
@@ -278,6 +279,14 @@ class SigprocV2Result(BaseResult):
             )
         )
 
+    def aspect_ratio(self, fields=None, **kwargs):
+        return np.nan_to_num(
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 2],
+                **kwargs,
+            )
+        )
+
     def aln_chcy_ims(self, field_i):
         if field_i not in self._cache_aln_chcy_ims:
             filename = self._field_filename(field_i, is_debug=True)
@@ -324,10 +333,14 @@ class SigprocV2Result(BaseResult):
         sigs = self.sig()
         nois = self.noi()
         snr = self.snr()
+        aspect_ratios = self.aspect_ratio()
 
         signal = sigs.reshape((sigs.shape[0] * sigs.shape[1] * sigs.shape[2]))
         noise = nois.reshape((nois.shape[0] * nois.shape[1] * nois.shape[2]))
         snr = snr.reshape((snr.shape[0] * snr.shape[1] * snr.shape[2]))
+        aspect_ratio = aspect_ratios.reshape(
+            (aspect_ratios.shape[0] * aspect_ratios.shape[1] * aspect_ratios.shape[2])
+        )
 
         peaks = list(range(sigs.shape[0]))
         channels = list(range(self.n_channels))
@@ -343,6 +356,7 @@ class SigprocV2Result(BaseResult):
                 signal=signal,
                 noise=noise,
                 snr=snr,
+                aspect_ratio=aspect_ratio,
             )
         )
 
@@ -408,7 +422,9 @@ class SigprocV2Result(BaseResult):
             self.fields__n_peaks__peaks()
             .set_index(pcc_index)
             .join(
-                self.radmats__peaks().set_index(pcc_index)[["signal", "noise", "snr"]]
+                self.radmats__peaks().set_index(pcc_index)[
+                    ["signal", "noise", "snr", "aspect_ratio"]
+                ]
             )
             .reset_index()
         )
@@ -431,6 +447,7 @@ def sig_from_df_filter(
     max_intensity_any_cycle=None,
     min_intensity_per_cycle=None,
     max_intensity_per_cycle=None,
+    max_aspect_ratio=None,
     radmat_field="signal",
     **kwargs,
 ):
@@ -449,6 +466,10 @@ def sig_from_df_filter(
     if cycles is None:
         cycles = list(range(df.cycle_i.max() + 1))
 
+    if max_aspect_ratio is None:
+        # Set a huge value to include all
+        max_aspect_ratio = 1e9
+
     _df = df[
         (df.field_i.isin(fields))
         & (df.cycle_i.isin(cycles))
@@ -456,6 +477,7 @@ def sig_from_df_filter(
         & (df.raw_y < roi[0].stop)
         & (roi[1].start <= df.raw_x)
         & (df.raw_x < roi[1].stop)
+        & (df.aspect_ratio <= max_aspect_ratio)
     ].reset_index(drop=True)
 
     radmat = (

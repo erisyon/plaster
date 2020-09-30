@@ -368,7 +368,8 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
         calib: Calibration (needed for psf)
 
     Returns:
-        radmat: ndarray(n_locs, n_channels, n_cycles, 2)  Where the last dim is (signal, noise)
+        radmat: ndarray(n_locs, n_channels, n_cycles, 3)
+            Where the last dim is (signal, noise, aspect_ratio)
     """
     check.array_t(chcy_ims, ndim=4)
     check.array_t(locs, ndim=2, shape=(None, 2))
@@ -376,7 +377,7 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     n_locs = len(locs)
     n_channels, n_cycles = chcy_ims.shape[0:2]
 
-    radmat = np.full((n_locs, n_channels, n_cycles, 2), np.nan)
+    radmat = np.full((n_locs, n_channels, n_cycles, 3), np.nan)
 
     for ch_i in range(n_channels):
         z_reg_psfs = np.array(calib[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
@@ -386,10 +387,13 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
         for cy_i in range(n_cycles):
             im = chcy_ims[ch_i, cy_i]
 
-            signal, noise = fg.radiometry_one_channel_one_cycle(im, z_reg_psfs, locs)
+            signal, noise, aspect_ratio = fg.radiometry_one_channel_one_cycle(
+                im, z_reg_psfs, locs
+            )
 
             radmat[:, ch_i, cy_i, 0] = signal
             radmat[:, ch_i, cy_i, 1] = noise
+            radmat[:, ch_i, cy_i, 2] = aspect_ratio
 
     return radmat
 
