@@ -144,7 +144,7 @@ def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
     return calib, focus_per_field_per_channel
 
 
-def _calibrate_illum(calib, ims_import_result):
+def _calibrate_illum(calib, ims_import_result, progress):
     """
     Extract a per-channel regional balance by using the foreground peaks as estimators
     """
@@ -154,7 +154,7 @@ def _calibrate_illum(calib, ims_import_result):
         fl_ims = ims_import_result.ims[
             :, ch_i, 0
         ]  # Cycle 0 because it has the most peaks
-        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i))
+        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i), progress)
         fg_means[ch_i] = fg_mean
         assert np.all(~np.isnan(reg_bal))
 
@@ -354,7 +354,11 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel):
         locs: ndarray (n_peaks, 2)  where the second dimaension is in y, x order
     """
     ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
-    locs = fg.peak_find(ch_mean_of_cy0_im, kernel)
+
+    # The following 99.999 is based on val1_1 data. But I suspect
+    # that it may be size and density dependent and thus we may need
+    # a better way to determine it
+    locs = fg.peak_find(ch_mean_of_cy0_im, kernel, 99.999)
     return locs
 
 
@@ -380,7 +384,47 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     radmat = np.full((n_locs, n_channels, n_cycles, 3), np.nan)
 
     for ch_i in range(n_channels):
-        z_reg_psfs = np.array(calib[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
+        z_reg_psfs = calib.psfs(ch_i)
+        z_reg_psfs = psf.psf_gaussianify(z_reg_psfs)
+
+        for cy_i in range(n_cycles):
+            im = chcy_ims[ch_i, cy_i]
+
+            signal, noise, aspect_ratio = fg.radiometry_one_channel_one_cycle(
+                im, z_reg_psfs, locs
+            )
+
+            radmat[:, ch_i, cy_i, 0] = signal
+            radmat[:, ch_i, cy_i, 1] = noise
+            radmat[:, ch_i, cy_i, 2] = aspect_ratio
+
+    return radmat
+
+
+def _analyze_step_7_fitter(chcy_ims, locs, calib, psf_params):
+    """
+    Fit Gaussian.
+
+    Arguments:
+        chcy_ims: (n_channels, n_cycles, width, height)
+        locs: (n_peaks, 2). The second dimension is in (y, x) order
+        calib: Calibration (needed for psf)
+        psf_params: The Gaussian (rho form) params for the entire PSF stack
+
+    Returns:
+        fitmat: ndarray(n_locs, n_channels, n_cycles, 8)
+            Where the last dim is the params of gaussian (rho form)
+    """
+    check.array_t(chcy_ims, ndim=4)
+    check.array_t(locs, ndim=2, shape=(None, 2))
+
+    n_locs = len(locs)
+    n_channels, n_cycles = chcy_ims.shape[0:2]
+
+    fitmat = np.full((n_locs, n_channels, n_cycles, 8), np.nan)
+
+    for ch_i in range(n_channels):
+        z_reg_psfs = calib.psfs(ch_i)
 
         z_reg_psfs = psf.psf_gaussianify(z_reg_psfs)
 
@@ -420,7 +464,7 @@ def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
 """
 
 
-def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib):
+def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     """
     Analyze one field --
         * Regional and channel balance
@@ -474,10 +518,14 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib):
     # Step 6: Radiometry over each channel, cycle
     radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib)
 
+    fitmat = None
+    if sigproc_v2_params.run_fitter:
+        fitmat = _analyze_step_7_fitter(chcy_ims, locs, calib, psf_params)
+
     # Temporaily removed until a better metric can be found
     # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
 
-    return chcy_ims, locs, radmat, aln_offsets, aln_scores
+    return chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat
 
 
 def _do_sigproc_analyze_and_save_field(
@@ -489,8 +537,14 @@ def _do_sigproc_analyze_and_save_field(
     chcy_ims = ims_import_result.ims[field_i]
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
-    chcy_ims, locs, radmat, aln_offsets, aln_scores = _sigproc_analyze_field(
-        chcy_ims, sigproc_v2_params, calib
+    psf_params = None
+    if sigproc_v2_params.run_fitter:
+        debug("calib fitter")
+        psf_params = psf.psf_fit_gaussian(calib.psfs(0))
+        debug("calib fitter done")
+
+    chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat = _sigproc_analyze_field(
+        chcy_ims, sigproc_v2_params, calib, psf_params
     )
 
     mea = np.array([chcy_ims.shape[-1:]])
@@ -528,6 +582,7 @@ def _do_sigproc_analyze_and_save_field(
         peak_df=peak_df,
         field_df=field_df,
         radmat=radmat,
+        fitmat=fitmat,
         _aln_chcy_ims=chcy_ims,
     )
 
@@ -562,7 +617,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
             )
 
         calib = Calibration.load(sigproc_v2_params.calibration_file)
-        calib, fg_means = _calibrate_illum(calib, ims_import_result)
+        calib, fg_means = _calibrate_illum(calib, ims_import_result, progress)
 
     return SigprocV2Result(
         params=sigproc_v2_params,

@@ -3,11 +3,11 @@ from plaster.run.sigproc_v2 import bg
 from plaster.run.sigproc_v2 import psf
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug, important
+from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
 
 
-def peak_find(im, kernel):
+def peak_find(im, kernel, percentile_thresh):
     """
     Peak find on a single image.
 
@@ -22,7 +22,7 @@ def peak_find(im, kernel):
     cim = imops.convolve(np.nan_to_num(im, nan=float(np.nanmedian(im))), kernel)
 
     # CLEAN the edges
-    # ZBS: Added because there were often edge effect from the convolutin
+    # ZBS: Added because there were often edge effect from the convolution
     # that created false stray edge peaks.
     imops.edge_fill(cim, kernel.shape[0])
 
@@ -31,10 +31,7 @@ def peak_find(im, kernel):
     # to be roughly zero-centered. Therefore we estimate the threshold
     # by using the samples less than zero cim[cim<0] and taking the 99th percentile
     if (cim < 0).sum() > 0:
-        thresh = np.percentile(-cim[cim < 0], 99.999)
-        # ZBS: Upped percentile to 99.999 based on simulations
-        # the original value of 99 was letting in way too much noise
-
+        thresh = np.percentile(-cim[cim < 0], percentile_thresh)
         cim[cim < thresh] = 0
         return peak_local_max(cim, min_distance=2, threshold_abs=thresh)
     else:
@@ -214,7 +211,7 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
     return signal, noise, aspect_ratio
 
 
-def fg_estimate(fl_ims, z_reg_psfs):
+def fg_estimate(fl_ims, z_reg_psfs, progress=None):
     """
     Estimate the foreground illumination averaged over every field for
     one channel on the first cycle.
@@ -247,22 +244,30 @@ def fg_estimate(fl_ims, z_reg_psfs):
 
     for fl_i in range(n_fields):
         # REMOVE BG
+        if progress:
+            progress(fl_i, n_fields, False)
+
         im_no_bg = bg.bg_estimate_and_remove(fl_ims[fl_i], kernel)
 
         # FIND PEAKS
-        locs = peak_find(im_no_bg, kernel)
+        # The following 99 was based on abbe2_1. I had cranked up the threshold
+        # to 99.999 based on Val data but that excluded most things from Abbe2_1
+        # so I have to find a find the right compromise (I think it has to do with density
+        # and number of pixels)
+        locs = peak_find(im_no_bg, kernel, 99)
 
         # RADIOMETRY
         signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)
 
         # FIND outliers
-        low, high = np.nanpercentile(signals, (10, 90))
+        if not np.all(np.isnan(signals)):
+            low, high = np.nanpercentile(signals, (10, 90))
 
-        # SPLAT circles of the intensity of the signal into an accumulator
-        for loc, sig in zip(locs, signals):
-            if low <= sig <= high:
-                imops.accum_inplace(fg, sig * circle, loc, center=False)
-                imops.accum_inplace(cnt, circle, loc, center=False)
+            # SPLAT circles of the intensity of the signal into an accumulator
+            for loc, sig in zip(locs, signals):
+                if low <= sig <= high:
+                    imops.accum_inplace(fg, sig * circle, loc, center=False)
+                    imops.accum_inplace(cnt, circle, loc, center=False)
 
     # Fill nan into all places that had no counts
     fg[cnt == 0] = np.nan
@@ -270,9 +275,15 @@ def fg_estimate(fl_ims, z_reg_psfs):
     # Average over the samples (fg / cnt)
     mean_im = fg / cnt
 
-    # BALANCE regionally. 10 is an empirally found size
-    bal = imops.region_map(mean_im, np.nanmedian, 10)
+    def median_nan_ok(arr):
+        if np.all(np.isnan(arr)):
+            return np.nan
+        else:
+            return np.nanmedian(arr)
+
+    # BALANCE regionally. 10 is an empirically found size
+    bal = imops.region_map(mean_im, median_nan_ok, 10)
 
     # RETURN the balance adjustment. That is, multiply by this matrix
     # to balance an image. In other words, the brightest region will == 1.0
-    return np.max(bal) / bal, mean_im
+    return np.nanmax(bal) / bal, mean_im

@@ -53,6 +53,20 @@ class SigprocV2Result(BaseResult):
         aln_x=int,
     )
 
+    peak_fit_df_schema = OrderedDict(
+        peak_i=int,
+        field_i=int,
+        field_peak_i=int,
+        amp=float,
+        std_x=float,
+        std_y=float,
+        pos_x=float,
+        pos_y=float,
+        rho=float,
+        const=float,
+        mea=float,
+    )
+
     field_df_schema = OrderedDict(
         field_i=int,
         channel_i=int,
@@ -180,6 +194,13 @@ class SigprocV2Result(BaseResult):
         return itertools.product(
             range(self.n_fields), range(self.n_channels), range(self.n_cycles)
         )
+
+    def _has_prop(self, prop):
+        # Assume field 0 is representative of all fields
+        field_i = 0
+        name = local.path(self.field_files[field_i]).name
+        props = utils.indexed_pickler_load(self._folder / name, prop_list=[prop], skip_missing_props=True)
+        return prop in props.keys()
 
     def _load_field_prop(self, field_i, prop):
         """Mockpoint"""
@@ -318,6 +339,24 @@ class SigprocV2Result(BaseResult):
     def peaks(self):
         df = self._load_df_prop_from_all_fields("peak_df")
         check.df_t(df, self.peak_df_schema)
+
+        if self._has_prop("peak_fit_df"):
+            fit_df = self._load_df_prop_from_all_fields("peak_fit_df")
+            check.df_t(df, self.peak_fit_df_schema)
+            df = df.set_index(["field_i", "field_peak_i"]).join(
+                fit_df.set_index(["field_i", "field_peak_i"])
+            )
+
+        # The peaks have a local frame_peak_i but they
+        # don't have their pan-field peak_i set yet.
+        df = df.reset_index(drop=True)
+        df.peak_i = df.index
+
+        return df
+
+    def peak_fits(self):
+        df = self._load_df_prop_from_all_fields("peak_fit_df")
+        check.df_t(df, self.peak_fit_df_schema)
 
         # The peaks have a local frame_peak_i but they
         # don't have their pan-field peak_i set yet.
