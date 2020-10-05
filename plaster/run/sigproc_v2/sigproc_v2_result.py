@@ -328,6 +328,14 @@ class SigprocV2Result(BaseResult):
             lookup_fn=lambda fl, ch, cy: self.aln_chcy_ims(fl)[ch, cy],
         )
 
+    def fitmat(self, fields=None, **kwargs):
+        return np.nan_to_num(
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "fitmat"),
+                **kwargs,
+            )
+        )
+
     # DataFrame returns
     # ----------------------------------------------------------------
 

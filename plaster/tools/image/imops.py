@@ -880,6 +880,9 @@ def fit_gauss2(im, guess_params=None):
 
     if guess_params is None:
         guess_params = (*moments(), 0.0, minimum)
+    else:
+        if guess_params.shape[0] == 8:
+            guess_params = guess_params[0:7]
 
     try:
         popt, pcov = curve_fit(
@@ -891,6 +894,7 @@ def fit_gauss2(im, guess_params=None):
                 (0.0, 0.0, 0.0, 0.0, 0.0, -0.8, np.min(im_1d)),
                 (np.inf, mea / 2, mea / 2, mea, mea, 0.8, np.max(im_1d)),
             ),
+            max_nfev=100, # Guessing
         )
         return (*popt, mea), (*np.diag(pcov), 0)
     except (ValueError, RuntimeError):
