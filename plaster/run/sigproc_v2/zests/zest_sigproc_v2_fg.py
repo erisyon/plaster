@@ -1,6 +1,7 @@
 import numpy as np
 from plaster.run.sigproc_v2 import fg
 from plaster.run.sigproc_v2 import synth
+from plaster.tools.log.log import debug
 from zest import zest
 
 
@@ -38,6 +39,8 @@ def zest_fit_method():
             im, psf_params, peaks.locs
         )
         med = np.median(fit_params[:, 0])
+        if not (900 < med < 1100):
+            debug(med)
         assert 900 < med < 1100
 
     zest()
