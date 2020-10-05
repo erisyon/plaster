@@ -811,6 +811,9 @@ def gauss2_rho_form(amp, std_x, std_y, pos_x, pos_y, rho, const, mea):
     r = np.sum(np.multiply((radius_vectors.T @ inv_cov), radius_vectors.T), axis=1)
 
     exp_term = amp * np.exp(-0.5 * r)
+    if np.any(np.isnan(det_cov) | (det_cov < 0.0)):
+        print(f"det_cov={det_cov}")
+        np.save("wtf.npy",)
     norm_term = np.sqrt(((np.pi * 2.0) ** 2) * det_cov)
 
     return ((exp_term / norm_term) + const).reshape((mea, mea))
@@ -891,10 +894,17 @@ def fit_gauss2(im, guess_params=None):
             im_1d,
             p0=guess_params,
             bounds=(
-                (0.0, 0.0, 0.0, 0.0, 0.0, -0.8, np.min(im_1d)),
-                (np.inf, mea / 2, mea / 2, mea, mea, 0.8, np.max(im_1d)),
+                (0.0, 0.0, 0.0, 0.0, 0.0, -0.8, min(np.min(im_1d), guess_params[6])),
+                (
+                    np.inf,
+                    mea / 2,
+                    mea / 2,
+                    mea,
+                    mea,
+                    0.8,
+                    max(np.max(im_1d), guess_params[6]),
+                ),
             ),
-            max_nfev=100, # Guessing
         )
         return (*popt, mea), (*np.diag(pcov), 0)
     except (ValueError, RuntimeError):

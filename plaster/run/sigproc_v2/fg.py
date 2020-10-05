@@ -221,8 +221,8 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     psf_dim = (psf_mea, psf_mea)
 
     for loc_i, loc in enumerate(locs):
-        if loc_i % 100 == 0:
-            print(f"{100 * loc_i / n_locs:3.2f}")
+        # if loc_i % 100 == 0:
+        #     print(f"{100 * loc_i / n_locs:3.2f}%")
         peak_im = imops.crop(im, off=YX(loc), dim=HW(psf_dim), center=True)
         if peak_im.shape != psf_dim:
             # Skip near edges
@@ -233,7 +233,7 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
             continue
 
         y, x = loc_to_div(loc, divs, im.shape)
-        fit_guess = psf_params[psf_params.shape[0]//2, y, x]
+        fit_guess = psf_params[psf_params.shape[0] // 2, y, x]
 
         (amp, std_x, std_y, pos_x, pos_y, rho, const, mea), _ = imops.fit_gauss2(
             peak_im, fit_guess
