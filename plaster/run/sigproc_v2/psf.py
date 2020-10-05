@@ -312,7 +312,7 @@ def psf_fit_gaussian(psfs):
     Fit to a Gaussian
     """
     n_z, divs_y, divs_x, h, w = psfs.shape
-    psf_params = np.full((n_z, divs_y, divs_x, 8))  # 8 == number gaussian params in rho form
+    psf_params = np.full((n_z, divs_y, divs_x, 8), np.nan)  # 8 == number gaussian params in rho form
     for z_i in range(n_z):
         for y in range(divs_y):
             for x in range(divs_x):

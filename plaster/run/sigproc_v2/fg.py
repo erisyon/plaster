@@ -139,7 +139,7 @@ def _radiometry_one_peak(
     return signal, noise, aspect_ratio
 
 
-def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
+def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs, use_fit=False):
     """
     Use the PSFs to compute the Area-Under-Curve of the data in chcy_ims
     for each peak location of locs.

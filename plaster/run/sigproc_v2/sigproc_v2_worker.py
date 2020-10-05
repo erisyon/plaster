@@ -401,7 +401,7 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     return radmat
 
 
-def _analyze_step_7_fitter(chcy_ims, locs, calib, psf_params):
+def _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params):
     """
     Fit Gaussian.
 
@@ -412,8 +412,9 @@ def _analyze_step_7_fitter(chcy_ims, locs, calib, psf_params):
         psf_params: The Gaussian (rho form) params for the entire PSF stack
 
     Returns:
-        fitmat: ndarray(n_locs, n_channels, n_cycles, 8)
-            Where the last dim is the params of gaussian (rho form)
+        fitmat: ndarray(n_locs, n_channels, n_cycles, 3 + 8)
+            Where the last dim is (sig, noi, asr) + (params of gaussian in rho form)
+
     """
     check.array_t(chcy_ims, ndim=4)
     check.array_t(locs, ndim=2, shape=(None, 2))
@@ -421,23 +422,20 @@ def _analyze_step_7_fitter(chcy_ims, locs, calib, psf_params):
     n_locs = len(locs)
     n_channels, n_cycles = chcy_ims.shape[0:2]
 
-    fitmat = np.full((n_locs, n_channels, n_cycles, 8), np.nan)
+    fitmat = np.full((n_locs, n_channels, n_cycles, 3 + 8), np.nan)
 
     for ch_i in range(n_channels):
-        z_reg_psfs = calib.psfs(ch_i)
-
-        z_reg_psfs = psf.psf_gaussianify(z_reg_psfs)
-
         for cy_i in range(n_cycles):
             im = chcy_ims[ch_i, cy_i]
 
+TODO: Here I need to pass in params and all that
             signal, noise, aspect_ratio = fg.radiometry_one_channel_one_cycle(
-                im, z_reg_psfs, locs
+                im, z_reg_psfs, locs, use_fit=True
             )
 
-            radmat[:, ch_i, cy_i, 0] = signal
-            radmat[:, ch_i, cy_i, 1] = noise
-            radmat[:, ch_i, cy_i, 2] = aspect_ratio
+            fitmat[:, ch_i, cy_i, 0] = signal
+            fitmat[:, ch_i, cy_i, 1] = noise
+            fitmat[:, ch_i, cy_i, 2] = aspect_ratio
 
     return radmat
 
@@ -520,7 +518,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
 
     fitmat = None
     if sigproc_v2_params.run_fitter:
-        fitmat = _analyze_step_7_fitter(chcy_ims, locs, calib, psf_params)
+        fitmat = _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params)
 
     # Temporaily removed until a better metric can be found
     # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
@@ -539,9 +537,7 @@ def _do_sigproc_analyze_and_save_field(
 
     psf_params = None
     if sigproc_v2_params.run_fitter:
-        debug("calib fitter")
         psf_params = psf.psf_fit_gaussian(calib.psfs(0))
-        debug("calib fitter done")
 
     chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat = _sigproc_analyze_field(
         chcy_ims, sigproc_v2_params, calib, psf_params
