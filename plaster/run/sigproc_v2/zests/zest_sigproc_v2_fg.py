@@ -38,7 +38,7 @@ def zest_fit_method():
         fit_params = fg.radiometry_one_channel_one_cycle_fit_method(
             im, psf_params, peaks.locs
         )
-        med = np.median(fit_params[:, 0])
+        med = np.nanmedian(fit_params[:, 0])
         if not (900 < med < 1100):
             debug(med)
         assert 900 < med < 1100
