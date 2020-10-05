@@ -67,11 +67,7 @@ def _fit_focus(z_reg_psfs, locs, im):
 
 
 def _radiometry_one_peak(
-    peak_im,
-    psf_kernel,
-    center_weighted_mask,
-    allow_non_unity_psf_kernel=False,
-    allow_subpixel_shift=True,
+    peak_im, psf_kernel, allow_non_unity_psf_kernel=False, allow_subpixel_shift=True,
 ):
     """
     Helper for _analyze_step_6_radiometry() to compute
@@ -94,9 +90,7 @@ def _radiometry_one_peak(
     """
     check.array_t(peak_im, ndim=2, is_square=True)
     check.array_t(psf_kernel, ndim=2, is_square=True)
-    check.array_t(center_weighted_mask, ndim=2, is_square=True)
     assert peak_im.shape == psf_kernel.shape
-    assert psf_kernel.shape == center_weighted_mask.shape
 
     if not allow_non_unity_psf_kernel:
         try:
@@ -113,11 +107,9 @@ def _radiometry_one_peak(
     # the COM will not be polluted by neighbors
 
     if allow_subpixel_shift:
-        com_before = imops.com((center_weighted_mask * peak_im) ** 2)
+        com_before = imops.com((peak_im) ** 2)
         center_pixel = np.array(peak_im.shape) / 2
-        peak_im = center_weighted_mask * imops.sub_pixel_shift(
-            peak_im, center_pixel - com_before
-        )
+        peak_im = imops.sub_pixel_shift(peak_im, center_pixel - com_before)
 
     # WEIGH the data with the psf_kernel and then normalize
     # by the psf_kernel_sum_squared to estimate signal
@@ -139,7 +131,11 @@ def _radiometry_one_peak(
     return signal, noise, aspect_ratio
 
 
-def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs, use_fit=False):
+def loc_to_div(loc, divs, shape):
+    return int(divs * loc[0] / shape[0]), int(divs * loc[1] / shape[1])
+
+
+def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
     """
     Use the PSFs to compute the Area-Under-Curve of the data in chcy_ims
     for each peak location of locs.
@@ -169,13 +165,6 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs, use_fit=False):
     assert z_reg_psfs.shape[3] == peak_mea
     assert z_reg_psfs.shape[4] == peak_mea
 
-    # TODO: Try removing this center_weighted_mask, I suspect it makes things worse
-    # center_weighted_mask = imops.generate_center_weighted_tanh(
-    #    peak_mea, radius=2.0
-    # )
-    # All ones center_weighted_mask
-    center_weighted_mask = np.ones(psf_dim)
-
     # TASK: Eventually this will examine which z-depth of the PSFs is best fit for this cycle.
     # The result will be a per-cycle index into the chcy_regional_psfs
     # Until then the index is hard-coded to the middle index of regional_psf_zstack
@@ -193,22 +182,80 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs, use_fit=False):
             # Skip nan collisions
             continue
 
-        psf_kernel = reg_psfs[
-            int(divs * loc[0] / im.shape[0]), int(divs * loc[1] / im.shape[1]),
-        ]
+        y, x = loc_to_div(loc, divs, im.shape)
+        psf_kernel = reg_psfs[y, x]
 
         if np.sum(psf_kernel) == 0.0:
             _signal, _noise, _aspect_ratio = np.nan, np.nan, np.nan
         else:
-            _signal, _noise, _aspect_ratio = _radiometry_one_peak(
-                peak_im, psf_kernel, center_weighted_mask=center_weighted_mask
-            )
+            _signal, _noise, _aspect_ratio = _radiometry_one_peak(peak_im, psf_kernel)
 
         signal[loc_i] = _signal
         noise[loc_i] = _noise
         aspect_ratio[loc_i] = _aspect_ratio
 
     return signal, noise, aspect_ratio
+
+
+def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
+    """
+    Like radiometry_one_channel_one_cycle() but using a gaussian fit
+
+    Returns:
+        11 typle:
+            signal, noise, aspect_ratio, fit parameters
+    """
+    check.array_t(im, ndim=2)
+    check.array_t(psf_params, ndim=5)
+    check.array_t(locs, ndim=2, shape=(None, 2))
+
+    n_z_slices, divs, _, peak_mea, _ = psf_params.shape
+    n_locs = len(locs)
+
+    params = np.zeros((n_locs, 3 + 8))  # sig, noi rsr, 8 gaussian parameters
+
+    assert psf_params.shape[0] == divs
+    assert psf_params.shape[1] == divs
+    assert psf_params.shape[2] == 8
+    psf_dim = psf_params[0, 0, 7]
+
+    for loc_i, loc in enumerate(locs):
+        peak_im = imops.crop(im, off=YX(loc), dim=HW(psf_dim), center=True)
+        if peak_im.shape != psf_dim:
+            # Skip near edges
+            continue
+
+        if np.any(np.isnan(peak_im)):
+            # Skip nan collisions
+            continue
+
+        y, x = loc_to_div(loc, divs, im.shape)
+        fit_guess = psf_params[y, x]
+
+        (amp, std_x, std_y, pos_x, pos_y, rho, const, mea), _ = imops.fit_gauss2(
+            peak_im, fit_guess
+        )
+        # The fit gauss may have a const offset, so this needs to be removed
+        # from both the kernel and the peak
+        psf_kernel = imops.gauss2_rho_form(
+            amp, std_x, std_y, pos_x, pos_y, rho, 0.0, mea
+        )
+        psf_kernel /= psf_kernel.sum()
+        psf_kernel = np.nan_to_num(psf_kernel)
+        peak_im -= const
+        allow_subpixel_shift = False
+
+        if np.sum(psf_kernel) == 0.0:
+            _signal, _noise, _aspect_ratio = np.nan, np.nan, np.nan
+        else:
+            _signal, _noise, _aspect_ratio = _radiometry_one_peak(
+                peak_im, psf_kernel, allow_subpixel_shift=allow_subpixel_shift
+            )
+
+        params[loc_i][0:3] = (_signal, _noise, _aspect_ratio)
+        params[loc_i][3:] = (amp, std_x, std_y, pos_x, pos_y, rho, const, mea)
+
+    return params
 
 
 def fg_estimate(fl_ims, z_reg_psfs, progress=None):

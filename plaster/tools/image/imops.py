@@ -816,7 +816,7 @@ def gauss2_rho_form(amp, std_x, std_y, pos_x, pos_y, rho, const, mea):
     return ((exp_term / norm_term) + const).reshape((mea, mea))
 
 
-def fit_gauss2(im):
+def fit_gauss2(im, guess_params=None):
     """
     Fit im with a 2D gaussian (within limits) using rho form
     Returns the params tuple to pass to gauss2_rho_form and the fir variance
@@ -878,7 +878,8 @@ def fit_gauss2(im):
         std_y = np.sqrt(std_y)
         return amp, std_x, std_y, pos_x, pos_y
 
-    guess_params = (*moments(), 0.0, minimum)
+    if guess_params is None:
+        guess_params = (*moments(), 0.0, minimum)
 
     try:
         popt, pcov = curve_fit(

@@ -428,16 +428,13 @@ def _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params):
         for cy_i in range(n_cycles):
             im = chcy_ims[ch_i, cy_i]
 
-TODO: Here I need to pass in params and all that
-            signal, noise, aspect_ratio = fg.radiometry_one_channel_one_cycle(
-                im, z_reg_psfs, locs, use_fit=True
+            params = fg.radiometry_one_channel_one_cycle_fit_method(
+                im, psf_params, locs
             )
 
-            fitmat[:, ch_i, cy_i, 0] = signal
-            fitmat[:, ch_i, cy_i, 1] = noise
-            fitmat[:, ch_i, cy_i, 2] = aspect_ratio
+            fitmat[:, ch_i, cy_i, :] = params
 
-    return radmat
+    return fitmat
 
 
 """
