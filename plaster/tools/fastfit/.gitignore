@@ -1,1 +1,5 @@
+*.a
 *.o
+*.out
+CLAPACK-3.2.1/TESTING/
+
