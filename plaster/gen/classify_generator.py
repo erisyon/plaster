@@ -1,11 +1,10 @@
-from plumbum import cli
 from munch import Munch
-
-from plaster.gen.base_generator import BaseGenerator
 from plaster.gen import task_templates
+from plaster.gen.base_generator import BaseGenerator
+from plaster.tools.log.log import debug, important
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
-from plaster.tools.log.log import debug, important
+from plumbum import cli
 
 
 class ClassifyGenerator(BaseGenerator):
@@ -42,6 +41,7 @@ class ClassifyGenerator(BaseGenerator):
             **BaseGenerator.error_model_schema.schema(),
             **BaseGenerator.sim_schema.schema(),
             **BaseGenerator.classify_schema.schema(),
+            **BaseGenerator.scheme_schema.schema(),
         )
     )
 

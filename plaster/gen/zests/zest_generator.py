@@ -1,9 +1,9 @@
 from munch import Munch
-from zest import zest
-from plaster.tools.schema.schema import Schema as s
 from plaster.gen.base_generator import BaseGenerator
 from plaster.gen.helpers import task_rename
 from plaster.tools.log.log import debug
+from plaster.tools.schema.schema import Schema as s
+from zest import zest
 
 
 def zest_BaseGenerator():
@@ -98,7 +98,7 @@ def zest_BaseGenerator():
     def it_permutes_labels_and_proteases():
         def it_defaults_arguments_to_self():
             gen = gen_klass(
-                n_edmans=1, label_set=["A,B,C:2", "C"], protease=["p0", "p1"]
+                n_edmans=1, label_set=["A,B,C:2", "C"], protease=["p0", "p1"], scheme=[]
             )
             perms = list(gen.run_parameter_permutator())
             # assert perms == [
@@ -127,6 +127,27 @@ def zest_BaseGenerator():
         #         gen.protease_labels_permutator(label_set=["A", "B"], protease=None)
         #     )
         #     assert perms == [(None, ("A",)), (None, ("B",))]
+
+        zest()
+
+    def it_permutes_schemes():
+        def it_parses_correct_arguments():
+            gen = gen_klass(
+                n_edmans=1,
+                label_set=[],
+                protease=[],
+                scheme=["trypsin/C,M,Y", "trypsin/DE,Y,C,K:2+S"],
+            )
+            perms = list(gen.run_parameter_permutator())
+
+        def it_raises_on_incorrect_arguments():
+            bad_schemes = ["/C,M,Y", "a/b/c", "", "protease/"]
+            for bad_scheme in bad_schemes:
+                gen = gen_klass(
+                    n_edmans=1, label_set=[], protease=[], scheme=[bad_scheme],
+                )
+                with zest.raises():
+                    perms = list(gen.run_parameter_permutator())
 
         zest()
 

@@ -2,7 +2,8 @@ import hashlib
 import itertools
 import json
 import re
-from collections import defaultdict
+from collections import defaultdict, namedtuple
+from typing import List, Tuple
 
 import numpy as np
 from munch import Munch
@@ -14,6 +15,8 @@ from plaster.tools.schema.schema import Schema as s
 from plaster.tools.schema.schema import SchemaValidationFailed
 from plaster.tools.utils import utils
 from plumbum import local
+
+Scheme = namedtuple("Scheme", ["protease", "label_set"])
 
 
 class BaseGenerator(Munch):
@@ -157,6 +160,12 @@ class BaseGenerator(Munch):
             err_p_bleach_per_cycle=s.is_list(elems=s.is_str(help="See Main Help")),
             err_p_non_fluorescent=s.is_list(elems=s.is_str(help="See Main Help")),
         )
+    )
+
+    # Scheme is a flag that allows passing a pair of (protease, label_set) in directly,
+    # Rather than passing them separately and getting permutations
+    scheme_schema = s(
+        s.is_kws_r(scheme=s.is_list(elems=s.is_str(), help="See Main Help"))
     )
 
     error_model_defaults = Munch(
@@ -395,7 +404,10 @@ class BaseGenerator(Munch):
 
         return perms
 
-    def label_set_permutate(self):
+    def label_set_permutate(self) -> List[Tuple[str, ...]]:
+        """
+        Returns a list of label sets, where each label set is a tuple of strings
+        """
         check.list_t(self.label_set, str)
         return utils.flatten(
             [self._label_str_permutate(label_str) for label_str in self.label_set], 1
@@ -406,6 +418,23 @@ class BaseGenerator(Munch):
             [(key, val) for val in vals] for key, vals in self.err_param_dict.items()
         ]
         return tuples
+
+    def scheme_set_permutate(self) -> List[Scheme]:
+        """
+        Unparsed schemes are of form: protease/label_set, where protease is a str,
+        and label_set is a str parseable by self._label_str_permutate
+        """
+        parsed_schemes = []
+        for scheme in self.scheme:
+            split = scheme.split("/")
+            if len(split) != 2 or not all(split):
+                raise ValueError(f"Scheme {scheme} must be of form: protease/label_set")
+
+            parsed_label_set = self._label_str_permutate(split[1])
+            parsed_schemes += [
+                Scheme(split[0], label_set) for label_set in parsed_label_set
+            ]
+        return parsed_schemes
 
     def run_parameter_permutator(self):
         """
@@ -425,7 +454,20 @@ class BaseGenerator(Munch):
 
         combined = [proteases, label_sets] + err_sets
 
-        for params in itertools.product(*combined):
+        # Schemes is a list of schemes, where each scheme is a tuple containing:
+        # - A Label set, in the form of Tuple['label_set', Tuple[str, ...]]
+        # - A protease, in the form of Tuple['protease', str]
+
+        # Build scheme set from protease and label set args
+        schemes = list(itertools.product(*combined))
+
+        # Add in directly specified schemes
+        schemes += [
+            (("protease", scheme.protease), ("label_set", scheme.label_set))
+            for scheme in self.scheme_set_permutate()
+        ]
+
+        for params in schemes:
             protease = utils.filt_first(params, lambda i: i[0] == "protease")
             protease = protease[1]
             label_set = utils.filt_first(params, lambda i: i[0] == "label_set")
