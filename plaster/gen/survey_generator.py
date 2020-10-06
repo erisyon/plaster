@@ -20,6 +20,7 @@ class SurveyGenerator(BaseGenerator):
             **BaseGenerator.peptide_setup_schema.schema(),
             **BaseGenerator.error_model_schema.schema(),
             **BaseGenerator.scope_run_schema.schema(),
+            **BaseGenerator.scheme_schema.schema(),
         )
     )
 

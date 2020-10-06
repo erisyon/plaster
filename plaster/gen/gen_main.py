@@ -126,6 +126,7 @@ def help_template(generators):
         ------------------------------------------------------------------------------
         @--label_set='DE,Y,C,K:2+S'                   # Repeatable (See: LABELS)
         @--protease='trypsin'                         # Repeatable (See: PROTEASES)
+        @--scheme='trypsin/DE,Y,C,K:2+S'              # Repeatable (See: SCHEME)
         @--n_edmans=10                                # Edman cycles (See: LABELS)
         @--n_pres=1                                   # default: 1 (See: LABELS)
         @--n_mocks=0                                  # default: 0 (See: LABELS)
@@ -283,6 +284,10 @@ def help_template(generators):
         You may also proteolyze with more than one protease simultaneously using the
         syntax e.g. --protease=lysc+endopro
 
+        #SCHEME
+        ===============================================================================
+        A scheme is a combination of protease and label_set. Use the scheme argument to
+        specify schemes directly. The format is protease/label_set.
 
         #DECOYS
         ===============================================================================
