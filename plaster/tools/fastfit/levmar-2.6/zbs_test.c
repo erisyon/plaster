@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <float.h>
+#include "assert.h"
 
 #include "levmar.h"
 
@@ -45,30 +46,58 @@ void jacros(double *p, double *jac, int m, int n, void *data) {
 }
 */
 
+void gauss_1d(double *p, double *dst_x, double *e, int m, int n, void *data) {
+    // p = parameters array [a, b, c]
+    // dst_x = Where to write to
+    // e = error terms
+    // m = number of parameters
+    // n = number of data points
+    // data = data
 
-void gauss1(double *p, double *x, double *e, int m, int n, void *data) {
-    register int i;
+    double a = p[0];
+    double b = p[1];
+    double c = p[2];
+    double _2c2 = 2.0 * c * c;
 
-    double mu = p[0];
-    double sigma = p[1];
-    double sigma2 = sigma * sigma;
-
-    for(i=0; i<n; ++i) {
-        x[i] = exp( -(i-mu) / (2.0 * sigma2) );
+    for(int i=0; i<n; i++) {
+        double x = (double)i - b;
+        dst_x[i] = a * exp( -(x*x) / _2c2 );
     }
 }
 
-/*
-void jac_gauss1(double *p, double *jac, int m, int n, void *data) {
-    register int i, j;
 
-    for(i=j=0; i<n; ++i) {
-        jac[j++]=(-2 + 2 * p[0] - 4 * ROSD * (p[1] - p[0] * p[0]) *p[0]);
-        jac[j++]=(2 * ROSD * (p[1] - p[0] * p[0]));
+void jac_gauss_1d(double *p, double *jac, int m, int n, void *data) {
+    // p = parameters array [a, b, c]
+    // jac = Where to write to
+    // m = number of parameters
+    // n = number of data points
+    // data = data
+
+    // d/da = exp( -(x - b)**2 / 2 * c**2 )
+    // d/db = ( a * (x - b) * exp( -(x-b)**2 / 2c**2 ) ) / c**2
+    // d/dc = ( a * (x - b)**2 * exp( -(x-b)**2 / 2c**2 ) ) / c**3
+
+    double a = p[0];
+    double b = p[1];
+    double c = p[2];
+
+    double _c2 = c * c;
+    double _c3 = _c2 * c;
+    double _2c2 = 2.0 * c * c;
+
+    int j = 0;
+    for(int i=0; i<n; i++) {
+        double x = (double)i;
+        double _xb = x - b;
+        double _xb2 = _xb * _xb;
+        double _exp1 = exp( -_xb2 / _2c2 );
+        double _axb = a * _xb;
+        double _axb_exp1 = _axb * _exp1;
+        jac[j++] = _exp1;
+        jac[j++] = _axb_exp1 / _c2;
+        jac[j++] = _axb_exp1 * _xb / _c3;
     }
 }
-*/
-
 
 
 int main() {
@@ -84,37 +113,32 @@ int main() {
     opts[4]= LM_DIFF_DELTA; // relevant only if the Jacobian is approximated using finite differences; specifies forward differencing
     //opts[4]=-LM_DIFF_DELTA; // specifies central differencing to approximate Jacobian; more accurate but more expensive to compute!
 
-    /*
-    // Rosenbrock function
-    double p[5], x[16];
-    m=2;
-    n=2;
-    p[0]=-1.2;
-    p[1]=1.0;
-    for(i=0; i<n; i++) {
-        x[i]=0.0;
-    }
-    ret = dlevmar_der(ros, jacros, p, x, m, n, 1000, opts, info, NULL, NULL, NULL); // with analytic Jacobian
-    */
-
-
     // Gauss1 function
-    double x[] = { 3.7e-06, 3.4e-04, 1.1e-02, 1.4e-01, 6.1e-01, 1.0e+00, 6.1e-01, 1.4e-01, 1.1e-02, 3.4e-04 };
-    m = 2; // n_params
-    n = 10; // len of data
+    // True params are: 1.0, 25.0, 5.0
+    double x[] = { 1.2e-02,  1.2e-02,  5.5e-03,  1.7e-02, -3.0e-03,  7.0e-03,
+       -1.7e-02,  4.1e-03, -1.8e-04, -1.0e-06, -4.1e-03,  1.7e-02,
+        2.1e-02,  6.6e-02,  6.5e-02,  1.3e-01,  2.0e-01,  2.8e-01,
+        3.6e-01,  5.0e-01,  6.0e-01,  7.4e-01,  8.4e-01,  9.2e-01,
+        9.7e-01,  9.9e-01,  9.9e-01,  9.4e-01,  8.4e-01,  7.4e-01,
+        6.0e-01,  4.9e-01,  3.6e-01,  2.8e-01,  2.0e-01,  1.4e-01,
+        9.7e-02,  5.8e-02,  4.3e-02,  3.8e-02,  3.1e-02,  1.7e-02,
+       -3.3e-03, -1.1e-04, -7.7e-03,  2.2e-02,  9.0e-03,  2.6e-04,
+       -2.6e-03, -1.0e-02
+    };
 
-    double p[] = { 4.5, 1.2 };
+    m = 3; // n_params
+    n = 50; // len of data
+
+    double p[] = { 0.9, 20.0, 4.0 };
 
     ret = dlevmar_der(
-
-        gauss1,
-        NULL,//jac_gauss1,
+        gauss_1d,
+        jac_gauss_1d,
         p,
         x,
         m,
         n,
         1000,  // max_iter
-
         opts,
         info,
         NULL,
@@ -122,7 +146,21 @@ int main() {
         NULL
     ); // with analytic Jacobian
 
-
+    /*
+    ret = dlevmar_dif(
+        gauss1,
+        p,
+        x,
+        m,
+        n,
+        1000,  // max_iter
+        opts,
+        info,
+        NULL,
+        NULL,
+        NULL
+    ); // without analytic Jacobian
+    */
 
     printf("Levenberg-Marquardt returned %d in %g iter, reason %g\nSolution: ", ret, info[5], info[6]);
     for(i=0; i<m; ++i) {

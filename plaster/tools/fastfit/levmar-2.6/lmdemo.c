@@ -881,7 +881,8 @@ char *probname[]={
   case 0:
   /* Rosenbrock function */
     m=2; n=2;
-    p[0]=-1.2; p[1]=1.0;
+    p[0]=-1.2;
+    p[1]=1.0;
     for(i=0; i<n; i++) x[i]=0.0;
     ret=dlevmar_der(ros, jacros, p, x, m, n, 1000, opts, info, NULL, NULL, NULL); // with analytic Jacobian
     //ret=dlevmar_dif(ros, p, x, m, n, 1000, opts, info, NULL, NULL, NULL);  // no Jacobian
