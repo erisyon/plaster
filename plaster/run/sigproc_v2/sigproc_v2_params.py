@@ -29,7 +29,6 @@ class SigprocV2Params(Params):
         skip_anomaly_detection=True,
         skip_regional_balance=False,
         run_fitter=False,
-        peak_finder_percentile_threshold=99.9,
     )
 
     schema = s(
@@ -46,7 +45,6 @@ class SigprocV2Params(Params):
             skip_anomaly_detection=s.is_bool(),
             skip_regional_balance=s.is_bool(),
             run_fitter=s.is_bool(),
-            peak_finder_percentile_threshold=s.is_float(),
         )
     )
 

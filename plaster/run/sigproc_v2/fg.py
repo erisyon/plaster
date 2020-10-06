@@ -7,17 +7,26 @@ from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
 
 
-def peak_find(im, kernel, percentile_thresh):
+def peak_find(im, kernel, bg_std):
     """
     Peak find on a single image.
 
     In some cases this im might be a mean of multiple channels
     in other cases it might stand-alone on a single channel.
 
+    Arguments:
+        im: the image to peak find
+        kernel: An estimated kernel
+        bg_std:
+            The stnadard devaiotn of the background,
+            this is scaled by 1.25 to pick a threshold
+
     Returns:
         locs: ndarray (n_peaks_found, 2) where the 2 is in (y,x) order
     """
     from skimage.feature import peak_local_max  # Defer slow import
+
+    thresh = 1.25 * bg_std  # This 1.25 was found empirically
 
     cim = imops.convolve(np.nan_to_num(im, nan=float(np.nanmedian(im))), kernel)
 
@@ -29,9 +38,8 @@ def peak_find(im, kernel, percentile_thresh):
     # The background is well-described by the the histogram centered
     # around zero thanks to the fact that im and kern are expected
     # to be roughly zero-centered. Therefore we estimate the threshold
-    # by using the samples less than zero cim[cim<0] and taking the 99th percentile
+    # by using the samples less than zero cim[cim<0]
     if (cim < 0).sum() > 0:
-        thresh = np.percentile(-cim[cim < 0], percentile_thresh)
         cim[cim < thresh] = 0
         return peak_local_max(cim, min_distance=2, threshold_abs=thresh)
     else:
@@ -261,7 +269,7 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     return params
 
 
-def fg_estimate(fl_ims, z_reg_psfs, peak_finder_percentile_threshold, progress=None):
+def fg_estimate(fl_ims, z_reg_psfs, progress=None):
     """
     Estimate the foreground illumination averaged over every field for
     one channel on the first cycle.
@@ -297,10 +305,10 @@ def fg_estimate(fl_ims, z_reg_psfs, peak_finder_percentile_threshold, progress=N
         if progress:
             progress(fl_i, n_fields, False)
 
-        im_no_bg = bg.bg_estimate_and_remove(fl_ims[fl_i], kernel)
+        im_no_bg, bg_std = bg.bg_estimate_and_remove(fl_ims[fl_i], kernel)
 
         # FIND PEAKS
-        locs = peak_find(im_no_bg, kernel, peak_finder_percentile_threshold)
+        locs = peak_find(im_no_bg, kernel, bg_std)
 
         # RADIOMETRY
         signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)
