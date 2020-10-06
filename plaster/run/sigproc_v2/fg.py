@@ -261,7 +261,7 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     return params
 
 
-def fg_estimate(fl_ims, z_reg_psfs, progress=None):
+def fg_estimate(fl_ims, z_reg_psfs, peak_finder_percentile_threshold, progress=None):
     """
     Estimate the foreground illumination averaged over every field for
     one channel on the first cycle.
@@ -300,11 +300,7 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
         im_no_bg = bg.bg_estimate_and_remove(fl_ims[fl_i], kernel)
 
         # FIND PEAKS
-        # The following 99 was based on abbe2_1. I had cranked up the threshold
-        # to 99.999 based on Val data but that excluded most things from Abbe2_1
-        # so I have to find a find the right compromise (I think it has to do with density
-        # and number of pixels)
-        locs = peak_find(im_no_bg, kernel, 99)
+        locs = peak_find(im_no_bg, kernel, peak_finder_percentile_threshold)
 
         # RADIOMETRY
         signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)

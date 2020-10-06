@@ -144,7 +144,7 @@ def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
     return calib, focus_per_field_per_channel
 
 
-def _calibrate_illum(calib, ims_import_result, progress):
+def _calibrate_illum(calib, ims_import_result, peak_finder_percentile_threshold, progress):
     """
     Extract a per-channel regional balance by using the foreground peaks as estimators
     """
@@ -154,7 +154,7 @@ def _calibrate_illum(calib, ims_import_result, progress):
         fl_ims = ims_import_result.ims[
             :, ch_i, 0
         ]  # Cycle 0 because it has the most peaks
-        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i), progress)
+        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i), peak_finder_percentile_threshold, progress)
         fg_means[ch_i] = fg_mean
         assert np.all(~np.isnan(reg_bal))
 
@@ -342,7 +342,7 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     return aligned_chcy_ims
 
 
-def _analyze_step_5_find_peaks(chcy_ims, kernel):
+def _analyze_step_5_find_peaks(chcy_ims, kernel, peak_finder_percentile_threshold):
     """
     Step 5: Peak find on combined channels
 
@@ -355,10 +355,7 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel):
     """
     ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
 
-    # The following 99.999 is based on val1_1 data. But I suspect
-    # that it may be size and density dependent and thus we may need
-    # a better way to determine it
-    locs = fg.peak_find(ch_mean_of_cy0_im, kernel, 99.999)
+    locs = fg.peak_find(ch_mean_of_cy0_im, kernel, peak_finder_percentile_threshold)
     return locs
 
 
@@ -508,7 +505,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
     kernel = psf.approximate_kernel()
-    locs = _analyze_step_5_find_peaks(chcy_ims, kernel)
+    locs = _analyze_step_5_find_peaks(chcy_ims, kernel, sigproc_v2_params.peak_finder_percentile_threshold)
 
     # Step 6: Radiometry over each channel, cycle
     radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib)
@@ -610,7 +607,12 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
             )
 
         calib = Calibration.load(sigproc_v2_params.calibration_file)
-        calib, fg_means = _calibrate_illum(calib, ims_import_result, progress)
+        calib, fg_means = _calibrate_illum(
+            calib,
+            ims_import_result,
+            sigproc_v2_params.peak_finder_percentile_threshold,
+            progress
+        )
 
     return SigprocV2Result(
         params=sigproc_v2_params,
