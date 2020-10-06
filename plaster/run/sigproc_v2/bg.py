@@ -6,6 +6,7 @@ One entrypoint: bg_remove
 import cv2
 import numpy as np
 from plaster.tools.image import imops
+from plaster.tools.log.log import debug
 
 
 def background_extract(im, kernel):
@@ -118,5 +119,5 @@ def bg_estimate_and_remove(im, kernel):
     """
     Extract the bg and subtract it
     """
-    reg_bg, _ = background_regional_estimate_im(im, kernel)
-    return bg_remove(im, reg_bg)
+    reg_bg, reg_std = background_regional_estimate_im(im, kernel)
+    return bg_remove(im, reg_bg), np.nanmean(reg_std)

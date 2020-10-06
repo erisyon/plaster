@@ -144,7 +144,9 @@ def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
     return calib, focus_per_field_per_channel
 
 
-def _calibrate_illum(calib, ims_import_result, progress):
+def _calibrate_illum(
+    calib, ims_import_result, peak_finder_percentile_threshold, progress
+):
     """
     Extract a per-channel regional balance by using the foreground peaks as estimators
     """
@@ -154,7 +156,9 @@ def _calibrate_illum(calib, ims_import_result, progress):
         fl_ims = ims_import_result.ims[
             :, ch_i, 0
         ]  # Cycle 0 because it has the most peaks
-        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i), progress)
+        reg_bal, fg_mean = fg.fg_estimate(
+            fl_ims, calib.psfs(ch_i), peak_finder_percentile_threshold, progress
+        )
         fg_means[ch_i] = fg_mean
         assert np.all(~np.isnan(reg_bal))
 
@@ -175,6 +179,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
 
     Returns:
         Regionally balance and channel equalized images.
+        bg_std for each channel and cycle
 
     Notes:
         * This is per-frame because there is a significant bleed of the foreground
@@ -189,6 +194,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     n_channels, n_cycles = chcy_ims.shape[0:2]
     dim = chcy_ims.shape[-2:]
     dst_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
+    chcy_bg_std = np.zeros((n_channels, n_cycles))
     kernel = psf.approximate_kernel()
 
     # Per-frame background estimation and removal
@@ -205,9 +211,14 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             im = np.copy(chcy_ims[ch_i, cy_i])
             if not sigproc_params.skip_regional_balance:
                 im *= bal_im
-            dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_estimate_and_remove(im, kernel)
 
-    return dst_chcy_ims
+            reg_bg, reg_bg_stds = bg.background_regional_estimate_im(im, kernel)
+            bg_std = np.mean(reg_bg_stds)
+
+            chcy_bg_std[ch_i, cy_i] = bg_std
+            dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_remove(im, reg_bg)
+
+    return dst_chcy_ims, chcy_bg_std
 
 
 '''
@@ -342,7 +353,7 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     return aligned_chcy_ims
 
 
-def _analyze_step_5_find_peaks(chcy_ims, kernel):
+def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
     """
     Step 5: Peak find on combined channels
 
@@ -354,11 +365,8 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel):
         locs: ndarray (n_peaks, 2)  where the second dimaension is in y, x order
     """
     ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
-
-    # The following 99.999 is based on val1_1 data. But I suspect
-    # that it may be size and density dependent and thus we may need
-    # a better way to determine it
-    locs = fg.peak_find(ch_mean_of_cy0_im, kernel, 99.999)
+    bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
+    locs = fg.peak_find(ch_mean_of_cy0_im, kernel, bg_std)
     return locs
 
 
@@ -477,7 +485,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     """
 
     # Step 1: Load the images in output channel order, balance, equalize
-    chcy_ims = _analyze_step_1_import_balanced_images(
+    chcy_ims, chcy_bg_stds = _analyze_step_1_import_balanced_images(
         chcy_ims, sigproc_v2_params, calib
     )
     # At this point, chcy_ims has its background subtracted and is
@@ -508,7 +516,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
     kernel = psf.approximate_kernel()
-    locs = _analyze_step_5_find_peaks(chcy_ims, kernel)
+    locs = _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds)
 
     # Step 6: Radiometry over each channel, cycle
     radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib)
@@ -610,7 +618,12 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
             )
 
         calib = Calibration.load(sigproc_v2_params.calibration_file)
-        calib, fg_means = _calibrate_illum(calib, ims_import_result, progress)
+        calib, fg_means = _calibrate_illum(
+            calib,
+            ims_import_result,
+            sigproc_v2_params.peak_finder_percentile_threshold,
+            progress,
+        )
 
     return SigprocV2Result(
         params=sigproc_v2_params,

@@ -247,9 +247,8 @@ def _do_psf_one_field_one_channel(zi_ims, peak_mea, divs, n_dst_zslices, n_src_z
     src_zi_best_focus = np.argmax(im_focuses)
 
     # FIND peaks on the best in focus and re-use those locs
-    im = bg.bg_estimate_and_remove(zi_ims[src_zi_best_focus], kernel)
-    # On the 99 -- see notes in fg_estimate
-    locs = fg.peak_find(im, kernel, 99)
+    im, bg_std = bg.bg_estimate_and_remove(zi_ims[src_zi_best_focus], kernel)
+    locs = fg.peak_find(im, kernel, bg_std)
 
     for dst_zi in range(n_dst_zslices):
         src_zi0 = math.floor(
@@ -312,7 +311,9 @@ def psf_fit_gaussian(psfs):
     Fit to a Gaussian
     """
     n_z, divs_y, divs_x, h, w = psfs.shape
-    psf_params = np.full((n_z, divs_y, divs_x, 8), np.nan)  # 8 == number gaussian params in rho form
+    psf_params = np.full(
+        (n_z, divs_y, divs_x, 8), np.nan
+    )  # 8 == number gaussian params in rho form
     for z_i in range(n_z):
         for y in range(divs_y):
             for x in range(divs_x):

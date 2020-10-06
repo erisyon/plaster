@@ -261,13 +261,21 @@ def circle_locs(
         return circle_im
 
 
-def _sigproc_v2_im(im, locs, sig, snr, keep_mask=None, **kwargs):
+def _sigproc_v2_im(im, locs, sig=None, snr=None, keep_mask=None, **kwargs):
     # if keep_mask is not None:
     #     locs = locs[keep_mask]
     #     sig = sig[keep_mask]
     #     snr = snr[keep_mask]
 
     z = kwargs.pop("_zplots_context", None) or ZPlots()
+
+    n_locs = len(locs)
+
+    if sig is None:
+        sig = np.full((n_locs,), np.nan)
+
+    if snr is None:
+        snr = np.full((n_locs,), np.nan)
 
     circle_im = circle_locs(
         im, locs, inner_radius=6, outer_radius=7, fill_mode="one", keep_mask=keep_mask
