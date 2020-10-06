@@ -15,6 +15,7 @@ typedef struct {
     Tab output_pep_i_to_mic_pep_i;
     Index next_pep_i;
     Size n_threads;
+    Size n_flann_cores;
     Size n_peps;
     Size n_neighbors;
     Size n_dyts;

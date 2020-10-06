@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
 from plaster.run.sim_v2.sim_v2_result import RadType
-from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
 from plaster.run.survey_v2.fast import survey_v2_fast
+from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
 from plaster.tools.aaseq.aaseq import aa_str_to_list
-from plaster.tools.schema import check
-from plaster.vendor import pyflann
 from plaster.tools.log.log import debug
+from plaster.tools.schema import check
+from plaster.tools.zap import zap
+from plaster.vendor import pyflann
 
 '''
 def dist_to_closest_neighbors(dyemat, dyepeps):
@@ -100,7 +101,7 @@ def survey_v2(
         prep_result.n_peps,
         sim_v2_result.train_dyemat,
         sim_v2_result.train_dyepeps,
-        n_threads=1,
+        n_threads=zap.get_cpu_limit(),
         progress=progress,
     )
 

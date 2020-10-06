@@ -134,7 +134,9 @@ def survey(
     # print(", ".join([f"{i}" for i in pep_i_to_dyepep_row_i.tolist()]))
     assert np.all(np.diff(pep_i_to_dyepep_row_i) >= 0), "bad pep_i_to_dyepep_row_i"
 
-    ctx.n_threads = n_threads
+    # 10/5/2020 DHW changed this to parallelize at the flann level rather than the survey level (n_threads for survey was already set to 1)
+    ctx.n_threads = 1
+    ctx.n_flann_cores = n_threads
     ctx.n_peps = n_peps
     ctx.n_neighbors = 10
     ctx.n_dyts = n_dyts

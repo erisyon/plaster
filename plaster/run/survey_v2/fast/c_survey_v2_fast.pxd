@@ -11,6 +11,7 @@ cdef extern from "c_survey_v2_fast.h":
         c.Tab output_pep_i_to_mic_pep_i
         c.Index next_pep_i
         c.Size n_threads
+        c.Size n_flann_cores
         c.Size n_peps
         c.Size n_neighbors
         c.Size n_dyts

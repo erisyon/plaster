@@ -450,6 +450,7 @@ void context_start(SurveyV2FastContext *ctx) {
     // CLEAR internally controlled elements
     ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
     ctx->flann_index_id = 0;
+    ctx->flann_params.cores = ctx->n_flann_cores;
 
     // CREATE the ANN index
     // TODO: DRY with NN
@@ -462,6 +463,10 @@ void context_start(SurveyV2FastContext *ctx) {
         &ctx->flann_params
     );
 
+    // 10/5/2020 DHW changed this to parallelize at the flann level rather than the survey level (n_threads for survey was already set to 1)
+    context_work_orders_worker(ctx);
+
+    /*
     // START threads
     pthread_t ids[256];
     ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
@@ -479,6 +484,7 @@ void context_start(SurveyV2FastContext *ctx) {
     for(Index i=0; i<ctx->n_threads; i++) {
         pthread_join(ids[i], NULL);
     }
+    */
 
     if(show_debug) {
         trace("\nSUMMARY\n");
