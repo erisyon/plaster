@@ -36,7 +36,8 @@ def result_simple_fixture(has_decoy=False):
             pro_i=[
                 0,
                 1, 1, 1, 1, 1,
-                2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
+            ],
             aa=[
                 ".",
                 "A", "B", "C", "D", "E",
