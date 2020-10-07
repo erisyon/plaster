@@ -144,7 +144,9 @@ def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
     return calib, focus_per_field_per_channel
 
 
-def _calibrate_illum(calib, ims_import_result):
+def _calibrate_illum(
+    calib, ims_import_result, peak_finder_percentile_threshold, progress
+):
     """
     Extract a per-channel regional balance by using the foreground peaks as estimators
     """
@@ -154,7 +156,9 @@ def _calibrate_illum(calib, ims_import_result):
         fl_ims = ims_import_result.ims[
             :, ch_i, 0
         ]  # Cycle 0 because it has the most peaks
-        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i))
+        reg_bal, fg_mean = fg.fg_estimate(
+            fl_ims, calib.psfs(ch_i), peak_finder_percentile_threshold, progress
+        )
         fg_means[ch_i] = fg_mean
         assert np.all(~np.isnan(reg_bal))
 
@@ -175,6 +179,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
 
     Returns:
         Regionally balance and channel equalized images.
+        bg_std for each channel and cycle
 
     Notes:
         * This is per-frame because there is a significant bleed of the foreground
@@ -189,6 +194,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     n_channels, n_cycles = chcy_ims.shape[0:2]
     dim = chcy_ims.shape[-2:]
     dst_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
+    chcy_bg_std = np.zeros((n_channels, n_cycles))
     kernel = psf.approximate_kernel()
 
     # Per-frame background estimation and removal
@@ -205,9 +211,14 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             im = np.copy(chcy_ims[ch_i, cy_i])
             if not sigproc_params.skip_regional_balance:
                 im *= bal_im
-            dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_estimate_and_remove(im, kernel)
 
-    return dst_chcy_ims
+            reg_bg, reg_bg_stds = bg.background_regional_estimate_im(im, kernel)
+            bg_std = np.mean(reg_bg_stds)
+
+            chcy_bg_std[ch_i, cy_i] = bg_std
+            dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_remove(im, reg_bg)
+
+    return dst_chcy_ims, chcy_bg_std
 
 
 '''
@@ -342,7 +353,7 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     return aligned_chcy_ims
 
 
-def _analyze_step_5_find_peaks(chcy_ims, kernel):
+def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
     """
     Step 5: Peak find on combined channels
 
@@ -354,7 +365,8 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel):
         locs: ndarray (n_peaks, 2)  where the second dimaension is in y, x order
     """
     ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
-    locs = fg.peak_find(ch_mean_of_cy0_im, kernel)
+    bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
+    locs = fg.peak_find(ch_mean_of_cy0_im, kernel, bg_std)
     return locs
 
 
@@ -368,7 +380,8 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
         calib: Calibration (needed for psf)
 
     Returns:
-        radmat: ndarray(n_locs, n_channels, n_cycles, 2)  Where the last dim is (signal, noise)
+        radmat: ndarray(n_locs, n_channels, n_cycles, 3)
+            Where the last dim is (signal, noise, aspect_ratio)
     """
     check.array_t(chcy_ims, ndim=4)
     check.array_t(locs, ndim=2, shape=(None, 2))
@@ -376,22 +389,60 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     n_locs = len(locs)
     n_channels, n_cycles = chcy_ims.shape[0:2]
 
-    radmat = np.full((n_locs, n_channels, n_cycles, 2), np.nan)
+    radmat = np.full((n_locs, n_channels, n_cycles, 3), np.nan)
 
     for ch_i in range(n_channels):
-        z_reg_psfs = np.array(calib[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
-
+        z_reg_psfs = calib.psfs(ch_i)
         z_reg_psfs = psf.psf_gaussianify(z_reg_psfs)
 
         for cy_i in range(n_cycles):
             im = chcy_ims[ch_i, cy_i]
 
-            signal, noise = fg.radiometry_one_channel_one_cycle(im, z_reg_psfs, locs)
+            signal, noise, aspect_ratio = fg.radiometry_one_channel_one_cycle(
+                im, z_reg_psfs, locs
+            )
 
             radmat[:, ch_i, cy_i, 0] = signal
             radmat[:, ch_i, cy_i, 1] = noise
+            radmat[:, ch_i, cy_i, 2] = aspect_ratio
 
     return radmat
+
+
+def _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params):
+    """
+    Fit Gaussian.
+
+    Arguments:
+        chcy_ims: (n_channels, n_cycles, width, height)
+        locs: (n_peaks, 2). The second dimension is in (y, x) order
+        calib: Calibration (needed for psf)
+        psf_params: The Gaussian (rho form) params for the entire PSF stack
+
+    Returns:
+        fitmat: ndarray(n_locs, n_channels, n_cycles, 3 + 8)
+            Where the last dim is (sig, noi, asr) + (params of gaussian in rho form)
+
+    """
+    check.array_t(chcy_ims, ndim=4)
+    check.array_t(locs, ndim=2, shape=(None, 2))
+
+    n_locs = len(locs)
+    n_channels, n_cycles = chcy_ims.shape[0:2]
+
+    fitmat = np.full((n_locs, n_channels, n_cycles, 3 + 8), np.nan)
+
+    for ch_i in range(n_channels):
+        for cy_i in range(n_cycles):
+            im = chcy_ims[ch_i, cy_i]
+
+            params = fg.radiometry_one_channel_one_cycle_fit_method(
+                im, psf_params, locs
+            )
+
+            fitmat[:, ch_i, cy_i, :] = params
+
+    return fitmat
 
 
 """
@@ -416,7 +467,7 @@ def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
 """
 
 
-def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib):
+def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     """
     Analyze one field --
         * Regional and channel balance
@@ -434,7 +485,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib):
     """
 
     # Step 1: Load the images in output channel order, balance, equalize
-    chcy_ims = _analyze_step_1_import_balanced_images(
+    chcy_ims, chcy_bg_stds = _analyze_step_1_import_balanced_images(
         chcy_ims, sigproc_v2_params, calib
     )
     # At this point, chcy_ims has its background subtracted and is
@@ -465,15 +516,19 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib):
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
     kernel = psf.approximate_kernel()
-    locs = _analyze_step_5_find_peaks(chcy_ims, kernel)
+    locs = _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds)
 
     # Step 6: Radiometry over each channel, cycle
     radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib)
 
+    fitmat = None
+    if sigproc_v2_params.run_fitter:
+        fitmat = _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params)
+
     # Temporaily removed until a better metric can be found
     # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
 
-    return chcy_ims, locs, radmat, aln_offsets, aln_scores
+    return chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat
 
 
 def _do_sigproc_analyze_and_save_field(
@@ -485,8 +540,12 @@ def _do_sigproc_analyze_and_save_field(
     chcy_ims = ims_import_result.ims[field_i]
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
-    chcy_ims, locs, radmat, aln_offsets, aln_scores = _sigproc_analyze_field(
-        chcy_ims, sigproc_v2_params, calib
+    psf_params = None
+    if sigproc_v2_params.run_fitter:
+        psf_params = psf.psf_fit_gaussian(calib.psfs(0))
+
+    chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat = _sigproc_analyze_field(
+        chcy_ims, sigproc_v2_params, calib, psf_params
     )
 
     mea = np.array([chcy_ims.shape[-1:]])
@@ -524,6 +583,7 @@ def _do_sigproc_analyze_and_save_field(
         peak_df=peak_df,
         field_df=field_df,
         radmat=radmat,
+        fitmat=fitmat,
         _aln_chcy_ims=chcy_ims,
     )
 
@@ -558,7 +618,12 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
             )
 
         calib = Calibration.load(sigproc_v2_params.calibration_file)
-        calib, fg_means = _calibrate_illum(calib, ims_import_result)
+        calib, fg_means = _calibrate_illum(
+            calib,
+            ims_import_result,
+            sigproc_v2_params.peak_finder_percentile_threshold,
+            progress,
+        )
 
     return SigprocV2Result(
         params=sigproc_v2_params,

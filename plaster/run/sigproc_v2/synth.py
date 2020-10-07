@@ -1,5 +1,7 @@
 import numpy as np
 import cv2
+import random
+import copy
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
@@ -137,9 +139,9 @@ class PeaksModel(BaseSynthModel):
         self.locs = np.random.uniform(0, self.dim, (self.n_peaks, 2)).astype(int)
         return self
 
-    def locs_randomize_away_from_edges(self):
+    def locs_randomize_away_from_edges(self, dist=15):
         self.locs = np.random.uniform(
-            [15, 15], np.array(self.dim) - 15, (self.n_peaks, 2)
+            [dist, dist], np.array(self.dim) - dist, (self.n_peaks, 2)
         )
         return self
 
@@ -262,9 +264,14 @@ class PeaksModelGaussianCircular(PeaksModelGaussian):
         super().__init__(**kws)
         self.std = 1.0
 
-    def widths_uniform(self, std=1.5):
-        self.std_x = [std for _ in self.locs]
-        self.std_y = [std for _ in self.locs]
+    def widths_uniform(self, width=1.5):
+        self.std_x = [width for _ in self.locs]
+        self.std_y = copy.copy(self.std_x)
+        return self
+
+    def widths_variable(self, width=1.5, scale=0.1):
+        self.std_x = [random.gauss(width, scale) for _ in self.locs]
+        self.std_y = copy.copy(self.std_x)
         return self
 
     def render(self, im, fl_i, ch_i, cy_i):

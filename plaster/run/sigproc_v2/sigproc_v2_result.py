@@ -5,6 +5,7 @@ At save time, the radmats for all fields is composited into one big radmat.
 """
 import pandas as pd
 import itertools
+import warnings
 from collections import OrderedDict
 from plumbum import local
 from plaster.tools.schema import check
@@ -53,6 +54,20 @@ class SigprocV2Result(BaseResult):
         aln_x=int,
     )
 
+    peak_fit_df_schema = OrderedDict(
+        peak_i=int,
+        field_i=int,
+        field_peak_i=int,
+        amp=float,
+        std_x=float,
+        std_y=float,
+        pos_x=float,
+        pos_y=float,
+        rho=float,
+        const=float,
+        mea=float,
+    )
+
     field_df_schema = OrderedDict(
         field_i=int,
         channel_i=int,
@@ -78,6 +93,7 @@ class SigprocV2Result(BaseResult):
         signal=float,
         noise=float,
         snr=float,
+        aspect_ratio=float,
     )
 
     # mask_rects_df_schema = dict(
@@ -180,6 +196,13 @@ class SigprocV2Result(BaseResult):
             range(self.n_fields), range(self.n_channels), range(self.n_cycles)
         )
 
+    def _has_prop(self, prop):
+        # Assume field 0 is representative of all fields
+        field_i = 0
+        name = local.path(self.field_files[field_i]).name
+        props = utils.indexed_pickler_load(self._folder / name, prop_list=[prop], skip_missing_props=True)
+        return prop in props.keys()
+
     def _load_field_prop(self, field_i, prop):
         """Mockpoint"""
         name = local.path(self.field_files[field_i]).name
@@ -278,6 +301,14 @@ class SigprocV2Result(BaseResult):
             )
         )
 
+    def aspect_ratio(self, fields=None, **kwargs):
+        return np.nan_to_num(
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 2],
+                **kwargs,
+            )
+        )
+
     def aln_chcy_ims(self, field_i):
         if field_i not in self._cache_aln_chcy_ims:
             filename = self._field_filename(field_i, is_debug=True)
@@ -298,6 +329,14 @@ class SigprocV2Result(BaseResult):
             lookup_fn=lambda fl, ch, cy: self.aln_chcy_ims(fl)[ch, cy],
         )
 
+    def fitmat(self, fields=None, **kwargs):
+        return np.nan_to_num(
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "fitmat"),
+                **kwargs,
+            )
+        )
+
     # DataFrame returns
     # ----------------------------------------------------------------
 
@@ -309,6 +348,24 @@ class SigprocV2Result(BaseResult):
     def peaks(self):
         df = self._load_df_prop_from_all_fields("peak_df")
         check.df_t(df, self.peak_df_schema)
+
+        if self._has_prop("peak_fit_df"):
+            fit_df = self._load_df_prop_from_all_fields("peak_fit_df")
+            check.df_t(df, self.peak_fit_df_schema)
+            df = df.set_index(["field_i", "field_peak_i"]).join(
+                fit_df.set_index(["field_i", "field_peak_i"])
+            )
+
+        # The peaks have a local frame_peak_i but they
+        # don't have their pan-field peak_i set yet.
+        df = df.reset_index(drop=True)
+        df.peak_i = df.index
+
+        return df
+
+    def peak_fits(self):
+        df = self._load_df_prop_from_all_fields("peak_fit_df")
+        check.df_t(df, self.peak_fit_df_schema)
 
         # The peaks have a local frame_peak_i but they
         # don't have their pan-field peak_i set yet.
@@ -324,10 +381,14 @@ class SigprocV2Result(BaseResult):
         sigs = self.sig()
         nois = self.noi()
         snr = self.snr()
+        aspect_ratios = self.aspect_ratio()
 
         signal = sigs.reshape((sigs.shape[0] * sigs.shape[1] * sigs.shape[2]))
         noise = nois.reshape((nois.shape[0] * nois.shape[1] * nois.shape[2]))
         snr = snr.reshape((snr.shape[0] * snr.shape[1] * snr.shape[2]))
+        aspect_ratio = aspect_ratios.reshape(
+            (aspect_ratios.shape[0] * aspect_ratios.shape[1] * aspect_ratios.shape[2])
+        )
 
         peaks = list(range(sigs.shape[0]))
         channels = list(range(self.n_channels))
@@ -343,6 +404,7 @@ class SigprocV2Result(BaseResult):
                 signal=signal,
                 noise=noise,
                 snr=snr,
+                aspect_ratio=aspect_ratio,
             )
         )
 
@@ -408,7 +470,9 @@ class SigprocV2Result(BaseResult):
             self.fields__n_peaks__peaks()
             .set_index(pcc_index)
             .join(
-                self.radmats__peaks().set_index(pcc_index)[["signal", "noise", "snr"]]
+                self.radmats__peaks().set_index(pcc_index)[
+                    ["signal", "noise", "snr", "aspect_ratio"]
+                ]
             )
             .reset_index()
         )
@@ -431,6 +495,7 @@ def sig_from_df_filter(
     max_intensity_any_cycle=None,
     min_intensity_per_cycle=None,
     max_intensity_per_cycle=None,
+    max_aspect_ratio=None,
     radmat_field="signal",
     **kwargs,
 ):
@@ -467,7 +532,31 @@ def sig_from_df_filter(
         .drop(columns=["field_i", "peak_i"])
     ).values
 
+    asr = (
+        pd.pivot_table(
+            _df, values="aspect_ratio", index=["field_i", "peak_i"], columns=["cycle_i"]
+        )
+        .reset_index()
+        .rename_axis(None, axis=1)
+        .drop(columns=["field_i", "peak_i"])
+    ).values
+
     keep_mask = np.ones((radmat.shape[0],), dtype=bool)
+
+    if max_aspect_ratio is not None:
+        sig = (
+            pd.pivot_table(
+                _df, values="signal", index=["field_i", "peak_i"], columns=["cycle_i"]
+            )
+            .reset_index()
+            .rename_axis(None, axis=1)
+            .drop(columns=["field_i", "peak_i"])
+        ).values
+        asr[sig < dark] = np.nan
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            keep_mask &= np.nanmean(asr, axis=1) <= max_aspect_ratio
+
     if on_through_cy_i is not None:
         assert dark is not None
         keep_mask &= np.all(radmat[:, 0 : on_through_cy_i + 1] > dark, axis=1)

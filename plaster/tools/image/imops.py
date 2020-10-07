@@ -139,8 +139,18 @@ def extract_with_mask(im, mask, loc, center=False):
     Extracts the values from im at loc using the mask.
     Returns zero where the mask was False
     """
-    a = im[ROI(loc, mask.shape, center=center)]
-    return np.where(mask, a, 0.0)
+    try:
+        a = im[ROI(loc, mask.shape, center=center)]
+        return np.where(mask, a, 0.0)
+    except ValueError:
+        debug(
+            loc,
+            im.shape,
+            mask.shape,
+            center,
+            a.shape,
+            ROI(loc, mask.shape, center=center),
+        )
 
 
 def shift(src, loc=XY(0, 0)):
@@ -801,12 +811,15 @@ def gauss2_rho_form(amp, std_x, std_y, pos_x, pos_y, rho, const, mea):
     r = np.sum(np.multiply((radius_vectors.T @ inv_cov), radius_vectors.T), axis=1)
 
     exp_term = amp * np.exp(-0.5 * r)
+    if np.any(np.isnan(det_cov) | (det_cov < 0.0)):
+        print(f"det_cov={det_cov}")
+        np.save("wtf.npy",)
     norm_term = np.sqrt(((np.pi * 2.0) ** 2) * det_cov)
 
     return ((exp_term / norm_term) + const).reshape((mea, mea))
 
 
-def fit_gauss2(im):
+def fit_gauss2(im, guess_params=None):
     """
     Fit im with a 2D gaussian (within limits) using rho form
     Returns the params tuple to pass to gauss2_rho_form and the fir variance
@@ -868,7 +881,11 @@ def fit_gauss2(im):
         std_y = np.sqrt(std_y)
         return amp, std_x, std_y, pos_x, pos_y
 
-    guess_params = (*moments(), 0.0, minimum)
+    if guess_params is None:
+        guess_params = (*moments(), 0.0, minimum)
+    else:
+        if guess_params.shape[0] == 8:
+            guess_params = guess_params[0:7]
 
     try:
         popt, pcov = curve_fit(
@@ -877,8 +894,16 @@ def fit_gauss2(im):
             im_1d,
             p0=guess_params,
             bounds=(
-                (0.0, 0.0, 0.0, 0.0, 0.0, -0.8, np.min(im_1d)),
-                (np.inf, mea / 2, mea / 2, mea, mea, 0.8, np.max(im_1d)),
+                (0.0, 0.0, 0.0, 0.0, 0.0, -0.8, min(np.min(im_1d), guess_params[6])),
+                (
+                    np.inf,
+                    mea / 2,
+                    mea / 2,
+                    mea,
+                    mea,
+                    0.8,
+                    max(np.max(im_1d), guess_params[6]),
+                ),
             ),
         )
         return (*popt, mea), (*np.diag(pcov), 0)

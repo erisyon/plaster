@@ -441,7 +441,7 @@ def indexed_pickler_load(
         into_instance: If non None, insert the prop, val as an attribute into this
         skip_missing_props: if True, ignore the missing properties
     """
-    is_singleon = False
+    is_singleton = False
     pickled_props = {}
     with open(path, "rb") as f:
         index_len = struct.unpack("Q", f.read(8))[0]
@@ -453,7 +453,7 @@ def indexed_pickler_load(
             _prop_list = list(index.keys())
 
         if not isinstance(_prop_list, (list, tuple)):
-            is_singleon = True
+            is_singleton = True
             _prop_list = [prop_list]
 
         for prop in sorted(_prop_list):
@@ -465,7 +465,7 @@ def indexed_pickler_load(
             if into_instance is not None:
                 setattr(into_instance, prop, pickled_props[prop])
 
-        if is_singleon:
+        if is_singleton:
             # De-reference singleton
             return pickled_props[prop_list]
 

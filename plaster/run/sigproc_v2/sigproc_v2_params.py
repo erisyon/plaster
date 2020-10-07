@@ -28,6 +28,7 @@ class SigprocV2Params(Params):
         n_fields_limit=None,
         skip_anomaly_detection=True,
         skip_regional_balance=False,
+        run_fitter=False,
     )
 
     schema = s(
@@ -43,6 +44,7 @@ class SigprocV2Params(Params):
             n_fields_limit=s.is_int(noneable=True),
             skip_anomaly_detection=s.is_bool(),
             skip_regional_balance=s.is_bool(),
+            run_fitter=s.is_bool(),
         )
     )
 

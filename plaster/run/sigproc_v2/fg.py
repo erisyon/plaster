@@ -3,30 +3,43 @@ from plaster.run.sigproc_v2 import bg
 from plaster.run.sigproc_v2 import psf
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug, important
+from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
 
 
-def peak_find(im, kernel):
+def peak_find(im, kernel, bg_std):
     """
     Peak find on a single image.
 
     In some cases this im might be a mean of multiple channels
     in other cases it might stand-alone on a single channel.
 
+    Arguments:
+        im: the image to peak find
+        kernel: An estimated kernel
+        bg_std:
+            The stnadard devaiotn of the background,
+            this is scaled by 1.25 to pick a threshold
+
     Returns:
         locs: ndarray (n_peaks_found, 2) where the 2 is in (y,x) order
     """
     from skimage.feature import peak_local_max  # Defer slow import
 
+    thresh = 1.25 * bg_std  # This 1.25 was found empirically
+
     cim = imops.convolve(np.nan_to_num(im, nan=float(np.nanmedian(im))), kernel)
+
+    # CLEAN the edges
+    # ZBS: Added because there were often edge effect from the convolution
+    # that created false stray edge peaks.
+    imops.edge_fill(cim, kernel.shape[0])
 
     # The background is well-described by the the histogram centered
     # around zero thanks to the fact that im and kern are expected
     # to be roughly zero-centered. Therefore we estimate the threshold
-    # by using the samples less than zero cim[cim<0] and taking the 99th percentile
+    # by using the samples less than zero cim[cim<0]
     if (cim < 0).sum() > 0:
-        thresh = np.percentile(-cim[cim < 0], 99)
         cim[cim < thresh] = 0
         return peak_local_max(cim, min_distance=2, threshold_abs=thresh)
     else:
@@ -62,7 +75,7 @@ def _fit_focus(z_reg_psfs, locs, im):
 
 
 def _radiometry_one_peak(
-    peak_im, psf_kernel, center_weighted_mask, allow_non_unity_psf_kernel=False
+    peak_im, psf_kernel, allow_non_unity_psf_kernel=False, allow_subpixel_shift=True,
 ):
     """
     Helper for _analyze_step_6_radiometry() to compute
@@ -85,9 +98,7 @@ def _radiometry_one_peak(
     """
     check.array_t(peak_im, ndim=2, is_square=True)
     check.array_t(psf_kernel, ndim=2, is_square=True)
-    check.array_t(center_weighted_mask, ndim=2, is_square=True)
     assert peak_im.shape == psf_kernel.shape
-    assert psf_kernel.shape == center_weighted_mask.shape
 
     if not allow_non_unity_psf_kernel:
         try:
@@ -103,11 +114,10 @@ def _radiometry_one_peak(
     # Note, we scale peak_im by the centering_kernel so that
     # the COM will not be polluted by neighbors
 
-    com_before = imops.com((center_weighted_mask * peak_im) ** 2)
-    center_pixel = np.array(peak_im.shape) / 2
-    peak_im = center_weighted_mask * imops.sub_pixel_shift(
-        peak_im, center_pixel - com_before
-    )
+    if allow_subpixel_shift:
+        com_before = imops.com((peak_im) ** 2)
+        center_pixel = np.array(peak_im.shape) / 2
+        peak_im = imops.sub_pixel_shift(peak_im, center_pixel - com_before)
 
     # WEIGH the data with the psf_kernel and then normalize
     # by the psf_kernel_sum_squared to estimate signal
@@ -123,7 +133,14 @@ def _radiometry_one_peak(
     if psf_kernel_sum_squared > 0.0:
         noise = np.sqrt(var_residuals / psf_kernel_sum_squared)
 
-    return signal, noise
+    # COMPUTE aspect ratio
+    aspect_ratio = imops.distribution_aspect_ratio(peak_im)
+
+    return signal, noise, aspect_ratio
+
+
+def loc_to_div(loc, divs, shape):
+    return int(divs * loc[0] / shape[0]), int(divs * loc[1] / shape[1])
 
 
 def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
@@ -137,7 +154,7 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
         locs: (n_peaks, 2). The second dimension is in (y, x) order
 
     Returns:
-        signal, noise
+        signal, noise, aspect_ratio
     """
     check.array_t(im, ndim=2)
     check.array_t(z_reg_psfs, ndim=5)
@@ -148,19 +165,13 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
 
     signal = np.full((n_locs,), np.nan)
     noise = np.full((n_locs,), np.nan)
+    aspect_ratio = np.full((n_locs,), np.nan)
 
     psf_dim = z_reg_psfs.shape[-2:]
     assert z_reg_psfs.shape[1] == divs
     assert z_reg_psfs.shape[2] == divs
     assert z_reg_psfs.shape[3] == peak_mea
     assert z_reg_psfs.shape[4] == peak_mea
-
-    # TODO: Try removing this center_weighted_mask, I suspect it makes things worse
-    # center_weighted_mask = imops.generate_center_weighted_tanh(
-    #    peak_mea, radius=2.0
-    # )
-    # All ones center_weighted_mask
-    center_weighted_mask = np.ones(psf_dim)
 
     # TASK: Eventually this will examine which z-depth of the PSFs is best fit for this cycle.
     # The result will be a per-cycle index into the chcy_regional_psfs
@@ -179,24 +190,86 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
             # Skip nan collisions
             continue
 
-        psf_kernel = reg_psfs[
-            int(divs * loc[0] / im.shape[0]), int(divs * loc[1] / im.shape[1]),
-        ]
+        y, x = loc_to_div(loc, divs, im.shape)
+        psf_kernel = reg_psfs[y, x]
 
         if np.sum(psf_kernel) == 0.0:
-            _signal, _noise = np.nan, np.nan
+            _signal, _noise, _aspect_ratio = np.nan, np.nan, np.nan
         else:
-            _signal, _noise = _radiometry_one_peak(
-                peak_im, psf_kernel, center_weighted_mask=center_weighted_mask
-            )
+            _signal, _noise, _aspect_ratio = _radiometry_one_peak(peak_im, psf_kernel)
 
         signal[loc_i] = _signal
         noise[loc_i] = _noise
+        aspect_ratio[loc_i] = _aspect_ratio
 
-    return signal, noise
+    return signal, noise, aspect_ratio
 
 
-def fg_estimate(fl_ims, z_reg_psfs):
+def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
+    """
+    Like radiometry_one_channel_one_cycle() but using a gaussian fit
+
+    Returns:
+        11 typle:
+            signal, noise, aspect_ratio, fit parameters
+    """
+    check.array_t(im, ndim=2)
+    check.array_t(psf_params, ndim=4)
+    check.array_t(locs, ndim=2, shape=(None, 2))
+
+    n_z_slices, divs, _, _ = psf_params.shape
+    n_locs = len(locs)
+
+    params = np.zeros((n_locs, 3 + 8))  # sig, noi rsr, 8 gaussian parameters
+
+    assert psf_params.shape[1] == divs
+    assert psf_params.shape[2] == divs
+    assert psf_params.shape[3] == 8
+    psf_mea = psf_params[0, 0, 0, 7]
+    psf_dim = (psf_mea, psf_mea)
+
+    for loc_i, loc in enumerate(locs):
+        # if loc_i % 100 == 0:
+        #     print(f"{100 * loc_i / n_locs:3.2f}%")
+        peak_im = imops.crop(im, off=YX(loc), dim=HW(psf_dim), center=True)
+        if peak_im.shape != psf_dim:
+            # Skip near edges
+            continue
+
+        if np.any(np.isnan(peak_im)):
+            # Skip nan collisions
+            continue
+
+        y, x = loc_to_div(loc, divs, im.shape)
+        fit_guess = psf_params[psf_params.shape[0] // 2, y, x]
+
+        (amp, std_x, std_y, pos_x, pos_y, rho, const, mea), _ = imops.fit_gauss2(
+            peak_im, fit_guess
+        )
+        # The fit gauss may have a const offset, so this needs to be removed
+        # from both the kernel and the peak
+        psf_kernel = imops.gauss2_rho_form(
+            amp, std_x, std_y, pos_x, pos_y, rho, 0.0, mea
+        )
+        psf_kernel_sum = psf_kernel.sum()
+        if psf_kernel_sum == 0.0:
+            _signal, _noise, _aspect_ratio = np.nan, np.nan, np.nan
+        else:
+            psf_kernel /= psf_kernel_sum
+            psf_kernel = np.nan_to_num(psf_kernel)
+            peak_im -= const
+            allow_subpixel_shift = False
+            _signal, _noise, _aspect_ratio = _radiometry_one_peak(
+                peak_im, psf_kernel, allow_subpixel_shift=allow_subpixel_shift
+            )
+
+        params[loc_i][0:3] = (_signal, _noise, _aspect_ratio)
+        params[loc_i][3:] = (amp, std_x, std_y, pos_x, pos_y, rho, const, mea)
+
+    return params
+
+
+def fg_estimate(fl_ims, z_reg_psfs, progress=None):
     """
     Estimate the foreground illumination averaged over every field for
     one channel on the first cycle.
@@ -229,22 +302,26 @@ def fg_estimate(fl_ims, z_reg_psfs):
 
     for fl_i in range(n_fields):
         # REMOVE BG
-        im_no_bg = bg.bg_estimate_and_remove(fl_ims[fl_i], kernel)
+        if progress:
+            progress(fl_i, n_fields, False)
+
+        im_no_bg, bg_std = bg.bg_estimate_and_remove(fl_ims[fl_i], kernel)
 
         # FIND PEAKS
-        locs = peak_find(im_no_bg, kernel)
+        locs = peak_find(im_no_bg, kernel, bg_std)
 
         # RADIOMETRY
-        signals, _ = radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)
+        signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)
 
         # FIND outliers
-        low, high = np.nanpercentile(signals, (10, 90))
+        if not np.all(np.isnan(signals)):
+            low, high = np.nanpercentile(signals, (10, 90))
 
-        # SPLAT circles of the intensity of the signal into an accumulator
-        for loc, sig in zip(locs, signals):
-            if low <= sig <= high:
-                imops.accum_inplace(fg, sig * circle, loc, center=False)
-                imops.accum_inplace(cnt, circle, loc, center=False)
+            # SPLAT circles of the intensity of the signal into an accumulator
+            for loc, sig in zip(locs, signals):
+                if low <= sig <= high:
+                    imops.accum_inplace(fg, sig * circle, loc, center=False)
+                    imops.accum_inplace(cnt, circle, loc, center=False)
 
     # Fill nan into all places that had no counts
     fg[cnt == 0] = np.nan
@@ -252,9 +329,15 @@ def fg_estimate(fl_ims, z_reg_psfs):
     # Average over the samples (fg / cnt)
     mean_im = fg / cnt
 
-    # BALANCE regionally. 10 is an empirally found size
-    bal = imops.region_map(mean_im, np.nanmedian, 10)
+    def median_nan_ok(arr):
+        if np.all(np.isnan(arr)):
+            return np.nan
+        else:
+            return np.nanmedian(arr)
+
+    # BALANCE regionally. 10 is an empirically found size
+    bal = imops.region_map(mean_im, median_nan_ok, 10)
 
     # RETURN the balance adjustment. That is, multiply by this matrix
     # to balance an image. In other words, the brightest region will == 1.0
-    return np.max(bal) / bal, mean_im
+    return np.nanmax(bal) / bal, mean_im

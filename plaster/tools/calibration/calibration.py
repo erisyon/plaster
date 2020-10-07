@@ -3,6 +3,7 @@ import numpy as np
 import re
 from munch import Munch
 from plaster.tools.utils import utils
+from plumbum import local
 
 
 class Calibration(Munch):
@@ -212,6 +213,7 @@ class Calibration(Munch):
         return self
 
     def save(self, path):
+        (local.path(path) / "..").mkdir()
         utils.pickle_save(path, self)
         return self
 
