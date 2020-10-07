@@ -5,6 +5,7 @@ At save time, the radmats for all fields is composited into one big radmat.
 """
 import pandas as pd
 import itertools
+import warnings
 from collections import OrderedDict
 from plumbum import local
 from plaster.tools.schema import check
@@ -513,10 +514,6 @@ def sig_from_df_filter(
     if cycles is None:
         cycles = list(range(df.cycle_i.max() + 1))
 
-    if max_aspect_ratio is None:
-        # Set a huge value to include all
-        max_aspect_ratio = 1e9
-
     _df = df[
         (df.field_i.isin(fields))
         & (df.cycle_i.isin(cycles))
@@ -524,7 +521,6 @@ def sig_from_df_filter(
         & (df.raw_y < roi[0].stop)
         & (roi[1].start <= df.raw_x)
         & (df.raw_x < roi[1].stop)
-        & (df.aspect_ratio <= max_aspect_ratio)
     ].reset_index(drop=True)
 
     radmat = (
@@ -536,7 +532,31 @@ def sig_from_df_filter(
         .drop(columns=["field_i", "peak_i"])
     ).values
 
+    asr = (
+        pd.pivot_table(
+            _df, values="aspect_ratio", index=["field_i", "peak_i"], columns=["cycle_i"]
+        )
+        .reset_index()
+        .rename_axis(None, axis=1)
+        .drop(columns=["field_i", "peak_i"])
+    ).values
+
     keep_mask = np.ones((radmat.shape[0],), dtype=bool)
+
+    if max_aspect_ratio is not None:
+        sig = (
+            pd.pivot_table(
+                _df, values="signal", index=["field_i", "peak_i"], columns=["cycle_i"]
+            )
+            .reset_index()
+            .rename_axis(None, axis=1)
+            .drop(columns=["field_i", "peak_i"])
+        ).values
+        asr[sig < dark] = np.nan
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            keep_mask &= np.nanmean(asr, axis=1) <= max_aspect_ratio
+
     if on_through_cy_i is not None:
         assert dark is not None
         keep_mask &= np.all(radmat[:, 0 : on_through_cy_i + 1] > dark, axis=1)
