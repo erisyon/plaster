@@ -144,9 +144,7 @@ def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
     return calib, focus_per_field_per_channel
 
 
-def _calibrate_illum(
-    calib, ims_import_result, peak_finder_percentile_threshold, progress
-):
+def _calibrate_illum(calib, ims_import_result, progress):
     """
     Extract a per-channel regional balance by using the foreground peaks as estimators
     """
@@ -156,9 +154,7 @@ def _calibrate_illum(
         fl_ims = ims_import_result.ims[
             :, ch_i, 0
         ]  # Cycle 0 because it has the most peaks
-        reg_bal, fg_mean = fg.fg_estimate(
-            fl_ims, calib.psfs(ch_i), peak_finder_percentile_threshold, progress
-        )
+        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i), progress)
         fg_means[ch_i] = fg_mean
         assert np.all(~np.isnan(reg_bal))
 
@@ -618,12 +614,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
             )
 
         calib = Calibration.load(sigproc_v2_params.calibration_file)
-        calib, fg_means = _calibrate_illum(
-            calib,
-            ims_import_result,
-            sigproc_v2_params.peak_finder_percentile_threshold,
-            progress,
-        )
+        calib, fg_means = _calibrate_illum(calib, ims_import_result, progress,)
 
     return SigprocV2Result(
         params=sigproc_v2_params,
