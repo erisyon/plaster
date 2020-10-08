@@ -1,6 +1,9 @@
+import traceback
+
 import numpy as np
 import pandas as pd
 from munch import Munch
+from plaster.run import call_bag_numba
 from plaster.tools.aaseq.aaseq import aa_str_to_list
 from plaster.tools.log.log import debug, exception, info, prof
 from plaster.tools.schema import check
@@ -684,29 +687,48 @@ class CallBag:
         # score_thresh_column = 2
         # auc_column = 3
 
-        # This loop can take 2-3 minutes
-        # Not necessarily advantageous to parallize this as we're probably already parallelized at the run level
-        for prsa_i, score_thresh in enumerate(np.linspace(1 - step_size, 0, n_steps)):
-            if progress:
-                progress(prsa_i, n_steps, retry=False)
-            # TODO: could opimize this by subselecting pep_iz for conf_mat if we're not
-            # doing all peps - creates smaller confusion matrix.
-            conf_mat = self.conf_mat_at_score_threshold(score_thresh)
-            assert pep_abundance is not None
+        prof("start")
 
-            conf_mat = conf_mat.scale_by_abundance(pep_abundance)
-            p = conf_mat.precision()[pep_iz]
-            r = conf_mat.recall()[pep_iz]
-            auc = np.array(
-                [
-                    self._auc(
-                        prsa[0 : prsa_i + 1, p_i, recall_column],
-                        prsa[0 : prsa_i + 1, p_i, precision_column],
-                    )
-                    for p_i in range(n_peps)
-                ]
+        # # This loop can take 2-3 minutes
+        # # Not necessarily advantageous to parallize this as we're probably already parallelized at the run level
+        # for prsa_i, score_thresh in enumerate(np.linspace(1 - step_size, 0, n_steps)):
+        #     if progress:
+        #         progress(prsa_i, n_steps, retry=False)
+        #     # TODO: could opimize this by subselecting pep_iz for conf_mat if we're not
+        #     # doing all peps - creates smaller confusion matrix.
+        #     conf_mat = self.conf_mat_at_score_threshold(score_thresh)
+        #     assert pep_abundance is not None
+
+        #     conf_mat = conf_mat.scale_by_abundance(pep_abundance)
+        #     p = conf_mat.precision()[pep_iz]
+        #     r = conf_mat.recall()[pep_iz]
+        #     auc = np.array(
+        #         [
+        #             self._auc(
+        #                 prsa[0 : prsa_i + 1, p_i, recall_column],
+        #                 prsa[0 : prsa_i + 1, p_i, precision_column],
+        #             )
+        #             for p_i in range(n_peps)
+        #         ]
+        #     )
+        #     prsa[prsa_i] = np.transpose([p, r, [score_thresh] * n_peps, auc])
+
+        try:
+            call_bag_numba.pr_curve_by_pep_with_abundance_inner_loop(
+                self.df,
+                step_size,
+                n_steps,
+                self.scores,
+                pep_abundance,
+                prsa,
+                self._prep_result.n_peps,
+                pep_iz,
+                n_peps,
             )
-            prsa[prsa_i] = np.transpose([p, r, [score_thresh] * n_peps, auc])
+        except Exception:
+            traceback.print_exc()
+
+        prof("finish")
 
         prsa = np.swapaxes(prsa, 0, 1)
 

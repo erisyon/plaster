@@ -61,7 +61,7 @@ class JobResult:
             df = job.all_dfs(lambda run: run.prep.pros())
         """
         df_list = []
-        if parallel:
+        if parallel and False:
 
             def wrap_fn(run, run_i):
                 res_df = fn(run)
@@ -82,7 +82,7 @@ class JobResult:
                 if not retry:
                     progress.update()
 
-            df_list = zap.work_orders(work_orders, _progress=progress_callback,)
+            df_list = zap.work_orders(work_orders, _progress=progress_callback)
 
             progress.close()
         else:
