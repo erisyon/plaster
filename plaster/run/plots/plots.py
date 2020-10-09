@@ -513,15 +513,13 @@ def _plot_pr_curve(prsa, **kwargs):
     )
 
 
-def plot_pr_aggregate(run, pro_iz=None, pep_iz=None, classifier=None, **kwargs):
+def plot_pr_aggregate(run, pep_iz=None, classifier=None, **kwargs):
     """
     Show P/R for all some set aggregate set of peptides
     (ie. renders a single line for the set. See also: plot_pr_breakout)
 
     Arguments:
         pep_iz: If None computes over all peps, otherwise the subset
-        pro_iz: Same as for pep_iz.  Which one is present dictates if we are plotting
-                    over peptides or proteins
         classifier: None to use any available preferred classifier, or one of the
                     supported classifiers in RunResult::test_call_bag(), e.g. 'rf', 'nn'
         kwargs: Passed to the zplot
@@ -543,17 +541,9 @@ def plot_pr_aggregate(run, pro_iz=None, pep_iz=None, classifier=None, **kwargs):
         and instead rely on with z.Opts(_merge=True) when the need to be overlaid.
     """
     cb = run.test_call_bag(classifier=classifier)
-    if pro_iz is not None:
-        prsa = cb.pr_curve_pro(pro_iz_subset=pro_iz)
-        title_end = "proteins of interest"
-    else:
-        prsa = cb.pr_curve_pep(pep_iz_subset=pep_iz)
-        if pep_iz is not None:
-            title_end = "peptides of interest"
-        else:
-            title_end = "peptides"
+    prsa = cb.pr_curve_pep(pep_iz_subset=pep_iz)
     utils.set_defaults(
-        kwargs, f_title=f"{cb.classifier_name.upper()} P/R over all {title_end}"
+        kwargs, f_title=f"{cb.classifier_name.upper()} P/R over all peptides"
     )
     _plot_pr_curve(prsa, **kwargs)
 
