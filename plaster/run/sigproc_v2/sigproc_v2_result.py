@@ -200,7 +200,9 @@ class SigprocV2Result(BaseResult):
         # Assume field 0 is representative of all fields
         field_i = 0
         name = local.path(self.field_files[field_i]).name
-        props = utils.indexed_pickler_load(self._folder / name, prop_list=[prop], skip_missing_props=True)
+        props = utils.indexed_pickler_load(
+            self._folder / name, prop_list=[prop], skip_missing_props=True
+        )
         return prop in props.keys()
 
     def _load_field_prop(self, field_i, prop):
@@ -332,8 +334,7 @@ class SigprocV2Result(BaseResult):
     def fitmat(self, fields=None, **kwargs):
         return np.nan_to_num(
             self.flat_if_requested(
-                self._load_ndarray_prop_from_fields(fields, "fitmat"),
-                **kwargs,
+                self._load_ndarray_prop_from_fields(fields, "fitmat"), **kwargs,
             )
         )
 
@@ -497,6 +498,7 @@ def sig_from_df_filter(
     max_intensity_per_cycle=None,
     max_aspect_ratio=None,
     radmat_field="signal",
+    _return_mask=False,
     **kwargs,
 ):
     """
@@ -588,4 +590,7 @@ def sig_from_df_filter(
             if inten is not None:
                 keep_mask &= radmat[:, cy_i] <= inten
 
-    return np.nan_to_num(radmat[keep_mask])
+    if _return_mask:
+        return np.nan_to_num(radmat), keep_mask
+    else:
+        return np.nan_to_num(radmat[keep_mask])

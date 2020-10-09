@@ -3,6 +3,7 @@ from plaster.gen import task_templates
 from plaster.gen.base_generator import BaseGenerator
 from plaster.tools.schema.schema import Schema as s
 from plaster.run.sigproc_v2 import sigproc_v2_common
+from plaster.tools.utils import utils
 
 
 class SigprocV2CalibGenerator(BaseGenerator):
@@ -17,7 +18,6 @@ class SigprocV2CalibGenerator(BaseGenerator):
             mode=s.is_str(options=["psf", "illum"]),
         )
     )
-    has_report = False
 
     def generate(self):
         runs = []
@@ -47,20 +47,18 @@ class SigprocV2CalibGenerator(BaseGenerator):
         if self.force_run_name is not None:
             run.run_name = self.force_run_name
 
-        # self.report_section_run_object(run)
-        # template = "sigproc_v2_instrument_calib_template.ipynb"
-        # self.report_section_from_template(template)
+        self.report_section_run_object(run)
+        template = "sigproc_v2_instrument_calib_template.ipynb"
+        self.report_section_from_template(template)
 
         runs += [run]
 
-        n_runs = len(runs)
-        # self.report_preamble(
-        #     utils.smart_wrap(
-        #         f"""
-        #         # Sigproc V2 Instrument Calibration
-        #         ## {n_runs} run(s) processed.
-        #     """
-        #     )
-        # )
+        self.report_preamble(
+            utils.smart_wrap(
+                f"""
+                # Sigproc V2 Instrument Calibration
+                """
+            )
+        )
 
         return runs
