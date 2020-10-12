@@ -1,11 +1,12 @@
+from concurrent.futures.process import BrokenProcessPool
+
 import numpy as np
 import pandas as pd
 from munch import Munch
-from zest import zest, MockFunction
-from plaster.tools.zap import zap
-from concurrent.futures.process import BrokenProcessPool
 from plaster.tools.log.log import debug
 from plaster.tools.utils.utils import listi
+from plaster.tools.zap import zap
+from zest import MockFunction, zest
 
 
 def test1(a, b, c):
@@ -16,7 +17,6 @@ def test2(a, b, c):
     raise ValueError
 
 
-@zest.group("integration")
 def zest_zap_work_orders():
     def it_runs_in_debug_mode():
         work_orders = None
@@ -194,7 +194,6 @@ def test6(a, b, c):
     return np.array([a * 2, b * 2, c * 2]), "foo"
 
 
-@zest.group("integration")
 def zest_zap_array():
     def it_eliminates_batch_lists():
         res = zap.arrays(test3, dict(a=[1, 2], b=[3, 4]), c=3, _batch_size=2,)
@@ -273,7 +272,6 @@ def zest_zap_array():
     zest()
 
 
-@zest.group("integration")
 def zest_make_batch_slices():
     def it_solves_for_batch_size_by_scaling_the_cpu_count():
         with zest.mock(zap._cpu_count, returns=2):
@@ -337,7 +335,6 @@ def test8(row, c):
     return pd.DataFrame(dict(sum_=row.a + row.b + c, prod_=row.a * row.b * c))
 
 
-@zest.group("integration")
 def zest_zap_df_rows():
     def it_raises_if_not_a_df_return():
         with zest.raises(TypeError):
@@ -364,7 +361,6 @@ def test9(g):
     return g.a.unique()[0], g.a.unique()[0] + 1
 
 
-@zest.group("integration")
 def zest_zap_df_groups():
     def it_groups():
         df = pd.DataFrame(dict(a=[1, 1, 2, 2, 2], b=[1, 2, 3, 4, 5]))
