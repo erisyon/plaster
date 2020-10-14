@@ -264,7 +264,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
             // This magic number needs to be parameter swept
             // And the function itself is jsut a guess. There are other
             // distance functions that might be better?
-            Float32 k = 0.8f;
+            Float32 k = ctx->p_func_k; //0.8f;
             Float32 p_func = 1.0f - expf(-k * distance);
 
             int mode = 0;

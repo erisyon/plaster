@@ -103,6 +103,7 @@ def survey_v2(
         sim_v2_result.train_dyepeps,
         n_threads=zap.get_cpu_limit(),
         progress=progress,
+        p_func_k=survey_v2_params.p_func_k if survey_v2_params.p_func_k else 0.8,
     )
 
     # Join this to some flu information so we have it all in one place, especially

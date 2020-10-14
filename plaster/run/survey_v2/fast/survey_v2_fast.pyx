@@ -36,6 +36,7 @@ def survey(
     dyepeps,
     n_threads=1,
     progress=None,
+    p_func_k=.8
 ):
     # Views
     cdef c.DyeType [:, ::1] dyemat_view
@@ -141,6 +142,7 @@ def survey(
     ctx.n_neighbors = 10
     ctx.n_dyts = n_dyts
     ctx.n_dyt_cols = dyemat.shape[1]
+    ctx.p_func_k = p_func_k
     ctx.distance_to_assign_an_isolated_pep = 10  # TODO: Find this by sampling.
     ctx.progress_fn = <c.ProgressFn>_progress
 

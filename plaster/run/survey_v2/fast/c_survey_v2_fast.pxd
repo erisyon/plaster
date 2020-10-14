@@ -18,5 +18,6 @@ cdef extern from "c_survey_v2_fast.h":
         c.Size n_dyt_cols
         c.Float32 distance_to_assign_an_isolated_pep
         c.ProgressFn progress_fn
+        c.Float32 p_func_k
 
     void context_start(SurveyV2FastContext *ctx)

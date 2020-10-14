@@ -25,6 +25,7 @@ typedef struct {
     struct FLANNParameters flann_params;
     flann_index_t flann_index_id;
     ProgressFn progress_fn;
+    Float32 p_func_k;
 } SurveyV2FastContext;
 
 
