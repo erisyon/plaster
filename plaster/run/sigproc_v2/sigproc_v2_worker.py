@@ -456,11 +456,13 @@ def _analyze_step_6c_peak_differencing(chcy_ims, locs, peak_mea):
     peak_dim = (peak_mea, peak_mea)
     peak_cy_diffs = np.full((n_locs, n_channels, n_cycles, *peak_dim), np.nan)
     peak_cys = np.full((n_locs, n_channels, n_cycles, *peak_dim), np.nan)
+    peak_shifts = np.full((n_locs, n_channels, n_cycles, 2), np.nan)
 
     for ch_i in range(n_channels):
         for loc_i, loc in enumerate(locs):
             # Subpixel align every cycle for this peak and then difference
-            peak_ims = np.zeros((n_cycles, *peak_dim))
+            cy_peak_ims = np.zeros((n_cycles, *peak_dim))
+            cy_peak_shifts = np.zeros((n_cycles, 2))
             for cy_i in range(n_cycles):
                 im = chcy_ims[ch_i, cy_i]
 
@@ -475,16 +477,16 @@ def _analyze_step_6c_peak_differencing(chcy_ims, locs, peak_mea):
 
                 com_before = imops.com(peak_im ** 2)
                 center_pixel = np.array(peak_im.shape) / 2
-                peak_ims[cy_i] = imops.sub_pixel_shift(peak_im, center_pixel - com_before)
+                cy_peak_ims[cy_i] = imops.sub_pixel_shift(peak_im, center_pixel - com_before)
+                cy_peak_shifts[cy_i] = center_pixel - com_before
 
             else:
                 # DIFFERENCE only if we didn't break out (all peaks were good)
-                peak_cy_diffs[loc_i, ch_i, :, :, :] = np.diff(peak_ims, axis=0, prepend=0)
-                peak_cys[loc_i, ch_i, :, :, :] = peak_ims
-                #cs_ims = np.cumsum(peak_cy_diffs[loc_i, ch_i, :, :, :], axis=0)
-                #assert np.all(cs_ims - peak_im < 0.00001)
+                peak_cy_diffs[loc_i, ch_i, :, :, :] = np.diff(cy_peak_ims, axis=0, prepend=0)
+                peak_cys[loc_i, ch_i, :, :, :] = cy_peak_ims
+                peak_shifts[loc_i, ch_i, :, :] = cy_peak_shifts
 
-    return peak_cy_diffs, peak_cys
+    return peak_cy_diffs, peak_cys, peak_shifts
 
 
 """
@@ -570,12 +572,12 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     difmat = None
     picmat = None
     if sigproc_v2_params.run_peak_differencing:
-        difmat, picmat = _analyze_step_6c_peak_differencing(chcy_ims, locs, sigproc_v2_params.peak_mea)
+        difmat, picmat, sftmat = _analyze_step_6c_peak_differencing(chcy_ims, locs, sigproc_v2_params.peak_mea)
 
     # Temporaily removed until a better metric can be found
     # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
 
-    return chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat, difmat, picmat
+    return chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat, difmat, picmat, sftmat
 
 
 def _do_sigproc_analyze_and_save_field(
@@ -591,7 +593,7 @@ def _do_sigproc_analyze_and_save_field(
     if sigproc_v2_params.run_fitter:
         psf_params = psf.psf_fit_gaussian(calib.psfs(0))
 
-    chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat, difmat, picmat = _sigproc_analyze_field(
+    chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat, difmat, picmat, sftmat = _sigproc_analyze_field(
         chcy_ims, sigproc_v2_params, calib, psf_params
     )
 
@@ -633,6 +635,7 @@ def _do_sigproc_analyze_and_save_field(
         fitmat=fitmat,
         difmat=difmat,
         picmat=picmat,
+        sftmat=sftmat,
         _aln_chcy_ims=chcy_ims,
     )
 
