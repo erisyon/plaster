@@ -338,6 +338,20 @@ class SigprocV2Result(BaseResult):
             )
         )
 
+    def difmat(self, fields=None, **kwargs):
+        return np.nan_to_num(
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "difmat"), **kwargs,
+            )
+        )
+
+    def picmat(self, fields=None, **kwargs):
+        return np.nan_to_num(
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "picmat"), **kwargs,
+            )
+        )
+
     # DataFrame returns
     # ----------------------------------------------------------------
 

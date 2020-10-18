@@ -115,7 +115,7 @@ def _radiometry_one_peak(
     # the COM will not be polluted by neighbors
 
     if allow_subpixel_shift:
-        com_before = imops.com((peak_im) ** 2)
+        com_before = imops.com(peak_im ** 2)
         center_pixel = np.array(peak_im.shape) / 2
         peak_im = imops.sub_pixel_shift(peak_im, center_pixel - com_before)
 
