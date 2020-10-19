@@ -173,8 +173,8 @@ class BaseGenerator(Munch):
         err_p_detach=0.05,
         err_dye_beta=7500.0,
         err_dye_sigma=0.16,
-        err_dye_gain=7500.0,
-        err_dye_vpd=0.1,
+        err_dye_zero_mean=0.0,
+        err_dye_zero_sigma=200.0,
         err_p_bleach_per_cycle=0.05,
         err_p_non_fluorescent=0.07,
     )
@@ -480,8 +480,10 @@ class BaseGenerator(Munch):
                 p_detach=[self.error_model_defaults.err_p_detach] * 1,
                 dye_beta=[self.error_model_defaults.err_dye_beta] * n_channels,
                 dye_sigma=[self.error_model_defaults.err_dye_sigma] * n_channels,
-                dye_gain=[self.error_model_defaults.err_dye_gain] * n_channels,
-                dye_vpd=[self.error_model_defaults.err_dye_vpd] * n_channels,
+                dye_zero_mean=[self.error_model_defaults.err_dye_zero_mean]
+                * n_channels,
+                dye_zero_sigma=[self.error_model_defaults.err_dye_zero_sigma]
+                * n_channels,
                 p_bleach_per_cycle=[self.error_model_defaults.err_p_bleach_per_cycle]
                 * n_channels,
                 p_non_fluorescent=[self.error_model_defaults.err_p_non_fluorescent]

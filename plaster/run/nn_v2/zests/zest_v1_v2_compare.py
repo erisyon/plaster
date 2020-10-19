@@ -5,9 +5,7 @@ from plaster.tools.utils.tmp import tmp_folder, tmp_file
 from plaster.run.prep import prep_fixtures
 from plaster.run.sim_v1 import sim_v1_fixtures
 from plaster.run.sim_v2 import sim_v2_fixtures
-from plaster.run.nn_v1.nn_v1_params import NNV1Params
 from plaster.run.nn_v2.nn_v2_params import NNV2Params
-from plaster.run.nn_v1 import nn_v1_worker
 from plaster.run.nn_v2 import nn_v2_worker
 from zest import zest
 from plaster.tools.log.log import debug, prof
@@ -17,6 +15,7 @@ from plaster.run.prep.prep_params import PrepParams
 from plaster.run.prep.prep_worker import prep
 
 
+@zest.skip(reason="V1 deprecated")
 def zest_v1_v2_compare():
     with tmp_folder(chdir=True):
         prep_result = prep_fixtures.result_random_fixture(2)
@@ -88,6 +87,8 @@ def zest_v2_stress_like_e2e():
                     p_non_fluorescent=0.07,
                     sigma=0.16,
                     vpd=0.1,
+                    zero_mean=0.0,
+                    zero_sigma=200.0,
                 )
             ],
             labels=[
