@@ -138,6 +138,10 @@ def _sample_pep_dyemat(dyepep_group, n_samples_per_pep):
 def _radmat_from_sampled_pep_dyemat(
     dyemat, ch_params, n_channels, output_radmat, pep_i
 ):
+    """
+    Generate into output_radmat for every channel
+    """
+
     if dyemat.shape[0] > 0:
         for ch_i in range(n_channels):
             ch_log_beta = math.log(ch_params[ch_i].beta)

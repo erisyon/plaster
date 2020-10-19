@@ -59,13 +59,13 @@ def zest_radmat_from_sampled_pep_dyemat():
     # fmt: on
 
     ch_params_no_noise = [
-        Munch(beta=10.0, sigma=0.0),
-        Munch(beta=10.0, sigma=0.0),
+        Munch(beta=10.0, sigma=0.0, zero_beta=0.0, zero_sigma=0.0),
+        Munch(beta=10.0, sigma=0.0, zero_beta=0.0, zero_sigma=0.0),
     ]
 
     ch_params_with_noise = [
-        Munch(beta=10.0, sigma=0.1),
-        Munch(beta=10.0, sigma=0.1),
+        Munch(beta=10.0, sigma=0.1, zero_beta=0.0, zero_sigma=200.0),
+        Munch(beta=10.0, sigma=0.1, zero_beta=0.0, zero_sigma=200.0),
     ]
 
     output_radmat = None
@@ -82,7 +82,11 @@ def zest_radmat_from_sampled_pep_dyemat():
         )
 
         assert output_radmat.shape == (n_peps, n_samples_per_pep, n_channels, n_cycles)
+
+        # Peptide 0 is all zero:
         assert np.all(output_radmat[0, :, :, :] == 0.0)
+
+        # Peptide 1 is noise-free
         assert np.all(
             output_radmat[1, :, :, :] == 10.0 * sampled_dyemat.astype(np.float32)
         )
@@ -95,7 +99,9 @@ def zest_radmat_from_sampled_pep_dyemat():
         assert output_radmat.shape == (n_peps, n_samples_per_pep, n_channels, n_cycles)
         assert np.all(output_radmat[0, :, :, :] == 0.0)
         expected = 10.0 * sampled_dyemat.astype(np.float32)
+        debug(expected)
         diff = output_radmat[1, :, :, :] - expected
+        debug(diff)
         diff = utils.np_safe_divide(diff, expected) ** 2
         if not (np.all((diff ** 2 < 0.15 ** 2) | np.isnan(diff))):
             debug(diff)
