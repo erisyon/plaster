@@ -108,6 +108,7 @@ from plaster.run.sigproc_v2 import fg
 from plaster.run.sigproc_v2 import bg
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
+from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
 from plaster.tools.log.log import debug, important
@@ -441,6 +442,53 @@ def _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params):
     return fitmat
 
 
+def _analyze_step_6c_peak_differencing(chcy_ims, locs, peak_mea):
+    """
+    This is an experiment based on JHD's idea of analyzing the
+    distribution of differences across all pixels on a peak.
+    """
+    check.array_t(chcy_ims, ndim=4)
+    check.array_t(locs, ndim=2, shape=(None, 2))
+
+    n_locs = len(locs)
+    n_channels, n_cycles = chcy_ims.shape[0:2]
+
+    peak_dim = (peak_mea, peak_mea)
+    peak_cy_diffs = np.full((n_locs, n_channels, n_cycles, *peak_dim), np.nan)
+    peak_cys = np.full((n_locs, n_channels, n_cycles, *peak_dim), np.nan)
+    peak_shifts = np.full((n_locs, n_channels, n_cycles, 2), np.nan)
+
+    for ch_i in range(n_channels):
+        for loc_i, loc in enumerate(locs):
+            # Subpixel align every cycle for this peak and then difference
+            cy_peak_ims = np.zeros((n_cycles, *peak_dim))
+            cy_peak_shifts = np.zeros((n_cycles, 2))
+            for cy_i in range(n_cycles):
+                im = chcy_ims[ch_i, cy_i]
+
+                peak_im = imops.crop(im, off=YX(loc), dim=HW(peak_dim), center=True)
+                if peak_im.shape != peak_dim:
+                    # Skip near edges
+                    break
+
+                if np.any(np.isnan(peak_im)):
+                    # Skip nan collisions
+                    break
+
+                com_before = imops.com(peak_im ** 2)
+                center_pixel = np.array(peak_im.shape) / 2
+                cy_peak_ims[cy_i] = imops.sub_pixel_shift(peak_im, center_pixel - com_before)
+                cy_peak_shifts[cy_i] = center_pixel - com_before
+
+            else:
+                # DIFFERENCE only if we didn't break out (all peaks were good)
+                peak_cy_diffs[loc_i, ch_i, :, :, :] = np.diff(cy_peak_ims, axis=0, prepend=0)
+                peak_cys[loc_i, ch_i, :, :, :] = cy_peak_ims
+                peak_shifts[loc_i, ch_i, :, :] = cy_peak_shifts
+
+    return peak_cy_diffs, peak_cys, peak_shifts
+
+
 """
 Temporaily removed until a better metric can be established
 
@@ -521,10 +569,15 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     if sigproc_v2_params.run_fitter:
         fitmat = _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params)
 
+    difmat = None
+    picmat = None
+    if sigproc_v2_params.run_peak_differencing:
+        difmat, picmat, sftmat = _analyze_step_6c_peak_differencing(chcy_ims, locs, sigproc_v2_params.peak_mea)
+
     # Temporaily removed until a better metric can be found
     # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
 
-    return chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat
+    return chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat, difmat, picmat, sftmat
 
 
 def _do_sigproc_analyze_and_save_field(
@@ -540,7 +593,7 @@ def _do_sigproc_analyze_and_save_field(
     if sigproc_v2_params.run_fitter:
         psf_params = psf.psf_fit_gaussian(calib.psfs(0))
 
-    chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat = _sigproc_analyze_field(
+    chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat, difmat, picmat, sftmat = _sigproc_analyze_field(
         chcy_ims, sigproc_v2_params, calib, psf_params
     )
 
@@ -580,6 +633,9 @@ def _do_sigproc_analyze_and_save_field(
         field_df=field_df,
         radmat=radmat,
         fitmat=fitmat,
+        difmat=difmat,
+        picmat=picmat,
+        sftmat=sftmat,
         _aln_chcy_ims=chcy_ims,
     )
 
