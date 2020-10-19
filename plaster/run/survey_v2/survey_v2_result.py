@@ -50,7 +50,7 @@ class SurveyV2Result(BaseResult):
     )
 
     defaults = Munch(
-        allow_proline_at_2=True,
+        allow_proline_at_2=False,
         exclude_runs=[],
         include_runs=[],
         max_dyes_per_ch=None,
