@@ -47,7 +47,6 @@ class SimV2Params(Params):
         test_includes_dyemat=False,
         dump_debug=False,
         generate_flus=True,
-        row_k_sigma=None,
     )
 
     schema = s(
@@ -77,7 +76,6 @@ class SimV2Params(Params):
             test_includes_dyemat=s.is_bool(required=False, noneable=True),
             dump_debug=s.is_bool(),
             generate_flus=s.is_bool(),
-            row_k_sigma=s.is_float(noneable=True),
         )
     )
 

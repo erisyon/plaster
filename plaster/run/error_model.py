@@ -32,6 +32,7 @@ from plaster.tools.schema.schema import Schema as s, Params
 class ErrorModel(Params):
     schema = s(
         s.is_kws_r(
+            row_k_sigma=s.is_float(),
             p_dud=s.is_deprecated(),
             p_edman_failure=s.is_float(bounds=(0, 1)),
             p_detach=s.is_float(bounds=(0, 1)),
@@ -56,7 +57,9 @@ class ErrorModel(Params):
         )
     )
 
-    defaults = Munch(p_edman_failure=0.06, p_detach=0.05, dyes=[], labels=[])
+    defaults = Munch(
+        row_k_sigma=0.0, p_edman_failure=0.06, p_detach=0.05, dyes=[], labels=[]
+    )
 
     def __init__(self, **kwargs):
         dyes = kwargs["dyes"] = kwargs.pop("dyes", [])
@@ -163,8 +166,8 @@ class ErrorModel(Params):
                     p_non_fluorescent=0.07,
                     sigma=0.16,
                     beta=7500.0,
-                    zero_mu=0.0,
-                    zero_sigma=200.0,
+                    zero_mu=300.0,
+                    zero_sigma=700.0,
                 )
                 for ch in range(n_channels)
             ],

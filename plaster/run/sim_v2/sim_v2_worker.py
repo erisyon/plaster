@@ -283,7 +283,7 @@ def _radmat_add_per_row_variance(radmat, row_k_sigma):
     if row_k_sigma is None:
         return radmat, np.ones((radmat.shape[0],))
     true_ks = np.random.normal(1.0, row_k_sigma, size=(radmat.shape[0],))
-    return radmat * true_ks[:, None], true_ks
+    return radmat * true_ks[:, None, None], true_ks
 
 
 def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):

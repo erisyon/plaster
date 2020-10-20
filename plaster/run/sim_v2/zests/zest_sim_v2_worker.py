@@ -217,14 +217,14 @@ def zest_radmat_sim():
 def zest_sim_v2_worker():
     prep_result = prep_fixtures.result_simple_fixture()
 
-    def _sim(err_kwargs=None, _prep_result=None):
+    def _sim(err_kwargs=None, _prep_result=None, sim_kwargs=None):
         if _prep_result is None:
             _prep_result = prep_result
 
         error_model = ErrorModel.no_errors(n_channels=2, **(err_kwargs or {}))
 
         sim_v2_params = SimV2Params.construct_from_aa_list(
-            ["A", "B"], error_model=error_model, n_edmans=4
+            ["A", "B"], error_model=error_model, n_edmans=4, **(sim_kwargs or {})
         )
 
         return sim_v2_worker.sim_v2(sim_v2_params, _prep_result), sim_v2_params
@@ -300,6 +300,14 @@ def zest_sim_v2_worker():
             assert sim_v2_result.test_radmat.shape == (1000, 2, 5)
 
         zest()
+
+    def it_skips_row_noise():
+        sim_v2_result, sim_v2_params = _sim(sim_kwargs=dict(row_k_sigma=0.0))
+        assert np.all(sim_v2_result.test_true_ks == 1.0)
+
+    def it_adds_row_noise():
+        sim_v2_result, sim_v2_params = _sim(sim_kwargs=dict(row_k_sigma=0.5))
+        assert np.all(sim_v2_result.test_true_ks != 1.0)
 
     @zest.skip(reason="Not implemented")
     def it_raises_if_train_and_test_identical():
