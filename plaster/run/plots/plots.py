@@ -1087,7 +1087,8 @@ def wizard_xy_df(
     )
 
     df = run[result_block].fields__n_peaks__peaks__radmat()
-    # df = df.drop(["stage_x", "stage_y"], axis=1)
+    if result_block == 'sigproc_v1':
+        df = df.drop(["stage_x", "stage_y"], axis=1)
 
     if ignore_fields is not None:
         stage_df = stage_df[~stage_df.field_i.isin(ignore_fields)]
