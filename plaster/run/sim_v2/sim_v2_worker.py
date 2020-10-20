@@ -141,6 +141,14 @@ def _radmat_from_sampled_pep_dyemat(
 ):
     """
     Generate into output_radmat for every channel for each pep.
+
+    arguments:
+        dyemat: The sampled dyemat. This function's job is to convert each
+            row of this into a row in output_radmat
+        ch_params
+        n_channels
+        output_radmat
+        pep_i
     """
 
     if dyemat.shape[0] > 0:
@@ -232,8 +240,9 @@ def _radmat_sim(
             sampled_dye_iz = _sample_pep_dyemat(dyepep_group, n_samples_per_pep)
             if sampled_dye_iz.shape[0] > 0:
                 output_true_dye_iz[pep_i, :] = sampled_dye_iz
+
             _radmat_from_sampled_pep_dyemat(
-                dyemat[sampled_dye_iz], ch_params, n_channels, output_radmat, pep_i
+                dyemat[sampled_dye_iz], ch_params, n_channels, output_radmat, pep_i,
             )
 
     output_radmat = output_radmat.reshape(
@@ -268,6 +277,13 @@ def _any_identical_non_zero_rows(a, b):
 
     if a.shape[0] > 0:
         return np.any(a == b)
+
+
+def _radmat_add_per_row_variance(radmat, row_k_sigma):
+    if row_k_sigma is None:
+        return radmat, np.ones((radmat.shape[0],))
+    true_ks = np.random.normal(1.0, row_k_sigma, size=(radmat.shape[0],))
+    return radmat * true_ks[:, None], true_ks
 
 
 def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
@@ -337,8 +353,16 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params.n_cycles,
             progress,
         )
+        train_radmat, train_true_ks = _radmat_add_per_row_variance(
+            train_radmat, sim_v2_params.row_k_sigma
+        )
     else:
-        train_radmat, train_true_pep_iz, train_true_dye_iz = None, None, None
+        train_radmat, train_true_pep_iz, train_true_dye_iz, train_true_ks = (
+            None,
+            None,
+            None,
+            None,
+        )
 
     # Test data
     #   * does not include decoys
@@ -383,6 +407,9 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params.n_cycles,
             progress,
         )
+        test_radmat, test_true_ks = _radmat_add_per_row_variance(
+            test_radmat, sim_v2_params.row_k_sigma
+        )
 
         if not sim_v2_params.allow_train_test_to_be_identical:
             # TASK: Add a dyepeps check
@@ -398,14 +425,12 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
                     "Train and test sets are identical. Probably RNG bug.",
                 )
 
-        # if not sim_v2_params.test_includes_dyemat:
-        #     test_dyemat, test_dyepeps_df = None, None
-
         # REMOVE all-zero rows (EXCEPT THE FIRST which is the nul row)
         non_zero_rows = np.argwhere(test_true_pep_iz != 0).flatten()
         test_radmat = test_radmat[non_zero_rows]
         test_true_pep_iz = test_true_pep_iz[non_zero_rows]
         test_true_dye_iz = test_true_dye_iz[non_zero_rows]
+        test_true_ks = test_true_ks[non_zero_rows]
 
     sim_result_v2 = SimV2Result(
         params=sim_v2_params,
@@ -415,10 +440,12 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         train_true_pep_iz=train_true_pep_iz,
         train_true_dye_iz=train_true_dye_iz,
         train_dyepeps=train_dyepeps,
+        train_true_ks=train_true_ks,
         test_dyemat=test_dyemat,
         test_radmat=test_radmat,
         test_true_pep_iz=test_true_pep_iz,
         test_true_dye_iz=test_true_dye_iz,
+        test_true_ks=test_true_ks,
         _flus=None,
     )
 
