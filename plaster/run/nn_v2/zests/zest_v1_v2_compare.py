@@ -87,7 +87,7 @@ def zest_v2_stress_like_e2e():
                     p_non_fluorescent=0.07,
                     sigma=0.16,
                     vpd=0.1,
-                    zero_mean=0.0,
+                    zero_mu=0.0,
                     zero_sigma=200.0,
                 )
             ],

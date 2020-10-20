@@ -38,6 +38,7 @@ Nomenclature
 """
 import math
 import numpy as np
+from scipy.stats import norm
 from plaster.run.sim_v2.fast import sim_v2_fast
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.run.sim_v2 import sim_v2_params
@@ -47,9 +48,9 @@ from plaster.tools.utils import data
 from plaster.tools.zap.zap import get_cpu_limit
 
 
-def _rand_lognormals(logs, sigma):
+def _rand_normals(mu, sigma):
     """Mock-point"""
-    return np.random.lognormal(mean=logs, sigma=sigma, size=logs.shape)
+    return np.random.normal(mu, sigma)
 
 
 """
@@ -139,25 +140,41 @@ def _radmat_from_sampled_pep_dyemat(
     dyemat, ch_params, n_channels, output_radmat, pep_i
 ):
     """
-    Generate into output_radmat for every channel
+    Generate into output_radmat for every channel for each pep.
     """
 
     if dyemat.shape[0] > 0:
         for ch_i in range(n_channels):
-            ch_log_beta = math.log(ch_params[ch_i].beta)
+            ch_beta = ch_params[ch_i].beta
             ch_sigma = ch_params[ch_i].sigma
+            ch_zero_beta = ch_params[ch_i].zero_mu
+            ch_zero_sigma = ch_params[ch_i].zero_sigma
 
-            # dyemat can have zeros, nan these to prevent log(0)
-            # Also, the dyemat is int so this needs to be converted to float
+            # CONVERT dyemat to float and MASK zeros to NAN
             dm_nan = dyemat[:, ch_i, :].astype(float)
-            dm_nan[dm_nan == 0] = np.nan
-            logs = np.log(dm_nan)  # log(nan) == nan
+            dark_mask = dm_nan == 0
 
-            # Remember: log(a) + log(b) == log(a*b)
-            # So we're scaling the dyes by beta and taking the log
-            ch_radiometry = _rand_lognormals(ch_log_beta + logs, ch_sigma)
+            dm_nan[dark_mask] = np.nan
+            logs = np.log(dm_nan * ch_beta)  # Note: log(nan) == nan
 
-            output_radmat[pep_i, :, ch_i, :] = np.nan_to_num(ch_radiometry)
+            ch_radiometry = np.exp(_rand_normals(logs, ch_sigma))
+
+            # FILL-IN the zero-counts with a different distribution
+            # That is, the darks do not follow the same distribution
+            # Note the LACK of the np.exp because we assume that the
+            # darks do no follow a log-normal.
+            # MAKE a new dyemat-like matrix full of the mean of the zero
+            # counts and then mask out all the non-dark areas with nan
+            # Then we merge the dark_radiometry and the ch_radiometry
+            dm_zero_beta = np.full_like(logs, ch_zero_beta)
+            dm_zero_beta[~dark_mask] = np.nan
+            dark_radiometry = _rand_normals(dm_zero_beta, ch_zero_sigma)
+
+            # PASTE in the dark value into the ch_radiometry
+            ch_radiometry = np.where(dark_mask, dark_radiometry, ch_radiometry)
+
+            # STORE
+            output_radmat[pep_i, :, ch_i, :] = ch_radiometry
 
 
 def _radmat_sim(

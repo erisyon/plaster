@@ -200,7 +200,7 @@ class SimV2Params(Params):
                 .p_bleach_per_cycle,
                 beta=self.df[self.df.ch_i == ch].iloc[0].beta,
                 sigma=self.df[self.df.ch_i == ch].iloc[0].sigma,
-                zero_mean=self.df[self.df.ch_i == ch].iloc[0].zero_mean,
+                zero_mu=self.df[self.df.ch_i == ch].iloc[0].zero_mu,
                 zero_sigma=self.df[self.df.ch_i == ch].iloc[0].zero_sigma,
             )
             for ch in range(self.n_channels)

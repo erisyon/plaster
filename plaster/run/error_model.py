@@ -10,7 +10,7 @@ There are three kinds:
         beta: This is the mean of the log-normal
         sigma: This is std of a log-normal intensity in log space.
             ie intensity = norm(mu=np.log(beta * dye_count), sigma=sigma)
-        zero_mean: This is the mean of the zero-count (dark)
+        zero_mu: This is the mean of the zero-count (dark)
         zero_sigma: This is the std of the zero-count intensities
 
         p_bleach_per_cycle: The probability that an individual dye bleaches
@@ -40,7 +40,7 @@ class ErrorModel(Params):
                     dye_name=s.is_str(),
                     p_bleach_per_cycle=s.is_float(bounds=(0, 1)),
                     p_non_fluorescent=s.is_float(bounds=(0, 1)),
-                    zero_mean=s.is_float(required=False),
+                    zero_mu=s.is_float(required=False),
                     zero_sigma=s.is_float(required=False, bounds=(0, None)),
                     beta=s.is_float(required=False, bounds=(0, None)),
                     sigma=s.is_float(required=False, bounds=(0, None)),
@@ -83,7 +83,7 @@ class ErrorModel(Params):
     def no_errors(cls, n_channels, **kwargs):
         beta = kwargs.pop("beta", 7500.0)
         sigma = kwargs.pop("sigma", 0.0)
-        zero_mean = kwargs.pop("zero_mean", 0.0)
+        zero_mu = kwargs.pop("zero_mu", 0.0)
         zero_sigma = kwargs.pop("zero_sigma", 0.0)
         p_bleach = kwargs.pop("p_bleach", 0.0)
         p_non_fluorescent = kwargs.pop("p_non_fluorescent", 0.0)
@@ -97,7 +97,7 @@ class ErrorModel(Params):
                     p_non_fluorescent=p_non_fluorescent,
                     sigma=sigma,
                     beta=beta,
-                    zero_mean=zero_mean,
+                    zero_mu=zero_mu,
                     zero_sigma=zero_sigma,
                 )
                 for ch in range(n_channels)
@@ -127,14 +127,14 @@ class ErrorModel(Params):
                     p_non_fluorescent=p_non_fluorescent,
                     sigma=dye_sigma,
                     beta=dye_beta,
-                    zero_mean=zero_mean,
+                    zero_mu=zero_mu,
                     zero_sigma=zero_sigma,
                 )
                 for ch, dye_beta, dye_sigma, dye_zero_mean, dye_zero_sigma, p_bleach_per_cycle, p_non_fluorescent in zip(
                     range(n_channels),
                     err_set.dye_beta,
                     err_set.dye_sigma,
-                    err_set.zero_mean,
+                    err_set.zero_mu,
                     err_set.zero_sigma,
                     err_set.p_bleach_per_cycle,
                     err_set.p_non_fluorescent,
@@ -163,7 +163,7 @@ class ErrorModel(Params):
                     p_non_fluorescent=0.07,
                     sigma=0.16,
                     beta=7500.0,
-                    zero_mean=0.0,
+                    zero_mu=0.0,
                     zero_sigma=200.0,
                 )
                 for ch in range(n_channels)
