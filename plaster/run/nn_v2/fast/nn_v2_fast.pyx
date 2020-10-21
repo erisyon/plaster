@@ -45,7 +45,15 @@ cdef int _check_keyboard_interrupt_callback():
     return 0
 
 
-def fast_nn(test_unit_radmat, train_dyemat, train_dyepeps, n_neighbors, n_threads, progress=None):
+def fast_nn(
+    test_unit_radmat,
+    train_dyemat,
+    train_dyepeps,
+    n_neighbors,
+    n_threads,
+    progress=None,
+    run_against_all_dyetracks=False,
+):
     """
     This is the interface to the C implementation of NN.
 

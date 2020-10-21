@@ -105,62 +105,82 @@ void score_weighted_gaussian_mixture(
 }
 
 
-void context_classify_unit_radrows(
+void context_classify_radrows(
     NNV2FastContext *ctx,
-    Tab unit_radrows,
+    Tab radrows,
     Tab output_pred_pep_iz,
     Tab output_pred_dye_iz,
-    Tab output_scores
+    Tab output_scores,
+    Tab output_dists,   // Only used when ctx->run_against_all_dyetracks is true
 ) {
-    // FIND neighbor targets via ANN
-    Size n_rows = unit_radrows.n_rows;
+    Size n_rows = radrows.n_rows;
     ensure(n_rows <= 1024*16, "Too many rows (might overflow stack)");
 
     const Size n_neighbors = ctx->n_neighbors;
-    ensure(n_neighbors <= N_MAX_NEIGHBORS, "n_neighbors exceeds N_MAX_NEIGHBORS");
 
-    int *neighbor_dye_iz = (int *)malloc(n_rows * n_neighbors * sizeof(int));
-    ensure(neighbor_dye_iz != NULL, "Failed to allocate %d bytes for neighbor_dye_iz", n_rows * n_neighbors * sizeof(int));
-    float *neighbor_dists = (float *)malloc(n_rows * n_neighbors * sizeof(float));
-    ensure(neighbor_dists != NULL, "Failed to allocate %d bytes for neighbor_dists", n_rows * n_neighbors * sizeof(float));
-    memset(neighbor_dye_iz, 0, n_rows * n_neighbors * sizeof(int));
-    memset(neighbor_dists, 0, n_rows * n_neighbors * sizeof(float));
+    int should_free_neighbor_dye_iz = 0;
+    int should_free_neighbor_dists = 0;
 
-    if(ctx->n_threads > 1) {
-        pthread_mutex_lock(&ctx->flann_index_lock);
+    int *neighbor_dye_iz = NULL;
+    float *neighbor_dists = NULL;
+    if(ctx->run_against_all_dyetracks) {
+        int n_dyts = ctx->train_dyemat.n_rows / ctx->n_cols;
+        ensure(n_neighbors == n_dyts, "In run_against_all_dyetracks mode n_neighbors must equal n_dyts");
+
+        neighbor_dye_iz = (int *)malloc(n_dyts * sizeof(int));
+        ensure(neighbor_dye_iz != NULL, "Failed to allocate neighbor_dye_iz in run_against_all_dyetracks mode");
+        should_free_neighbor_dye_iz = 1;
+
+        for(int i=0; i<n_dyts; i++) {
+            neighbor_dye_iz[i] = i;
+        }
     }
+    else {
+        ensure(n_neighbors <= N_MAX_NEIGHBORS, "n_neighbors exceeds N_MAX_NEIGHBORS");
 
-    // FETCH a batch of neighbors from FLANN in one call.
-    flann_find_nearest_neighbors_index_float(
-        ctx->flann_index_id,
-        tab_ptr(RadType, &unit_radrows, 0),
-        n_rows,
-        neighbor_dye_iz,
-        neighbor_dists,
-        n_neighbors,
-        &ctx->flann_params
-    );
+        neighbor_dye_iz = (int *)malloc(n_rows * n_neighbors * sizeof(int));
+        ensure(neighbor_dye_iz != NULL, "Failed to allocate %d bytes for neighbor_dye_iz", n_rows * n_neighbors * sizeof(int));
+        memset(neighbor_dye_iz, 0, n_rows * n_neighbors * sizeof(int));
+        should_free_neighbor_dye_iz = 1;
 
-    if(ctx->n_threads > 1) {
-        pthread_mutex_unlock(&ctx->flann_index_lock);
+        neighbor_dists = (float *)malloc(n_rows * n_neighbors * sizeof(float));
+        ensure(neighbor_dists != NULL, "Failed to allocate %d bytes for neighbor_dists", n_rows * n_neighbors * sizeof(float));
+        memset(neighbor_dists, 0, n_rows * n_neighbors * sizeof(float));
+        should_free_neighbor_dists = 1;
+
+        if(ctx->n_threads > 1) {
+            pthread_mutex_lock(&ctx->flann_index_lock);
+        }
+
+        // FETCH a batch of neighbors from FLANN in one call.
+        flann_find_nearest_neighbors_index_float(
+            ctx->flann_index_id,
+            tab_ptr(RadType, &radrows, 0),
+            n_rows,
+            neighbor_dye_iz,
+            neighbor_dists,
+            n_neighbors,
+            &ctx->flann_params
+        );
+
+        if(ctx->n_threads > 1) {
+            pthread_mutex_unlock(&ctx->flann_index_lock);
+        }
     }
 
     for (Index row_i=0; row_i<n_rows; row_i++) {
-        RadType *unit_radrow = tab_ptr(RadType, &unit_radrows, row_i);
-        int *row_neighbor_dye_iz = &neighbor_dye_iz[row_i * n_neighbors];
-        Score _output_scores[N_MAX_NEIGHBORS];
+        RadType *radrow = tab_ptr(RadType, &radrows, row_i);
 
-        /*
-        float *row_neighbor_dists = &neighbor_dists[row_i * n_neighbors];
-        score_weighted_inv_square(
-            n_neighbors,
-            row_neighbor_dye_iz,
-            row_neighbor_dists,
-            unit_radrow,
-            &ctx->train_dyetrack_weights,
-            _output_scores
-        );
-        */
+        int *row_neighbor_dye_iz;
+        if(ctx->run_against_all_dyetracks) {
+            row_neighbor_dye_iz = neighbor_dye_iz;
+        }
+        else {
+            row_neighbor_dye_iz = &neighbor_dye_iz[row_i * n_neighbors];
+        }
+
+        TODO: Change to deal with run_against_all_dyetracks, etc
+        Score _output_scores[N_MAX_NEIGHBORS];
 
         score_weighted_gaussian_mixture(
             ctx,
@@ -168,7 +188,7 @@ void context_classify_unit_radrows(
             ctx->n_cols,
             row_neighbor_dye_iz,
             &ctx->train_dyemat,
-            unit_radrow,
+            radrow,
             &ctx->train_dyetrack_weights,
             _output_scores
         );
@@ -215,8 +235,12 @@ void context_classify_unit_radrows(
         tab_set(&output_scores, row_i, &score);
     }
 
-    free(neighbor_dye_iz);
-    free(neighbor_dists);
+    if(should_free_neighbor_dye_iz) {
+        free(neighbor_dye_iz);
+    }
+    if(should_free_neighbor_dists) {
+        free(neighbor_dists);
+    }
 }
 
 
@@ -258,6 +282,7 @@ typedef struct {
     NNV2FastContext *ctx;
 } ThreadContext;
 
+
 void *context_work_orders_worker(void *_tctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
@@ -269,9 +294,9 @@ void *context_work_orders_worker(void *_tctx) {
             break;
         }
         Index row_i = row_i_plus_1 - 1;
-        context_classify_unit_radrows(
+        context_classify_radrows(
             ctx,
-            tab_subset(&ctx->test_unit_radmat, row_i, ctx->n_rows_per_block),
+            tab_subset(&ctx->test_radmat, row_i, ctx->n_rows_per_block),
             tab_subset(&ctx->output_pred_pep_iz, row_i, ctx->n_rows_per_block),
             tab_subset(&ctx->output_pred_dye_iz, row_i, ctx->n_rows_per_block),
             tab_subset(&ctx->output_scores, row_i, ctx->n_rows_per_block)
@@ -283,11 +308,12 @@ void *context_work_orders_worker(void *_tctx) {
     return (void *)0;
 }
 
+
 int context_start(NNV2FastContext *ctx) {
     ensure(sanity_check() == 0, "Sanity checks failed");
     ensure(
         ctx->n_neighbors <= ctx->train_dyemat.n_rows,
-        "FLANN does not support requesting more neihbors than there are data points"
+        "FLANN does not support requesting more neighbors than there are data points"
     );
     ensure(
         ctx->n_neighbors <= N_MAX_NEIGHBORS,
@@ -384,10 +410,11 @@ void context_free(NNV2FastContext *ctx) {
 void context_print(NNV2FastContext *ctx) {
     printf("n_neighbors=%ld\n", ctx->n_neighbors);
     printf("n_cols=%ld\n", ctx->n_cols);
+    printf("run_against_all_dyetracks=%ld\n", ctx->run_against_all_dyetracks);
     printf("train_dyemat.n_rows=%ld\n", ctx->train_dyemat.n_rows);
-    printf("test_unit_radmat.n_rows=%ld\n", ctx->test_unit_radmat.n_rows);
-    for(Index row_i=0; row_i<ctx->test_unit_radmat.n_rows; row_i++) {
-        RadType *radrow = tab_ptr(RadType, &ctx->test_unit_radmat, row_i);
+    printf("test_radmat.n_rows=%ld\n", ctx->test_radmat.n_rows);
+    for(Index row_i=0; row_i<ctx->test_radmat.n_rows; row_i++) {
+        RadType *radrow = tab_ptr(RadType, &ctx->test_radmat, row_i);
         for(Index c=0; c<ctx->n_cols; c++) {
             printf("%2.1f ", radrow[c]);
         }

@@ -46,6 +46,7 @@ def nn_v2(
         n_neighbors=nn_v2_params.n_neighbors,
         n_threads=get_cpu_limit(),
         progress=progress,
+        run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
     )
 
     call_bag = CallBag(
@@ -86,6 +87,7 @@ def nn_v2(
             n_neighbors=nn_v2_params.n_neighbors,
             n_threads=get_cpu_limit(),
             progress=progress,
+            run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
         )
     else:
         sigproc_pred_pep_iz = None
