@@ -1,13 +1,13 @@
-from munch import Munch
-import pandas as pd
 import numpy as np
-from plumbum import local
-from plaster.run.base_result import BaseResult, ArrayResult
+import pandas as pd
+from munch import Munch
+from plaster.run.base_result import ArrayResult, BaseResult
 from plaster.run.ims_import.ims_import_params import ImsImportParams
-from plaster.tools.utils import utils
-from plaster.tools.utils.fancy_indexer import FancyIndexer
 from plaster.tools.log.log import debug
 from plaster.tools.schema import check
+from plaster.tools.utils import utils
+from plaster.tools.utils.fancy_indexer import FancyIndexer
+from plumbum import local
 
 
 class ImsImportResult(BaseResult):
@@ -128,7 +128,7 @@ class ImsImportResult(BaseResult):
         return self.n_fields, self.n_channels, self.n_cycles
 
     def n_fields_channel_frames(self):
-        assert self.params.is_movie is True
+        # assert self.params.is_movie is True
         return self.n_fields, self.n_channels, self.n_cycles
 
     @property

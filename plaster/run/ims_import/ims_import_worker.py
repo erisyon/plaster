@@ -119,37 +119,52 @@ Other notes
 
 
 """
-
-from skimage.io import imread
 import re
-import numpy as np
-from plaster.run.ims_import.nd2 import ND2
-from munch import Munch
-from plumbum import local
-from plaster.run.ims_import.ims_import_result import ImsImportResult
-from plaster.tools.utils import utils
-from plaster.tools.schema import check
-from plaster.tools.zap import zap
-from plaster.tools.tsv import tsv
-from plaster.tools.log.log import important, debug, info, prof
-from plaster.tools.image import imops
+from dataclasses import dataclass
+from enum import Enum
+from typing import Dict, List, Tuple
 
+import numpy as np
+from munch import Munch
+from plaster.run.ims_import.ims_import_params import ImsImportParams
+from plaster.run.ims_import.ims_import_result import ImsImportResult
+from plaster.run.ims_import.nd2 import ND2
+from plaster.tools.image import imops
+from plaster.tools.log.log import debug, important, info, prof
+from plaster.tools.schema import check
+from plaster.tools.tsv import tsv
+from plaster.tools.utils import utils
+from plaster.tools.zap import zap
+from plumbum import Path, local
+from skimage.io import imread
 
 OUTPUT_NP_TYPE = np.float32
 
 
-def _scan_nd2_files(src_dir):
-    """Mock-point"""
+def _scan_nd2_files(src_dir: Path) -> List[Path]:
+    """Mock-point
+
+    Returns a list of files in src_dir that have the suffix ".nd2"
+    Note that this function is non-recursive, so .nd2 files in subfolders are not returned
+    """
     return list(src_dir // "*.nd2")
 
 
-def _scan_tif_files(src_dir):
-    """Mock-point"""
+def _scan_tif_files(src_dir: Path) -> List[Path]:
+    """Mock-point
+
+    Returns a list of files in src_dir and its subfolders that have the suffix ".tif"
+    Note that this function is recursive, so .tif files in subfolders will be returned
+    """
     return list(src_dir.walk(filter=lambda f: f.suffix == ".tif"))
 
 
-def _scan_npy_files(src_dir):
-    """Mock-point"""
+def _scan_npy_files(src_dir: Path) -> List[Path]:
+    """Mock-point
+
+    Returns a list of files in src_dir and its subfolders that have the suffix ".npy"
+    Note that this function is recursive, so .npy files in subfolders will be returned
+    """
     return list(src_dir.walk(filter=lambda f: f.suffix == ".npy"))
 
 
@@ -169,7 +184,25 @@ def _convert_message(target_mea, new_dim):
     pass
 
 
-def _scan_files(src_dir):
+class ScanFileMode(Enum):
+    npy = "npy"
+    tif = "tif"
+    nd2 = "nd2"
+
+
+@dataclass
+class ScanFilesResult:
+    mode: ScanFileMode
+    nd2_paths: List[Path]
+    tif_paths_by_field_channel_cycle: Dict[Tuple[int, int, int], Path]
+    npy_paths_by_field_channel_cycle: Dict[Tuple[int, int, int], Path]
+    n_fields: int
+    n_channels: int
+    n_cycles: int
+    dim: Tuple[int, int]  # TODO: is ndim always 2?
+
+
+def _scan_files(src_dir: Path) -> ScanFilesResult:
     """
     Search for .nd2 (non-recursive) or .tif files (recursively) or .npy (non-recursive)
 
@@ -193,7 +226,7 @@ def _scan_files(src_dir):
     min_cycle = 10000
 
     if len(nd2_paths) > 0:
-        mode = "nd2"
+        mode = ScanFileMode.nd2
 
         # OPEN a single image to get the vitals
         with _nd2(nd2_paths[0]) as nd2:
@@ -202,7 +235,7 @@ def _scan_files(src_dir):
             dim = nd2.dim
 
     elif len(npy_paths) > 0:
-        mode = "npy"
+        mode = ScanFileMode.npy
 
         area_cells = set()
         channels = set()
@@ -259,7 +292,7 @@ def _scan_files(src_dir):
         dim = im.shape
 
     elif len(tif_paths) > 0:
-        mode = "tif"
+        mode = ScanFileMode.tif
 
         tif_pat = re.compile(
             r"_c(\d+)/img_channel(\d+)_position(\d+)_time\d+_z\d+\.tif"
@@ -312,15 +345,15 @@ def _scan_files(src_dir):
     else:
         raise ValueError(f"No image files (.nd2, .tif) were found in '{src_dir}'")
 
-    return (
-        mode,
-        nd2_paths,
-        tif_paths_by_field_channel_cycle,
-        npy_paths_by_field_channel_cycle,
-        n_fields,
-        n_channels,
-        n_cycles,
-        dim,
+    return ScanFilesResult(
+        mode=mode,
+        nd2_paths=nd2_paths,
+        tif_paths_by_field_channel_cycle=tif_paths_by_field_channel_cycle,
+        npy_paths_by_field_channel_cycle=npy_paths_by_field_channel_cycle,
+        n_fields=n_fields,
+        n_channels=n_channels,
+        n_cycles=n_cycles,
+        dim=dim,
     )
 
 
@@ -391,15 +424,15 @@ def _quality(im):
 
 
 def _do_gather(
-    input_field_i,
-    output_field_i,
-    start_cycle,
-    n_cycles,
-    dim,
-    nd2_import_result,
-    mode,
-    npy_paths_by_field_channel_cycle,
-    dst_ch_i_to_src_ch_i,
+    input_field_i: int,
+    output_field_i: int,
+    start_cycle: int,
+    n_cycles: int,
+    dim: int,
+    nd2_import_result: ImsImportResult,
+    mode: ScanFileMode,
+    npy_paths_by_field_channel_cycle: dict,
+    dst_ch_i_to_src_ch_i: List[int],
 ):
     """Gather a field"""
     n_dst_channels = len(dst_ch_i_to_src_ch_i)
@@ -419,7 +452,7 @@ def _do_gather(
         for dst_ch_i in range(n_dst_channels):
             src_ch_i = dst_ch_i_to_src_ch_i[dst_ch_i]
 
-            if mode == "npy":
+            if mode == ScanFileMode.npy:
                 # These are being imported by npy originally with a different naming
                 # convention than the scattered files.
                 scatter_fp = npy_paths_by_field_channel_cycle[
@@ -517,10 +550,10 @@ def _do_movie_import(
 
 
 def _z_stack_import(
-    nd2_path,
-    target_mea,
-    nd2_import_result,
-    dst_ch_i_to_src_ch_i,
+    nd2_path: Path,
+    target_mea: int,
+    nd2_import_result: ImsImportResult,
+    dst_ch_i_to_src_ch_i: List[int],
     movie_n_slices_per_field,
 ):
     """
@@ -571,26 +604,19 @@ def _z_stack_import(
     return list(range(n_fields)), movie_n_slices_per_field
 
 
-def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
-    (
-        mode,
-        nd2_paths,
-        tif_paths_by_field_channel_cycle,
-        npy_paths_by_field_channel_cycle,
-        n_fields_true,
-        n_in_channels,
-        n_cycles_true,
-        dim,
-    ) = _scan_files(src_dir)
+def ims_import(
+    src_dir: Path, ims_import_params: ImsImportParams, progress=None, pipeline=None
+):
+    scan_result = _scan_files(src_dir)
 
-    target_mea = max(dim[0], dim[1])
+    target_mea = max(scan_result.dim[0], scan_result.dim[1])
 
     if not utils.is_power_of_2(target_mea):
         new_dim = utils.next_power_of_2(target_mea)
         _convert_message(target_mea, new_dim)
         target_mea = new_dim
 
-    def clamp_fields(n_fields_true):
+    def clamp_fields(n_fields_true: int) -> Tuple[int, int]:
         n_fields = n_fields_true
         n_fields_limit = ims_import_params.get("n_fields_limit")
         if n_fields_limit is not None:
@@ -602,7 +628,7 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
 
         return start_field, n_fields
 
-    def clamp_cycles(n_cycles_true):
+    def clamp_cycles(n_cycles_true: int) -> Tuple[int, int]:
         n_cycles = n_cycles_true
         n_cycles_limit = ims_import_params.get("n_cycles_limit")
         if n_cycles_limit is not None:
@@ -623,16 +649,18 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
 
     dst_ch_i_to_src_ch_i = ims_import_params.dst_ch_i_to_src_ch_i
     if dst_ch_i_to_src_ch_i is None:
-        dst_ch_i_to_src_ch_i = [i for i in range(n_in_channels)]
+        dst_ch_i_to_src_ch_i = [i for i in range(scan_result.n_channels)]
 
     n_out_channels = len(dst_ch_i_to_src_ch_i)
 
-    # Sanity check
-    assert all([0 <= src_ch_i < n_in_channels for src_ch_i in dst_ch_i_to_src_ch_i])
+    # Sanity check that we didn't end up with any src_channels outside of the channel range
+    assert all(
+        [0 <= src_ch_i < scan_result.n_channels for src_ch_i in dst_ch_i_to_src_ch_i]
+    )
 
     if ims_import_params.is_z_stack_single_file:
         field_iz, n_cycles_found = _z_stack_import(
-            nd2_paths[0],
+            scan_result.nd2_paths[0],
             target_mea,
             ims_import_result,
             dst_ch_i_to_src_ch_i,
@@ -641,16 +669,17 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
         n_cycles = ims_import_params.z_stack_n_slices_per_field
 
     elif ims_import_params.is_movie:
-        start_field, n_fields = clamp_fields(len(nd2_paths))
+        # "Movie mode" means that there aren't any chemical cycles, but rather we are using "cycles" to represent different images in a zstack
+        start_field, n_fields = clamp_fields(len(scan_result.nd2_paths))
 
         # In movie mode, the n_fields from the .nd2 file is becoming n_cycles
-        n_cycles_true = n_fields_true
-        start_cycle, n_cycles = clamp_cycles(n_cycles_true)
+        scan_result.n_cycles = scan_result.n_fields
+        start_cycle, n_cycles = clamp_cycles(scan_result.n_cycles)
 
         field_iz, n_cycles_found = zap.arrays(
             _do_movie_import,
             dict(
-                nd2_path=nd2_paths[start_field : start_field + n_fields],
+                nd2_path=scan_result.nd2_paths[start_field : start_field + n_fields],
                 output_field_i=list(range(n_fields)),
             ),
             _process_mode=True,
@@ -664,32 +693,35 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
         )
 
     else:
-        start_field, n_fields = clamp_fields(n_fields_true)
+        start_field, n_fields = clamp_fields(scan_result.n_fields)
 
         if pipeline:
             pipeline.set_phase(0, 2)
 
-        if mode == "nd2":
-            n_cycles_true = len(nd2_paths)
+        if scan_result.mode == ScanFileMode.nd2:
+            scan_result.n_cycles = len(scan_result.nd2_paths)
 
             # SCATTER
             zap.arrays(
                 _do_nd2_scatter,
-                dict(cycle_i=list(range(len(nd2_paths))), src_path=nd2_paths),
+                dict(
+                    cycle_i=list(range(len(scan_result.nd2_paths))),
+                    src_path=scan_result.nd2_paths,
+                ),
                 _process_mode=False,
                 _progress=progress,
                 _stack=True,
                 start_field=start_field,
                 n_fields=n_fields,
-                n_channels=n_in_channels,
+                n_channels=scan_result.n_channels,
                 target_mea=target_mea,
             )
 
-        elif mode == "tif":
+        elif scan_result.mode == ScanFileMode.tif:
             # SCATTER
             work_orders = [
                 Munch(field_i=k[0], channel_i=k[1], cycle_i=k[2], path=path)
-                for k, path in tif_paths_by_field_channel_cycle.items()
+                for k, path in scan_result.tif_paths_by_field_channel_cycle.items()
             ]
             results = zap.work_orders(
                 _do_tif_scatter, work_orders, _trap_exceptions=False
@@ -697,26 +729,26 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
 
             # CHECK that every file exists
             for f in range(n_fields):
-                for ch in range(n_in_channels):
-                    for cy in range(n_cycles_true):
+                for ch in range(scan_result.n_channels):
+                    for cy in range(scan_result.n_cycles):
                         expected = f"__{f:03d}-{ch:02d}-{cy:02d}.npy"
                         if expected not in results:
                             raise FileNotFoundError(
                                 f"File is missing in tif pattern: {expected}"
                             )
 
-        elif mode == "npy":
+        elif scan_result.mode == ScanFileMode.npy:
             # In npy mode there's no scatter as the files are already fully scattered
             pass
 
         else:
-            raise ValueError(f"Unknown im import mode {mode}")
+            raise ValueError(f"Unknown im import mode {scan_result.mode}")
 
         if pipeline:
             pipeline.set_phase(1, 2)
 
         # GATHER
-        start_cycle, n_cycles = clamp_cycles(n_cycles_true)
+        start_cycle, n_cycles = clamp_cycles(scan_result.n_cycles)
 
         field_iz = zap.arrays(
             _do_gather,
@@ -731,8 +763,8 @@ def ims_import(src_dir, ims_import_params, progress=None, pipeline=None):
             n_cycles=n_cycles,
             dim=target_mea,
             nd2_import_result=ims_import_result,
-            mode=mode,
-            npy_paths_by_field_channel_cycle=npy_paths_by_field_channel_cycle,
+            mode=scan_result.mode,
+            npy_paths_by_field_channel_cycle=scan_result.npy_paths_by_field_channel_cycle,
             dst_ch_i_to_src_ch_i=dst_ch_i_to_src_ch_i,
         )
 
