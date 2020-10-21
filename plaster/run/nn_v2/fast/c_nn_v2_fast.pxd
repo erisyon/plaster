@@ -4,8 +4,9 @@ cdef extern from "c_nn_v2_fast.h":
     ctypedef struct NNV2FastContext:
         c.Size n_neighbors
         c.Size n_cols
+        c.Uint64 run_against_all_dyetracks
 
-        c.Tab test_unit_radmat
+        c.Tab test_radmat
         c.Tab train_dyetrack_weights
         c.Tab train_dyemat
         c.Tab train_dyepeps
