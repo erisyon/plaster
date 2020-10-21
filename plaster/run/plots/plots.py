@@ -965,7 +965,10 @@ def wizard_raw_images(
                 show_circles=show_circles,
             )
 
-        im = res.aln_ims[field_i, channel_i, cycle_i].copy()
+        if result_block == "sigproc_v1":
+            im = res.raw_chcy_ims(field_i).copy()[channel_i, cycle_i]
+        else:
+            im = res.aln_ims[field_i, channel_i, cycle_i].copy()
 
         if peak_i is not None:
             cy_rec = peak_records[peak_records.cycle_i == cycle_i].iloc[0]
@@ -1087,7 +1090,7 @@ def wizard_xy_df(
     )
 
     df = run[result_block].fields__n_peaks__peaks__radmat()
-    if result_block == 'sigproc_v1':
+    if result_block == "sigproc_v1":
         df = df.drop(["stage_x", "stage_y"], axis=1)
 
     if ignore_fields is not None:
