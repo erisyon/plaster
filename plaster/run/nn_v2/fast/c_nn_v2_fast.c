@@ -111,7 +111,7 @@ void context_classify_radrows(
     Tab output_pred_pep_iz,
     Tab output_pred_dye_iz,
     Tab output_scores,
-    Tab output_dists,   // Only used when ctx->run_against_all_dyetracks is true
+    Tab output_dists   // Only used when ctx->run_against_all_dyetracks is true
 ) {
     Size n_rows = radrows.n_rows;
     ensure(n_rows <= 1024*16, "Too many rows (might overflow stack)");
@@ -124,14 +124,14 @@ void context_classify_radrows(
     int *neighbor_dye_iz = NULL;
     float *neighbor_dists = NULL;
     if(ctx->run_against_all_dyetracks) {
-        int n_dyts = ctx->train_dyemat.n_rows / ctx->n_cols;
+        Size n_dyts = ctx->train_dyemat.n_rows / ctx->n_cols;
         ensure(n_neighbors == n_dyts, "In run_against_all_dyetracks mode n_neighbors must equal n_dyts");
 
         neighbor_dye_iz = (int *)malloc(n_dyts * sizeof(int));
         ensure(neighbor_dye_iz != NULL, "Failed to allocate neighbor_dye_iz in run_against_all_dyetracks mode");
         should_free_neighbor_dye_iz = 1;
 
-        for(int i=0; i<n_dyts; i++) {
+        for(Index i=0; i<n_dyts; i++) {
             neighbor_dye_iz[i] = i;
         }
     }
@@ -179,7 +179,7 @@ void context_classify_radrows(
             row_neighbor_dye_iz = &neighbor_dye_iz[row_i * n_neighbors];
         }
 
-        TODO: Change to deal with run_against_all_dyetracks, etc
+        // TODO: Change the followin to deal with run_against_all_dyetracks, etc
         Score _output_scores[N_MAX_NEIGHBORS];
 
         score_weighted_gaussian_mixture(
@@ -299,7 +299,8 @@ void *context_work_orders_worker(void *_tctx) {
             tab_subset(&ctx->test_radmat, row_i, ctx->n_rows_per_block),
             tab_subset(&ctx->output_pred_pep_iz, row_i, ctx->n_rows_per_block),
             tab_subset(&ctx->output_pred_dye_iz, row_i, ctx->n_rows_per_block),
-            tab_subset(&ctx->output_scores, row_i, ctx->n_rows_per_block)
+            tab_subset(&ctx->output_scores, row_i, ctx->n_rows_per_block),
+            tab_subset(&ctx->output_dists, row_i, ctx->n_rows_per_block)
         );
         progress_thread_safe(ctx, row_i, ctx->n_rows, 0);
     }

@@ -14,6 +14,7 @@ cdef extern from "c_nn_v2_fast.h":
         c.Tab output_pred_pep_iz
         c.Tab output_pred_dye_iz
         c.Tab output_scores
+        c.Tab output_dists
         c.ProgressFn progress_fn
         c.CheckKeyboardInterruptFn check_keyboard_interrupt_fn
 

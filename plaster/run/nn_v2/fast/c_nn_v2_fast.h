@@ -19,6 +19,7 @@ typedef struct {
     Tab output_pred_pep_iz;  // Index32
     Tab output_pred_dye_iz;  // Index32
     Tab output_scores;  // Score (Float32)
+    Tab output_dists;  // Score (Float32)
 
     Size n_threads;
     Size n_rows;

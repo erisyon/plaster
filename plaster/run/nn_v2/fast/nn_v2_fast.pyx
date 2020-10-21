@@ -46,7 +46,7 @@ cdef int _check_keyboard_interrupt_callback():
 
 
 def fast_nn(
-    test_unit_radmat,
+    test_radmat,
     train_dyemat,
     train_dyepeps,
     n_neighbors,
@@ -58,9 +58,8 @@ def fast_nn(
     This is the interface to the C implementation of NN.
 
     Arguments:
-        test_unit_radmat: ndarray((n_rows, n_channels * n_cycles), dtype=np.float32)
-            The unit_radmat to test. May come from the scope or simulated. Is already
-            normalized (1 unit = 1 dye, all channels equalized)
+        test_radmat: ndarray((n_rows, n_channels * n_cycles), dtype=np.float32)
+            The radmat to test. May come from the scope or simulated.
         train_dyemat: ndarray((n_rows, n_channels * n_cycles), dtype=np.uint8)
             The dyemat comes from sim_v2. Equal number of samples per peptide
         train_dyepeps: ndarray((n_rows, 3), dtype=np.uint32)
@@ -72,11 +71,11 @@ def fast_nn(
 
     Returns:
         (pred_pep_iz, scores)
-        pred_pep_iz: ndarray((test_unit_radmat.shape[0],), dtype=np.uint32)
-        scores: ndarray((test_unit_radmat.shape[0],), dtype=np.float32)
-        output_pred_dye_iz: ndarray((test_unit_radmat.shape[0],), dtype=np.uint32)
+        pred_pep_iz: ndarray((test_radmat.shape[0],), dtype=np.uint32)
+        scores: ndarray((test_radmat.shape[0],), dtype=np.float32)
+        output_pred_dye_iz: ndarray((test_radmat.shape[0],), dtype=np.uint32)
     """
-    cdef c.RadType [:, ::1] test_unit_radmat_view
+    cdef c.RadType [:, ::1] test_radmat_view
     cdef c.DyeType [:, ::1] train_dyemat_view
     cdef c.Index [:, ::1] train_dyepeps_view
     cdef c.Index32 [::1] output_pred_pep_iz_view
@@ -85,13 +84,13 @@ def fast_nn(
 
     # CHECKS
     assert c.sanity_check() == 0
-    _assert_array_contiguous(test_unit_radmat, np.float32, "test_unit_radmat")
+    _assert_array_contiguous(test_radmat, np.float32, "test_radmat")
     _assert_array_contiguous(train_dyemat, np.uint8, "train_dyemat")
     _assert_array_contiguous(train_dyepeps, np.uint64, "train_dyepeps")
-    check.array_t(test_unit_radmat, ndim=2)
+    check.array_t(test_radmat, ndim=2)
     check.array_t(train_dyemat, ndim=2)
-    n_rows, n_cols =test_unit_radmat.shape
-    _assert_with_trace(test_unit_radmat.shape[1] == train_dyemat.shape[1], "radmat and dyemat have different shapes")
+    n_rows, n_cols =test_radmat.shape
+    _assert_with_trace(test_radmat.shape[1] == train_dyemat.shape[1], "radmat and dyemat have different shapes")
     _assert_with_trace(train_dyepeps.ndim == 2 and train_dyepeps.shape[1] == 3, "train_dyepeps has wrong shape")
     _assert_with_trace(np.all(train_dyemat[0, :] == 0.0), "nul row not found in train_dyemat")
 
@@ -99,12 +98,12 @@ def fast_nn(
     global_progress_callback = progress
 
     # ALLOCATE output arrays
-    output_pred_pep_iz = np.zeros((test_unit_radmat.shape[0],), dtype=np.uint32)
-    output_pred_dye_iz = np.zeros((test_unit_radmat.shape[0],), dtype=np.uint32)
-    output_scores = np.zeros((test_unit_radmat.shape[0],), dtype=np.float32)
+    output_pred_pep_iz = np.zeros((test_radmat.shape[0],), dtype=np.uint32)
+    output_pred_dye_iz = np.zeros((test_radmat.shape[0],), dtype=np.uint32)
+    output_scores = np.zeros((test_radmat.shape[0],), dtype=np.float32)
 
     # CREATE cython views
-    test_unit_radmat_view = test_unit_radmat
+    test_radmat_view = test_radmat
     train_dyemat_view = train_dyemat
     output_pred_pep_iz_view = output_pred_pep_iz
     output_pred_dye_iz_view = output_pred_dye_iz
@@ -182,10 +181,10 @@ def fast_nn(
         ctx.progress_fn = <c.ProgressFn>_progress
         ctx.check_keyboard_interrupt_fn = <c.CheckKeyboardInterruptFn>_check_keyboard_interrupt_callback
 
-        ctx.test_unit_radmat = c.tab_by_size(
-            <c.Uint8 *>&test_unit_radmat_view[0, 0],
-            test_unit_radmat.nbytes,
-            test_unit_radmat.itemsize * test_unit_radmat.shape[1],
+        ctx.test_radmat = c.tab_by_size(
+            <c.Uint8 *>&test_radmat_view[0, 0],
+            test_radmat.nbytes,
+            test_radmat.itemsize * test_radmat.shape[1],
             0
         )
 
