@@ -9,7 +9,7 @@ typedef struct {
     // The following are set by the .pyx file
     Size n_neighbors;
     Size n_cols;
-    Uint64 run_against_all_dyetracks;  // Bool
+    Bool run_against_all_dyetracks;
 
     Tab test_radmat;  // RadType (Float32)
     Tab train_dyetrack_weights;  // WeightType (Float32)

@@ -17,6 +17,7 @@ typedef __int128_t Sint128;
 typedef float Float32;
 typedef double Float64;
 
+typedef Uint64 Bool;
 typedef Uint64 Size;
 typedef Uint64 Index;
 typedef Uint32 Size32;

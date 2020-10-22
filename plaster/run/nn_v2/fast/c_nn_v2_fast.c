@@ -9,7 +9,8 @@
 #include "math.h"
 #include "c_nn_v2_fast.h"
 
-
+// The following are alternative metrics
+/*
 float dist_inv_square(RadType *radrow, RadType *dyerow, Size n_cols) {
     RadType *rad = radrow;
     RadType *dye = dyerow;
@@ -41,7 +42,7 @@ void score_weighted_inv_square(
         );
     }
 }
-
+*/
 
 void score_weighted_gaussian_mixture(
     NNV2FastContext *ctx,
@@ -57,6 +58,100 @@ void score_weighted_gaussian_mixture(
     double weighted_pdf[N_MAX_NEIGHBORS];
     double weighted_pdf_sum = 0.0;
     double std_per_dye = sqrt(0.1);
+
+    for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
+        Index neighbor_i = neighbor_dye_iz[nn_i];
+        RadType *neighbor_target_dt = tab_ptr(RadType, train_dyemat, neighbor_i);
+        WeightType neighbor_weight = tab_get(WeightType, dyetrack_weights, neighbor_i);
+        weights[nn_i] = (double)neighbor_weight;
+
+        double vdist = (double)0.0;
+        double det = 1.0;
+        for (Index col_i=0; col_i<n_cols; col_i++) {
+            double target_dt_for_col_i = (double)neighbor_target_dt[col_i];
+            double delta = (double)radrow[col_i] - target_dt_for_col_i;
+
+            double std_units = std_per_dye * (target_dt_for_col_i == 0.0 ? 0.5 : target_dt_for_col_i);
+            double variance = std_units * std_units;
+            ensure_only_in_debug(variance > 0, "Illegal zero variance");
+            det *= variance;
+            vdist += delta * delta / variance;
+        }
+        ensure_only_in_debug(det > 0, "Illegal zero det");
+        double inv_sqrt_det = 1.0 / sqrt(det);
+        double pdf = inv_sqrt_det * exp(-vdist / 2.0);
+        double wpdf = (double)neighbor_weight * pdf;
+        weighted_pdf[nn_i] = wpdf;
+        weighted_pdf_sum += wpdf;
+
+        if(ctx->stop_requested) {
+            return;
+        }
+    }
+
+    for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
+        Score penalty = (Score)(1.0 - exp(-0.8 * weights[nn_i]));
+        if(weighted_pdf_sum > 0.0) {
+            Score score_pre_penalty = (Score)(weighted_pdf[nn_i] / weighted_pdf_sum);
+            output_scores[nn_i] = penalty * score_pre_penalty;
+        }
+        else {
+            output_scores[nn_i] = (Score)0;
+        }
+
+        if(ctx->stop_requested) {
+            return;
+        }
+    }
+}
+
+
+void score_k_fit_lognormal_mixture(
+    NNV2FastContext *ctx,
+    int n_neighbors,
+    Size n_cols,
+    int *neighbor_dye_iz,  // array((n_neighbors,), type=int): indices to dyetrack
+    Tab *train_dyemat,  // arrays((n_dyetracks, n_cols), type=RadType): All dye weights
+    RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
+    Tab *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
+    Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
+) {
+    // This is a log-normal model where the zero-counts (darks) are treated differently.
+    // The non-zeros are log() and those mapping to zeros are not.
+    // This requires that ctx contain beta, sigma for the lognormal and
+    // zero_mu, zero_sigma for the normal of the zeros.
+
+    if ctx->
+
+
+
+
+
+    double weights[N_MAX_NEIGHBORS];
+    double weighted_pdf[N_MAX_NEIGHBORS];
+    double weighted_pdf_sum = 0.0;
+    double std_per_dye = sqrt(0.1);
+
+
+/*
+       pred_k = 1.0
+        if use_row_fitting:
+            if true_k is not None:
+                pred_k = true_k
+            else:
+                pred_k = np.sum(radrow**2) / np.sum(radrow * self.beta_dyerow)
+
+            radrow = radrow / pred_k
+
+        adjusted_radrow = np.array([
+            np.log(np.clip(rad, a_min=1e-50, a_max=None)) if dye_count > 0 else rad
+            for dye_count, rad in zip(self.dyerow, radrow)
+        ])
+
+        z_scores = (adjusted_radrow - self.mu) / self.sigma
+        return np.product(p_from_z_score(z_scores)), pred_k
+*/
+
 
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_i = neighbor_dye_iz[nn_i];
@@ -124,6 +219,9 @@ void context_classify_radrows(
     int *neighbor_dye_iz = NULL;
     float *neighbor_dists = NULL;
     if(ctx->run_against_all_dyetracks) {
+        // In this mode there is no neighbor look up
+        // Each radrow is compared to every dyerow.
+        // This is implemented by setting the neighbor_dye_iz to point to every dyt
         Size n_dyts = ctx->train_dyemat.n_rows / ctx->n_cols;
         ensure(n_neighbors == n_dyts, "In run_against_all_dyetracks mode n_neighbors must equal n_dyts");
 
@@ -168,11 +266,13 @@ void context_classify_radrows(
         }
     }
 
+    // Compare every radrow to the "neighbor" dytetracks.
     for (Index row_i=0; row_i<n_rows; row_i++) {
         RadType *radrow = tab_ptr(RadType, &radrows, row_i);
 
         int *row_neighbor_dye_iz;
         if(ctx->run_against_all_dyetracks) {
+            // In run_against_all_dyetracks mode the "neighbors" are actually ALL dyetracks.
             row_neighbor_dye_iz = neighbor_dye_iz;
         }
         else {
@@ -182,6 +282,10 @@ void context_classify_radrows(
         // TODO: Change the followin to deal with run_against_all_dyetracks, etc
         Score _output_scores[N_MAX_NEIGHBORS];
 
+        // TODO: Change the following call to lognormal
+        //       ALso, this is complicated by k-params, etc.
+
+        // TODO: Note that neighbor weifhts should be all 1 in the run_against_all_dyetracks mode
         score_weighted_gaussian_mixture(
             ctx,
             n_neighbors,
@@ -212,7 +316,7 @@ void context_classify_radrows(
         Index most_likely_dye_i = row_neighbor_dye_iz[highest_score_i];
         Score dye_score = highest_score;
 
-        // PICK peptide winner using Maximum Liklihood
+        // PICK peptide winner using Maximum Likelihood
         // the .pyx asserts that these are sorted by highest
         // count so we can just pick [0] from the correct dyepep
         Index dyepeps_offset = tab_get(Index, &ctx->train_dye_i_to_dyepep_offset, most_likely_dye_i);

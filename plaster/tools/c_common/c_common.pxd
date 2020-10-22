@@ -1,4 +1,5 @@
 cdef extern from "c_common.h":
+    ctypedef unsigned long Bool
     ctypedef unsigned char Uint8
     ctypedef unsigned short Uint16
     ctypedef unsigned int Uint32
