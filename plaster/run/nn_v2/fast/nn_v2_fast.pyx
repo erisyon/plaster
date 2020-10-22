@@ -73,13 +73,13 @@ def fast_nn(
         (pred_pep_iz, scores)
         pred_pep_iz: ndarray((test_radmat.shape[0],), dtype=np.uint32)
         scores: ndarray((test_radmat.shape[0],), dtype=np.float32)
-        output_pred_dye_iz: ndarray((test_radmat.shape[0],), dtype=np.uint32)
+        output_pred_dyt_iz: ndarray((test_radmat.shape[0],), dtype=np.uint32)
     """
     cdef c.RadType [:, ::1] test_radmat_view
     cdef c.DyeType [:, ::1] train_dyemat_view
     cdef c.Index [:, ::1] train_dyepeps_view
     cdef c.Index32 [::1] output_pred_pep_iz_view
-    cdef c.Index32 [::1] output_pred_dye_iz_view
+    cdef c.Index32 [::1] output_pred_dyt_iz_view
     cdef c.Score [::1] output_scores_view
 
     # CHECKS
@@ -99,19 +99,19 @@ def fast_nn(
 
     # ALLOCATE output arrays
     output_pred_pep_iz = np.zeros((test_radmat.shape[0],), dtype=np.uint32)
-    output_pred_dye_iz = np.zeros((test_radmat.shape[0],), dtype=np.uint32)
+    output_pred_dyt_iz = np.zeros((test_radmat.shape[0],), dtype=np.uint32)
     output_scores = np.zeros((test_radmat.shape[0],), dtype=np.float32)
 
     # CREATE cython views
     test_radmat_view = test_radmat
     train_dyemat_view = train_dyemat
     output_pred_pep_iz_view = output_pred_pep_iz
-    output_pred_dye_iz_view = output_pred_dye_iz
+    output_pred_dyt_iz_view = output_pred_dyt_iz
     output_scores_view = output_scores
 
     cdef c.Index i
-    cdef c.Index dye_i
-    cdef c.Index last_dye_i
+    cdef c.Index dyt_i
+    cdef c.Index last_dyt_i
     cdef c.Size last_count
     cdef c.Size n_dyetracks
     cdef c.DyeType *src
@@ -122,7 +122,7 @@ def fast_nn(
     cdef c.RadType *train_dyemat_as_radtype
     cdef c.Uint64 *dyetrack_weights_uint64
     cdef c.WeightType *dyetrack_weights_float
-    cdef c.Index *dye_i_to_dyepep_offset
+    cdef c.Index *dyt_i_to_dyepep_offset
     cdef cnn.NNV2FastContext ctx
 
     # COUNT dyetracks (ie, largest dyetrack index + 1)
@@ -136,7 +136,7 @@ def fast_nn(
     train_dyemat_as_radtype = <c.RadType *>calloc(train_dyemat_n_elems, sizeof(c.RadType))
     dyetrack_weights_uint64 = <c.Uint64 *>calloc(train_dyemat_n_rows, sizeof(c.Uint64))
     dyetrack_weights_float = <c.WeightType *>calloc(train_dyemat_n_rows, sizeof(c.WeightType))
-    dye_i_to_dyepep_offset = <c.Index *>calloc(n_dyetracks, sizeof(c.Index))
+    dyt_i_to_dyepep_offset = <c.Index *>calloc(n_dyetracks, sizeof(c.Index))
 
     try:
         # CONVERT train_dyemat to floats
@@ -149,25 +149,25 @@ def fast_nn(
         # CREATE a lookup table to the start of each dyetrack
 
         # Set last dye to a huge number so that it will be different on first
-        # comparison with dye_i below.
-        last_dye_i = 0xFFFFFFFFFFFFFFFF
+        # comparison with dyt_i below.
+        last_dyt_i = 0xFFFFFFFFFFFFFFFF
         last_count = 0
         for i in range(dyepep_n_rows):
-            dye_i = train_dyepeps_view[i, 0]
-            _assert_with_trace(0 <= dye_i < train_dyemat_n_rows, "Bad dye_i index")
-            dyetrack_weights_uint64[dye_i] += train_dyepeps_view[i, 2]
+            dyt_i = train_dyepeps_view[i, 0]
+            _assert_with_trace(0 <= dyt_i < train_dyemat_n_rows, "Bad dyt_i index")
+            dyetrack_weights_uint64[dyt_i] += train_dyepeps_view[i, 2]
 
-            # print(f"dye_i={dye_i} pep_i={train_dyepeps_view[i, 1]} count={train_dyepeps_view[i, 2]} last_dye_i={last_dye_i}")
-            if dye_i != last_dye_i:
-                _assert_with_trace(dye_i == last_dye_i + 1 or last_dye_i == 0xFFFFFFFFFFFFFFFF, "Non sequential dye_i")
-                _assert_with_trace(0 <= dye_i < n_dyetracks, f"Illegal dye_i {dye_i} when setting dye_i_to_dyepep_offset")
-                dye_i_to_dyepep_offset[dye_i] = i
+            # print(f"dyt_i={dyt_i} pep_i={train_dyepeps_view[i, 1]} count={train_dyepeps_view[i, 2]} last_dyt_i={last_dyt_i}")
+            if dyt_i != last_dyt_i:
+                _assert_with_trace(dyt_i == last_dyt_i + 1 or last_dyt_i == 0xFFFFFFFFFFFFFFFF, "Non sequential dyt_i")
+                _assert_with_trace(0 <= dyt_i < n_dyetracks, f"Illegal dyt_i {dyt_i} when setting dyt_i_to_dyepep_offset")
+                dyt_i_to_dyepep_offset[dyt_i] = i
             else:
                 # Ensure that this is sorted allows picking
                 # the most likely pep without a search
                 _assert_with_trace(train_dyepeps_view[i, 2] <= last_count, "train_dyepeps_view not sorted")
 
-            last_dye_i = dye_i
+            last_dyt_i = dyt_i
             last_count = train_dyepeps_view[i, 2]
             PyErr_CheckSignals()
 
@@ -202,8 +202,8 @@ def fast_nn(
             0
         )
 
-        ctx.train_dye_i_to_dyepep_offset = c.tab_by_size(
-            <c.Uint8 *>&dye_i_to_dyepep_offset[0],
+        ctx.train_dyt_i_to_dyepep_offset = c.tab_by_size(
+            <c.Uint8 *>&dyt_i_to_dyepep_offset[0],
             sizeof(c.Index) * n_dyetracks,
             sizeof(c.Index),
             0
@@ -216,10 +216,10 @@ def fast_nn(
             0
         )
 
-        ctx.output_pred_dye_iz = c.tab_by_size(
-            <c.Uint8 *>&output_pred_dye_iz_view[0],
-            output_pred_dye_iz.nbytes,
-            output_pred_dye_iz.itemsize,
+        ctx.output_pred_dyt_iz = c.tab_by_size(
+            <c.Uint8 *>&output_pred_dyt_iz_view[0],
+            output_pred_dyt_iz.nbytes,
+            output_pred_dyt_iz.itemsize,
             0
         )
 
@@ -251,6 +251,6 @@ def fast_nn(
         free(train_dyemat_as_radtype)
         free(dyetrack_weights_uint64)
         free(dyetrack_weights_float)
-        free(dye_i_to_dyepep_offset)
+        free(dyt_i_to_dyepep_offset)
 
-    return output_pred_pep_iz, output_scores, output_pred_dye_iz
+    return output_pred_pep_iz, output_scores, output_pred_dyt_iz

@@ -19,6 +19,7 @@ cdef extern from "c_common.h":
     ctypedef float Float32
     ctypedef double Float64
     ctypedef Float32 IsolationType
+    ctypedef Float32 RowKType
 
     Uint64 UINT64_MAX
     Uint64 N_MAX_CHANNELS

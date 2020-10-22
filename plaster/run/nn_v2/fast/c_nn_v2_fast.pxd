@@ -5,14 +5,15 @@ cdef extern from "c_nn_v2_fast.h":
         c.Size n_neighbors
         c.Size n_cols
         c.Bool run_against_all_dyetracks
+        c.Bool run_row_k_fit
 
         c.Tab test_radmat
         c.Tab train_dyetrack_weights
         c.Tab train_dyemat
         c.Tab train_dyepeps
-        c.Tab train_dye_i_to_dyepep_offset
+        c.Tab train_dyt_i_to_dyepep_offset
         c.Tab output_pred_pep_iz
-        c.Tab output_pred_dye_iz
+        c.Tab output_pred_dyt_iz
         c.Tab output_scores
         c.Tab output_dists
         c.ProgressFn progress_fn

@@ -228,10 +228,34 @@ Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int b_growable) 
 }
 
 
+Tab tab_malloc_by_size(Size n_bytes, Size n_bytes_per_row, int b_growable) {
+    Tab tab;
+    tab.base = malloc(n_bytes);
+    memset(tab.base, 0, n_bytes);
+    tab.n_bytes_per_row = n_bytes_per_row;
+    tab.n_max_rows = n_bytes / n_bytes_per_row;
+    tab.b_growable = b_growable;
+    if(b_growable) {
+        tab.n_rows = 0;
+    }
+    else {
+        tab.n_rows = tab.n_max_rows;
+    }
+    return tab;
+}
+
+
 Tab tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, int b_growable) {
     return tab_by_size(base, n_rows * n_bytes_per_row, n_bytes_per_row, b_growable);
 }
 
+Tab tab_malloc_by_n_rows(Size n_rows, Size n_bytes_per_row, int b_growable) {
+    return tab_malloc_by_size(n_rows * n_bytes_per_row, n_bytes_per_row, b_growable);
+}
+
+void tab_free(Tab *tab) {
+    free(tab->base);
+}
 
 Tab tab_subset(Tab *src, Index row_i, Size n_rows) {
     ensure_only_in_debug(n_rows >= 0, "tab_subset has illegal n_rows %lu", n_rows);

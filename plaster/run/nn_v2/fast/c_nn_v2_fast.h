@@ -9,18 +9,24 @@ typedef struct {
     // The following are set by the .pyx file
     Size n_neighbors;
     Size n_cols;
+    Bool run_row_k_fit;
     Bool run_against_all_dyetracks;
 
     Tab test_radmat;  // RadType (Float32)
     Tab train_dyetrack_weights;  // WeightType (Float32)
     Tab train_dyemat;  // RadType (Float32)
     Tab train_dyepeps;  // (Index * 3)
-    Tab train_dye_i_to_dyepep_offset;  // (Index into train_dyepeps)
+    Tab train_dyt_i_to_dyepep_offset;  // (Index into train_dyepeps)
     Tab output_pred_pep_iz;  // Index32
-    Tab output_pred_dye_iz;  // Index32
+    Tab output_pred_dyt_iz;  // Index32
     Tab output_scores;  // Score (Float32)
     Tab output_dists;  // Score (Float32)
 
+    Float64 beta;
+    Float64 sigma;
+    Float64 zero_mu;
+    Float64 zero_sigma;
+    Float64 row_k_std;
     Size n_threads;
     Size n_rows;
     Index next_row_i;

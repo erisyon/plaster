@@ -20,27 +20,6 @@ exec(open("plaster/version.py").read())
 
 extensions = [
     Extension(
-        name="plaster.run.sim_v2.fast.sim_v2_fast",
-        sources=[
-            "./plaster/run/sim_v2/fast/sim_v2_fast.pyx",
-            "./plaster/run/sim_v2/fast/c_sim_v2_fast.c",
-            "./plaster/tools/c_common/c_common.c",
-        ],
-        include_dirs=[
-            "./plaster/run/sim_v2/fast",
-            "./plaster/tools/c_common",
-            numpy.get_include(),
-        ],
-        extra_compile_args=[
-            "-Wno-unused-but-set-variable",
-            "-Wno-unused-label",
-            "-Wno-cpp",
-            "-pthread",
-            "-DDEBUG",
-            # "-DNDEBUG",
-        ],
-    ),
-    Extension(
         name="plaster.run.nn_v2.fast.nn_v2_fast",
         sources=[
             "./plaster/run/nn_v2/fast/nn_v2_fast.pyx",
@@ -58,6 +37,27 @@ extensions = [
         library_dirs=["/flann/lib"],
         extra_compile_args=[
             "-DNPY_NO_DEPRECATED_API",
+            "-DDEBUG",
+            # "-DNDEBUG",
+        ],
+    ),
+    Extension(
+        name="plaster.run.sim_v2.fast.sim_v2_fast",
+        sources=[
+            "./plaster/run/sim_v2/fast/sim_v2_fast.pyx",
+            "./plaster/run/sim_v2/fast/c_sim_v2_fast.c",
+            "./plaster/tools/c_common/c_common.c",
+        ],
+        include_dirs=[
+            "./plaster/run/sim_v2/fast",
+            "./plaster/tools/c_common",
+            numpy.get_include(),
+        ],
+        extra_compile_args=[
+            "-Wno-unused-but-set-variable",
+            "-Wno-unused-label",
+            "-Wno-cpp",
+            "-pthread",
             "-DDEBUG",
             # "-DNDEBUG",
         ],
