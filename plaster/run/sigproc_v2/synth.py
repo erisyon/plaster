@@ -197,10 +197,8 @@ class PeaksModel(BaseSynthModel):
             [
                 loc
                 for loc in self.locs
-                if loc[0] > dist
-                and loc[0] < self.dim[0] - dist
-                and loc[1] > dist
-                and loc[1] < self.dim[1] - dist
+                if dist < loc[0] < self.dim[0] - dist
+                and dist < loc[1] < self.dim[1] - dist
             ]
         )
         return self
