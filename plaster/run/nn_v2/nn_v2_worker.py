@@ -1,12 +1,107 @@
 import numpy as np
 from plaster.run.call_bag import CallBag
-from plaster.run.nn_v2.fast import nn_v2_fast
+from plaster.run.nn_v2.c import nn_v2 as c_nn_v2
 from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.sim_v2.sim_v2_result import RadType
-from plaster.tools.log.log import prof
 from plaster.tools.zap.zap import get_cpu_limit
 
 
+def nn_v2(
+    nn_v2_params,
+    prep_result,
+    sim_v2_result,
+    sigproc_result,
+    progress=None,
+    pipeline=None,
+):
+    phase_i = 0
+    n_phases = 3
+    if sigproc_result is not None:
+        n_phases += 1
+
+    # RUN NN on test set
+    # -----------------------------------------------------------------------
+    test_radmat = sim_v2_result.flat_test_radmat()
+
+    if pipeline:
+        pipeline.set_phase(phase_i, n_phases)
+        phase_i += 1
+
+    nn_v2_context = c_nn_v2.context_create(
+        sim_v2_result.flat_train_dyemat(),
+        sim_v2_result.train_dyepeps,
+        test_radmat,
+        nn_v2_params.beta,
+        nn_v2_params.sigma,
+        nn_v2_params.zero_beta,
+        nn_v2_params.zero_sigma,
+        nn_v2_params.row_k_std,
+        n_neighbors=nn_v2_params.n_neighbors,
+        run_row_k_fit=nn_v2_params.run_row_k_fit,
+        run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
+        progress=progress,
+    )
+
+    # call_bag = CallBag(
+    #     true_pep_iz=sim_v2_result.test_true_pep_iz,
+    #     pred_pep_iz=test_pred_pep_iz,
+    #     scores=test_scores,
+    #     prep_result=prep_result,
+    #     sim_result=sim_v2_result,
+    # )
+    #
+    # if pipeline:
+    #     pipeline.set_phase(phase_i, n_phases)
+    #     phase_i += 1
+    #
+    # test_peps_pr = call_bag.pr_curve_by_pep(progress=progress)
+    #
+    # if pipeline:
+    #     pipeline.set_phase(phase_i, n_phases)
+    #     phase_i += 1
+    #
+    # test_peps_pr_abund = call_bag.pr_curve_by_pep_with_abundance(progress=progress)
+    #
+    # # RUN NN on sigproc_result if available
+    # # -----------------------------------------------------------------------
+    # if sigproc_result is not None:
+    #     sigproc_unit_radmat = (
+    #         sigproc_result.flat_radmat().astype(RadType) / radmat_normalization
+    #     )
+    #
+    #     if pipeline:
+    #         pipeline.set_phase(phase_i, n_phases)
+    #         phase_i += 1
+    #
+    #     sigproc_pred_pep_iz, sigproc_scores, sigproc_pred_dye_iz = nn_v2_fast_2.fast_nn(
+    #         sigproc_unit_radmat,
+    #         sim_v2_result.flat_train_dyemat(),
+    #         sim_v2_result.train_dyepeps,
+    #         n_neighbors=nn_v2_params.n_neighbors,
+    #         n_threads=get_cpu_limit(),
+    #         progress=progress,
+    #         run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
+    #     )
+    # else:
+    #     sigproc_pred_pep_iz = None
+    #     sigproc_scores = None
+    #     sigproc_pred_dye_iz = None
+    #
+    # return NNV2Result(
+    #     params=nn_v2_params,
+    #     test_pred_pep_iz=test_pred_pep_iz,
+    #     test_pred_dye_iz=test_pred_dye_iz,
+    #     test_scores=test_scores,
+    #     test_true_pep_iz=sim_v2_result.test_true_pep_iz,
+    #     test_peps_pr=test_peps_pr,
+    #     test_peps_pr_abund=test_peps_pr_abund,
+    #     sigproc_pred_pep_iz=sigproc_pred_pep_iz,
+    #     sigproc_scores=sigproc_scores,
+    #     sigproc_pred_dye_i=sigproc_pred_dye_iz,
+    # )
+
+
+"""
 def nn_v2(
     nn_v2_params,
     prep_result,
@@ -39,7 +134,7 @@ def nn_v2(
         pipeline.set_phase(phase_i, n_phases)
         phase_i += 1
 
-    test_pred_pep_iz, test_scores, test_pred_dye_iz = nn_v2_fast.fast_nn(
+    test_pred_pep_iz, test_scores, test_pred_dye_iz = nn_v2_fast_2.fast_nn(
         unit_radmat,
         sim_v2_result.flat_train_dyemat(),
         sim_v2_result.train_dyepeps,
@@ -80,7 +175,7 @@ def nn_v2(
             pipeline.set_phase(phase_i, n_phases)
             phase_i += 1
 
-        sigproc_pred_pep_iz, sigproc_scores, sigproc_pred_dye_iz = nn_v2_fast.fast_nn(
+        sigproc_pred_pep_iz, sigproc_scores, sigproc_pred_dye_iz = nn_v2_fast_2.fast_nn(
             sigproc_unit_radmat,
             sim_v2_result.flat_train_dyemat(),
             sim_v2_result.train_dyepeps,
@@ -106,3 +201,4 @@ def nn_v2(
         sigproc_scores=sigproc_scores,
         sigproc_pred_dye_i=sigproc_pred_dye_iz,
     )
+"""
