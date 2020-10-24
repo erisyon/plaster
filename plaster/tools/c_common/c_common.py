@@ -35,8 +35,7 @@ def typedef_to_ctype(typ):
 
 def typedefs_emit(fp):
     for t, info in typedefs.items():
-        pass
-        # print(f"typedef {t} {info[0]};", file=fp)
+        print(f"typedef {t} {info[0]};", file=fp)
 
 
 def typedefs_sanity_check_emit(fp):
