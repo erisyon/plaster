@@ -206,13 +206,13 @@ class PeaksModel(BaseSynthModel):
 
 class PeaksModelGaussian(PeaksModel):
     def __init__(self, **kws):
+        self.mea = kws.pop("mea", 11)
         super().__init__(**kws)
         self.std = None
         self.std_x = None
         self.std_y = None
         self.z_scale = None  # (simulates z stage)
         self.z_center = None  # (simulates z stage)
-        self.mea = 11
 
     def z_function(self, z_scale, z_center):
         self.z_scale = z_scale

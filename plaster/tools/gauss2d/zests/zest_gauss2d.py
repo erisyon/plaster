@@ -11,58 +11,42 @@ def _dump_params(params):
 
 
 def zest_run_gauss_2_fit_on_synthetic():
-    raise NotImplementedError
-
-    # TODO More to do here, plus I'd like to get a timing
-
     lib = gauss2d.load_lib()
+
+    mea = 9
+    true_params = np.array([6000.0, 1.8, 1.8, mea / 2, mea / 2, 0.0, 100.0,])
 
     with synth.Synth() as s:
         peaks = (
-            synth.PeaksModelGaussianCircular(n_peaks=100)
+            synth.PeaksModelGaussianCircular(n_peaks=100, mea=mea)
             .locs_grid()
-            .widths_uniform(1.8)
-            .amps_constant(val=6000)
+            .widths_uniform(true_params[1])
+            .amps_constant(val=true_params[0])
         )
-        synth.CameraModel(bias=0, std=10)
+        synth.CameraModel(bias=true_params[6], std=10)
         im = s.render_chcy()[0, 0].astype(np.float32)
 
-    # np.save("test.npy", im)
-
+    n_peaks = peaks.n_peaks
     locs = np.array(peaks.locs)
     cen_y = locs[:, 0].astype(int)
     cen_x = locs[:, 1].astype(int)
 
-    mea = 9
-    y = int(cen_y[0])
-    x = int(cen_x[0])
-    _im = im[y - 4 : y + 5, x - 4 : x + 5]
+    fit_params = true_params * np.random.normal(1.0, 0.1, true_params.shape)
+    fit_params = np.tile(fit_params, n_peaks)
 
-    n_peaks = peaks.n_peaks
-    n_peaks = 1  # HACK
-    params = np.zeros(
-        (n_peaks, 7)
-    )  # (amplitude, sigma_x, sigma_y, pos_x, pos_y, rho, offset)
+    fit_params = fit_params.flatten()
     fails = np.zeros((n_peaks,), dtype=int)
 
-    params[:, 0] = 1010.0
-    params[:, 1] = peaks.std_x[0:n_peaks]
-    params[:, 2] = peaks.std_y[0:n_peaks]
-    params[:, 3] = mea / 2
-    params[:, 4] = mea / 2
-    params[:, 5] = 0.0
-    params[:, 6] = 0.0
-
-    params = params.flatten()
-
     n_fails = lib.fit_array_of_gauss_2d_on_float_image(
-        im, im.shape[0], im.shape[1], mea, n_peaks, cen_y, cen_x, params, fails,
+        im, im.shape[0], im.shape[1], mea, n_peaks, cen_y, cen_x, fit_params, fails,
     )
+    fit_params = fit_params.reshape((n_peaks, 7))
+    fit_params[fails == 1, :] = np.nan
 
-    print(f"n_peaks={n_peaks}")
-    print(f"n_fails={n_fails}")
-    print(params[0:7])
-    print(fails[0])
+    assert n_fails == 0
+    assert np.allclose(fit_params[:, 0:3], true_params[0:3], rtol=0.2)
+    assert np.allclose(fit_params[:, 5:6], 0.0, atol=0.10)
+    assert np.allclose(fit_params[:, 6:7], true_params[6:7], rtol=0.2)
 
     zest()
 
@@ -174,8 +158,8 @@ def zest_gauss_2_fit():
         fit_params = fit_params.reshape((n_peaks, 7))
         fit_params[fails == 1, :] = np.nan
 
-        assert np.allclose(fit_params[0], true_params, rtol=0.06)
-        assert np.allclose(fit_params[1], true_params, rtol=0.06)
+        assert np.allclose(fit_params[0], true_params, rtol=0.08)
+        assert np.allclose(fit_params[1], true_params, rtol=0.08)
         assert np.all(np.isnan(fit_params[2]))
 
     zest()
