@@ -477,12 +477,16 @@ def _analyze_step_6c_peak_differencing(chcy_ims, locs, peak_mea):
 
                 com_before = imops.com(peak_im ** 2)
                 center_pixel = np.array(peak_im.shape) / 2
-                cy_peak_ims[cy_i] = imops.sub_pixel_shift(peak_im, center_pixel - com_before)
+                cy_peak_ims[cy_i] = imops.sub_pixel_shift(
+                    peak_im, center_pixel - com_before
+                )
                 cy_peak_shifts[cy_i] = center_pixel - com_before
 
             else:
                 # DIFFERENCE only if we didn't break out (all peaks were good)
-                peak_cy_diffs[loc_i, ch_i, :, :, :] = np.diff(cy_peak_ims, axis=0, prepend=0)
+                peak_cy_diffs[loc_i, ch_i, :, :, :] = np.diff(
+                    cy_peak_ims, axis=0, prepend=0
+                )
                 peak_cys[loc_i, ch_i, :, :, :] = cy_peak_ims
                 peak_shifts[loc_i, ch_i, :, :] = cy_peak_shifts
 
@@ -572,12 +576,24 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     difmat = None
     picmat = None
     if sigproc_v2_params.run_peak_differencing:
-        difmat, picmat, sftmat = _analyze_step_6c_peak_differencing(chcy_ims, locs, sigproc_v2_params.peak_mea)
+        difmat, picmat, sftmat = _analyze_step_6c_peak_differencing(
+            chcy_ims, locs, sigproc_v2_params.peak_mea
+        )
 
     # Temporaily removed until a better metric can be found
     # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
 
-    return chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat, difmat, picmat, sftmat
+    return (
+        chcy_ims,
+        locs,
+        radmat,
+        aln_offsets,
+        aln_scores,
+        fitmat,
+        difmat,
+        picmat,
+        sftmat,
+    )
 
 
 def _do_sigproc_analyze_and_save_field(
@@ -593,9 +609,17 @@ def _do_sigproc_analyze_and_save_field(
     if sigproc_v2_params.run_fitter:
         psf_params = psf.psf_fit_gaussian(calib.psfs(0))
 
-    chcy_ims, locs, radmat, aln_offsets, aln_scores, fitmat, difmat, picmat, sftmat = _sigproc_analyze_field(
-        chcy_ims, sigproc_v2_params, calib, psf_params
-    )
+    (
+        chcy_ims,
+        locs,
+        radmat,
+        aln_offsets,
+        aln_scores,
+        fitmat,
+        difmat,
+        picmat,
+        sftmat,
+    ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params)
 
     mea = np.array([chcy_ims.shape[-1:]])
     if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
