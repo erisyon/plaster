@@ -1,13 +1,9 @@
 import numpy as np
-from dataclasses import dataclass
+from plaster.run.sim_v2.sim_v2_result import RadType
 from plaster.run.nn_v2.c import nn_v2 as c_nn_v2
 from scipy.stats import norm
 from zest import zest
 from plaster.tools.log.log import debug
-
-# I can't find a consistent way to scale this
-# But it seems like as long as I model each component as a z-score
-# and I then use the same scaling for all then it shouldn't matter
 
 
 def sample_gaussian(beta, sigma, n_samples):
@@ -19,7 +15,6 @@ def _radmat_from_dyemat(dyemat, n_samples, gain_model):
     radmat = np.zeros((n_dyts * n_samples, n_cols))
     true_dyt_iz = np.zeros((n_dyts * n_samples,), dtype=int)
     for dyt_i, dyt in enumerate(dyemat):
-
         dyt_radmat = np.zeros((n_samples, n_cols))
         for col_i, dye_count in enumerate(dyt):
             if dye_count > 0:
@@ -40,7 +35,14 @@ def _radmat_from_dyemat(dyemat, n_samples, gain_model):
 
 
 def zest_c_nn_v2():
-    dyemat = np.array([[0, 0, 0], [3, 2, 1], [2, 1, 1], [1, 0, 0],], dtype=np.float32)
+    # fmt: off
+    dyemat = np.array([
+        [0, 0, 0],
+        [3, 2, 1],
+        [2, 1, 1],
+        [1, 0, 0],
+    ], dtype=np.float32)
+    # fmt: on
 
     dyepeps = np.array(
         [
@@ -49,16 +51,17 @@ def zest_c_nn_v2():
             [2, 1, 10],
             [3, 1, 10],
             [1, 2, 30],
-        ]
+        ],
+        dtype=np.uint64,
     )
 
     gain_model = (6000, 0.20, 0.0, 200.0)
-    radmat = _radmat_from_dyemat(dyemat, 5, gain_model)
+    radmat, true_dyt_iz = _radmat_from_dyemat(dyemat[1:], 5, gain_model)
 
     nn_v2_context = c_nn_v2.context_create(
         dyemat,
         dyepeps,
-        radmat,
+        radmat.astype(RadType),
         *gain_model,
         row_k_std=0.2,
         n_neighbors=4,

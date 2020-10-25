@@ -180,6 +180,30 @@ void classify_radrows(
         }
         printf("\n");
     }
+
+    Tab *train_dyepeps = &ctx->train_dyepeps;
+    for(int row_i=0; row_i<train_dyemat->n_rows; row_i++) {
+        Uint64 *row = tab_ptr(Uint64, train_dyepeps, row_i);
+        for(int col_i=0; col_i<3; col_i++) {
+            printf("%ld ", row[col_i]);
+        }
+        printf("\n");
+    }
+
+    Tab *test_radmat = &ctx->test_radmat;
+    for(int row_i=0; row_i<test_radmat->n_rows; row_i++) {
+        Float32 *row = tab_ptr(Float32, test_radmat, row_i);
+        for(int col_i=0; col_i<n_cols; col_i++) {
+            printf("%f ", row[col_i]);
+        }
+        printf("\n");
+    }
+
+    Float64 *out = tab_ptr(Float64, &ctx->output, 0);
+    out[0] = 100.0;
+    out[1] = 200.0;
+    out[2] = 300.0;
+
 }
 
 

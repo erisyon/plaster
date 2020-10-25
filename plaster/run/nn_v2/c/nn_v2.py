@@ -1,5 +1,6 @@
 import numpy as np
 from plaster.tools.c_common import c_common
+from plaster.tools.c_common.c_common import Tab
 from plumbum import local, FG
 import ctypes as c
 from contextlib import redirect_stdout, redirect_stderr
@@ -8,9 +9,9 @@ from contextlib import redirect_stdout, redirect_stderr
 class NNV2Context(c_common.FixupStructure):
     _fixup_fields = [
         # # Input Tables
-        ("train_dyemat", c_common.Tab, np.float32),
-        # ("train_dyepeps", "Tab"),
-        # ("test_radmat", "Tab"),
+        ("train_dyemat", Tab, np.float32),
+        ("train_dyepeps", Tab, np.uint64),
+        ("test_radmat", Tab, np.float32),
         # Parameters
         ("beta", "Float64"),
         ("sigma", "Float64"),
@@ -26,12 +27,8 @@ class NNV2Context(c_common.FixupStructure):
         # ("n_cols", "Size"),
         # ("train_dyetrack_weights", "Tab"),
         # ("train_dyt_i_to_dyepep_offset", "Tab"),
-        # ("progress_fn", "ProgressFn"),
         # # Outputs
-        # ("output_pred_pep_iz", "Tab"),
-        # ("output_pred_dyt_iz", "Tab"),
-        # ("output_scores", "Tab"),
-        # ("output_dists", "Tab"),
+        ("output", Tab, np.float64),  # 3 columns: (pred_dyt_iz, score, zscore)
         # # Internal fields
         ("_stop_requested", "Bool"),
         # ("_work_order_lock", "pthread_mutex_t"),
@@ -61,7 +58,9 @@ def load_lib():
                     print("#ifndef NN_V2_H")
                     print("#define NN_V2_H")
                     print()
-                    print('#include "c_common.h"')
+                    print('#include "pthread.h"')
+                    print('#include "stdint.h"')
+                    print('#include "c_common_2.h"')
                     print()
                     c_common.typedefs_emit(fp)
                     print()
@@ -74,6 +73,8 @@ def load_lib():
             ):
                 local["./build.sh"] & FG
         lib = c.CDLL("./_nn_v2.so")
+
+    lib.sanity_check()
 
     lib.context_init.argtypes = [
         c.POINTER(NNV2Context),  # NNV2FastContext *ctx
@@ -106,12 +107,15 @@ def context_create(
     # loaded so that the NNV2Context will be fixed up.
     load_lib()
 
+    output_dtype = NNV2Context.tab_type("output")
+    output = np.zeros((test_radmat.shape[0], 3), dtype=output_dtype)
+
     return NNV2Context(
-        train_dyemat=c_common.Tab.from_mat(
-            train_dyemat, NNV2Context.tab_type("train_dyemat")
+        train_dyemat=Tab.from_mat(train_dyemat, NNV2Context.tab_type("train_dyemat")),
+        train_dyepeps=Tab.from_mat(
+            train_dyepeps, NNV2Context.tab_type("train_dyepeps")
         ),
-        # train_dyepeps=Tab(train_dyepeps),
-        # test_radmat=Tab(test_radmat),
+        test_radmat=Tab.from_mat(test_radmat, NNV2Context.tab_type("test_radmat")),
         beta=beta,
         sigma=sigma,
         zero_beta=zero_beta,
@@ -121,13 +125,12 @@ def context_create(
         run_row_k_fit=run_row_k_fit,
         run_against_all_dyetracks=run_against_all_dyetracks,
         n_cols=train_dyemat.shape[1],
-        # train_dyt_weights=Tab(?),
-        # train_dyt_i_to_dyepep_offset=Tab(?),
-        # progress_fn=progress_fn,
-        # output=Tab(?),
+        output=Tab.from_mat(output, output_dtype),
+        _output=output,
     )
 
 
 def classify_radrows(radrow_start_i, n_radrows, nn_v2_context):
     lib = load_lib()
     lib.classify_radrows(radrow_start_i, n_radrows, nn_v2_context)
+    print(nn_v2_context._output[0, :])

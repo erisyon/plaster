@@ -4,6 +4,7 @@ from plaster.tools.schema import check
 
 
 typedefs = {
+    # typedef name, c type, n_bytes, python ctype, should be emitted into header
     "Uint8": ("__uint8_t", 1, c.c_ubyte, False),
     "Uint16": ("__uint16_t", 2, c.c_ushort, False),
     "Uint32": ("__uint32_t", 4, c.c_uint, False),
@@ -40,13 +41,6 @@ def typedefs_emit(fp):
     for t, info in typedefs.items():
         if info[3]:
             print(f"typedef {info[0]} {t};", file=fp)
-
-
-def typedefs_sanity_check_emit(fp):
-    print("void sanity_check() {", file=fp)
-    for t, info in typedefs.items():
-        print(f"assert(sizeof({t}) == {info[1]});", file=fp)
-    print("}", file=fp)
 
 
 class Tab(c.Structure):

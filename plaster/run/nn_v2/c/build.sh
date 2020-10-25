@@ -10,18 +10,16 @@ if [[ -z "${C_COMMON_FOLDER}" ]]; then
 	exit 1;
 fi
 
-C_OPTS="-c -fpic -O3"
+C_OPTS="-c -fpic -O3 -I ${C_COMMON_FOLDER}"
 
 gcc \
 	$C_OPTS \
 	./_nn_v2.c \
-	-I "${C_COMMON_FOLDER}" \
 	-o "${DST_FOLDER}/_nn_v2.o" \
 
 gcc \
 	$C_OPTS \
 	"${C_COMMON_FOLDER}/c_common.c" \
-	-I "${C_COMMON_FOLDER}" \
 	-o "${DST_FOLDER}/c_common.o" \
 
 gcc \

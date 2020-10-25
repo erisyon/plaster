@@ -396,16 +396,10 @@ int sanity_check() {
     ensure(sizeof(Float32) == 4, "Wrong size: Float32");
     ensure(sizeof(Float64) == 8, "Wrong size: Float64");
 
-    if(UINT64_MAX != 0xFFFFFFFFFFFFFFFFULL) {
-        printf("Failed sanity check: UINT64_MAX\n");
-        return 1;
-    }
+    ensure(UINT64_MAX == 0xFFFFFFFFFFFFFFFFULL, "Failed sanity check: UINT64_MAX");
 
-    if(N_MAX_CYCLES != 64) {
-        // This is particularly annoying. See csim.pxd for explanation
-        printf("Failed sanity check: N_MAX_CYCLES\n");
-        return 8;
-    }
+    // This is particularly annoying. See csim.pxd for explanation
+    ensure(N_MAX_CYCLES == 64, "Failed sanity check: N_MAX_CYCLES");
 
     return 0;
 }
