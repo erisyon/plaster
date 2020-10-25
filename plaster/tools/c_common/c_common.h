@@ -23,12 +23,14 @@ typedef Uint64 HashKey;
 typedef Uint8 DyeType;
 typedef Uint8 CycleKindType;
 typedef Uint64 PIType;
+typedef Uint64 DyePepType;
 typedef Float64 RecallType;
 typedef Float32 RadType;
 typedef Float32 ScoreType;
-typedef Float32 WeightType;
+typedef Uint64 DytWeightType;
 typedef Float32 IsolationType;
 typedef Float32 RowKType;
+typedef Uint64 DytIndexType;
 
 
 #define max(a,b) ((a) > (b) ? (a) : (b))
@@ -62,7 +64,7 @@ typedef void (*ProgressFn)(int complete, int total, int retry);
 #define N_MAX_NEIGHBORS (8)
 
 
-// hash
+// Hash
 //----------------------------------------------------------------------------------------
 
 typedef Uint64 HashKey;

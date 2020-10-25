@@ -1,10 +1,17 @@
 import numpy as np
-from plaster.tools.c_common import c_common
-from plaster.tools.c_common.c_common import Tab
-from plaster.run.sim_v2.sim_v2_params import RadType, DyeType, DyePepType
-
 from plumbum import local, FG
 import ctypes as c
+from contextlib import contextmanager
+from plaster.tools.c_common import c_common
+from plaster.tools.c_common.c_common import Tab
+from plaster.run.sim_v2.sim_v2_params import (
+    RadType,
+    DyeType,
+    DyePepType,
+    DytWeightType,
+    DytIndexType,
+)
+from plaster.run.nn_v2.c.build import build
 from contextlib import redirect_stdout, redirect_stderr
 
 
@@ -12,8 +19,8 @@ class NNV2Context(c_common.FixupStructure):
     _fixup_fields = [
         # # Input Tables
         ("train_dyemat", Tab, DyeType),
-        ("train_dyepeps", Tab, DyePepType),
-        ("test_radmat", Tab, RadType),
+        ("train_dyepeps", Tab, DyePepType),  # 3 columns: (dyt_i, pep_i, count)
+        ("radmat", Tab, RadType),
         # Parameters
         ("beta", "Float64"),
         ("sigma", "Float64"),
@@ -25,9 +32,7 @@ class NNV2Context(c_common.FixupStructure):
         ("run_row_k_fit", "Bool"),
         ("run_against_all_dyetracks", "Bool"),
         # # Derived properties
-        # ("n_rows", "Size"),
-        # ("n_cols", "Size"),
-        # ("train_dyetrack_weights", "Tab"),
+        ("n_cols", "Size"),
         # ("train_dyt_i_to_dyepep_offset", "Tab"),
         # # Outputs
         ("output", Tab, np.float64),  # 3 columns: (pred_dyt_iz, score, zscore)
@@ -36,7 +41,14 @@ class NNV2Context(c_common.FixupStructure):
         # ("_work_order_lock", "pthread_mutex_t"),
         # ("_flann_index_lock", "pthread_mutex_t"),
         # ("_pyfunction_lock", "pthread_mutex_t"),
+        ("_flann_params", "struct FLANNParameters *"),
+        ("_flann_index_id", "void *"),
+        ("_dyt_weights", Tab, DytWeightType),
+        ("_dyt_i_to_dyepep_offset", Tab, DytIndexType),
     ]
+
+    def pred_dyt_iz(self):
+        return self._output[:, 0].astype(int)
 
 
 _lib = None
@@ -67,17 +79,22 @@ def load_lib():
                     NNV2Context.struct_emit_header(fp)
                     print("#endif")
 
-            with local.env(
-                DST_FOLDER="/erisyon/plaster/plaster/run/nn_v2/c",
-                C_COMMON_FOLDER="/erisyon/plaster/plaster/tools/c_common",
-            ):
-                local["./build.sh"] & FG
+            build(
+                dst_folder="/erisyon/plaster/plaster/run/nn_v2/c",
+                c_common_folder="/erisyon/plaster/plaster/tools/c_common",
+                flann_include_folder="/flann/src/cpp/flann",
+                flann_lib_folder="/flann/lib",
+            )
         lib = c.CDLL("./_nn_v2.so")
 
     lib.sanity_check()
 
     lib.context_init.argtypes = [
-        c.POINTER(NNV2Context),  # NNV2FastContext *ctx
+        c.POINTER(NNV2Context),
+    ]
+
+    lib.context_free.argtypes = [
+        c.POINTER(NNV2Context),
     ]
 
     lib.classify_radrows.argtypes = [
@@ -90,10 +107,11 @@ def load_lib():
     return lib
 
 
-def context_create(
+@contextmanager
+def context(
     train_dyemat,
     train_dyepeps,
-    test_radmat,
+    radmat,
     beta,
     sigma,
     zero_beta,
@@ -103,19 +121,21 @@ def context_create(
     run_row_k_fit=False,
     run_against_all_dyetracks=False,
 ):
-    # Even though the lib isn't used in this funciton it must be
-    # loaded so that the NNV2Context will be fixed up.
-    load_lib()
+    """
+    with nn_v2.context(...) as ctx:
+        zap.work_orders(do_classify_radrows, ...)
+    """
+    lib = load_lib()
 
     output_dtype = NNV2Context.tab_type("output")
-    output = np.zeros((test_radmat.shape[0], 3), dtype=output_dtype)
+    output = np.zeros((radmat.shape[0], 3), dtype=output_dtype)
 
-    return NNV2Context(
+    nn_v2_context = NNV2Context(
         train_dyemat=Tab.from_mat(train_dyemat, NNV2Context.tab_type("train_dyemat")),
         train_dyepeps=Tab.from_mat(
             train_dyepeps, NNV2Context.tab_type("train_dyepeps")
         ),
-        test_radmat=Tab.from_mat(test_radmat, NNV2Context.tab_type("test_radmat")),
+        radmat=Tab.from_mat(radmat, NNV2Context.tab_type("radmat")),
         beta=beta,
         sigma=sigma,
         zero_beta=zero_beta,
@@ -129,8 +149,13 @@ def context_create(
         _output=output,
     )
 
+    lib.context_init(nn_v2_context)
+    try:
+        yield nn_v2_context
+    finally:
+        lib.context_free(nn_v2_context)
 
-def classify_radrows(radrow_start_i, n_radrows, nn_v2_context):
+
+def do_classify_radrows(nn_v2_context, radrow_start_i, n_radrows):
     lib = load_lib()
-    lib.classify_radrows(radrow_start_i, n_radrows, nn_v2_context)
-    # print(nn_v2_context._output[0, :])
+    lib.classify_radrows(nn_v2_context, radrow_start_i, n_radrows)

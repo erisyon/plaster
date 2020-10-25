@@ -10,12 +10,13 @@ from plaster.tools.log.log import debug
 
 
 DyeType = np.uint8
-DyeWeightType = np.float32
+DytWeightType = np.uint64
 RadType = np.float32
 IndexType = np.uint32
 RecallType = np.float32
 ScoreType = np.float32
 DyePepType = np.uint64
+DytIndexType = np.uint64
 
 
 class SimV2Params(Params):

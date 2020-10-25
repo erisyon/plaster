@@ -255,6 +255,7 @@ Tab tab_malloc_by_n_rows(Size n_rows, Size n_bytes_per_row, int b_growable) {
 
 void tab_free(Tab *tab) {
     free(tab->base);
+    tab->base = NULL;
 }
 
 Tab tab_subset(Tab *src, Index row_i, Size n_rows) {

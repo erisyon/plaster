@@ -5,6 +5,7 @@ from plaster.tools.schema import check
 
 typedefs = {
     # typedef name, c type, python ctype
+    "void": ("void", c.c_void_p),
     "Uint8": ("__uint8_t", c.c_ubyte),
     "Uint16": ("__uint16_t", c.c_ushort),
     "Uint32": ("__uint32_t", c.c_uint),
@@ -90,9 +91,13 @@ class FixupStructure(c.Structure):
                 if n_parts == 1:
                     ctypes_type = typedefs[typedef_parts[0]][1]
                     fields += [(field_name, ctypes_type)]
-                elif n_parts == 2 and typedef_parts[1] == "*":
-                    ctypes_type = typedefs[typedef_parts[1]][1]
-                    fields += [(field_name, c.POINTER(ctypes_type))]
+                elif n_parts > 1 and typedef_parts[-1] == "*":
+                    ctypes_type = typedefs.get(typedef_parts[0])
+                    if ctypes_type is not None:
+                        ctypes_type = ctypes_type[1]
+                        fields += [(field_name, c.POINTER(ctypes_type))]
+                    else:
+                        fields += [(field_name, c.POINTER(c.c_void_p))]
                 else:
                     raise TypeError(
                         f"Unknown type reference '{field_name}, {typedef_parts}'"
@@ -138,7 +143,7 @@ class FixupStructure(c.Structure):
         print("typedef struct {", file=header_fp)
         for f in cls._fixup_fields:
             if isinstance(f[1], str):
-                typename = f[1].split()[0]  # Split to separate Tab for type
+                typename = f[1]
             else:
                 typename = f[1].__name__
             print(f"    {typename} {f[0]};", file=header_fp)

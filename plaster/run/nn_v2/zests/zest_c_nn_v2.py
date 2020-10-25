@@ -10,7 +10,7 @@ def sample_gaussian(beta, sigma, n_samples):
     return norm(beta, sigma).rvs(n_samples)
 
 
-def _radmat_from_dyemat(dyemat, n_samples, gain_model):
+def _radmat_from_dyemat(dyemat, gain_model, n_samples):
     n_dyts, n_cols = dyemat.shape
     radmat = np.zeros((n_dyts * n_samples, n_cols))
     true_dyt_iz = np.zeros((n_dyts * n_samples,), dtype=int)
@@ -56,9 +56,9 @@ def zest_c_nn_v2():
     )
 
     gain_model = (6000, 0.20, 0.0, 200.0)
-    radmat, true_dyt_iz = _radmat_from_dyemat(dyemat[1:], 5, gain_model)
+    radmat, true_dyt_iz = _radmat_from_dyemat(dyemat[1:], gain_model, n_samples=5)
 
-    nn_v2_context = c_nn_v2.context_create(
+    with c_nn_v2.context(
         dyemat,
         dyepeps,
         radmat.astype(RadType),
@@ -67,8 +67,8 @@ def zest_c_nn_v2():
         n_neighbors=4,
         run_row_k_fit=True,
         run_against_all_dyetracks=False,
-    )
-
-    c_nn_v2.classify_radrows(0, len(radmat), nn_v2_context)
+    ) as nn_v2_context:
+        c_nn_v2.do_classify_radrows(nn_v2_context, 0, len(radmat))
+        assert np.all(true_dyt_iz == nn_v2_context.pred_dyt_iz)
 
     zest()
