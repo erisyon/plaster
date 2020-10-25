@@ -7,7 +7,8 @@
 #include "pthread.h"
 #include "unistd.h"
 #include "math.h"
-#include "c_nn_v2_fast.h"
+#include "c_common_2.h"
+#include "_nn_v2.h"
 
 
 Float64 normalCDF(Float64 value) {
@@ -29,14 +30,14 @@ Float64 p_from_gaussian(Float64 x, Float64 mu, Float64 sigma) {
 
 
 void score_weighted_gaussian_mixture(
-    NNV2FastContext *ctx,
+    NNV2Context *ctx,
     int n_neighbors,
     Size n_cols,
     int *neighbor_dyt_iz,  // array((n_neighbors,), type=int): indices to dyetrack
     Tab *train_dyemat,  // arrays((n_dyetracks, n_cols), type=RadType): All dye weights
     RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
     Tab *dyetrack_weights,  // arrays((n_dyetracks,), type=RadType): All dye weights
-    Score *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
+    ScoreType *output_scores  // array((n_neighbors,), type=float): returned scores for each neighbor
 ) {
     double weights[N_MAX_NEIGHBORS];
     double weighted_pdf[N_MAX_NEIGHBORS];
@@ -68,22 +69,22 @@ void score_weighted_gaussian_mixture(
         weighted_pdf[nn_i] = wpdf;
         weighted_pdf_sum += wpdf;
 
-        if(ctx->stop_requested) {
+        if(ctx->_stop_requested) {
             return;
         }
     }
 
     for (int nn_i=0; nn_i<n_neighbors; nn_i++) {
-        Score penalty = (Score)(1.0 - exp(-0.8 * weights[nn_i]));
+        ScoreType penalty = (ScoreType)(1.0 - exp(-0.8 * weights[nn_i]));
         if(weighted_pdf_sum > 0.0) {
-            Score score_pre_penalty = (Score)(weighted_pdf[nn_i] / weighted_pdf_sum);
+            ScoreType score_pre_penalty = (ScoreType)(weighted_pdf[nn_i] / weighted_pdf_sum);
             output_scores[nn_i] = penalty * score_pre_penalty;
         }
         else {
-            output_scores[nn_i] = (Score)0;
+            output_scores[nn_i] = (ScoreType)0;
         }
 
-        if(ctx->stop_requested) {
+        if(ctx->_stop_requested) {
             return;
         }
     }
@@ -91,7 +92,7 @@ void score_weighted_gaussian_mixture(
 
 
 void score_k_fit_lognormal_mixture(
-    NNV2FastContext *ctx,
+    NNV2Context *ctx,
     Size n_neighbors,
     Size n_cols,  // n_channels * n_cycles
     Tab *neighbor_dyt_iz,  // array((n_neighbors,), type=int): indices to dyetrack
@@ -155,7 +156,7 @@ void score_k_fit_lognormal_mixture(
         tab_set(output_p_vals, nn_i, &p_value);
         tab_set(output_pred_row_ks, nn_i, &pred_k);
 
-        if(ctx->stop_requested) {
+        if(ctx->_stop_requested) {
             return;
         }
     }
@@ -165,13 +166,28 @@ void score_k_fit_lognormal_mixture(
 void classify_radrows(
     Index radrow_start_i,
     Size n_radrows,
-    NNV2FastContext *ctx,
+    NNV2Context *ctx
 ) {
     printf("%ld\n", radrow_start_i);
     printf("%ld\n", n_radrows);
 
-    // TODO: Demonstrate using a Tab here
+    Tab *train_dyemat = &ctx->train_dyemat;
+    Size n_cols = train_dyemat->n_bytes_per_row / sizeof(Float32);
+    for(int row_i=0; row_i<train_dyemat->n_rows; row_i++) {
+        Float32 *row = tab_ptr(Float32, train_dyemat, row_i);
+        for(int col_i=0; col_i<n_cols; col_i++) {
+            printf("%f ", row[col_i]);
+        }
+        printf("\n");
+    }
 }
+
+
+void context_init(NNV2Context *ctx) {
+    printf("Will init stuff here\n");
+}
+
+
 
 /*
 void classify_radrows(
@@ -280,7 +296,7 @@ void classify_radrows(
             Index dyt_i = tab_get(Index, row_neighbor_dyt_iz, nn_i);
             WeightType target_weight = tab_get(WeightType, &ctx->train_dyetrack_weights, dyt_i);
 
-            Score penalty = (Score)(1.0 - exp(-0.8 * target_weight));
+            ScoreType penalty = (ScoreType)(1.0 - exp(-0.8 * target_weight));
 
             Float64 pred_row_k = tab_get(Float64, &neighbor_pred_row_ks, nn_i);
             Float64 p_row_k = p_from_gaussian(pred_row_k, 1.0, ctx->row_k_std);
@@ -305,7 +321,7 @@ void classify_radrows(
         }
 
         Index most_likely_dyt_i = tab_get(Index, row_neighbor_dyt_iz, highest_score_i);
-        Score dyt_score = highest_score / score_sum;
+        ScoreType dyt_score = highest_score / score_sum;
 
         // PICK peptide winner using Maximum Likelihood
         // the .pyx asserts that these are sorted by highest
@@ -316,12 +332,12 @@ void classify_radrows(
         Index most_likely_pep_i = dyepeps_block[1];
 
         WeightType weight = tab_get(WeightType, &ctx->train_dyetrack_weights, most_likely_dyt_i);
-        Score pep_score = (Score)dyepeps_block[2] / (Score)weight;
-        Score score = dyt_score * pep_score;
+        ScoreType pep_score = (ScoreType)dyepeps_block[2] / (ScoreType)weight;
+        ScoreType score = dyt_score * pep_score;
 
         // Feels like this check could come out but it is safest as is.
         if(most_likely_dyt_i == 0) {
-            score = (Score)0.0;
+            score = (ScoreType)0.0;
         }
 
         // Set output

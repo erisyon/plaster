@@ -1,5 +1,4 @@
 import numpy as np
-from plaster.run.nn_v2.fast import nn_v2_fast_2
 
 
 def zest_fast_nn():
