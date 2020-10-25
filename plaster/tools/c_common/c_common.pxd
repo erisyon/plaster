@@ -1,4 +1,4 @@
-cdef extern from "c_common.h":
+cdef extern from "c_common_old.h":
     ctypedef unsigned long Bool
     ctypedef unsigned char Uint8
     ctypedef unsigned short Uint16
@@ -14,7 +14,7 @@ cdef extern from "c_common.h":
     ctypedef unsigned int Size32
     ctypedef unsigned int Index32
     ctypedef float RadType
-    ctypedef float Score
+    ctypedef float ScoreType
     ctypedef float WeightType
     ctypedef float Float32
     ctypedef double Float64

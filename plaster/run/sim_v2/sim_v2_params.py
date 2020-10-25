@@ -15,6 +15,7 @@ RadType = np.float32
 IndexType = np.uint32
 RecallType = np.float32
 ScoreType = np.float32
+DyePepType = np.uint64
 
 
 class SimV2Params(Params):

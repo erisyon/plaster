@@ -2,7 +2,7 @@
 #define C_NN_V2_FAST_H
 
 
-#include "c_common.h"
+#include "c_common_old.h"
 #include "flann.h"
 
 typedef struct {

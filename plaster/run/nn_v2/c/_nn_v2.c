@@ -7,7 +7,7 @@
 #include "pthread.h"
 #include "unistd.h"
 #include "math.h"
-#include "c_common_2.h"
+#include "c_common.h"
 #include "_nn_v2.h"
 
 

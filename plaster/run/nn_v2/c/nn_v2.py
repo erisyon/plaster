@@ -1,6 +1,8 @@
 import numpy as np
 from plaster.tools.c_common import c_common
 from plaster.tools.c_common.c_common import Tab
+from plaster.run.sim_v2.sim_v2_params import RadType, DyeType, DyePepType
+
 from plumbum import local, FG
 import ctypes as c
 from contextlib import redirect_stdout, redirect_stderr
@@ -9,9 +11,9 @@ from contextlib import redirect_stdout, redirect_stderr
 class NNV2Context(c_common.FixupStructure):
     _fixup_fields = [
         # # Input Tables
-        ("train_dyemat", Tab, np.float32),
-        ("train_dyepeps", Tab, np.uint64),
-        ("test_radmat", Tab, np.float32),
+        ("train_dyemat", Tab, DyeType),
+        ("train_dyepeps", Tab, DyePepType),
+        ("test_radmat", Tab, RadType),
         # Parameters
         ("beta", "Float64"),
         ("sigma", "Float64"),
@@ -60,9 +62,7 @@ def load_lib():
                     print()
                     print('#include "pthread.h"')
                     print('#include "stdint.h"')
-                    print('#include "c_common_2.h"')
-                    print()
-                    c_common.typedefs_emit(fp)
+                    print('#include "c_common.h"')
                     print()
                     NNV2Context.struct_emit_header(fp)
                     print("#endif")
@@ -133,4 +133,4 @@ def context_create(
 def classify_radrows(radrow_start_i, n_radrows, nn_v2_context):
     lib = load_lib()
     lib.classify_radrows(radrow_start_i, n_radrows, nn_v2_context)
-    print(nn_v2_context._output[0, :])
+    # print(nn_v2_context._output[0, :])

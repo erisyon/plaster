@@ -9,7 +9,7 @@
 #include "inttypes.h"
 #include "time.h"
 #include "pthread.h"
-#include "c_common.h"
+#include "c_common_old.h"
 
 
 Uint64 now() {

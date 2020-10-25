@@ -302,12 +302,12 @@ def zest_sim_v2_worker():
         zest()
 
     def it_skips_row_noise():
-        sim_v2_result, sim_v2_params = _sim(sim_kwargs=dict(row_k_sigma=0.0))
+        sim_v2_result, sim_v2_params = _sim(err_kwargs=dict(row_k_sigma=0.0))
         assert np.all(sim_v2_result.test_true_ks == 1.0)
 
     def it_adds_row_noise():
-        sim_v2_result, sim_v2_params = _sim(sim_kwargs=dict(row_k_sigma=0.5))
-        assert np.all(sim_v2_result.test_true_ks != 1.0)
+        sim_v2_result, sim_v2_params = _sim(err_kwargs=dict(row_k_sigma=0.5))
+        assert np.any(sim_v2_result.test_true_ks != 1.0)
 
     @zest.skip(reason="Not implemented")
     def it_raises_if_train_and_test_identical():

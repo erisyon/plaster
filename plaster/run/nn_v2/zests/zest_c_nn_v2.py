@@ -1,5 +1,5 @@
 import numpy as np
-from plaster.run.sim_v2.sim_v2_result import RadType
+from plaster.run.sim_v2.sim_v2_result import RadType, DyeType
 from plaster.run.nn_v2.c import nn_v2 as c_nn_v2
 from scipy.stats import norm
 from zest import zest
@@ -41,7 +41,7 @@ def zest_c_nn_v2():
         [3, 2, 1],
         [2, 1, 1],
         [1, 0, 0],
-    ], dtype=np.float32)
+    ], dtype=DyeType)
     # fmt: on
 
     dyepeps = np.array(

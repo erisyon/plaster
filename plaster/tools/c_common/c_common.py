@@ -4,43 +4,37 @@ from plaster.tools.schema import check
 
 
 typedefs = {
-    # typedef name, c type, n_bytes, python ctype, should be emitted into header
-    "Uint8": ("__uint8_t", 1, c.c_ubyte, False),
-    "Uint16": ("__uint16_t", 2, c.c_ushort, False),
-    "Uint32": ("__uint32_t", 4, c.c_uint, False),
-    "Uint64": ("__uint64_t", 8, c.c_ulonglong, False),
-    "Sint8": ("__int8_t", 1, c.c_byte, False),
-    "Sint16": ("__int16_t", 2, c.c_short, False),
-    "Sint32": ("__int32_t", 4, c.c_int, False),
-    "Sint64": ("__int64_t", 8, c.c_longlong, False),
-    "Float32": ("float", 4, c.c_float, False),
-    "Float64": ("double", 8, c.c_double, False),
-    "Bool": ("Uint64", 8, c.c_ulonglong, True),
-    "Size": ("Uint64", 8, c.c_ulonglong, True),
-    "Index": ("Uint64", 8, c.c_ulonglong, True),
-    "Size32": ("Uint32", 4, c.c_uint, True),
-    "Index32": ("Uint32", 4, c.c_uint, True),
-    "HashKey": ("Uint64", 8, c.c_ulonglong, True),
-    "DyeType": ("Uint8", 1, c.c_ubyte, True),
-    "CycleKindType": ("Uint8", 1, c.c_ubyte, True),
-    "PIType": ("Uint64", 8, c.c_ulonglong, True),
-    "RecallType": ("Float64", 8, c.c_float, True),
-    "RadType": ("Float32", 4, c.c_float, True),
-    "ScoreType": ("Float32", 4, c.c_float, True),
-    "WeightType": ("Float32", 4, c.c_float, True),
-    "IsolationType": ("Float32", 4, c.c_float, True),
-    "RowKType": ("Float32", 4, c.c_float, True),
+    # typedef name, c type, python ctype
+    "Uint8": ("__uint8_t", c.c_ubyte),
+    "Uint16": ("__uint16_t", c.c_ushort),
+    "Uint32": ("__uint32_t", c.c_uint),
+    "Uint64": ("__uint64_t", c.c_ulonglong),
+    "Sint8": ("__int8_t", c.c_byte),
+    "Sint16": ("__int16_t", c.c_short),
+    "Sint32": ("__int32_t", c.c_int),
+    "Sint64": ("__int64_t", c.c_longlong),
+    "Float32": ("float", c.c_float),
+    "Float64": ("double", c.c_double),
+    "Bool": ("Uint64", c.c_ulonglong),
+    "Size": ("Uint64", c.c_ulonglong),
+    "Index": ("Uint64", c.c_ulonglong),
+    "Size32": ("Uint32", c.c_uint),
+    "Index32": ("Uint32", c.c_uint),
+    "HashKey": ("Uint64", c.c_ulonglong),
+    "DyeType": ("Uint8", c.c_ubyte),
+    "CycleKindType": ("Uint8", c.c_ubyte),
+    "PIType": ("Uint64", c.c_ulonglong),
+    "RecallType": ("Float64", c.c_float),
+    "RadType": ("Float32", c.c_float),
+    "ScoreType": ("Float32", c.c_float),
+    "WeightType": ("Float32", c.c_float),
+    "IsolationType": ("Float32", c.c_float),
+    "RowKType": ("Float32", c.c_float),
 }
 
 
 def typedef_to_ctype(typ):
-    return typedefs[typ][2]
-
-
-def typedefs_emit(fp):
-    for t, info in typedefs.items():
-        if info[3]:
-            print(f"typedef {info[0]} {t};", file=fp)
+    return typedefs[typ][1]
 
 
 class Tab(c.Structure):
@@ -94,10 +88,10 @@ class FixupStructure(c.Structure):
 
                 n_parts = len(typedef_parts)
                 if n_parts == 1:
-                    ctypes_type = typedefs[typedef_parts[0]][2]
+                    ctypes_type = typedefs[typedef_parts[0]][1]
                     fields += [(field_name, ctypes_type)]
                 elif n_parts == 2 and typedef_parts[1] == "*":
-                    ctypes_type = typedefs[typedef_parts[1]][2]
+                    ctypes_type = typedefs[typedef_parts[1]][1]
                     fields += [(field_name, c.POINTER(ctypes_type))]
                 else:
                     raise TypeError(
@@ -128,7 +122,6 @@ class FixupStructure(c.Structure):
                 ]
 
             with open("foo.h", "w") as foo_header_fp:
-                typedefs_emit(foo_header_fp)
                 struct_emit_header(MyStruct, foo_header_fp)
 
 

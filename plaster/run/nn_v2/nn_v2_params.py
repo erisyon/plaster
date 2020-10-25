@@ -10,6 +10,7 @@ class NNV2Params(Params):
         dt_score_bias=0.1,
         include_sigproc=False,
         run_against_all_dyetracks=False,
+        run_row_k_fit=False,
     )
 
     schema = s(
@@ -18,6 +19,13 @@ class NNV2Params(Params):
             n_neighbors=s.is_int(),
             dt_score_bias=s.is_float(),
             include_sigproc=s.is_bool(),
+            run_row_k_fit=s.is_bool(),
             run_against_all_dyetracks=s.is_bool(),
+            # Consider passing the following around with an ErrorModel instance
+            beta=s.is_float(),
+            sigma=s.is_float(),
+            zero_beta=s.is_float(),
+            zero_sigma=s.is_float(),
+            row_k_std=s.is_float(),
         )
     )

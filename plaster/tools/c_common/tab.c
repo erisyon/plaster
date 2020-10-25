@@ -31,7 +31,7 @@ Goals:
 #include "pthread.h"
 #include "unistd.h"
 #include "math.h"
-#include "c_common.h"
+#include "c_common_old.h"
 
 void ensure(int expr, const char *fmt, ...) {
     // Replacement for assert with var-args and local control of compilation.

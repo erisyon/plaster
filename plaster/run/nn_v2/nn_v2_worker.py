@@ -39,7 +39,6 @@ def nn_v2(
         n_neighbors=nn_v2_params.n_neighbors,
         run_row_k_fit=nn_v2_params.run_row_k_fit,
         run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
-        progress=progress,
     )
 
     # call_bag = CallBag(

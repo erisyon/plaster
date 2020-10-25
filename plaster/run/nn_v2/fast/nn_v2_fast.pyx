@@ -80,7 +80,7 @@ def fast_nn(
     cdef c.Index [:, ::1] train_dyepeps_view
     cdef c.Index32 [::1] output_pred_pep_iz_view
     cdef c.Index32 [::1] output_pred_dyt_iz_view
-    cdef c.Score [::1] output_scores_view
+    cdef c.ScoreType [::1] output_scores_view
 
     # CHECKS
     assert c.sanity_check() == 0

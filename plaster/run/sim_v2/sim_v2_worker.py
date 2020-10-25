@@ -41,7 +41,7 @@ import numpy as np
 from scipy.stats import norm
 from plaster.run.sim_v2.fast import sim_v2_fast
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
-from plaster.run.sim_v2 import sim_v2_params
+from plaster.run.sim_v2.sim_v2_params import RadType
 from plaster.tools.log.log import debug, prof
 from plaster.tools.schema import check
 from plaster.tools.utils import data
@@ -226,7 +226,7 @@ def _radmat_sim(
 
     # TODO: Convert to ArrayResult
     output_radmat = np.zeros(
-        (n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=np.float32
+        (n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=RadType
     )
     output_true_dye_iz = np.zeros((n_peps, n_samples_per_pep), dtype=int)
 
@@ -281,8 +281,10 @@ def _any_identical_non_zero_rows(a, b):
 
 def _radmat_add_per_row_variance(radmat, row_k_sigma):
     if row_k_sigma is None:
-        return radmat, np.ones((radmat.shape[0],))
-    true_ks = np.random.normal(1.0, row_k_sigma, size=(radmat.shape[0],))
+        return radmat, np.ones((radmat.shape[0],), dtype=RadType)
+    true_ks = np.random.normal(1.0, row_k_sigma, size=(radmat.shape[0],)).astype(
+        RadType
+    )
     return radmat * true_ks[:, None, None], true_ks
 
 
@@ -408,7 +410,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             progress,
         )
         test_radmat, test_true_ks = _radmat_add_per_row_variance(
-            test_radmat, sim_v2_params.row_k_sigma
+            test_radmat, sim_v2_params.error_model.row_k_sigma
         )
 
         if not sim_v2_params.allow_train_test_to_be_identical:

@@ -1,20 +1,25 @@
 #ifndef C_COMMON_H
 #define C_COMMON_H
 
-// Base Sized-types
+
+// This is now deprecated. It is in the process of being replaced by c_common.h
+
 typedef __uint8_t Uint8;
 typedef __uint16_t Uint16;
 typedef __uint32_t Uint32;
 typedef __uint64_t Uint64;
+typedef __uint128_t Uint128;
+
 typedef __int8_t Sint8;
 typedef __int16_t Sint16;
 typedef __int32_t Sint32;
 typedef __int64_t Sint64;
-typedef __uint64_t Bool;
+typedef __int128_t Sint128;
+
 typedef float Float32;
 typedef double Float64;
 
-// Types for plaster
+typedef Uint64 Bool;
 typedef Uint64 Size;
 typedef Uint64 Index;
 typedef Uint32 Size32;
@@ -30,6 +35,38 @@ typedef Float32 WeightType;
 typedef Float32 IsolationType;
 typedef Float32 RowKType;
 
+
+#define N_MAX_CHANNELS ((DyeType)(8))
+#define NO_LABEL ((DyeType)(N_MAX_CHANNELS - 1))
+#define N_MAX_CYCLES ((DyeType)64)
+#define CYCLE_TYPE_PRE ((CycleKindType)(0))
+#define CYCLE_TYPE_MOCK ((CycleKindType)(1))
+#define CYCLE_TYPE_EDMAN ((CycleKindType)(2))
+#define N_MAX_NEIGHBORS (8)
+
+
+typedef struct {
+    Uint8 *rows;
+    Uint64 n_bytes_per_row;
+    Uint64 n_max_rows;
+    Uint64 n_rows;
+    Uint64 readonly;
+} Table;
+
+
+typedef struct {
+    Index dyt_i;
+    Index pep_i;
+    Size n_reads;
+} DyePepRec;
+
+
+typedef struct {
+    Index i;
+    Size n;
+} RLEBlock;
+
+Uint64 now();
 
 #define max(a,b) ((a) > (b) ? (a) : (b))
 #define min(a,b) ((a) < (b) ? (a) : (b))
@@ -51,27 +88,49 @@ void _trace(const char *fmt, ...);
     #define trace(...) ((void)0)
 #endif
 
+// Tables
+Table table_init(void *base, Size n_bytes, Size n_bytes_per_row);
+Table table_init_readonly(void *base, Size n_bytes, Size n_bytes_per_row);
+Table table_init_subset(Table *src, Index row_i, Size n_rows, Uint64 is_readonly);
+
+void *_table_get_row(Table *table, Index row);
+
+#ifdef DEBUG
+    #define table_get_row(table, row, type) (type *)_table_get_row(table, row)
+#else
+    #define table_get_row(table, row, type) (void *)(table->rows + table->n_bytes_per_row * row)
+#endif
+
+void table_set_row(Table *table, Index row_i, void *src);
+
+Index table_add(Table *table, void *src, pthread_mutex_t *lock, char *table_name);
+
+void table_validate(Table *table, void *ptr, char *msg);
+#ifdef DEBUG
+    #define table_validate_only_in_debug table_validate
+#else
+    #define table_validate_only_in_debug(...) ((void)0)
+#endif
+
+void table_dump(Table *table, char *msg);
+
+//Table rle_index_init(Index *src, Size n_src, Index *dst, Size n_dst);
+//RLEBlock rle_index_get(Table *rle_table, Index pos);
+
 typedef void (*ProgressFn)(int complete, int total, int retry);
+typedef int (*CheckKeyboardInterruptFn)();
 
-#define N_MAX_CHANNELS ((DyeType)(8))
-#define NO_LABEL ((DyeType)(N_MAX_CHANNELS - 1))
-#define N_MAX_CYCLES ((DyeType)64)
-#define CYCLE_TYPE_PRE ((CycleKindType)(0))
-#define CYCLE_TYPE_MOCK ((CycleKindType)(1))
-#define CYCLE_TYPE_EDMAN ((CycleKindType)(2))
-#define N_MAX_NEIGHBORS (8)
 
+int sanity_check();
 
 // hash
 //----------------------------------------------------------------------------------------
-
-typedef Uint64 HashKey;
 
 typedef struct {
     HashKey key;
     union {
     	void *val;
-    	float contention_val;
+    	IsolationType contention_val;
 	};
 } HashRec;
 
@@ -82,12 +141,12 @@ typedef struct {
     Uint64 n_active_recs;
 } Hash;
 
-Hash hash_init(HashRec *buffer, Uint64 n_max_recs);
+Hash hash_init(HashRec *buffer, Size n_max_recs);
 HashRec *hash_get(Hash hash, HashKey key);
 void hash_dump(Hash hash);
 
 
-// Tab
+// tab
 //----------------------------------------------------------------------------------------
 
 typedef struct {
@@ -95,21 +154,21 @@ typedef struct {
     Uint64 n_bytes_per_row;
     Uint64 n_max_rows;
     Uint64 n_rows;
-    Uint64 b_growable;
+    int b_growable;
 } Tab;
 
 
 void tab_tests();
 void tab_dump(Tab *tab, char *msg);
-Tab tab_subset(Tab *src, Uint64 row_i, Uint64 n_rows);
-Tab tab_by_n_rows(void *base, Uint64 n_rows, Uint64 n_bytes_per_row, Uint64 b_growable);
-Tab tab_by_size(void *base, Uint64 n_bytes, Uint64 n_bytes_per_row, Uint64 b_growable);
-Tab tab_malloc_by_n_rows(Uint64 n_rows, Uint64 n_bytes_per_row, Uint64 b_growable);
-Tab tab_malloc_by_size(Uint64 n_bytes, Uint64 n_bytes_per_row, Uint64 b_growable);
+Tab tab_subset(Tab *src, Index row_i, Size n_rows);
+Tab tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, int b_growable);
+Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int b_growable);
+Tab tab_malloc_by_n_rows(Size n_rows, Size n_bytes_per_row, int b_growable);
+Tab tab_malloc_by_size(Size n_bytes, Size n_bytes_per_row, int b_growable);
 void tab_free(Tab *tab);
-void *_tab_get(Tab *tab, Uint64 row_i, char *file, int line);
-void _tab_set(Tab *tab, Uint64 row_i, void *src, char *file, int line);
-Uint64 _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file, int line);
+void *_tab_get(Tab *tab, Index row_i, char *file, int line);
+void _tab_set(Tab *tab, Index row_i, void *src, char *file, int line);
+Index _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file, int line);
 void _tab_validate(Tab *tab, void *ptr, char *file, int line);
 
 
