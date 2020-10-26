@@ -129,7 +129,7 @@ trace("here %d %e\n", __LINE__, sum_of_radrow_beta_dyerow_products);
             for(Index col_i=0; col_i<n_cols; col_i++) {
                 sum_of_radrow_squares += radrow[col_i] * radrow[col_i];
                 sum_of_radrow_beta_dyerow_products += radrow[col_i] * (target_dt[col_i] * beta);
-trace("here %d %e %e\n", __LINE__, sum_of_radrow_beta_dyerow_products, (target_dt[col_i] * beta));
+trace("here %d %e %e %e %e\n", __LINE__, sum_of_radrow_beta_dyerow_products, target_dt[col_i], beta, (target_dt[col_i] * beta));
             }
             if(sum_of_radrow_beta_dyerow_products > 0.0) {
 trace("here %d %e\n", __LINE__, sum_of_radrow_beta_dyerow_products);
