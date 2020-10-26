@@ -76,7 +76,10 @@ def zest_c_nn_v2():
 
         gain_model = (6000, 0.20, 0.0, 200.0)
 
-        radmat, true_dyt_iz = _radmat_from_dyemat(dyemat[1:], gain_model, n_samples=5)
+        radmat, true_dyt_iz = _radmat_from_dyemat(dyemat, gain_model, n_samples=5)
+        import pudb
+
+        pudb.set_trace()
 
     def it_catches_non_sequential_dyt_iz_in_dyepeps():
         nonlocal dyepeps
@@ -94,6 +97,9 @@ def zest_c_nn_v2():
 
     def it_classifies():
         nn_v2_context = _test()
+        import pudb
+
+        pudb.set_trace()
         assert np.all(true_dyt_iz == nn_v2_context.pred_dyt_iz)
 
     zest()

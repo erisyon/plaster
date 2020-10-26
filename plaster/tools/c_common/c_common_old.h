@@ -149,37 +149,46 @@ void hash_dump(Hash hash);
 // tab
 //----------------------------------------------------------------------------------------
 
+#define TAB_NO_LOCK (void *)0
+
+#define TAB_NOT_GROWABLE (0)
+#define TAB_GROWABLE (1<<1)
+#define TAB_FLAGS_INT (1<<2)
+#define TAB_FLAGS_FLOAT (1<<3)
+#define TAB_FLAGS_UNSIGNED (1<<4)
+#define TAB_FLAGS_HAS_ELEMS (1<<5)
+
 typedef struct {
     void *base;
     Uint64 n_bytes_per_row;
     Uint64 n_max_rows;
     Uint64 n_rows;
-    int b_growable;
+    Uint64 n_cols; // Only applies if all columns are the same size
+    Uint64 n_bytes_per_elem;
+    Uint64 flags;
 } Tab;
 
 
 void tab_tests();
 void tab_dump(Tab *tab, char *msg);
-Tab tab_subset(Tab *src, Index row_i, Size n_rows);
-Tab tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, int b_growable);
-Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int b_growable);
-Tab tab_malloc_by_n_rows(Size n_rows, Size n_bytes_per_row, int b_growable);
-Tab tab_malloc_by_size(Size n_bytes, Size n_bytes_per_row, int b_growable);
+Tab tab_subset(Tab *src, Uint64 row_i, Uint64 n_rows);
+Tab tab_by_n_rows(void *base, Uint64 n_rows, Uint64 n_bytes_per_row, Uint64 flags);
+Tab tab_by_size(void *base, Uint64 n_bytes, Uint64 n_bytes_per_row, Uint64 flags);
+Tab tab_by_arr(void *base, Uint64 n_rows, Uint64 n_cols, Uint64 n_bytes_per_elem, Uint64 flags);
+Tab tab_malloc_by_n_rows(Uint64 n_rows, Uint64 n_bytes_per_row, Uint64 flags);
+Tab tab_malloc_by_size(Uint64 n_bytes, Uint64 n_bytes_per_row, Uint64 flags);
 void tab_free(Tab *tab);
-void *_tab_get(Tab *tab, Index row_i, char *file, int line);
-void _tab_set(Tab *tab, Index row_i, void *src, char *file, int line);
-Index _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file, int line);
+void *_tab_get(Tab *tab, Uint64 row_i, Uint64 flags, char *file, int line);
+void _tab_set(Tab *tab, Uint64 row_i, void *src, char *file, int line);
+Uint64 _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file, int line);
 void _tab_validate(Tab *tab, void *ptr, char *file, int line);
 
 
-#define TAB_NOT_GROWABLE (0)
-#define TAB_GROWABLE (1)
-#define TAB_NO_LOCK (void *)0
-
-#define tab_row(tab, row_i) _tab_get(tab, row_i, __FILE__, __LINE__)
-#define tab_var(typ, var, tab, row_i) typ *var = (typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
-#define tab_ptr(typ, tab, row_i) (typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
-#define tab_get(typ, tab, row_i) *(typ *)_tab_get(tab, row_i, __FILE__, __LINE__)
+#define tab_row(tab, row_i) _tab_get(tab, row_i, 0, __FILE__, __LINE__)
+#define tab_var(typ, var, tab, row_i) typ *var = (typ *)_tab_get(tab, row_i, 0, __FILE__, __LINE__)
+#define tab_ptr(typ, tab, row_i) (typ *)_tab_get(tab, row_i, 0, __FILE__, __LINE__)
+#define tab_get(typ, tab, row_i) *(typ *)_tab_get(tab, row_i, 0, __FILE__, __LINE__)
+#define tab_col(typ, tab, row_i, col_i) ((typ *)_tab_get(tab, row_i, TAB_FLAGS_HAS_ELEMS, __FILE__, __LINE__))[col_i]
 #define tab_set(tab, row_i, src_ptr) _tab_set(tab, row_i, src_ptr, __FILE__, __LINE__)
 #define tab_add(tab, src, lock) _tab_add(tab, src, lock, __FILE__, __LINE__)
 #define tab_validate(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)

@@ -18,7 +18,7 @@ from contextlib import redirect_stdout, redirect_stderr
 class NNV2Context(c_common.FixupStructure):
     _fixup_fields = [
         # # Input Tables
-        ("train_dyemat", Tab, DyeType),
+        ("train_fdyemat", Tab, RadType),
         ("train_dyepeps", Tab, DyePepType),  # 3 columns: (dyt_i, pep_i, count)
         ("radmat", Tab, RadType),
         # Parameters
@@ -47,6 +47,7 @@ class NNV2Context(c_common.FixupStructure):
         ("_dyt_i_to_dyepep_offset", Tab, DytIndexType),
     ]
 
+    @property
     def pred_dyt_iz(self):
         return self._output[:, 0].astype(int)
 
@@ -137,8 +138,15 @@ def context(
     output_dtype = NNV2Context.tab_type("output")
     output = np.zeros((radmat.shape[0], 3), dtype=output_dtype)
 
+    # This is a possible place to optimize to avoid this conversion to float
+    # But as it is now it is needed because the FLANN needs to lookup by float
+    # so it is easier to convert is all here to RadType.
+    train_fdyemat = train_dyemat.astype(RadType)
+
     nn_v2_context = NNV2Context(
-        train_dyemat=Tab.from_mat(train_dyemat, NNV2Context.tab_type("train_dyemat")),
+        train_fdyemat=Tab.from_mat(
+            train_fdyemat, NNV2Context.tab_type("train_fdyemat")
+        ),
         train_dyepeps=Tab.from_mat(
             train_dyepeps, NNV2Context.tab_type("train_dyepeps")
         ),
@@ -151,7 +159,7 @@ def context(
         n_neighbors=n_neighbors,
         run_row_k_fit=run_row_k_fit,
         run_against_all_dyetracks=run_against_all_dyetracks,
-        n_cols=train_dyemat.shape[1],
+        n_cols=train_fdyemat.shape[1],
         output=Tab.from_mat(output, output_dtype),
         _output=output,
     )

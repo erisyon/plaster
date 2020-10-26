@@ -44,7 +44,9 @@ class Tab(c.Structure):
         ("n_bytes_per_row", c.c_ulonglong),
         ("n_max_rows", c.c_ulonglong),
         ("n_rows", c.c_ulonglong),
-        ("b_growable", c.c_ulonglong),
+        ("n_cols", c.c_ulonglong),
+        ("n_bytes_per_elem", c.c_ulonglong),
+        ("flags", c.c_ulonglong),
     ]
 
     @classmethod
@@ -55,6 +57,7 @@ class Tab(c.Structure):
         tab.n_bytes_per_row = mat.itemsize * mat.shape[1]
         tab.n_max_rows = mat.shape[0]
         tab.n_rows = mat.shape[0]
+        tab.n_cols = mat.shape[1]
         tab.b_growable = 0
         return tab
 
