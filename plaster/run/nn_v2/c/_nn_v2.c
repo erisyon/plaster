@@ -603,4 +603,36 @@ void context_print(NNV2FastContext *ctx) {
         printf("\n");
     }
 }
+
+
+./p gen \
+    sigproc_v2 \
+    --job="./jobs_folder/abbe5_1t" \
+    --sigproc_source="s3://erisyon-acquire/Abbe/2020/2020_09/2020_09_29/2020_09_29_01_JSP112" \
+    --calibration_file="${JOBS_FOLDER}/_calib/abbe2.calib" \
+
+./p gen \
+    sigproc_v2 \
+    --job="./jobs_folder/abbe6_1t" \
+    --sigproc_source="s3://erisyon-acquire/Abbe/2020/2020_10/2020_10_06/2020_10_06_01_JSP112" \
+    --calibration_file="${JOBS_FOLDER}/_calib/abbe2.calib" \
+
+./p gen \
+     sigproc_v2 \
+     --job="./jobs_folder/val_mjf1_3" \
+     --sigproc_source="s3://erisyon-acquire/Val/MJF/2020/2020_03/2020_03_13/2020_03_13_bleaching" \
+     --calibration_file="${JOBS_FOLDER}/_calib/val2.calib" \
+
+./p gen \
+     sigproc_v2 \
+     --job="./jobs_folder/val4_1t" \
+     --sigproc_source="s3://erisyon-acquire/Val/ESN/2020/2020_10/ESN_2020_10_06D/ESN_2020_10_06D_00_jsp112" \
+     --calibration_file="${JOBS_FOLDER}/_calib/val2.calib" \
+
+./p gen \
+     sigproc_v2 \
+     --job="./jobs_folder/val5_1t" \
+     --sigproc_source="s3://erisyon-acquire/Val/ESN/2020/2020_10/ESN_2020_10_07_try3/ESN_2020_10_07_try3_00_jsp112" \
+     --calibration_file="${JOBS_FOLDER}/_calib/val2.calib" \
+
 */

@@ -30,6 +30,7 @@ class SigprocV2Params(Params):
         skip_regional_balance=False,
         run_fitter=False,
         run_peak_differencing=False,
+        save_full_signal_radmat_npy=False,
     )
 
     schema = s(
@@ -47,6 +48,7 @@ class SigprocV2Params(Params):
             skip_regional_balance=s.is_bool(),
             run_fitter=s.is_bool(),
             run_peak_differencing=s.is_bool(),
+            save_full_signal_radmat_npy=s.is_bool(),
         )
     )
 
