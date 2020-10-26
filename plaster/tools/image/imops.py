@@ -1,16 +1,15 @@
 import itertools
+import math
+
 import cv2
 import numpy as np
-import math
-from scipy import optimize
-from scipy import stats
 from numpy import linalg as LA
-from plaster.tools.image.coord import XY, YX, WH, HW, ROI, clip2d
-from plumbum import local
-from scipy import interpolate
+from plaster.tools.image.coord import HW, ROI, WH, XY, YX, clip2d
+from plaster.tools.log.log import debug
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
-from plaster.tools.log.log import debug
+from plumbum import local
+from scipy import interpolate, optimize, stats
 
 
 def generate_gauss_kernel(
@@ -793,6 +792,17 @@ def gauss2_rho_form(amp, std_x, std_y, pos_x, pos_y, rho, const, mea):
     2D Gaussian in correlation (rho) form which (hopefully)
     will make fits more robust by eliminating the 2*pi/0 wrap around.
     Note: std and pos are in (x, y) order not (y, x)
+    Assumes square set of pixels dim=(mea, mea)
+
+    Args:
+        amp (float): Volume of the area under the curve
+        std_x (float): stdev of x
+        std_y (float): stdev of y
+        pos_x (float): center of gaussian
+        pos_y (float): center of gaussian
+        rho (float): correlation of x and y (will be zero if circular)
+        const (float): offset of gaussian relative to zero
+        mea (float): (measure) number of pixels along one side of square containing gaussian
     """
     mea = int(mea)
     space = np.linspace(0, mea - 1, mea)

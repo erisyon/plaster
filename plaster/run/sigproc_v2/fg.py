@@ -1,6 +1,5 @@
 import numpy as np
-from plaster.run.sigproc_v2 import bg
-from plaster.run.sigproc_v2 import psf
+from plaster.run.sigproc_v2 import bg, psf
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
@@ -293,6 +292,9 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
     n_fields = fl_ims.shape[0]
     dim = fl_ims.shape[-2:]
 
+    # SANITY CHECK that z_reg_psfs
+    assert psf.psf_validate(z_reg_psfs)
+
     # ALLOCATE two accumulators: one for the signals and one for the counts
     fg = np.zeros(dim)
     cnt = np.zeros(dim)
@@ -316,10 +318,12 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
         # FIND outliers
         if not np.all(np.isnan(signals)):
             low, high = np.nanpercentile(signals, (10, 90))
+            debug(low, high)
 
             # SPLAT circles of the intensity of the signal into an accumulator
             for loc, sig in zip(locs, signals):
                 if low <= sig <= high:
+                    debug("got sig", sig)
                     imops.accum_inplace(fg, sig * circle, loc, center=False)
                     imops.accum_inplace(cnt, circle, loc, center=False)
 

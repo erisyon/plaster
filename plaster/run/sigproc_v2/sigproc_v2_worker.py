@@ -125,6 +125,11 @@ def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
             "frames" are "zstacks"
     """
 
+    # TODO: is_movie conflates two things:
+    # 1. For psf calibration, cycles don't mean chemical cycles but rather the stack of images with varying focus
+    # 2. In ims_import, is_movie assumes that input files are nd2 files.
+    # Once this conflation is removed, is_movie can mean just #1, and this assert can be uncommented
+
     # assert ims_import_result.params.is_movie is True
 
     focus_per_field_per_channel = []

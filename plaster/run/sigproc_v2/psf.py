@@ -1,16 +1,16 @@
-from enum import IntEnum
 import math
+from enum import IntEnum
+
 import cv2
 import numpy as np
-from plaster.run.sigproc_v2 import bg
-from plaster.run.sigproc_v2 import fg
+from plaster.run.sigproc_v2 import bg, fg
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.image.imops import sub_pixel_center
+from plaster.tools.log.log import debug, important
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
-from plaster.tools.log.log import debug, important
 
 
 def approximate_kernel():
@@ -304,6 +304,14 @@ def psf_normalize(z_and_region_to_psf):
                     normalized[z_i, y, x] = utils.np_safe_divide(psf, denominator)
 
     return normalized
+
+
+def psf_validate(psfs):
+    """
+    TODO
+    """
+    check.array_t(psfs, ndim=5)
+    return np.allclose(np.sum(psfs, axis=(3, 4)), 1.0)
 
 
 def psf_fit_gaussian(psfs):
