@@ -92,19 +92,26 @@ def load_lib():
     lib.context_init.argtypes = [
         c.POINTER(NNV2Context),
     ]
+    lib.context_init.restype = c.c_char_p
 
     lib.context_free.argtypes = [
         c.POINTER(NNV2Context),
     ]
 
     lib.classify_radrows.argtypes = [
+        c.POINTER(NNV2Context),  # NNV2Context *ctx
         c_common.typedef_to_ctype("Index"),  # Index radrow_start_i,
         c_common.typedef_to_ctype("Size"),  # Size n_radrows,
-        c.POINTER(NNV2Context),  # NNV2FastContext *ctx
     ]
+    lib.classify_radrows.restype = c.c_char_p
 
     _lib = lib
     return lib
+
+
+class NNV2Exception(Exception):
+    def __init__(self, s):
+        super().__init__(s.decode("ascii"))
 
 
 @contextmanager
@@ -149,7 +156,10 @@ def context(
         _output=output,
     )
 
-    lib.context_init(nn_v2_context)
+    error = lib.context_init(nn_v2_context)
+    if error is not None:
+        raise NNV2Exception(error)
+
     try:
         yield nn_v2_context
     finally:
@@ -158,4 +168,6 @@ def context(
 
 def do_classify_radrows(nn_v2_context, radrow_start_i, n_radrows):
     lib = load_lib()
-    lib.classify_radrows(nn_v2_context, radrow_start_i, n_radrows)
+    error = lib.classify_radrows(nn_v2_context, radrow_start_i, n_radrows)
+    if error is not None:
+        raise NNV2Exception(error)

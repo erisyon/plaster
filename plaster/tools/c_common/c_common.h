@@ -29,7 +29,7 @@ typedef Float32 RadType;
 typedef Float32 ScoreType;
 typedef Uint64 DytWeightType;
 typedef Float32 IsolationType;
-typedef Float32 RowKType;
+typedef Float64 RowKType;
 typedef Uint64 DytIndexType;
 
 
