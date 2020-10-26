@@ -111,25 +111,25 @@ void score_k_fit_lognormal_mixture(
     Float64 sigma = ctx->sigma;
     Float64 zero_mu = ctx->zero_mu;
     Float64 zero_sigma = ctx->zero_sigma;
-trace("here %d\n", __LINE__);
 
     for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
-trace("here %d\n", __LINE__);
         Index neighbor_i = (Index)tab_get(int, neighbor_dyt_iz, nn_i);
+        trace("neighbor_i=%ld\n", neighbor_i);
         RadType *target_dt = tab_ptr(RadType, train_dyemat, neighbor_i);
 
         RadType adjusted_radrow[N_MAX_CHANNELS * N_MAX_CYCLES];
         RowKType pred_k = 1.0;
         if(ctx->run_row_k_fit) {
-trace("here %d\n", __LINE__);
             // If fitting the k value for the row then solve for pred_k
             // and write the adjusted radrow into adjusted_radrow.
             // And then swap out the radrow pointer for this adjustment.
             RowKType sum_of_radrow_squares = 0.0;
             RowKType sum_of_radrow_beta_dyerow_products = 0.0;
+trace("here %d %e\n", __LINE__, sum_of_radrow_beta_dyerow_products);
             for(Index col_i=0; col_i<n_cols; col_i++) {
                 sum_of_radrow_squares += radrow[col_i] * radrow[col_i];
                 sum_of_radrow_beta_dyerow_products += radrow[col_i] * (target_dt[col_i] * beta);
+trace("here %d %e %e\n", __LINE__, sum_of_radrow_beta_dyerow_products, (target_dt[col_i] * beta));
             }
             if(sum_of_radrow_beta_dyerow_products > 0.0) {
 trace("here %d %e\n", __LINE__, sum_of_radrow_beta_dyerow_products);
@@ -138,7 +138,6 @@ trace("here %d %f %f %f\n", __LINE__, sum_of_radrow_squares, sum_of_radrow_beta_
             }
             else {
                 pred_k = 1.0;
-trace("here %d %f\n", __LINE__, pred_k);
             }
             for(Index col_i=0; col_i<n_cols; col_i++) {
                 adjusted_radrow[col_i] = radrow[col_i] / pred_k;
@@ -146,7 +145,6 @@ trace("here %d %f\n", __LINE__, pred_k);
             radrow = adjusted_radrow;
         }
 
-trace("here %d\n", __LINE__);
         Float64 p_value = 1.0; // This is an accumulated product
         for(Index col_i=0; col_i<n_cols; col_i++) {
             Float64 rad, z_score;
@@ -161,11 +159,9 @@ trace("here %d\n", __LINE__);
             p_value *= p_value_from_z_score(z_score);
         }
 
-trace("here %d %f %f\n", __LINE__, p_value, pred_k);
         tab_set(output_p_vals, nn_i, &p_value);
         tab_set(output_pred_row_ks, nn_i, &pred_k);
     }
-trace("here %d\n", __LINE__);
 }
 
 
