@@ -39,6 +39,14 @@ def typedef_to_ctype(typ):
 
 
 class Tab(c.Structure):
+    # See c_common.h for duplicate defines
+    TAB_NOT_GROWABLE = 0
+    TAB_GROWABLE = 1 << 0
+    TAB_FLAGS_INT = 1 << 1
+    TAB_FLAGS_FLOAT = 1 << 2
+    TAB_FLAGS_UNSIGNED = 1 << 3
+    TAB_FLAGS_HAS_ELEMS = 1 << 4
+
     _fields_ = [
         ("base", c.c_void_p),
         ("n_bytes_per_row", c.c_ulonglong),
@@ -51,14 +59,36 @@ class Tab(c.Structure):
 
     @classmethod
     def from_mat(cls, mat, expected_dtype):
-        check.array_t(mat, ndim=2, dtype=expected_dtype)
-        tab = Tab()
-        tab.base = mat.ctypes.data_as(c.c_void_p)
-        tab.n_bytes_per_row = mat.itemsize * mat.shape[1]
-        tab.n_max_rows = mat.shape[0]
-        tab.n_rows = mat.shape[0]
-        tab.n_cols = mat.shape[1]
-        tab.b_growable = 0
+        if mat is None:
+            # It is allowed to pass empty table
+            # (tables that will not be used in certain modes)
+            tab = Tab()
+            tab.base = 0
+            tab.n_bytes_per_row = 0
+            tab.n_max_rows = 0
+            tab.n_rows = 0
+            tab.n_cols = 0
+            tab.n_bytes_per_elem = 0
+            tab.flags = 0
+
+        else:
+            check.array_t(mat, ndim=2, dtype=expected_dtype)
+            tab = Tab()
+            tab.base = mat.ctypes.data_as(c.c_void_p)
+            tab.n_bytes_per_row = mat.itemsize * mat.shape[1]
+            tab.n_max_rows = mat.shape[0]
+            tab.n_rows = mat.shape[0]
+            tab.n_cols = mat.shape[1]
+            tab.n_bytes_per_elem = mat.itemsize
+            tab.flags = Tab.TAB_FLAGS_HAS_ELEMS
+
+            if np.issubdtype(mat.dtype, np.integer):
+                tab.flags |= Tab.TAB_FLAGS_INT
+            else:
+                tab.flags |= Tab.TAB_FLAGS_FLOAT
+
+            # TODO: Figure out how to check for unsigned dtypes
+
         return tab
 
 

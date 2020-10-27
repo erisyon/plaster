@@ -42,24 +42,24 @@ def _radmat_from_dyemat(dyemat, gain_model, n_samples, k_sigma=0.0):
 
 
 def zest_c_nn_v2():
-    dyemat, dyepeps, gain_model, radmat, true_dyt_iz, true_ks = (None,) * 6
+    dyemat, dyepeps, gain_model, radmat, true_dyt_iz, true_ks, n_samples = (None,) * 7
 
-    def _test():
+    def _test(n_neighbors=4, run_against_all_dyetracks=False):
         with c_nn_v2.context(
             dyemat,
             dyepeps,
             radmat.astype(RadType),
             *gain_model,
             row_k_std=0.2,
-            n_neighbors=4,
+            n_neighbors=n_neighbors,
             run_row_k_fit=True,
-            run_against_all_dyetracks=False,
+            run_against_all_dyetracks=run_against_all_dyetracks,
         ) as nn_v2_context:
             c_nn_v2.do_classify_radrows(nn_v2_context, 0, len(radmat))
             return nn_v2_context
 
     def _before():
-        nonlocal dyemat, dyepeps, gain_model, radmat, true_dyt_iz, true_ks
+        nonlocal dyemat, dyepeps, gain_model, radmat, true_dyt_iz, true_ks, n_samples
 
         # fmt: off
         dyemat = np.array([
@@ -125,6 +125,20 @@ def zest_c_nn_v2():
         assert cov[1, 1] > 0.03
 
     def it_compares_to_all_dyetracks():
-        raise NotImplementedError
+        nn_v2_context = _test(n_neighbors=1, run_against_all_dyetracks=True)
+
+        # In this mode I expect to get back outputs for every radrow vs every dytrow
+
+        # NOPE still not right --
+        debug(np.log(nn_v2_context.against_all_dyetrack_pvals))
+
+        assert nn_v2_context.against_all_dyetrack_pvals.shape == (
+            radmat.shape[0],
+            dyemat.shape[0],
+        )
+        assert nn_v2_context.against_all_dyetrack_pred_ks.shape == (
+            radmat.shape[0],
+            dyemat.shape[0],
+        )
 
     zest()

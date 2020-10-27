@@ -36,6 +36,9 @@ typedef Uint64 DytIndexType;
 #define max(a,b) ((a) > (b) ? (a) : (b))
 #define min(a,b) ((a) < (b) ? (a) : (b))
 
+// Used foe returning exception-like values from calls
+#define check_and_return(expr, static_fail_string) if(!(expr)) return static_fail_string;
+
 
 // Ensure
 void ensure(int expr, const char *fmt, ...);
@@ -94,12 +97,13 @@ void hash_dump(Hash hash);
 
 #define TAB_NO_LOCK (void *)0
 
+// See c_common_tools.py for duplicate defines
 #define TAB_NOT_GROWABLE (0)
-#define TAB_GROWABLE (1<<1)
-#define TAB_FLAGS_INT (1<<2)
-#define TAB_FLAGS_FLOAT (1<<3)
-#define TAB_FLAGS_UNSIGNED (1<<4)
-#define TAB_FLAGS_HAS_ELEMS (1<<5)
+#define TAB_GROWABLE (1 << 1)
+#define TAB_FLAGS_INT (1 << 2)
+#define TAB_FLAGS_FLOAT (1 << 3)
+#define TAB_FLAGS_UNSIGNED (1 << 4)
+#define TAB_FLAGS_HAS_ELEMS (1 << 5)
 
 typedef struct {
     void *base;
@@ -123,6 +127,7 @@ Tab tab_malloc_by_size(Uint64 n_bytes, Uint64 n_bytes_per_row, Uint64 flags);
 void tab_free(Tab *tab);
 void *_tab_get(Tab *tab, Uint64 row_i, Uint64 flags, char *file, int line);
 void _tab_set(Tab *tab, Uint64 row_i, void *src, char *file, int line);
+void _tab_set_col(Tab *tab, Uint64 row_i, Uint64 col_i, void *src, char *file, int line);
 Uint64 _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file, int line);
 void _tab_validate(Tab *tab, void *ptr, char *file, int line);
 
@@ -133,6 +138,7 @@ void _tab_validate(Tab *tab, void *ptr, char *file, int line);
 #define tab_get(typ, tab, row_i) *(typ *)_tab_get(tab, row_i, 0, __FILE__, __LINE__)
 #define tab_col(typ, tab, row_i, col_i) ((typ *)_tab_get(tab, row_i, TAB_FLAGS_HAS_ELEMS, __FILE__, __LINE__))[col_i]
 #define tab_set(tab, row_i, src_ptr) _tab_set(tab, row_i, src_ptr, __FILE__, __LINE__)
+#define tab_set_col(tab, row_i, col_i, src_ptr) _tab_set_col(tab, row_i, col_i, src_ptr, __FILE__, __LINE__)
 #define tab_add(tab, src, lock) _tab_add(tab, src, lock, __FILE__, __LINE__)
 #define tab_validate(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)
 

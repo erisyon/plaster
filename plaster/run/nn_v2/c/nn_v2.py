@@ -16,40 +16,52 @@ from contextlib import redirect_stdout, redirect_stderr
 
 
 class NNV2Context(c_common_tools.FixupStructure):
+    # fmt: off
     _fixup_fields = [
-        # # Input Tables
+        # Input Tables
         ("train_fdyemat", Tab, RadType),
         ("train_dyepeps", Tab, DyePepType),  # 3 columns: (dyt_i, pep_i, count)
         ("radmat", Tab, RadType),
+
         # Parameters
         ("beta", "Float64"),
         ("sigma", "Float64"),
         ("zero_mu", "Float64"),
         ("zero_sigma", "Float64"),
         ("row_k_std", "Float64"),
+
         # Options
         ("n_neighbors", "Size"),
         ("run_row_k_fit", "Bool"),
         ("run_against_all_dyetracks", "Bool"),
-        # # Derived properties
+
+        # Derived properties
         ("n_cols", "Size"),
-        # ("train_dyt_i_to_dyepep_offset", "Tab"),
-        # # Outputs
-        (
-            "output",
-            Tab,
-            np.float64,
-        ),  # 5 columns: (pred_dyt_i, pred_pep_i, dyt_score, score, pred_k)
-        # # Internal fields
+
+        # Outputs
+
+        # Main output: 5 columns: (pred_dyt_i, pred_pep_i, dyt_score, score, pred_k)
+        # This will always be returned even when run_against_all_dyetracks is True
+        ("output", Tab, np.float64),
+
+        # against_all_dyetracks_output is only used when run_against_all_dyetracks is True
+        # in which case it is table of n_radrows with n_dyt*2 columns
+        # where the columns are in pairs (p_val, pred_k)
+        ("against_all_dyetracks_output", Tab, np.float64),
+
+        # Internal fields
         ("_stop_requested", "Bool"),
-        # ("_work_order_lock", "pthread_mutex_t"),
-        # ("_flann_index_lock", "pthread_mutex_t"),
-        # ("_pyfunction_lock", "pthread_mutex_t"),
         ("_flann_params", "struct FLANNParameters *"),
         ("_flann_index_id", "void *"),
         ("_dyt_weights", Tab, DytWeightType),
         ("_dyt_i_to_dyepep_offset", Tab, DytIndexType),
+
+        # TODO:
+        # ("_work_order_lock", "pthread_mutex_t"),
+        # ("_flann_index_lock", "pthread_mutex_t"),
+        # ("_pyfunction_lock", "pthread_mutex_t"),
     ]
+    # fmt: on
 
     @property
     def pred_dyt_iz(self):
@@ -70,6 +82,16 @@ class NNV2Context(c_common_tools.FixupStructure):
     @property
     def pred_ks(self):
         return self._output[:, 4]
+
+    @property
+    def against_all_dyetrack_pvals(self):
+        n_cols = self._against_all_dyetracks_output.shape[1]
+        return self._against_all_dyetracks_output[:, 0 : n_cols // 2]
+
+    @property
+    def against_all_dyetrack_pred_ks(self):
+        n_cols = self._against_all_dyetracks_output.shape[1]
+        return self._against_all_dyetracks_output[:, n_cols // 2 :]
 
 
 _lib = None
@@ -162,6 +184,18 @@ def context(
     # But as it is now it is needed because the FLANN needs to lookup by float
     # so it is easier to convert is all here to RadType.
     train_fdyemat = train_dyemat.astype(RadType)
+    n_dyts = train_fdyemat.shape[0]
+    n_radrows = radmat.shape[0]
+
+    against_all_dyetracks_output_dtype = None
+    against_all_dyetracks_output = None
+    if run_against_all_dyetracks:
+        against_all_dyetracks_output_dtype = NNV2Context.tab_type(
+            "against_all_dyetracks_output"
+        )
+        against_all_dyetracks_output = np.zeros(
+            (n_radrows, 2 * n_dyts), dtype=against_all_dyetracks_output_dtype
+        )
 
     nn_v2_context = NNV2Context(
         train_fdyemat=Tab.from_mat(
@@ -182,6 +216,10 @@ def context(
         n_cols=train_fdyemat.shape[1],
         output=Tab.from_mat(output, output_dtype),
         _output=output,
+        against_all_dyetracks_output=Tab.from_mat(
+            against_all_dyetracks_output, against_all_dyetracks_output_dtype
+        ),
+        _against_all_dyetracks_output=against_all_dyetracks_output,
     )
 
     error = lib.context_init(nn_v2_context)

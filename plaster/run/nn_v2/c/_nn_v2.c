@@ -30,6 +30,7 @@ Float64 p_from_gaussian(Float64 x, Float64 mu, Float64 sigma) {
     return p_value_from_z_score(z_score);
 }
 
+
 void score_k_fit_lognormal_mixture(
     NNV2Context *ctx,
     Size n_neighbors,
@@ -45,8 +46,6 @@ void score_k_fit_lognormal_mixture(
     // This requires that ctx contain beta, sigma for the lognormal and
     // zero_mu, zero_sigma for the normal of the zeros.
 
-//    trace("\nradrow %f %f %f\n", radrow[0], radrow[1], radrow[2]);
-
     Float64 beta = ctx->beta;
     Float64 sigma = ctx->sigma;
     Float64 zero_mu = ctx->zero_mu;
@@ -55,8 +54,6 @@ void score_k_fit_lognormal_mixture(
     for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_dyt_i = (Index)tab_get(int, neighbor_dyt_iz, nn_i);
         RadType *target_dt = tab_ptr(RadType, train_fdyemat, neighbor_dyt_i);
-
-//        trace("  nei[%ld] is dyti=%ld  dyt %f %f %f\n", nn_i, neighbor_dyt_i, target_dt[0], target_dt[1], target_dt[2]);
 
         RadType adjusted_radrow[N_MAX_CHANNELS * N_MAX_CYCLES];
         RowKType pred_k = 1.0;
@@ -85,34 +82,27 @@ void score_k_fit_lognormal_mixture(
         Float64 log_beta = log(beta);
         Float64 p_value = 1.0; // This is an accumulated product
         for(Index col_i=0; col_i<n_cols; col_i++) {
-//            trace("col_i %d\n", col_i);
             Float64 rad, z_score;
             if(target_dt[col_i] > 0) {
                 rad = log(max(1e-50, (Float64)radrow[col_i]));
-//                trace("  tdt>0: rad=%f\n", rad);
                 z_score = (rad - log(target_dt[col_i])) / sigma;
             }
             else {
                 rad = (Float64)radrow[col_i];
-//                trace("  tdt<=0: rad=%f\n", rad);
                 z_score = (rad - zero_mu) / zero_sigma;
             }
             z_score = fabs(z_score);
-//            trace ("  zscore=%f\n", z_score);
             p_value *= p_value_from_z_score(z_score);
         }
 
         tab_set(output_p_vals, nn_i, &p_value);
-//        trace("    pval %e predk %f \n", p_value, pred_k);
         tab_set(output_pred_row_ks, nn_i, &pred_k);
     }
 }
 
 
-#define check_and_return(expr, static_fail_string) if(!(expr)) return static_fail_string;
-
 char *context_init(NNV2Context *ctx) {
-    // Return 0 on success or pointer to a static string for an error
+    // Return NULL on success or pointer to a static string for an error
     float speedup = 0.0f;
     ctx->_flann_params = &DEFAULT_FLANN_PARAMETERS;
 
@@ -210,33 +200,23 @@ char *classify_radrows(
     Size n_neighbors = 0;
 
     Tab *neighbor_dyt_iz = NULL;
-// TODO
-//    if(ctx->run_against_all_dyetracks) {
-//        // In this mode there is no neighbor look up
-//        // Each radrow is compared to every dyerow.
-//        // This is implemented by setting the neighbor_dyt_iz to point to every dyt
-//        Size n_dyts = ctx->train_fdyemat.n_rows / n_cols;
-//        n_neighbors = n_dyts;
-//        Tab _neighbor_dyt_iz = tab_malloc_by_n_rows(n_neighbors, sizeof(int), TAB_NOT_GROWABLE);
-//        neighbor_dyt_iz = &_neighbor_dyt_iz;
-//        for(Index i=0; i<n_dyts; i++) {
-//            tab_set(neighbor_dyt_iz, i, &i);
-//        }
-//    }
-//    else {
+    Tab *neighbor_dists = NULL;
+
+    if( ! ctx->run_against_all_dyetracks) {
         // In this mode we use FLANN to lookup candidate neighbors
         // TODO: This will need to sweep over pred_k
         n_neighbors = ctx->n_neighbors;
         Tab _neighbor_dyt_iz = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(int), TAB_NOT_GROWABLE);
         neighbor_dyt_iz = &_neighbor_dyt_iz;
 
-        // FETCH a batch of neighbors from FLANN in one call.
-// TODO
-//        if(ctx->n_threads > 1) {
-//            pthread_mutex_lock(&ctx->flann_index_lock);
-//        }
+        // TODO: Multithread protection
+        // if(ctx->n_threads > 1) {
+        //     pthread_mutex_lock(&ctx->flann_index_lock);
+        // }
 
-        Tab neighbor_dists = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(float), TAB_NOT_GROWABLE);
+        // FETCH a batch of neighbors from FLANN in one call.
+        Tab _neighbor_dists = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(float), TAB_NOT_GROWABLE);
+        neighbor_dists = &_neighbor_dists;
 
         // flann_find_nearest_neighbors_index_float requires and int for indicies.
         // which is compiled to 32 bits and thus neighbor_dyt_iz is typed as int instead
@@ -246,14 +226,38 @@ char *classify_radrows(
             tab_ptr(RadType, &ctx->radmat, radrow_start_i),
             n_radrows,
             tab_ptr(int, neighbor_dyt_iz, 0),
-            tab_ptr(float, &neighbor_dists, 0),
+            tab_ptr(float, neighbor_dists, 0),
             n_neighbors,
             ctx->_flann_params
         );
-//        if(ctx->n_threads > 1) {
-//            pthread_mutex_unlock(&ctx->flann_index_lock);
-//        }
-//    }
+        // TODO: Multithread protection
+        // if(ctx->n_threads > 1) {
+        //     pthread_mutex_unlock(&ctx->flann_index_lock);
+        // }
+    }
+    else {
+        // In this mode there is no neighbor look-up; rather ALL dytracks are treated
+        // as if they were neighbors that were returned by FLANN thus making it so that
+        // every radrow is compared to every dyerow.
+        //
+        // The complication comes in neighbor_dyt_iz
+        // In FLANN mode, the neighbor_dyt_iz would be filled in by the flann_find_nearest_neighbors_index_float
+        // call such that each radrow would have n_neighbors entries in this array
+        // and that is used for comparison below.
+        // But in this mode, we need an identity lookup table -- that is
+        // a fully dense neighbor lookup table.
+
+        Size n_dyts = ctx->train_fdyemat.n_rows;
+        n_neighbors = n_dyts; // Fools following code in to using EVERY dyt as a neighbor
+
+        // The below code that usually deals with WITH has to do a lookup to
+        // convert from the return values that FLANN
+        Tab _neighbor_dyt_iz = tab_malloc_by_n_rows(n_neighbors, sizeof(int), TAB_NOT_GROWABLE);
+        neighbor_dyt_iz = &_neighbor_dyt_iz;
+        for(Index i=0; i<n_dyts; i++) {
+            tab_set(neighbor_dyt_iz, i, &i);
+        }
+    }
 
     Tab neighbor_p_vals = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(Float64), TAB_NOT_GROWABLE);
     Tab neighbor_pred_row_ks = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(Float64), TAB_NOT_GROWABLE);
@@ -264,21 +268,19 @@ char *classify_radrows(
         if(ctx->_stop_requested) {
             break;
         }
-//        trace("ROW_I = %ld ------------------\n", row_i);
 
         RadType *radrow = tab_ptr(RadType, &ctx->radmat, row_i);
 
         Tab *row_neighbor_dyt_iz;
-        // TODO
-//        if(ctx->run_against_all_dyetracks) {
-//            // In this mode the "neighbors" are actually ALL dyetracks.
-//            row_neighbor_dyt_iz = neighbor_dyt_iz;
-//        }
-//        else {
+        if( ! ctx->run_against_all_dyetracks) {
             // In this mode the "neighbors" come form FLANN
             Tab _row_neighbor_dyt_iz = tab_subset(neighbor_dyt_iz, row_i * n_neighbors, n_neighbors);
             row_neighbor_dyt_iz = &_row_neighbor_dyt_iz;
-//        }
+        }
+        else {
+            // In this mode the "neighbors" are actually ALL dyetracks.
+            row_neighbor_dyt_iz = neighbor_dyt_iz;
+        }
 
         Tab row_neighbor_p_vals = tab_subset(&neighbor_p_vals, row_i * n_neighbors, n_neighbors);
         Tab row_neighbor_pred_row_ks = tab_subset(&neighbor_pred_row_ks, row_i * n_neighbors, n_neighbors);
@@ -306,10 +308,9 @@ char *classify_radrows(
         Uint64 sum_target_weights = 0;
         for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
             Index dyt_i = (Index)tab_get(int, row_neighbor_dyt_iz, nn_i);
-            sum_target_weights += (Uint64)tab_get(DytWeightType, &ctx->_dyt_weights, dyt_i);
+            Uint64 dyt_weight = (Uint64)tab_get(DytWeightType, &ctx->_dyt_weights, dyt_i);
+            sum_target_weights += dyt_weight;
         }
-
-        ensure_only_in_debug(sum_target_weights > 0, "Illegal zero of sum_target_weights");
 
         for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
             Float64 p_val = tab_get(Float64, &row_neighbor_p_vals, nn_i);
@@ -321,17 +322,15 @@ char *classify_radrows(
             Float64 pred_row_k = tab_get(Float64, &neighbor_pred_row_ks, nn_i);
             Float64 p_row_k = p_from_gaussian(pred_row_k, 1.0, ctx->row_k_std);
 
-            Float64 normalized_target_weight = (Float64)target_weight / (Float64)sum_target_weights;
+            Float64 normalized_target_weight = 0.0;
+            if(sum_target_weights > 0) {
+                // For example, the nul-dytrack can have no true weight so
+                // we set the normalized_target_weight tp zero in this case
+                // to avoid the divide by 0.
+                normalized_target_weight = (Float64)target_weight / (Float64)sum_target_weights;
+            }
 
             Float64 total_p_val = p_val * penalty * normalized_target_weight * p_row_k;
-//            trace("nn_i=%ld penalty=%g normalized_target_weight=%g p_row_k=%g pval=%g total_p_val=%g\n",
-//                nn_i,
-//                (double)penalty,
-//                (double)normalized_target_weight,
-//                (double)p_row_k,
-//                (double)p_val,
-//                (double)total_p_val
-//            );
 
             // UPDATE the p_vals with the score
             tab_set(&row_neighbor_p_vals, nn_i, &total_p_val);
@@ -342,19 +341,25 @@ char *classify_radrows(
         Float64 score_sum = (Float64)0;
         Index highest_score_i = 0;
         for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
-            Float64 score = tab_get(Float64, &row_neighbor_p_vals, nn_i);
-            if (score > highest_score) {
-                highest_score = score;
+            Float64 p_val = tab_get(Float64, &row_neighbor_p_vals, nn_i);
+            if (p_val > highest_score) {
+                highest_score = p_val;
                 highest_score_i = nn_i;
             }
-            score_sum += score;
+            score_sum += p_val;
+
+            if(ctx->run_against_all_dyetracks) {
+                // In this mode there are extra outputs to return
+                tab_set_col(&ctx->against_all_dyetracks_output, row_i, nn_i, &p_val);
+
+                Float64 pred_row_k = tab_get(Float64, &neighbor_pred_row_ks, nn_i);
+                tab_set_col(&ctx->against_all_dyetracks_output, row_i, n_neighbors + nn_i, &pred_row_k);
+            }
         }
 
         Index most_likely_dyt_i = (Index)tab_get(int, row_neighbor_dyt_iz, highest_score_i);
         Float64 most_likely_pred_k = tab_get(Float64, &row_neighbor_pred_row_ks, highest_score_i);
         ScoreType dyt_score = highest_score / score_sum;
-
-//        trace("WINNER %ld, pred_k=%f\n", highest_score_i, most_likely_pred_k);
 
         // PICK peptide winner using Maximum Likelihood
         // The dyepeps are sorted so that the most likely peptide is first
@@ -398,7 +403,9 @@ char *classify_radrows(
     tab_free(&neighbor_p_vals);
     tab_free(&neighbor_pred_row_ks);
     tab_free(neighbor_dyt_iz);
-    tab_free(&neighbor_dists);
+    if (neighbor_dists) {
+        tab_free(neighbor_dists);
+    }
 
     return NULL;
 }

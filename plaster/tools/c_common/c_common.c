@@ -312,6 +312,17 @@ void _tab_set(Tab *tab, Index row_i, void *src, char *file, int line) {
 }
 
 
+void _tab_set_col(Tab *tab, Index row_i, Index col_i, void *src, char *file, int line) {
+    ensure_only_in_debug(0 <= row_i && row_i < tab->n_rows, "tab_set outside rouw bounds @%s:%d row_i=%lu n_rows=%lu n_bytes_per_row=%lu", file, line, row_i, tab->n_rows, tab->n_bytes_per_row);
+    ensure_only_in_debug(0 <= col_i && col_i < tab->n_cols, "tab_set outside col bounds @%s:%d col_i=%lu n_cols=%lu", file, line, col_i, tab->n_cols);
+    ensure_only_in_debug(tab->n_bytes_per_elem > 0, "tab_set_col outside on non-column tab @%s:%d", file, line);
+    ensure_only_in_debug(tab->n_cols > 0, "tab_set_col outside on non-column tab @%s:%d", file, line);
+    if(src != (void *)0) {
+        memcpy(tab->base + tab->n_bytes_per_row * row_i + col_i * tab->n_bytes_per_elem, src, tab->n_bytes_per_elem);
+    }
+}
+
+
 Index _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file, int line) {
     ensure_only_in_debug(tab->flags & TAB_GROWABLE, "Attempting to grow to a un-growable table @%s:%d", file, line);
     if(lock) pthread_mutex_lock(lock);
