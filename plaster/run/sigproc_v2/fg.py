@@ -318,12 +318,10 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
         # FIND outliers
         if not np.all(np.isnan(signals)):
             low, high = np.nanpercentile(signals, (10, 90))
-            debug(low, high)
 
             # SPLAT circles of the intensity of the signal into an accumulator
             for loc, sig in zip(locs, signals):
                 if low <= sig <= high:
-                    debug("got sig", sig)
                     imops.accum_inplace(fg, sig * circle, loc, center=False)
                     imops.accum_inplace(cnt, circle, loc, center=False)
 
