@@ -50,6 +50,8 @@ void score_k_fit_lognormal_mixture(
     Float64 zero_sigma = ctx->zero_sigma;
 
     for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
+trace("nn_i=%ld\n", nn_i);
+
         Index neighbor_i = (Index)tab_get(int, neighbor_dyt_iz, nn_i);
         RadType *target_dt = tab_ptr(RadType, train_fdyemat, neighbor_i);
 
@@ -330,6 +332,8 @@ char *classify_radrows(
             most_likely_pep_i,
             score
         };
+
+trace("radrow_start_i=%ld %f %f %f\n", radrow_start_i, most_likely_dyt_i, most_likely_pep_i, score);
 
         tab_set(&ctx->output, row_i, output_fields);
 //        tab_set(&output_pred_dyt_iz, row_i, &most_likely_dyt_i);

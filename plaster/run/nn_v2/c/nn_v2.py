@@ -2,8 +2,8 @@ import numpy as np
 from plumbum import local, FG
 import ctypes as c
 from contextlib import contextmanager
-from plaster.tools.c_common import c_common
-from plaster.tools.c_common.c_common import Tab
+from plaster.tools.c_common import c_common_tools
+from plaster.tools.c_common.c_common_tools import Tab
 from plaster.run.sim_v2.sim_v2_params import (
     RadType,
     DyeType,
@@ -15,7 +15,7 @@ from plaster.run.nn_v2.c.build import build
 from contextlib import redirect_stdout, redirect_stderr
 
 
-class NNV2Context(c_common.FixupStructure):
+class NNV2Context(c_common_tools.FixupStructure):
     _fixup_fields = [
         # # Input Tables
         ("train_fdyemat", Tab, RadType),
@@ -101,8 +101,8 @@ def load_lib():
 
     lib.classify_radrows.argtypes = [
         c.POINTER(NNV2Context),  # NNV2Context *ctx
-        c_common.typedef_to_ctype("Index"),  # Index radrow_start_i,
-        c_common.typedef_to_ctype("Size"),  # Size n_radrows,
+        c_common_tools.typedef_to_ctype("Index"),  # Index radrow_start_i,
+        c_common_tools.typedef_to_ctype("Size"),  # Size n_radrows,
     ]
     lib.classify_radrows.restype = c.c_char_p
 
