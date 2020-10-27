@@ -35,7 +35,11 @@ class NNV2Context(c_common_tools.FixupStructure):
         ("n_cols", "Size"),
         # ("train_dyt_i_to_dyepep_offset", "Tab"),
         # # Outputs
-        ("output", Tab, np.float64),  # 3 columns: (pred_dyt_iz, score, zscore)
+        (
+            "output",
+            Tab,
+            np.float64,
+        ),  # 5 columns: (pred_dyt_i, pred_pep_i, dyt_score, score, pred_k)
         # # Internal fields
         ("_stop_requested", "Bool"),
         # ("_work_order_lock", "pthread_mutex_t"),
@@ -50,6 +54,22 @@ class NNV2Context(c_common_tools.FixupStructure):
     @property
     def pred_dyt_iz(self):
         return self._output[:, 0].astype(int)
+
+    @property
+    def pred_pep_iz(self):
+        return self._output[:, 1].astype(int)
+
+    @property
+    def pred_dyt_scores(self):
+        return self._output[:, 2]
+
+    @property
+    def pred_scores(self):
+        return self._output[:, 3]
+
+    @property
+    def pred_ks(self):
+        return self._output[:, 4]
 
 
 _lib = None
@@ -136,7 +156,7 @@ def context(
     lib = load_lib()
 
     output_dtype = NNV2Context.tab_type("output")
-    output = np.zeros((radmat.shape[0], 3), dtype=output_dtype)
+    output = np.zeros((radmat.shape[0], 5), dtype=output_dtype)
 
     # This is a possible place to optimize to avoid this conversion to float
     # But as it is now it is needed because the FLANN needs to lookup by float

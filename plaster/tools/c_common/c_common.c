@@ -276,6 +276,7 @@ void tab_free(Tab *tab) {
 Tab tab_subset(Tab *src, Index row_i, Size n_rows) {
     ensure_only_in_debug(n_rows >= 0, "tab_subset has illegal n_rows %lu", n_rows);
     ensure_only_in_debug(0 <= row_i && row_i < src->n_rows, "tab_subset has illegal row_i %lu", row_i);
+    ensure_only_in_debug(0 <= row_i+n_rows && row_i+n_rows <= src->n_rows, "tab_subset has illegal row_i %lu beyond end", row_i);
 
     Index last_row = row_i + n_rows;
     last_row = last_row < src->n_max_rows ? last_row : src->n_max_rows;

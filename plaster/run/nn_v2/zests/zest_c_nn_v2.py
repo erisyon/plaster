@@ -10,7 +10,7 @@ def sample_gaussian(beta, sigma, n_samples):
     return norm(beta, sigma).rvs(n_samples)
 
 
-def _radmat_from_dyemat(dyemat, gain_model, n_samples):
+def _radmat_from_dyemat(dyemat, gain_model, n_samples, k_sigma=0.0):
     n_dyts, n_cols = dyemat.shape
     radmat = np.zeros((n_dyts * n_samples, n_cols))
     true_dyt_iz = np.zeros((n_dyts * n_samples,), dtype=int)
@@ -31,11 +31,18 @@ def _radmat_from_dyemat(dyemat, gain_model, n_samples):
         radmat[dyt_i * n_samples : (dyt_i + 1) * n_samples, :] = dyt_radmat
 
         true_dyt_iz[dyt_i * n_samples : (dyt_i + 1) * n_samples] = dyt_i
-    return radmat, true_dyt_iz
+
+    n_radrows = radmat.shape[0]
+    true_ks = np.ones((n_radrows,))
+    if k_sigma > 0.0:
+        true_ks = sample_gaussian(1.0, k_sigma, n_radrows)
+        radmat = radmat * true_ks[:, None]
+
+    return radmat, true_dyt_iz, true_ks
 
 
 def zest_c_nn_v2():
-    dyemat, dyepeps, gain_model, radmat, true_dyt_iz = (None,) * 5
+    dyemat, dyepeps, gain_model, radmat, true_dyt_iz, true_ks = (None,) * 6
 
     def _test():
         with c_nn_v2.context(
@@ -52,14 +59,14 @@ def zest_c_nn_v2():
             return nn_v2_context
 
     def _before():
-        nonlocal dyemat, dyepeps, gain_model, radmat, true_dyt_iz
+        nonlocal dyemat, dyepeps, gain_model, radmat, true_dyt_iz, true_ks
 
         # fmt: off
         dyemat = np.array([
             [0, 0, 0],
             [1, 0, 0],
             [2, 1, 1],
-            # [3, 2, 1],
+            [3, 2, 1],
         ], dtype=DyeType)
         # fmt: on
 
@@ -67,16 +74,18 @@ def zest_c_nn_v2():
             [
                 # (dyt_i, pep_i, count)
                 [1, 2, 30],
-                # [1, 1, 10],
+                [1, 1, 10],
                 [2, 1, 10],
-                # [3, 1, 10],
+                [3, 1, 10],
             ],
             dtype=np.uint64,
         )
 
         gain_model = (6000, 0.20, 0.0, 200.0)
-
-        radmat, true_dyt_iz = _radmat_from_dyemat(dyemat, gain_model, n_samples=1)  # HACK FIX ME
+        n_samples = 5
+        radmat, true_dyt_iz, true_ks = _radmat_from_dyemat(
+            dyemat, gain_model, n_samples=n_samples, k_sigma=0.0
+        )
 
     def it_catches_non_sequential_dyt_iz_in_dyepeps():
         nonlocal dyepeps
@@ -94,8 +103,28 @@ def zest_c_nn_v2():
 
     def it_classifies():
         nn_v2_context = _test()
-        debug(true_dyt_iz)
-        debug(nn_v2_context.pred_dyt_iz)
         assert np.all(true_dyt_iz == nn_v2_context.pred_dyt_iz)
+
+    def it_fits_k():
+        nonlocal radmat, true_dyt_iz, true_ks
+        radmat, true_dyt_iz, true_ks = _radmat_from_dyemat(
+            dyemat, gain_model, n_samples=500, k_sigma=0.2
+        )
+        mask = true_dyt_iz > 0
+        radmat = radmat[mask]
+        true_dyt_iz = true_dyt_iz[mask]
+        true_ks = true_ks[mask]
+        nn_v2_context = _test()
+
+        # Check that there's a reasonable correlation between true and pred k
+        # I ran this several times and found with random true_ks
+        # ie: true_ks = np.random.normal(1.0, 0.5, true_ks.shape[0])
+        # that random true_ks generated correlations of: -0.0004, -0.001, -0.002 off diagonal
+        # and that when there was a correlation it gave value like: 0.05, 0.04, 0.04
+        cov = np.cov(true_ks, nn_v2_context.pred_ks)
+        assert cov[1, 1] > 0.03
+
+    def it_compares_to_all_dyetracks():
+        raise NotImplementedError
 
     zest()
