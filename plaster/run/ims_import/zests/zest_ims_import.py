@@ -224,16 +224,6 @@ def zest_ims_import_from_npy():
             m_load_npy.returns(np.zeros((16, 16)))
 
         def it_scans_npy_arrays():
-            # (
-            #     mode,
-            #     nd2_paths,
-            #     tif_paths_by_field_channel_cycle,
-            #     npy_paths_by_field_channel_cycle,
-            #     n_fields,
-            #     n_channels,
-            #     n_cycles,
-            #     dim,
-            # )
             scan_result = worker._scan_files("")
 
             assert scan_result.mode == worker.ScanFileMode.npy
