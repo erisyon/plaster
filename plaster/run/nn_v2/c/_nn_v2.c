@@ -54,6 +54,7 @@ void score_k_fit_lognormal_mixture(
     for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_dyt_i = (Index)tab_get(int, neighbor_dyt_iz, nn_i);
         RadType *target_dt = tab_ptr(RadType, train_fdyemat, neighbor_dyt_i);
+        trace("%ld  %f %f %f\n", neighbor_dyt_i, target_dt[0], target_dt[1], target_dt[2]);
 
         RadType adjusted_radrow[N_MAX_CHANNELS * N_MAX_CYCLES];
         RowKType pred_k = 1.0;
@@ -77,6 +78,7 @@ void score_k_fit_lognormal_mixture(
                 adjusted_radrow[col_i] = radrow[col_i] / pred_k;
             }
             radrow = adjusted_radrow;
+//            trace("  nni=%ld  pred_k=%f  %f %f\n", nn_i, pred_k, sum_of_radrow_squares, sum_of_radrow_beta_dyerow_products);
         }
 
         Float64 log_beta = log(beta);
@@ -265,11 +267,13 @@ char *classify_radrows(
     // Compare every radrow to the "neighbor" dytetracks.
     Index last_row = radrow_start_i + n_radrows;
     for (Index row_i=radrow_start_i; row_i<last_row; row_i++) {
+
         if(ctx->_stop_requested) {
             break;
         }
 
         RadType *radrow = tab_ptr(RadType, &ctx->radmat, row_i);
+        trace("row_i=%ld  %f %f %f\n", row_i, radrow[0], radrow[1], radrow[2]);
 
         Tab *row_neighbor_dyt_iz;
         if( ! ctx->run_against_all_dyetracks) {
@@ -296,6 +300,11 @@ char *classify_radrows(
             &row_neighbor_pred_row_ks
         );
 
+//        for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
+//            Float64 p_val = tab_get(Float64, &row_neighbor_p_vals, nn_i);
+//            trace("  nn_i=%ld logp = %f\n", nn_i, log(p_val));
+//        }
+
         // At this point there is a neighbor_p_vals for each neighbor dyt.
         // If ctx->run_row_k_fit is true then there is also a fit_k
 
@@ -317,10 +326,9 @@ char *classify_radrows(
 
             Index dyt_i = (Index)tab_get(int, row_neighbor_dyt_iz, nn_i);
             DytWeightType target_weight = tab_get(DytWeightType, &ctx->_dyt_weights, dyt_i);
-
             Float64 penalty = (1.0 - exp(-0.8 * (Float64)target_weight));
-            Float64 pred_row_k = tab_get(Float64, &neighbor_pred_row_ks, nn_i);
-            Float64 p_row_k = p_from_gaussian(pred_row_k, 1.0, ctx->row_k_std);
+            Float64 pred_row_k = tab_get(Float64, &row_neighbor_pred_row_ks, nn_i);
+            Float64 p_row_k = p_from_gaussian(pred_row_k, 1.0, ctx->k_sigma);
 
             Float64 normalized_target_weight = 0.0;
             if(sum_target_weights > 0) {
@@ -330,10 +338,23 @@ char *classify_radrows(
                 normalized_target_weight = (Float64)target_weight / (Float64)sum_target_weights;
             }
 
+            if(ctx->run_against_all_dyetracks) {
+                // In all mode, the weight and the penalty do not count;
+                target_weight = 1.0;
+                normalized_target_weight = 1.0;
+            }
+
             Float64 total_p_val = p_val * penalty * normalized_target_weight * p_row_k;
 
             // UPDATE the p_vals with the score
             tab_set(&row_neighbor_p_vals, nn_i, &total_p_val);
+
+            if(ctx->run_against_all_dyetracks) {
+                // In this mode there are extra outputs to return
+                trace("  nn_i=%ld *logp=%f pred_row_k=%f logpk=%f\n", nn_i, log(total_p_val), pred_row_k, log(p_row_k));
+                tab_set_col(&ctx->against_all_dyetracks_output, row_i, nn_i, &total_p_val);
+                tab_set_col(&ctx->against_all_dyetracks_output, row_i, n_neighbors + nn_i, &pred_row_k);
+            }
         }
 
         // PICK target dyetrack with the highest score
@@ -347,14 +368,6 @@ char *classify_radrows(
                 highest_score_i = nn_i;
             }
             score_sum += p_val;
-
-            if(ctx->run_against_all_dyetracks) {
-                // In this mode there are extra outputs to return
-                tab_set_col(&ctx->against_all_dyetracks_output, row_i, nn_i, &p_val);
-
-                Float64 pred_row_k = tab_get(Float64, &neighbor_pred_row_ks, nn_i);
-                tab_set_col(&ctx->against_all_dyetracks_output, row_i, n_neighbors + nn_i, &pred_row_k);
-            }
         }
 
         Index most_likely_dyt_i = (Index)tab_get(int, row_neighbor_dyt_iz, highest_score_i);

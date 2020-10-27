@@ -28,7 +28,7 @@ class NNV2Context(c_common_tools.FixupStructure):
         ("sigma", "Float64"),
         ("zero_mu", "Float64"),
         ("zero_sigma", "Float64"),
-        ("row_k_std", "Float64"),
+        ("k_sigma", "Float64"),
 
         # Options
         ("n_neighbors", "Size"),
@@ -166,7 +166,7 @@ def context(
     sigma,
     zero_beta,
     zero_sigma,
-    row_k_std,
+    k_sigma,
     n_neighbors=8,
     run_row_k_fit=False,
     run_against_all_dyetracks=False,
@@ -209,7 +209,7 @@ def context(
         sigma=sigma,
         zero_beta=zero_beta,
         zero_sigma=zero_sigma,
-        row_k_std=row_k_std,
+        k_sigma=k_sigma,
         n_neighbors=n_neighbors,
         run_row_k_fit=run_row_k_fit,
         run_against_all_dyetracks=run_against_all_dyetracks,

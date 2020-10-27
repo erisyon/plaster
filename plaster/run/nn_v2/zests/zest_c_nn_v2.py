@@ -44,15 +44,17 @@ def _radmat_from_dyemat(dyemat, gain_model, n_samples, k_sigma=0.0):
 def zest_c_nn_v2():
     dyemat, dyepeps, gain_model, radmat, true_dyt_iz, true_ks, n_samples = (None,) * 7
 
-    def _test(n_neighbors=4, run_against_all_dyetracks=False):
+    def _test(
+        n_neighbors=4, run_against_all_dyetracks=False, run_row_k_fit=True, k_sigma=0.2
+    ):
         with c_nn_v2.context(
             dyemat,
             dyepeps,
             radmat.astype(RadType),
             *gain_model,
-            row_k_std=0.2,
+            k_sigma=k_sigma,
             n_neighbors=n_neighbors,
-            run_row_k_fit=True,
+            run_row_k_fit=run_row_k_fit,
             run_against_all_dyetracks=run_against_all_dyetracks,
         ) as nn_v2_context:
             c_nn_v2.do_classify_radrows(nn_v2_context, 0, len(radmat))
@@ -124,13 +126,60 @@ def zest_c_nn_v2():
         cov = np.cov(true_ks, nn_v2_context.pred_ks)
         assert cov[1, 1] > 0.03
 
-    def it_compares_to_all_dyetracks():
-        nn_v2_context = _test(n_neighbors=1, run_against_all_dyetracks=True)
+    def it_compares_to_all_dyetracks_without_row_fit():
+        nn_v2_context = _test(
+            n_neighbors=0, run_against_all_dyetracks=True, run_row_k_fit=False
+        )
 
         # In this mode I expect to get back outputs for every radrow vs every dytrow
 
-        # NOPE still not right --
-        debug(np.log(nn_v2_context.against_all_dyetrack_pvals))
+        assert np.all(true_dyt_iz == nn_v2_context.pred_dyt_iz)
+
+        assert np.all(nn_v2_context.against_all_dyetrack_pred_ks == 1.0)
+
+        assert np.all(nn_v2_context.against_all_dyetrack_pred_ks == 1.0)
+
+        assert nn_v2_context.against_all_dyetrack_pvals.shape == (
+            radmat.shape[0],
+            dyemat.shape[0],
+        )
+        assert nn_v2_context.against_all_dyetrack_pred_ks.shape == (
+            radmat.shape[0],
+            dyemat.shape[0],
+        )
+
+    def it_compares_to_all_dyetracks_with_row_fit():
+        nonlocal radmat, true_dyt_iz, true_ks
+
+        k_sigma = 0.1
+        radmat, true_dyt_iz, true_ks = _radmat_from_dyemat(
+            dyemat, gain_model, n_samples=500, k_sigma=k_sigma
+        )
+
+        # WTF? When mask = true_dyt_iz == 3 OR == 2
+        # Then i get these flat pred vs true k. WTF????
+        # HERE!!!!!!!!!!
+
+        mask = true_dyt_iz == 3
+        radmat = radmat[mask]
+        true_dyt_iz = true_dyt_iz[mask]
+        true_ks = true_ks[mask]
+        nn_v2_context = _test(
+            n_neighbors=0,
+            run_against_all_dyetracks=True,
+            run_row_k_fit=True,
+            k_sigma=k_sigma,
+        )
+
+        # In this mode I expect to get back outputs for every radrow vs every dytrow
+
+        # debug(nn_v2_context.pred_dyt_iz)
+        # debug(true_ks)
+        # debug(nn_v2_context.pred_ks)
+        # debug(np.log(nn_v2_context.against_all_dyetrack_pvals))
+        # debug(nn_v2_context.against_all_dyetrack_pred_ks)
+        np.save("true_ks.npy", true_ks)
+        np.save("pred_ks.npy", nn_v2_context.pred_ks)
 
         assert nn_v2_context.against_all_dyetrack_pvals.shape == (
             radmat.shape[0],
