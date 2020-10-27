@@ -97,9 +97,6 @@ def zest_c_nn_v2():
 
     def it_classifies():
         nn_v2_context = _test()
-        import pudb
-
-        pudb.set_trace()
         assert np.all(true_dyt_iz == nn_v2_context.pred_dyt_iz)
 
     zest()
