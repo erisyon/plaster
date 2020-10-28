@@ -81,9 +81,9 @@ void ensure(int expr, const char *fmt, ...);
 #endif
 
 // Trace
-void _trace(const char *fmt, ...);
+void _trace(char *file, int line, const char *fmt, ...);
 #ifdef DEBUG
-    #define trace _trace
+    #define trace(...) _trace(__FILE__, __LINE__, __VA_ARGS__)
 #else
     #define trace(...) ((void)0)
 #endif
@@ -171,7 +171,7 @@ typedef struct {
 
 void tab_tests();
 void tab_dump(Tab *tab, char *msg);
-Tab tab_subset(Tab *src, Uint64 row_i, Uint64 n_rows);
+Tab _tab_subset(Tab *src, Uint64 row_i, Uint64 n_rows, char *file, int line);
 Tab tab_by_n_rows(void *base, Uint64 n_rows, Uint64 n_bytes_per_row, Uint64 flags);
 Tab tab_by_size(void *base, Uint64 n_bytes, Uint64 n_bytes_per_row, Uint64 flags);
 Tab tab_by_arr(void *base, Uint64 n_rows, Uint64 n_cols, Uint64 n_bytes_per_elem, Uint64 flags);
@@ -192,6 +192,7 @@ void _tab_validate(Tab *tab, void *ptr, char *file, int line);
 #define tab_set(tab, row_i, src_ptr) _tab_set(tab, row_i, src_ptr, __FILE__, __LINE__)
 #define tab_add(tab, src, lock) _tab_add(tab, src, lock, __FILE__, __LINE__)
 #define tab_validate(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)
+#define tab_subset(src, row_i, n_rows) _tab_subset(src, row_i, n_rows, __FILE__, __LINE__)
 
 #ifdef DEBUG
     #define tab_validate_only_in_debug(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)

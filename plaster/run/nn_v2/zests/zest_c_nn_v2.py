@@ -1,58 +1,21 @@
 import numpy as np
 from plaster.run.sim_v2.sim_v2_result import RadType, DyeType
 from plaster.run.nn_v2.c import nn_v2 as c_nn_v2
-from scipy.stats import norm
+from plaster.run.sigproc_v2.sigproc_v2_fixtures import synthetic_radmat_from_dyemat
+from plaster.run.error_model import GainModel
 from zest import zest
 from plaster.tools.log.log import debug
-
-
-def sample_gaussian(beta, sigma, n_samples):
-    return norm(beta, sigma).rvs(n_samples)
-
-
-def _radmat_from_dyemat(dyemat, gain_model, n_samples, k_sigma=0.0):
-    n_dyts, n_cols = dyemat.shape
-    radmat = np.zeros((n_dyts * n_samples, n_cols))
-    true_dyt_iz = np.zeros((n_dyts * n_samples,), dtype=int)
-    for dyt_i, dyt in enumerate(dyemat):
-        dyt_radmat = np.zeros((n_samples, n_cols))
-        for col_i, dye_count in enumerate(dyt):
-            if dye_count > 0:
-                dyt_radmat[:, col_i] = np.exp(
-                    sample_gaussian(
-                        np.log(gain_model[0] * dye_count), gain_model[1], n_samples
-                    )
-                )
-            else:
-                dyt_radmat[:, col_i] = sample_gaussian(
-                    gain_model[2], gain_model[3], n_samples
-                )
-
-        radmat[dyt_i * n_samples : (dyt_i + 1) * n_samples, :] = dyt_radmat
-
-        true_dyt_iz[dyt_i * n_samples : (dyt_i + 1) * n_samples] = dyt_i
-
-    n_radrows = radmat.shape[0]
-    true_ks = np.ones((n_radrows,))
-    if k_sigma > 0.0:
-        true_ks = sample_gaussian(1.0, k_sigma, n_radrows)
-        radmat = radmat * true_ks[:, None]
-
-    return radmat, true_dyt_iz, true_ks
 
 
 def zest_c_nn_v2():
     dyemat, dyepeps, gain_model, radmat, true_dyt_iz, true_ks, n_samples = (None,) * 7
 
-    def _test(
-        n_neighbors=4, run_against_all_dyetracks=False, run_row_k_fit=True, k_sigma=0.2
-    ):
+    def _test(n_neighbors=4, run_against_all_dyetracks=False, run_row_k_fit=True):
         with c_nn_v2.context(
             dyemat,
             dyepeps,
             radmat.astype(RadType),
-            *gain_model,
-            k_sigma=k_sigma,
+            gain_model,
             n_neighbors=n_neighbors,
             run_row_k_fit=run_row_k_fit,
             run_against_all_dyetracks=run_against_all_dyetracks,
@@ -83,10 +46,10 @@ def zest_c_nn_v2():
             dtype=np.uint64,
         )
 
-        gain_model = (6000, 0.20, 0.0, 200.0)
+        gain_model = GainModel.test_fixture()
         n_samples = 5
-        radmat, true_dyt_iz, true_ks = _radmat_from_dyemat(
-            dyemat, gain_model, n_samples=n_samples, k_sigma=0.0
+        radmat, true_dyt_iz, true_ks = synthetic_radmat_from_dyemat(
+            dyemat, gain_model, n_samples=n_samples
         )
 
     def it_catches_non_sequential_dyt_iz_in_dyepeps():
@@ -110,8 +73,10 @@ def zest_c_nn_v2():
 
     def it_fits_k():
         nonlocal radmat, true_dyt_iz, true_ks
-        radmat, true_dyt_iz, true_ks = _radmat_from_dyemat(
-            dyemat, gain_model, n_samples=500, k_sigma=0.2
+        gain_model = GainModel.test_fixture()
+        gain_model.row_k_sigma = 0.2
+        radmat, true_dyt_iz, true_ks = synthetic_radmat_from_dyemat(
+            dyemat, gain_model, n_samples=500
         )
         mask = true_dyt_iz > 0
         radmat = radmat[mask]
@@ -149,9 +114,10 @@ def zest_c_nn_v2():
     def it_compares_to_all_dyetracks_with_row_fit():
         nonlocal radmat, true_dyt_iz, true_ks
 
-        k_sigma = 0.2
-        radmat, true_dyt_iz, true_ks = _radmat_from_dyemat(
-            dyemat, gain_model, n_samples=500, k_sigma=k_sigma
+        gain_model = GainModel.test_fixture()
+        gain_model.row_k_sigma = 0.2
+        radmat, true_dyt_iz, true_ks = synthetic_radmat_from_dyemat(
+            dyemat, gain_model, n_samples=500
         )
 
         mask = true_dyt_iz > 0
@@ -159,10 +125,7 @@ def zest_c_nn_v2():
         true_dyt_iz = true_dyt_iz[mask]
         true_ks = true_ks[mask]
         nn_v2_context = _test(
-            n_neighbors=0,
-            run_against_all_dyetracks=True,
-            run_row_k_fit=True,
-            k_sigma=k_sigma,
+            n_neighbors=0, run_against_all_dyetracks=True, run_row_k_fit=True,
         )
 
         # In this mode I expect to get back outputs for every radrow vs every dytrow

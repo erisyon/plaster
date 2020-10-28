@@ -34,10 +34,11 @@ void ensure(int expr, const char *fmt, ...) {
 }
 
 
-void _trace(const char *fmt, ...) {
+void _trace(char *file, int line, const char *fmt, ...) {
     // Replacement for printf that also flushes
     va_list args;
     va_start(args, fmt);
+    fprintf(stdout, "@%s:%d ", file, line);
     vfprintf(stdout, fmt, args);
     fflush(stdout);
     va_end(args);
@@ -273,10 +274,10 @@ void tab_free(Tab *tab) {
 }
 
 
-Tab tab_subset(Tab *src, Index row_i, Size n_rows) {
-    ensure_only_in_debug(n_rows >= 0, "tab_subset has illegal n_rows %lu", n_rows);
-    ensure_only_in_debug(0 <= row_i && row_i < src->n_rows, "tab_subset has illegal row_i %lu", row_i);
-    ensure_only_in_debug(0 <= row_i+n_rows && row_i+n_rows <= src->n_rows, "tab_subset has illegal row_i %lu beyond end", row_i);
+Tab _tab_subset(Tab *src, Index row_i, Size n_rows, char *file, int line) {
+    ensure_only_in_debug(n_rows >= 0, "tab_subset @%s:%d has illegal n_rows %lu", file, line, n_rows);
+    ensure_only_in_debug(0 <= row_i && row_i < src->n_rows, "tab_subset @%s:%d has illegal row_i %lu", file, line, row_i);
+    ensure_only_in_debug(0 <= row_i+n_rows && row_i+n_rows <= src->n_rows, "tab_subset @%s:%d has illegal row_i %lu beyond end", file, line, row_i);
 
     Index last_row = row_i + n_rows;
     last_row = last_row < src->n_max_rows ? last_row : src->n_max_rows;

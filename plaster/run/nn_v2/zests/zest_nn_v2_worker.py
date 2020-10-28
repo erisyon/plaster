@@ -9,15 +9,15 @@ from plaster.run.prep import prep_fixtures
 from plaster.run.sim_v2 import sim_v2_worker
 from plaster.run.sim_v2 import sim_v2_fixtures
 from plaster.run.sim_v2.sim_v2_params import SimV2Params
+from plaster.run.sigproc_v2.sigproc_v2_fixtures import simple_sigproc_v2_result_fixture
 from zest import zest
 from plaster.tools.log.log import debug
 
 
-@zest.skip(reason="Need to work on getting a radmat fixture. See sigproc_v1_fixtures")
 def zest_nn_v2_worker():
     prep_result = prep_fixtures.result_random_fixture(2)
 
-    sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result, labels="DE,C")
+    sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result, labels="DE")
 
     # Flip just to convince myself that it is working
     # (ie they aren't accidentally in the right order)
@@ -40,12 +40,12 @@ def zest_nn_v2_worker():
             nn_v2_params, prep_result, sim_v2_result, sigproc_result=None
         )
 
+    @zest.skip(reason="Need to deal with sigproc v2 calibration fixtures")
     def it_runs_with_sigproc():
-        raise NotImplementedError
-        # sigproc_result = simple_sigproc_result_fixture(prep_result)
-        # nn_v2_result = nn_v2(
-        #     nn_v2_params, prep_result, sim_v2_result, sigproc_result=sigproc_result
-        # )
+        sigproc_result = simple_sigproc_v2_result_fixture(prep_result)
+        nn_v2_result = nn_v2(
+            nn_v2_params, prep_result, sim_v2_result, sigproc_result=sigproc_result
+        )
 
     zest()
 
@@ -124,4 +124,5 @@ def zest_v2_stress_like_e2e():
     nn_v2_params = NNV2Params(
         beta=5000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0, row_k_std=0.0,
     )
-    nn_v2(nn_v2_params, prep_result, sim_v2_result, None)
+    nn_result = nn_v2(nn_v2_params, prep_result, sim_v2_result, None)
+    assert np.all(nn_result.test_pred_pep_iz == 1)

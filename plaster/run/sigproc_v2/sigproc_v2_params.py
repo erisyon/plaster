@@ -35,7 +35,7 @@ class SigprocV2Params(Params):
 
     schema = s(
         s.is_kws_r(
-            calibration_file=s.is_str(),
+            calibration_file=s.is_str(noneable=True),
             mode=s.is_str(options=common.SIGPROC_V2_MODES),
             divs=s.is_int(),
             peak_mea=s.is_int(),

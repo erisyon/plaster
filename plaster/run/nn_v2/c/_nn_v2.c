@@ -26,6 +26,10 @@ Float64 p_value_from_z_score(Float64 z_score) {
 
 
 Float64 p_from_gaussian(Float64 x, Float64 mu, Float64 sigma) {
+    if(sigma == 0.0 && x == mu) {
+        // Special case for sigma == 0.0 meaning that a paramter is not changing
+        return 1.0;
+    }
     Float64 z_score = fabs(x - mu) / sigma;
     return p_value_from_z_score(z_score);
 }
@@ -195,7 +199,7 @@ char *classify_radrows(
     // but this entrypoint allows a sliced batch to run.
 
     Size n_cols = ctx->n_cols;
-    check_and_return(radrow_start_i <= 1024*16, "Too many rows (might overflow stack)");
+    check_and_return(n_radrows <= 1024*16, "Too many rows (might overflow stack)");
 
     Size n_neighbors = 0;
 
@@ -263,14 +267,15 @@ char *classify_radrows(
     Tab neighbor_pred_row_ks = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(Float64), TAB_NOT_GROWABLE);
 
     // Compare every radrow to the "neighbor" dytetracks.
-    Index last_row = radrow_start_i + n_radrows;
-    for (Index row_i=radrow_start_i; row_i<last_row; row_i++) {
-
+    for (Index row_i=0; row_i<n_radrows; row_i++) {
         if(ctx->_stop_requested) {
             break;
         }
 
-        RadType *radrow = tab_ptr(RadType, &ctx->radmat, row_i);
+        // context_row_i is the index into the context's radmat
+        Index context_row_i = row_i + radrow_start_i;
+
+        RadType *radrow = tab_ptr(RadType, &ctx->radmat, context_row_i);
         Tab *row_neighbor_dyt_iz;
         if( ! ctx->run_against_all_dyetracks) {
             // In this mode the "neighbors" come form FLANN
@@ -342,8 +347,8 @@ char *classify_radrows(
 
             if(ctx->run_against_all_dyetracks) {
                 // In this mode there are extra outputs to return
-                tab_set_col(&ctx->against_all_dyetracks_output, row_i, nn_i, &total_p_val);
-                tab_set_col(&ctx->against_all_dyetracks_output, row_i, n_neighbors + nn_i, &pred_row_k);
+                tab_set_col(&ctx->against_all_dyetracks_output, context_row_i, nn_i, &total_p_val);
+                tab_set_col(&ctx->against_all_dyetracks_output, context_row_i, n_neighbors + nn_i, &pred_row_k);
             }
         }
 
@@ -400,7 +405,7 @@ char *classify_radrows(
             most_likely_pred_k,
         };
 
-        tab_set(&ctx->output, row_i, output_fields);
+        tab_set(&ctx->output, context_row_i, output_fields);
     }
 
     tab_free(&neighbor_p_vals);

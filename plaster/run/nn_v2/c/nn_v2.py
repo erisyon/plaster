@@ -2,11 +2,12 @@ import numpy as np
 from plumbum import local, FG
 import ctypes as c
 from contextlib import contextmanager
+from plaster.tools.schema import check
+from plaster.run.error_model import GainModel
 from plaster.tools.c_common import c_common_tools
 from plaster.tools.c_common.c_common_tools import Tab
 from plaster.run.sim_v2.sim_v2_params import (
     RadType,
-    DyeType,
     DyePepType,
     DytWeightType,
     DytIndexType,
@@ -173,6 +174,7 @@ def context(
     """
     lib = load_lib()
 
+    check.t(gain_model, GainModel)
     assert gain_model.n_channels == 1  # Temporary
 
     output_dtype = NNV2Context.tab_type("output")

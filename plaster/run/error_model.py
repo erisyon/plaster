@@ -48,6 +48,15 @@ class GainModel:
     def n_channels(self):
         return len(self.channels)
 
+    @classmethod
+    def test_fixture(cls):
+        return GainModel(
+            row_k_sigma=0.0,
+            channels=[
+                ChGainModel(beta=7000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0)
+            ],
+        )
+
 
 class ErrorModel(Params):
     schema = s(
@@ -82,9 +91,6 @@ class ErrorModel(Params):
     )
 
     def to_gain_model(self):
-        import pudb
-
-        pudb.set_trace()
         return GainModel(
             row_k_sigma=self.row_k_sigma,
             channels=[
