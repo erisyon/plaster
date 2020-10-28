@@ -324,7 +324,7 @@ char *classify_radrows(
             DytWeightType target_weight = tab_get(DytWeightType, &ctx->_dyt_weights, dyt_i);
             Float64 penalty = (1.0 - exp(-0.8 * (Float64)target_weight));
             Float64 pred_row_k = tab_get(Float64, &row_neighbor_pred_row_ks, nn_i);
-            Float64 p_row_k = p_from_gaussian(pred_row_k, 1.0, ctx->k_sigma);
+            Float64 p_row_k = p_from_gaussian(pred_row_k, 1.0, ctx->row_k_sigma);
 
             Float64 normalized_target_weight = 0.0;
             if(sum_target_weights > 0) {

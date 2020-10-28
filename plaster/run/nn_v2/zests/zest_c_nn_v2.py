@@ -72,7 +72,7 @@ def zest_c_nn_v2():
         assert np.all(true_dyt_iz == nn_v2_context.pred_dyt_iz)
 
     def it_fits_k():
-        nonlocal radmat, true_dyt_iz, true_ks
+        nonlocal radmat, true_dyt_iz, true_ks, gain_model
         gain_model = GainModel.test_fixture()
         gain_model.row_k_sigma = 0.2
         radmat, true_dyt_iz, true_ks = synthetic_radmat_from_dyemat(
@@ -112,7 +112,7 @@ def zest_c_nn_v2():
         )
 
     def it_compares_to_all_dyetracks_with_row_fit():
-        nonlocal radmat, true_dyt_iz, true_ks
+        nonlocal radmat, true_dyt_iz, true_ks, gain_model
 
         gain_model = GainModel.test_fixture()
         gain_model.row_k_sigma = 0.2
@@ -140,6 +140,9 @@ def zest_c_nn_v2():
             radmat.shape[0],
             dyemat.shape[0],
         )
+
+        np.save("true_ks.npy", true_ks)
+        np.save("pred_ks.npy", nn_v2_context.pred_ks)
 
         # Check that there's a reasonable correlation between true and pred k
         # I ran this several times and found with random true_ks

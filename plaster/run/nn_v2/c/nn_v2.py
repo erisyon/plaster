@@ -14,6 +14,7 @@ from plaster.run.sim_v2.sim_v2_params import (
 )
 from plaster.run.nn_v2.c.build import build
 from contextlib import redirect_stdout, redirect_stderr
+from plaster.tools.log.log import debug
 
 
 class NNV2Context(c_common_tools.FixupStructure):
@@ -29,7 +30,7 @@ class NNV2Context(c_common_tools.FixupStructure):
         ("sigma", "Float64"),
         ("zero_beta", "Float64"),
         ("zero_sigma", "Float64"),
-        ("k_sigma", "Float64"),
+        ("row_k_sigma", "Float64"),
 
         # Options
         ("n_neighbors", "Size"),
@@ -210,7 +211,7 @@ def context(
         sigma=gain_model.channels[0].sigma,
         zero_beta=gain_model.channels[0].zero_beta,
         zero_sigma=gain_model.channels[0].zero_sigma,
-        k_sigma=gain_model.row_k_sigma,
+        row_k_sigma=gain_model.row_k_sigma,
         n_neighbors=n_neighbors,
         run_row_k_fit=run_row_k_fit,
         run_against_all_dyetracks=run_against_all_dyetracks,
