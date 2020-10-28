@@ -378,7 +378,7 @@ def work_orders(
     return results
 
 
-def _make_batch_slices(_batch_size, n_rows, _limit_slice):
+def make_batch_slices(n_rows, _batch_size=None, _limit_slice=None):
     if _limit_slice is None:
         _limit_slice = slice(0, n_rows, 1)
 
@@ -528,7 +528,7 @@ def arrays(
     n_rows = len(list(arrays_dict.values())[0])
     assert all([len(a) == n_rows for a in arrays_dict.values()])
 
-    batch_slices = _make_batch_slices(_batch_size, n_rows, _limit_slice)
+    batch_slices = make_batch_slices(n_rows, _batch_size, _limit_slice)
 
     result_batches = work_orders(
         _work_orders=[
@@ -619,7 +619,7 @@ def df_rows(
     """
     n_rows = len(df)
 
-    batch_slices = _make_batch_slices(_batch_size, n_rows, _limit_slice)
+    batch_slices = make_batch_slices(n_rows, _batch_size, _limit_slice)
 
     result_batches = work_orders(
         _work_orders=[

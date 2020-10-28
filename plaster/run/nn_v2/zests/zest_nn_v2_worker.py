@@ -13,6 +13,7 @@ from zest import zest
 from plaster.tools.log.log import debug
 
 
+@zest.skip(reason="Need to work on getting a radmat fixture. See sigproc_v1_fixtures")
 def zest_nn_v2_worker():
     prep_result = prep_fixtures.result_random_fixture(2)
 
@@ -39,9 +40,6 @@ def zest_nn_v2_worker():
             nn_v2_params, prep_result, sim_v2_result, sigproc_result=None
         )
 
-    @zest.skip(
-        reason="Need to work on getting a radmat fixture. See sigproc_v1_fixtures"
-    )
     def it_runs_with_sigproc():
         raise NotImplementedError
         # sigproc_result = simple_sigproc_result_fixture(prep_result)
@@ -53,7 +51,7 @@ def zest_nn_v2_worker():
 
 
 def zest_v2_stress_like_e2e():
-    # This was dieing with a "double free or corruption (!prev)"
+    # This was dying with a "double free or corruption (!prev)"
     # This was a bug in n_dyetracks counting now fixed, but leaving this test in for regression.
 
     prep_params = PrepParams(
@@ -82,14 +80,12 @@ def zest_v2_stress_like_e2e():
         error_model=Munch(
             dyes=[
                 Munch(
-                    beta=7500.0,
                     dye_name="dye_0",
-                    gain=7500.0,
                     p_bleach_per_cycle=0.05,
                     p_non_fluorescent=0.07,
+                    beta=7500.0,
                     sigma=0.16,
-                    vpd=0.1,
-                    zero_mu=300.0,
+                    zero_beta=300.0,
                     zero_sigma=700.0,
                 )
             ],
@@ -129,11 +125,3 @@ def zest_v2_stress_like_e2e():
         beta=5000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0, row_k_std=0.0,
     )
     nn_v2(nn_v2_params, prep_result, sim_v2_result, None)
-
-
-# def zest_v2_count():
-#     with tmp_folder(chdir=True):
-#         prep_result = prep_fixtures.result_random_fixture(5000)
-#
-#         sim_v2_fixtures.result_from_prep_fixture(prep_result, n_labels=3, n_edmans=15)
-#     zest()

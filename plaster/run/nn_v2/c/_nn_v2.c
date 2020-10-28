@@ -44,11 +44,11 @@ void score_k_fit_lognormal_mixture(
     // This is a log-normal model where the zero-counts (darks) are treated differently.
     // The non-zeros are log() and those mapping to zeros are not.
     // This requires that ctx contain beta, sigma for the lognormal and
-    // zero_mu, zero_sigma for the normal of the zeros.
+    // zero_beta, zero_sigma for the normal of the zeros.
 
     Float64 beta = ctx->beta;
     Float64 sigma = ctx->sigma;
-    Float64 zero_mu = ctx->zero_mu;
+    Float64 zero_beta = ctx->zero_beta;
     Float64 zero_sigma = ctx->zero_sigma;
 
     for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
@@ -89,7 +89,7 @@ void score_k_fit_lognormal_mixture(
             }
             else {
                 rad = (Float64)adjusted_radrow[col_i];
-                z_score = (rad - zero_mu) / zero_sigma;
+                z_score = (rad - zero_beta) / zero_sigma;
             }
             z_score = fabs(z_score);
             p_value *= p_value_from_z_score(z_score);

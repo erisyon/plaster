@@ -26,7 +26,7 @@ class NNV2Context(c_common_tools.FixupStructure):
         # Parameters
         ("beta", "Float64"),
         ("sigma", "Float64"),
-        ("zero_mu", "Float64"),
+        ("zero_beta", "Float64"),
         ("zero_sigma", "Float64"),
         ("k_sigma", "Float64"),
 
@@ -162,11 +162,7 @@ def context(
     train_dyemat,
     train_dyepeps,
     radmat,
-    beta,
-    sigma,
-    zero_beta,
-    zero_sigma,
-    k_sigma,
+    gain_model,
     n_neighbors=8,
     run_row_k_fit=False,
     run_against_all_dyetracks=False,
@@ -176,6 +172,8 @@ def context(
         zap.work_orders(do_classify_radrows, ...)
     """
     lib = load_lib()
+
+    assert gain_model.n_channels == 1  # Temporary
 
     output_dtype = NNV2Context.tab_type("output")
     output = np.zeros((radmat.shape[0], 5), dtype=output_dtype)
@@ -205,11 +203,12 @@ def context(
             train_dyepeps, NNV2Context.tab_type("train_dyepeps")
         ),
         radmat=Tab.from_mat(radmat, NNV2Context.tab_type("radmat")),
-        beta=beta,
-        sigma=sigma,
-        zero_beta=zero_beta,
-        zero_sigma=zero_sigma,
-        k_sigma=k_sigma,
+        # Temporary hard-coding of channel 0
+        beta=gain_model.channels[0].beta,
+        sigma=gain_model.channels[0].sigma,
+        zero_beta=gain_model.channels[0].zero_beta,
+        zero_sigma=gain_model.channels[0].zero_sigma,
+        k_sigma=gain_model.row_k_sigma,
         n_neighbors=n_neighbors,
         run_row_k_fit=run_row_k_fit,
         run_against_all_dyetracks=run_against_all_dyetracks,

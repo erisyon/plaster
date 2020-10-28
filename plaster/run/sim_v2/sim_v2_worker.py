@@ -155,7 +155,7 @@ def _radmat_from_sampled_pep_dyemat(
         for ch_i in range(n_channels):
             ch_beta = ch_params[ch_i].beta
             ch_sigma = ch_params[ch_i].sigma
-            ch_zero_beta = ch_params[ch_i].zero_mu
+            ch_zero_beta = ch_params[ch_i].zero_beta
             ch_zero_sigma = ch_params[ch_i].zero_sigma
 
             # CONVERT dyemat to float and MASK zeros to NAN

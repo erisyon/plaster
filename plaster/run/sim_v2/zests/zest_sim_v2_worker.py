@@ -59,13 +59,13 @@ def zest_radmat_from_sampled_pep_dyemat():
     # fmt: on
 
     ch_params_no_noise = [
-        Munch(beta=10.0, sigma=0.0, zero_mu=0.0, zero_sigma=0.0),
-        Munch(beta=10.0, sigma=0.0, zero_mu=0.0, zero_sigma=0.0),
+        Munch(beta=10.0, sigma=0.0, zero_beta=0.0, zero_sigma=0.0),
+        Munch(beta=10.0, sigma=0.0, zero_beta=0.0, zero_sigma=0.0),
     ]
 
     ch_params_with_noise = [
-        Munch(beta=10.0, sigma=0.1, zero_mu=0.0, zero_sigma=200.0),
-        Munch(beta=10.0, sigma=0.1, zero_mu=0.0, zero_sigma=200.0),
+        Munch(beta=10.0, sigma=0.1, zero_beta=0.0, zero_sigma=200.0),
+        Munch(beta=10.0, sigma=0.1, zero_beta=0.0, zero_sigma=200.0),
     ]
 
     output_radmat = None
@@ -120,13 +120,13 @@ def zest_radmat_from_sampled_pep_dyemat():
 
 def zest_radmat_sim():
     ch_params_with_noise = [
-        Munch(beta=7500.0, sigma=0.16, zero_mu=0.0, zero_sigma=200),
-        Munch(beta=7500.0, sigma=0.16, zero_mu=0.0, zero_sigma=200),
+        Munch(beta=7500.0, sigma=0.16, zero_beta=0.0, zero_sigma=200),
+        Munch(beta=7500.0, sigma=0.16, zero_beta=0.0, zero_sigma=200),
     ]
 
     ch_params_no_noise = [
-        Munch(beta=1.0, sigma=0.0, zero_mu=0.0, zero_sigma=0.0),
-        Munch(beta=1.0, sigma=0.0, zero_mu=0.0, zero_sigma=0.0),
+        Munch(beta=1.0, sigma=0.0, zero_beta=0.0, zero_sigma=0.0),
+        Munch(beta=1.0, sigma=0.0, zero_beta=0.0, zero_sigma=0.0),
     ]
 
     # fmt: off

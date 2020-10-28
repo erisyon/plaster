@@ -144,6 +144,9 @@ class SimV2Params(Params):
     def n_channels_and_cycles(self):
         return self.n_channels, self.n_cycles
 
+    def to_error_model(self):
+        return ErrorModel(**self.error_model)
+
     def _build_join_dfs(self):
         """
         The error model contains information about the dyes and labels and other terms.
@@ -202,7 +205,7 @@ class SimV2Params(Params):
                 .p_bleach_per_cycle,
                 beta=self.df[self.df.ch_i == ch].iloc[0].beta,
                 sigma=self.df[self.df.ch_i == ch].iloc[0].sigma,
-                zero_mu=self.df[self.df.ch_i == ch].iloc[0].zero_mu,
+                zero_beta=self.df[self.df.ch_i == ch].iloc[0].zero_beta,
                 zero_sigma=self.df[self.df.ch_i == ch].iloc[0].zero_sigma,
             )
             for ch in range(self.n_channels)

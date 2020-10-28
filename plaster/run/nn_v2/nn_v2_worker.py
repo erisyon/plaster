@@ -3,7 +3,8 @@ from plaster.run.call_bag import CallBag
 from plaster.run.nn_v2.c import nn_v2 as c_nn_v2
 from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.sim_v2.sim_v2_result import RadType
-from plaster.tools.zap.zap import get_cpu_limit
+from plaster.tools.zap import zap
+from plaster.tools.log.log import debug
 
 
 def nn_v2(
@@ -27,19 +28,27 @@ def nn_v2(
         pipeline.set_phase(phase_i, n_phases)
         phase_i += 1
 
-    nn_v2_context = c_nn_v2.context_create(
-        sim_v2_result.flat_train_dyemat(),
-        sim_v2_result.train_dyepeps,
-        test_radmat,
-        nn_v2_params.beta,
-        nn_v2_params.sigma,
-        nn_v2_params.zero_beta,
-        nn_v2_params.zero_sigma,
-        nn_v2_params.row_k_std,
+    with c_nn_v2.context(
+        train_dyemat=sim_v2_result.flat_train_dyemat(),
+        train_dyepeps=sim_v2_result.train_dyepeps,
+        radmat=test_radmat,
+        gain_model=sim_v2_result.params.to_error_model().to_gain_model(),
         n_neighbors=nn_v2_params.n_neighbors,
         run_row_k_fit=nn_v2_params.run_row_k_fit,
         run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
-    )
+    ) as nn_v2_context:
+        batches = zap.make_batch_slices(n_rows=test_radmat.shape[0])
+        work_orders = [
+            dict(
+                fn=c_nn_v2.do_classify_radrows,
+                radrow_start_i=batch[0],
+                n_radrows=batch[1] - batch[0],
+                nn_v2_context=nn_v2_context,
+            )
+            for batch in batches
+        ]
+        results = zap.work_orders(work_orders, _process_mode=False, _progress=progress)
+        debug(results)
 
     # call_bag = CallBag(
     #     true_pep_iz=sim_v2_result.test_true_pep_iz,
@@ -77,7 +86,7 @@ def nn_v2(
     #         sim_v2_result.flat_train_dyemat(),
     #         sim_v2_result.train_dyepeps,
     #         n_neighbors=nn_v2_params.n_neighbors,
-    #         n_threads=get_cpu_limit(),
+    #         n_threads=zap.get_cpu_limit(),
     #         progress=progress,
     #         run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
     #     )
@@ -138,7 +147,7 @@ def nn_v2(
         sim_v2_result.flat_train_dyemat(),
         sim_v2_result.train_dyepeps,
         n_neighbors=nn_v2_params.n_neighbors,
-        n_threads=get_cpu_limit(),
+        n_threads=zap.get_cpu_limit(),
         progress=progress,
         run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
     )
@@ -179,7 +188,7 @@ def nn_v2(
             sim_v2_result.flat_train_dyemat(),
             sim_v2_result.train_dyepeps,
             n_neighbors=nn_v2_params.n_neighbors,
-            n_threads=get_cpu_limit(),
+            n_threads=zap.get_cpu_limit(),
             progress=progress,
             run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
         )
