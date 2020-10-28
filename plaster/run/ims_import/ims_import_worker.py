@@ -199,7 +199,7 @@ class ScanFilesResult:
     n_fields: int
     n_channels: int
     n_cycles: int
-    dim: Tuple[int, int]  # TODO: is ndim always 2?
+    dim: Tuple[int, int]
 
 
 def _scan_files(src_dir: Path) -> ScanFilesResult:
