@@ -1,12 +1,13 @@
-from zest import zest
 from io import StringIO
-import pandas as pd
+
 import numpy as np
-from plaster.tools.log.log import debug, prof
-from plaster.run.sim_v2.sim_v2_params import SimV2Params, ErrorModel
+import pandas as pd
 from plaster.run.sim_v2.fast import sim_v2_fast
+from plaster.run.sim_v2.sim_v2_params import ErrorModel, SimV2Params
+from plaster.tools.log.log import debug, prof
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
+from zest import zest
 
 
 def zest_pyx_runs():
@@ -58,6 +59,7 @@ def zest_pyx_runs():
         pcbs,
         sim_params.n_samples_train,
         sim_params.n_channels,
+        len(sim_params.labels),
         cycles,
         sim_params.error_model.dyes[0].p_bleach_per_cycle,
         sim_params.error_model.p_detach,
