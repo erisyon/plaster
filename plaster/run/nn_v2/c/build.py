@@ -26,3 +26,11 @@ def build(dst_folder, c_common_folder, flann_include_folder, flann_lib_folder):
         flann_lib_folder,
         "-lflann",
     ] & FG
+
+if __name__ == "__main__":
+    build(
+        dst_folder="/erisyon/plaster/plaster/run/nn_v2/c",
+        c_common_folder="/erisyon/plaster/plaster/tools/c_common",
+        flann_include_folder="/flann/src/cpp/flann",
+        flann_lib_folder="/flann/lib"
+    )

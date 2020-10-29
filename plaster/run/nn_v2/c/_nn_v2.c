@@ -35,7 +35,7 @@ Float64 p_from_gaussian(Float64 x, Float64 mu, Float64 sigma) {
 }
 
 
-void score_k_fit_lognormal_mixture(
+char *score_k_fit_lognormal_mixture(
     NNV2Context *ctx,
     Size n_neighbors,
     Size n_cols,  // n_channels * n_cycles
@@ -43,12 +43,21 @@ void score_k_fit_lognormal_mixture(
     Tab *train_fdyemat,  // arrays((n_dyetracks, n_cols), type=RadType): All dye weights
     RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
     Tab *output_p_vals,  // array((n_neighbors,), type=float): returned scores for each neighbor
-    Tab *output_pred_row_ks  // array((n_neighbors,), type=float): returned scores for each neighbor
+    Tab *output_pred_row_ks,  // array((n_neighbors,), type=float): returned scores for each neighbor
+    Tab *output_sum_log_z_scores  // array((n_neighbors,), type=float): 
 ) {
     // This is a log-normal model where the zero-counts (darks) are treated differently.
     // The non-zeros are log() and those mapping to zeros are not.
     // This requires that ctx contain beta, sigma for the lognormal and
     // zero_beta, zero_sigma for the normal of the zeros.
+
+    Index neighbor_dyt_0 = (Index)tab_get(int, neighbor_dyt_iz, 0);
+    if(neighbor_dyt_0 == 0) {
+        for(Index col_i=0; col_i<n_cols; col_i++) {
+            RadType val = tab_col(RadType, train_fdyemat, 0, col_i);
+            check_and_return(val == 0, "dyt_i must be all zero");
+        }
+    }
 
     Float64 beta = ctx->beta;
     Float64 sigma = ctx->sigma;
@@ -58,6 +67,16 @@ void score_k_fit_lognormal_mixture(
     for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
         Index neighbor_dyt_i = (Index)tab_get(int, neighbor_dyt_iz, nn_i);
         RadType *target_dt = tab_ptr(RadType, train_fdyemat, neighbor_dyt_i);
+
+        if(neighbor_dyt_i == 0) {
+            // This is a check against the nul-dyt which has must
+            // be treated specially to avoid div 0 and similar issues.
+            Float64 zero = 0.0;
+            tab_set(output_p_vals, nn_i, &zero);
+            tab_set(output_sum_log_z_scores, nn_i, &zero);
+            tab_set(output_pred_row_ks, nn_i, &zero);
+            continue;
+        }
 
         RadType adjusted_radrow[N_MAX_CHANNELS * N_MAX_CYCLES];
         RowKType pred_k = 1.0;
@@ -75,7 +94,11 @@ void score_k_fit_lognormal_mixture(
                 pred_k = sum_of_radrow_squares / sum_of_radrow_beta_dyerow_products;
             }
             else {
-                pred_k = 1.0;
+                // In this case we make pred_k be an arbitrarily large
+                // value so that the division below will succeed but
+                // it will push the adjusted_radrow to effectively zero
+                // and then the p_row_k will also be ~zero.
+                pred_k = 1e1;
             }
         }
 
@@ -85,6 +108,7 @@ void score_k_fit_lognormal_mixture(
 
         Float64 log_beta = log(beta);
         Float64 p_value = 1.0; // This is an accumulated product
+        Float64 sum_log_z_score = 0.0;
         for(Index col_i=0; col_i<n_cols; col_i++) {
             Float64 rad, z_score;
             if(target_dt[col_i] > 0) {
@@ -96,12 +120,16 @@ void score_k_fit_lognormal_mixture(
                 z_score = (rad - zero_beta) / zero_sigma;
             }
             z_score = fabs(z_score);
+            sum_log_z_score += log(z_score);
             p_value *= p_value_from_z_score(z_score);
         }
 
         tab_set(output_p_vals, nn_i, &p_value);
+        tab_set(output_sum_log_z_scores, nn_i, &sum_log_z_score);
         tab_set(output_pred_row_ks, nn_i, &pred_k);
     }
+
+    return NULL;
 }
 
 
@@ -263,8 +291,10 @@ char *classify_radrows(
         }
     }
 
+    // TODO: Consolidate into one table with multi-columns
     Tab neighbor_p_vals = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(Float64), TAB_NOT_GROWABLE);
     Tab neighbor_pred_row_ks = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(Float64), TAB_NOT_GROWABLE);
+    Tab neighbor_output_sum_log_z_scores = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(Float64), TAB_NOT_GROWABLE);
 
     // Compare every radrow to the "neighbor" dytetracks.
     for (Index row_i=0; row_i<n_radrows; row_i++) {
@@ -289,8 +319,9 @@ char *classify_radrows(
 
         Tab row_neighbor_p_vals = tab_subset(&neighbor_p_vals, row_i * n_neighbors, n_neighbors);
         Tab row_neighbor_pred_row_ks = tab_subset(&neighbor_pred_row_ks, row_i * n_neighbors, n_neighbors);
+        Tab row_neighbor_output_sum_log_z_scores = tab_subset(&neighbor_output_sum_log_z_scores, row_i * n_neighbors, n_neighbors);
 
-        score_k_fit_lognormal_mixture(
+        char *fail = score_k_fit_lognormal_mixture(
             ctx,
             n_neighbors,
             n_cols,
@@ -298,8 +329,10 @@ char *classify_radrows(
             &ctx->train_fdyemat,
             radrow,
             &row_neighbor_p_vals,
-            &row_neighbor_pred_row_ks
+            &row_neighbor_pred_row_ks,
+            &row_neighbor_output_sum_log_z_scores
         );
+        check_and_return(!fail, fail);
 
         // At this point there is a neighbor_p_vals for each neighbor dyt.
         // If ctx->run_row_k_fit is true then there is also a fit_k
@@ -324,7 +357,12 @@ char *classify_radrows(
             DytWeightType target_weight = tab_get(DytWeightType, &ctx->_dyt_weights, dyt_i);
             Float64 penalty = (1.0 - exp(-0.8 * (Float64)target_weight));
             Float64 pred_row_k = tab_get(Float64, &row_neighbor_pred_row_ks, nn_i);
-            Float64 p_row_k = p_from_gaussian(pred_row_k, 1.0, ctx->row_k_sigma);
+            Float64 p_row_k = p_from_gaussian(pred_row_k, ctx->row_k_beta, ctx->row_k_sigma);
+            Float64 sum_log_z_score = tab_get(Float64, &row_neighbor_output_sum_log_z_scores, nn_i);
+
+            if( ! ctx->use_row_k_p_val) {
+                p_row_k = 1.0;
+            }
 
             Float64 normalized_target_weight = 0.0;
             if(sum_target_weights > 0) {
@@ -349,6 +387,7 @@ char *classify_radrows(
                 // In this mode there are extra outputs to return
                 tab_set_col(&ctx->against_all_dyetracks_output, context_row_i, nn_i, &total_p_val);
                 tab_set_col(&ctx->against_all_dyetracks_output, context_row_i, n_neighbors + nn_i, &pred_row_k);
+                tab_set_col(&ctx->against_all_dyetracks_output, context_row_i, 2*n_neighbors + nn_i, &sum_log_z_score);
             }
         }
 
@@ -368,6 +407,8 @@ char *classify_radrows(
         Index most_likely_dyt_i = (Index)tab_get(int, row_neighbor_dyt_iz, highest_score_i);
         Float64 most_likely_pred_k = tab_get(Float64, &row_neighbor_pred_row_ks, highest_score_i);
         ScoreType dyt_score = highest_score / score_sum;
+
+        Float64 most_likely_sum_log_z_score = tab_get(Float64, &row_neighbor_output_sum_log_z_scores, highest_score_i);
 
         // PICK peptide winner using Maximum Likelihood
         // The dyepeps are sorted so that the most likely peptide is first
@@ -403,6 +444,7 @@ char *classify_radrows(
             dyt_score,
             output_score,
             most_likely_pred_k,
+            most_likely_sum_log_z_score
         };
 
         tab_set(&ctx->output, context_row_i, output_fields);
@@ -410,6 +452,7 @@ char *classify_radrows(
 
     tab_free(&neighbor_p_vals);
     tab_free(&neighbor_pred_row_ks);
+    tab_free(&neighbor_output_sum_log_z_scores);
     tab_free(neighbor_dyt_iz);
     if (neighbor_dists) {
         tab_free(neighbor_dists);

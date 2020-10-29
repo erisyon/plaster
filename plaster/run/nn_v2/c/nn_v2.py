@@ -30,12 +30,14 @@ class NNV2Context(c_common_tools.FixupStructure):
         ("sigma", "Float64"),
         ("zero_beta", "Float64"),
         ("zero_sigma", "Float64"),
+        ("row_k_beta", "Float64"),
         ("row_k_sigma", "Float64"),
 
         # Options
         ("n_neighbors", "Size"),
         ("run_row_k_fit", "Bool"),
         ("run_against_all_dyetracks", "Bool"),
+        ("use_row_k_p_val", "Bool"),
 
         # Derived properties
         ("n_cols", "Size"),
@@ -65,6 +67,9 @@ class NNV2Context(c_common_tools.FixupStructure):
     ]
     # fmt: on
 
+    def bad_pred_mask(self):
+        return self.pred_dyt_iz == 0
+
     @property
     def pred_dyt_iz(self):
         return self._output[:, 0].astype(int)
@@ -83,17 +88,30 @@ class NNV2Context(c_common_tools.FixupStructure):
 
     @property
     def pred_ks(self):
-        return self._output[:, 4]
+        pks = self._output[:, 4]
+        pks[self.bad_pred_mask()] = np.nan
+        return pks
+
+    @property
+    def sum_log_z_score(self):
+        slzs = self._output[:, 5]
+        slzs[self.bad_pred_mask()] = np.nan
+        return slzs
 
     @property
     def against_all_dyetrack_pvals(self):
         n_cols = self._against_all_dyetracks_output.shape[1]
-        return self._against_all_dyetracks_output[:, 0 : n_cols // 2]
+        return self._against_all_dyetracks_output[:, 0 : n_cols // 3]
 
     @property
     def against_all_dyetrack_pred_ks(self):
         n_cols = self._against_all_dyetracks_output.shape[1]
-        return self._against_all_dyetracks_output[:, n_cols // 2 :]
+        return self._against_all_dyetracks_output[:, n_cols // 3 :]
+
+    @property
+    def against_all_dyetrack_sum_log_z_scores(self):
+        n_cols = self._against_all_dyetracks_output.shape[1]
+        return self._against_all_dyetracks_output[:, 2 * n_cols // 3 :]
 
 
 _lib = None
@@ -168,6 +186,7 @@ def context(
     n_neighbors=8,
     run_row_k_fit=False,
     run_against_all_dyetracks=False,
+    use_row_k_p_val=True,
 ):
     """
     with nn_v2.context(...) as ctx:
@@ -179,7 +198,7 @@ def context(
     assert gain_model.n_channels == 1  # Temporary
 
     output_dtype = NNV2Context.tab_type("output")
-    output = np.zeros((radmat.shape[0], 5), dtype=output_dtype)
+    output = np.zeros((radmat.shape[0], 6), dtype=output_dtype)
 
     # This is a possible place to optimize to avoid this conversion to float
     # But as it is now it is needed because the FLANN needs to lookup by float
@@ -195,7 +214,7 @@ def context(
             "against_all_dyetracks_output"
         )
         against_all_dyetracks_output = np.zeros(
-            (n_radrows, 2 * n_dyts), dtype=against_all_dyetracks_output_dtype
+            (n_radrows, 3 * n_dyts), dtype=against_all_dyetracks_output_dtype
         )
 
     nn_v2_context = NNV2Context(
@@ -211,10 +230,12 @@ def context(
         sigma=gain_model.channels[0].sigma,
         zero_beta=gain_model.channels[0].zero_beta,
         zero_sigma=gain_model.channels[0].zero_sigma,
+        row_k_beta=gain_model.row_k_beta,
         row_k_sigma=gain_model.row_k_sigma,
         n_neighbors=n_neighbors,
         run_row_k_fit=run_row_k_fit,
         run_against_all_dyetracks=run_against_all_dyetracks,
+        use_row_k_p_val=use_row_k_p_val,
         n_cols=train_fdyemat.shape[1],
         output=Tab.from_mat(output, output_dtype),
         _output=output,

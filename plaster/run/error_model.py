@@ -41,6 +41,7 @@ class ChGainModel:
 
 @dataclass
 class GainModel:
+    row_k_beta: float
     row_k_sigma: float
     channels: List[ChGainModel]
 

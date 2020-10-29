@@ -33,14 +33,20 @@ void ensure(int expr, const char *fmt, ...) {
     va_end(args);
 }
 
-
+FILE *_log = (FILE *)NULL;
 void _trace(char *file, int line, const char *fmt, ...) {
     // Replacement for printf that also flushes
+    FILE *log = stdout;
+    if(!_log) {
+        _log = fopen("c_common.log", "wt");
+        log = _log;
+    }
+
     va_list args;
     va_start(args, fmt);
-    fprintf(stdout, "@%s:%d ", file, line);
-    vfprintf(stdout, fmt, args);
-    fflush(stdout);
+    fprintf(log, "@%s:%d ", file, line);
+    vfprintf(log, fmt, args);
+    fflush(log);
     va_end(args);
 }
 
