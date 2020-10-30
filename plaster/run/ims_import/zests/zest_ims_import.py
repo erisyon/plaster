@@ -1,12 +1,13 @@
-from contextlib import contextmanager
-from munch import Munch
-from plumbum import local
 import tempfile
+from contextlib import contextmanager
+
 import numpy as np
-from zest import zest
-from plaster.run.ims_import.ims_import_params import ImsImportParams
+from munch import Munch
 from plaster.run.ims_import import ims_import_worker as worker
+from plaster.run.ims_import.ims_import_params import ImsImportParams
 from plaster.tools.log.log import debug
+from plumbum import local
+from zest import zest
 
 
 class _MockND2(Munch):
@@ -223,26 +224,21 @@ def zest_ims_import_from_npy():
             m_load_npy.returns(np.zeros((16, 16)))
 
         def it_scans_npy_arrays():
-            (
-                mode,
-                nd2_paths,
-                tif_paths_by_field_channel_cycle,
-                npy_paths_by_field_channel_cycle,
-                n_fields,
-                n_channels,
-                n_cycles,
-                dim,
-            ) = worker._scan_files("")
+            scan_result = worker._scan_files("")
 
-            assert mode == "npy"
-            assert nd2_paths == []
-            assert tif_paths_by_field_channel_cycle == {}
+            assert scan_result.mode == worker.ScanFileMode.npy
+            assert scan_result.nd2_paths == []
+            assert scan_result.tif_paths_by_field_channel_cycle == {}
             assert (
-                local.path(npy_paths_by_field_channel_cycle[(0, 0, 0)]).name
+                local.path(scan_result.npy_paths_by_field_channel_cycle[(0, 0, 0)]).name
                 == npy_files[0]
             )
-            assert n_fields == 2 and n_channels == 2 and n_cycles == 3
-            assert dim == (16, 16)
+            assert (
+                scan_result.n_fields == 2
+                and scan_result.n_channels == 2
+                and scan_result.n_cycles == 3
+            )
+            assert scan_result.dim == (16, 16)
 
         def it_ims_import_npy():
             res = worker.ims_import(

@@ -100,19 +100,16 @@ import cv2
 import numpy as np
 import pandas as pd
 from munch import Munch
-from plumbum import local
-from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
+from plaster.run.sigproc_v2 import bg, fg, psf
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
-from plaster.run.sigproc_v2 import psf
-from plaster.run.sigproc_v2 import fg
-from plaster.run.sigproc_v2 import bg
+from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
+from plaster.tools.log.log import debug, important
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
-from plaster.tools.log.log import debug, important
-
+from plumbum import local
 
 # Calibration
 # ---------------------------------------------------------------------------------------------
@@ -128,7 +125,12 @@ def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
             "frames" are "zstacks"
     """
 
-    assert ims_import_result.params.is_movie is True
+    # TODO: is_movie conflates two things:
+    # 1. For psf calibration, cycles don't mean chemical cycles but rather the stack of images with varying focus
+    # 2. In ims_import, is_movie assumes that input files are nd2 files.
+    # Once this conflation is removed, is_movie can mean just #1, and this assert can be uncommented
+
+    # assert ims_import_result.params.is_movie is True
 
     focus_per_field_per_channel = []
     _, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
