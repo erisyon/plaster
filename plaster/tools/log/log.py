@@ -325,7 +325,7 @@ def debug(*args):
                 ):
                     values += [
                         f"\n{green}{caller}{reset}"
-                        f"{yellow}{arg.shape}{reset}=\n{arg}\n"
+                        f"{yellow} {arg.dtype}{arg.shape}{reset}=\n{arg}\n"
                     ]
                 else:
                     values += [
