@@ -8,17 +8,13 @@ class NNV2Result(BaseResult):
     name = "nn_v2"
     filename = "nn_v2.pkl"
 
+    call_columns = ["pep_i", "aa", "pep_offset_in_pro"]
+
     required_props = dict(
         params=NNV2Params,
-        test_pred_pep_iz=np.ndarray,
-        test_pred_dyt_iz=np.ndarray,
-        test_scores=np.ndarray,
-        test_true_pep_iz=(type(None), np.ndarray),
-        test_peps_pr=(type(None), pd.DataFrame),
-        test_peps_pr_abund=(type(None), pd.DataFrame),
-        sigproc_pred_pep_iz=(type(None), np.ndarray),
-        sigproc_scores=(type(None), np.ndarray),
-        sigproc_pred_dyt_i=(type(None), np.ndarray),
+        _test_calls=pd.DataFrame,
+        _train_calls=(type(None), pd.DataFrame),
+        _sigproc_calls=(type(None), pd.DataFrame),
     )
 
     def includes_train_results(self):
@@ -32,3 +28,16 @@ class NNV2Result(BaseResult):
             )
         except:
             return "NNV2Result"
+
+    def test_pred_pep_iz(self):
+        return _test_calls.pred_pep_iz
+
+        test_pred_pep_iz = (np.ndarray,)
+        test_pred_dyt_iz = (np.ndarray,)
+        test_scores = (np.ndarray,)
+        test_true_pep_iz = ((type(None), np.ndarray),)
+        test_peps_pr = ((type(None), pd.DataFrame),)
+        test_peps_pr_abund = ((type(None), pd.DataFrame),)
+        sigproc_pred_pep_iz = ((type(None), np.ndarray),)
+        sigproc_scores = ((type(None), np.ndarray),)
+        sigproc_pred_dyt_i = ((type(None), np.ndarray),)
