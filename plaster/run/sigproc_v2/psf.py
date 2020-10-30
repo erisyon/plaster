@@ -389,8 +389,4 @@ def psf_all_fields_one_channel(fl_zi_ims, sigproc_v2_params):
 
     z_and_region_to_psf = psf_normalize(z_and_region_to_psf)
 
-    z_and_region_to_psf = z_and_region_to_psf.tolist()
-
-    z_and_region_to_psf = [a for a in z_and_region_to_psf if np.any(a)]
-
-    return z_and_region_to_psf, im_focuses_per_field
+    return z_and_region_to_psf.tolist(), im_focuses_per_field
