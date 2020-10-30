@@ -140,8 +140,8 @@ def zest_c_nn_v2():
             dyemat.shape[0],
         )
 
-        np.save("true_ks.npy", true_ks)
-        np.save("pred_ks.npy", nn_v2_context.pred_ks)
+        # np.save("true_ks.npy", true_ks)
+        # np.save("pred_ks.npy", nn_v2_context.pred_ks)
 
         # Check that there's a reasonable correlation between true and pred k
         # I ran this several times and found with random true_ks
