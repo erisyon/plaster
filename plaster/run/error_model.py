@@ -52,6 +52,7 @@ class GainModel:
     @classmethod
     def test_fixture(cls):
         return GainModel(
+            row_k_beta=1.0,
             row_k_sigma=0.0,
             channels=[
                 ChGainModel(beta=7000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0)
@@ -62,6 +63,7 @@ class GainModel:
 class ErrorModel(Params):
     schema = s(
         s.is_kws_r(
+            row_k_beta=s.is_float(),
             row_k_sigma=s.is_float(),
             p_dud=s.is_deprecated(),
             p_edman_failure=s.is_float(bounds=(0, 1)),
@@ -88,11 +90,12 @@ class ErrorModel(Params):
     )
 
     defaults = Munch(
-        row_k_sigma=0.0, p_edman_failure=0.06, p_detach=0.05, dyes=[], labels=[]
+        row_k_beta=1.0, row_k_sigma=0.0, p_edman_failure=0.06, p_detach=0.05, dyes=[], labels=[]
     )
 
     def to_gain_model(self):
         return GainModel(
+            row_k_beta=self.row_k_beta,
             row_k_sigma=self.row_k_sigma,
             channels=[
                 ChGainModel(

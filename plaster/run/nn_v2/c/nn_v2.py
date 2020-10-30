@@ -106,7 +106,7 @@ class NNV2Context(c_common_tools.FixupStructure):
     @property
     def against_all_dyetrack_pred_ks(self):
         n_cols = self._against_all_dyetracks_output.shape[1]
-        return self._against_all_dyetracks_output[:, n_cols // 3 :]
+        return self._against_all_dyetracks_output[:, n_cols // 3 : 2 * n_cols // 3]
 
     @property
     def against_all_dyetrack_sum_log_z_scores(self):

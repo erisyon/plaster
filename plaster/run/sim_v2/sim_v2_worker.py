@@ -36,16 +36,14 @@ Nomenclature
     p_*:
         The probability of an event
 """
-import math
 import numpy as np
-from scipy.stats import norm
+from plaster.run.sim_v2.sim_v2_params import RadType
 from plaster.run.sim_v2.fast import sim_v2_fast
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
-from plaster.run.sim_v2.sim_v2_params import RadType
-from plaster.tools.log.log import debug, prof
 from plaster.tools.schema import check
 from plaster.tools.utils import data
 from plaster.tools.zap.zap import get_cpu_limit
+from plaster.tools.log.log import debug, prof
 
 
 def _rand_normals(mu, sigma):
@@ -97,12 +95,12 @@ def _dyemat_sim(sim_v2_params, pcbs, n_samples, progress=None):
         dyepep: ndarray(dye_i, pep_i, count)
         pep_recalls: ndarray(n_peps)
     """
-
     # TODO: bleach per channel
     dyemat, dyepeps, pep_recalls = sim_v2_fast.sim(
         pcbs,
         n_samples,
         sim_v2_params.n_channels,
+        len(sim_v2_params.labels),
         sim_v2_params.cycles_array(),
         sim_v2_params.error_model.dyes[0].p_bleach_per_cycle,
         sim_v2_params.error_model.p_detach,
