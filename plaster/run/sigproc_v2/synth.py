@@ -197,10 +197,8 @@ class PeaksModel(BaseSynthModel):
             [
                 loc
                 for loc in self.locs
-                if loc[0] > dist
-                and loc[0] < self.dim[0] - dist
-                and loc[1] > dist
-                and loc[1] < self.dim[1] - dist
+                if dist < loc[0] < self.dim[0] - dist
+                and dist < loc[1] < self.dim[1] - dist
             ]
         )
         return self
@@ -208,13 +206,13 @@ class PeaksModel(BaseSynthModel):
 
 class PeaksModelGaussian(PeaksModel):
     def __init__(self, **kws):
+        self.mea = kws.pop("mea", 11)
         super().__init__(**kws)
         self.std = None
         self.std_x = None
         self.std_y = None
         self.z_scale = None  # (simulates z stage)
         self.z_center = None  # (simulates z stage)
-        self.mea = 11
 
     def z_function(self, z_scale, z_center):
         self.z_scale = z_scale

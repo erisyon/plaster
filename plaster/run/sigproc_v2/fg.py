@@ -1,6 +1,5 @@
 import numpy as np
-from plaster.run.sigproc_v2 import bg
-from plaster.run.sigproc_v2 import psf
+from plaster.run.sigproc_v2 import bg, psf
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
@@ -292,6 +291,9 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
     kernel = psf.approximate_kernel()
     n_fields = fl_ims.shape[0]
     dim = fl_ims.shape[-2:]
+
+    # SANITY CHECK that z_reg_psfs
+    assert psf.psf_validate(z_reg_psfs)
 
     # ALLOCATE two accumulators: one for the signals and one for the counts
     fg = np.zeros(dim)
