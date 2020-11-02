@@ -26,6 +26,6 @@ class NNV2Params(Params):
             sigma=s.is_float(),
             zero_beta=s.is_float(),
             zero_sigma=s.is_float(),
-            row_k_std=s.is_float(),
+            row_k_sigma=s.is_float(),
         )
     )

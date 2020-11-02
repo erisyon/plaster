@@ -729,3 +729,4 @@ def zest_gaussian_fitter():
         # It should not run indefintely on noise
         raise NotImplementedError
 
+    zest()

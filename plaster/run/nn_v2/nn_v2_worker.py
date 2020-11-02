@@ -1,3 +1,4 @@
+import pandas as pd
 import numpy as np
 from plaster.run.call_bag import CallBag
 from plaster.run.nn_v2.c import nn_v2 as c_nn_v2
@@ -92,19 +93,21 @@ def nn_v2(
 
     return NNV2Result(
         params=nn_v2_params,
-        test_pred_pep_iz=test_context.pred_pep_iz,
-        test_pred_dyt_iz=test_context.pred_dyt_iz,
-        test_scores=test_context.pred_scores,
-        test_true_pep_iz=sim_v2_result.test_true_pep_iz,
-        test_peps_pr=test_peps_pr,
-        test_peps_pr_abund=test_peps_pr_abund,
-        sigproc_pred_pep_iz=None
-        if sigproc_context is None
-        else sigproc_context.pred_pep_iz,
-        sigproc_scores=None if sigproc_context is None else sigproc_context.pred_scores,
-        sigproc_pred_dyt_i=None
-        if sigproc_context is None
-        else sigproc_context.pred_dyt_iz,
+        _test_calls=test_context.to_dataframe(),
+        # TODO
+        # test_pred_pep_iz=test_context.pred_pep_iz,
+        # test_pred_dyt_iz=test_context.pred_dyt_iz,
+        # test_scores=test_context.pred_scores,
+        # test_true_pep_iz=sim_v2_result.test_true_pep_iz,
+        # test_peps_pr=test_peps_pr,
+        # test_peps_pr_abund=test_peps_pr_abund,
+        # sigproc_pred_pep_iz=None
+        # if sigproc_context is None
+        # else sigproc_context.pred_pep_iz,
+        # sigproc_scores=None if sigproc_context is None else sigproc_context.pred_scores,
+        # sigproc_pred_dyt_i=None
+        # if sigproc_context is None
+        # else sigproc_context.pred_dyt_iz,
     )
 
 

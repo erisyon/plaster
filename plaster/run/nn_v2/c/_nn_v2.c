@@ -44,7 +44,7 @@ char *score_k_fit_lognormal_mixture(
     RadType *radrow,  // arrays((n_cols,), type=RadType): radrow
     Tab *output_p_vals,  // array((n_neighbors,), type=float): returned scores for each neighbor
     Tab *output_pred_row_ks,  // array((n_neighbors,), type=float): returned scores for each neighbor
-    Tab *output_sum_log_z_scores  // array((n_neighbors,), type=float): 
+    Tab *output_sum_log_z_scores  // array((n_neighbors,), type=float):
 ) {
     // This is a log-normal model where the zero-counts (darks) are treated differently.
     // The non-zeros are log() and those mapping to zeros are not.
@@ -295,6 +295,7 @@ char *classify_radrows(
     Tab neighbor_p_vals = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(Float64), TAB_NOT_GROWABLE);
     Tab neighbor_pred_row_ks = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(Float64), TAB_NOT_GROWABLE);
     Tab neighbor_output_sum_log_z_scores = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(Float64), TAB_NOT_GROWABLE);
+    Tab neighbor_scores = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(Float64), TAB_NOT_GROWABLE);
 
     // Compare every radrow to the "neighbor" dytetracks.
     for (Index row_i=0; row_i<n_radrows; row_i++) {
@@ -320,6 +321,7 @@ char *classify_radrows(
         Tab row_neighbor_p_vals = tab_subset(&neighbor_p_vals, row_i * n_neighbors, n_neighbors);
         Tab row_neighbor_pred_row_ks = tab_subset(&neighbor_pred_row_ks, row_i * n_neighbors, n_neighbors);
         Tab row_neighbor_output_sum_log_z_scores = tab_subset(&neighbor_output_sum_log_z_scores, row_i * n_neighbors, n_neighbors);
+        Tab row_neighbor_scores = tab_subset(&neighbor_scores, row_i * n_neighbors, n_neighbors);
 
         char *fail = score_k_fit_lognormal_mixture(
             ctx,
@@ -378,16 +380,15 @@ char *classify_radrows(
                 normalized_target_weight = 1.0;
             }
 
-            Float64 total_p_val = p_val * penalty * normalized_target_weight * p_row_k;
+            Float64 composite_score = p_val * penalty * normalized_target_weight * p_row_k;
 
-            // UPDATE the p_vals with the score
-            tab_set(&row_neighbor_p_vals, nn_i, &total_p_val);
+            // SET the row score
+            tab_set(&row_neighbor_scores, nn_i, &composite_score);
 
             if(ctx->run_against_all_dyetracks) {
                 // In this mode there are extra outputs to return
-                tab_set_col(&ctx->against_all_dyetracks_output, context_row_i, nn_i, &total_p_val);
-                tab_set_col(&ctx->against_all_dyetracks_output, context_row_i, n_neighbors + nn_i, &pred_row_k);
-                tab_set_col(&ctx->against_all_dyetracks_output, context_row_i, 2*n_neighbors + nn_i, &sum_log_z_score);
+                tab_set_col(&ctx->against_all_dyetracks_output, context_row_i, nn_i, &p_val);
+                tab_set_col(&ctx->against_all_dyetracks_output, context_row_i, 1*n_neighbors + nn_i, &pred_row_k);
             }
         }
 
@@ -396,16 +397,19 @@ char *classify_radrows(
         Float64 score_sum = (Float64)0;
         Index highest_score_i = 0;
         for (Index nn_i=0; nn_i<n_neighbors; nn_i++) {
-            Float64 p_val = tab_get(Float64, &row_neighbor_p_vals, nn_i);
-            if (p_val > highest_score) {
-                highest_score = p_val;
+            Float64 score = tab_get(Float64, &row_neighbor_scores, nn_i);
+            if (score > highest_score) {
+                highest_score = score;
                 highest_score_i = nn_i;
             }
-            score_sum += p_val;
+            score_sum += score;
         }
 
         Index most_likely_dyt_i = (Index)tab_get(int, row_neighbor_dyt_iz, highest_score_i);
         Float64 most_likely_pred_k = tab_get(Float64, &row_neighbor_pred_row_ks, highest_score_i);
+        Float64 logp_dyt = log(tab_get(Float64, &row_neighbor_p_vals, highest_score_i));
+        Float64 logp_k = log(p_from_gaussian(most_likely_pred_k, ctx->row_k_beta, ctx->row_k_sigma));
+
         ScoreType dyt_score = highest_score / score_sum;
 
         Float64 most_likely_sum_log_z_score = tab_get(Float64, &row_neighbor_output_sum_log_z_scores, highest_score_i);
@@ -444,7 +448,8 @@ char *classify_radrows(
             dyt_score,
             output_score,
             most_likely_pred_k,
-            most_likely_sum_log_z_score
+            logp_dyt,
+            logp_k,
         };
 
         tab_set(&ctx->output, context_row_i, output_fields);
@@ -454,6 +459,7 @@ char *classify_radrows(
     tab_free(&neighbor_pred_row_ks);
     tab_free(&neighbor_output_sum_log_z_scores);
     tab_free(neighbor_dyt_iz);
+    tab_free(&neighbor_scores);
     if (neighbor_dists) {
         tab_free(neighbor_dists);
     }

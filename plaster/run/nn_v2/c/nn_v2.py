@@ -1,3 +1,4 @@
+import pandas as pd
 import numpy as np
 from plumbum import local, FG
 import ctypes as c
@@ -6,6 +7,8 @@ from plaster.tools.schema import check
 from plaster.run.error_model import GainModel
 from plaster.tools.c_common import c_common_tools
 from plaster.tools.c_common.c_common_tools import Tab
+from plaster.run.nn_v2.nn_v2_result import NNV2Result
+from plaster.run.sim_v2.sim_v2_result import IndexType, ScoreType, RowKType
 from plaster.run.sim_v2.sim_v2_params import (
     RadType,
     DyePepType,
@@ -44,13 +47,13 @@ class NNV2Context(c_common_tools.FixupStructure):
 
         # Outputs
 
-        # Main output: 5 columns: (pred_dyt_i, pred_pep_i, dyt_score, score, pred_k)
+        # Main output: columns: (dyt_i, pep_i, dyt_score, score, pred_k, logp_dyt, logp_k)
         # This will always be returned even when run_against_all_dyetracks is True
         ("output", Tab, np.float64),
 
         # against_all_dyetracks_output is only used when run_against_all_dyetracks is True
         # in which case it is table of n_radrows with n_dyt*2 columns
-        # where the columns are in pairs (p_val, pred_k)
+        # where the columns are: (p_val, pred_k)
         ("against_all_dyetracks_output", Tab, np.float64),
 
         # Internal fields
@@ -112,6 +115,26 @@ class NNV2Context(c_common_tools.FixupStructure):
     def against_all_dyetrack_sum_log_z_scores(self):
         n_cols = self._against_all_dyetracks_output.shape[1]
         return self._against_all_dyetracks_output[:, 2 * n_cols // 3 :]
+
+    def to_dataframe(self):
+        df = pd.DataFrame(
+            self._output,
+            columns=("dyt_i", "pep_i", "dyt_score", "score", "k", "logp_dyt", "logp_k"),
+        )
+        df = df.astype(
+            dict(
+                dyt_i=IndexType,
+                pep_i=IndexType,
+                dyt_score=ScoreType,
+                score=ScoreType,
+                k=RowKType,
+                logp_dyt=ScoreType,
+                logp_k=ScoreType,
+            )
+        )
+
+        df["radrow_i"] = np.arange(len(df))
+        return df
 
 
 _lib = None
@@ -198,7 +221,8 @@ def context(
     assert gain_model.n_channels == 1  # Temporary
 
     output_dtype = NNV2Context.tab_type("output")
-    output = np.zeros((radmat.shape[0], 6), dtype=output_dtype)
+    n_radrows = radmat.shape[0]
+    output = np.zeros((n_radrows, 7), dtype=output_dtype)
 
     # This is a possible place to optimize to avoid this conversion to float
     # But as it is now it is needed because the FLANN needs to lookup by float

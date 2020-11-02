@@ -25,6 +25,12 @@ def zest_nn_v2_worker():
     sim_v2_result.test_true_pep_iz = np.flip(
         sim_v2_result.test_true_pep_iz, axis=0
     ).copy()
+    import pudb
+
+    pudb.set_trace()
+    sim_v2_result.test_true_dye_iz = np.flip(
+        sim_v2_result.test_true_dye_iz, axis=0
+    ).copy()
 
     nn_v2_params = NNV2Params(
         n_neighbors=4,
@@ -32,13 +38,37 @@ def zest_nn_v2_worker():
         sigma=0.20,
         zero_beta=0.0,
         zero_sigma=200.0,
-        row_k_std=0.0,
+        row_k_sigma=0.0,
     )
 
-    def it_runs_without_sigproc():
+    def run_without_sigproc():
         nn_v2_result = nn_v2(
             nn_v2_params, prep_result, sim_v2_result, sigproc_result=None
         )
+        import pudb
+
+        pudb.set_trace()
+        a = (
+            sim_v2_result.test_true_dye_iz == nn_v2_result._test_calls.dyt_i.values
+        ).sum()
+        debug(a)
+
+        def it_returns_calls():
+            raise NotImplementedError
+
+        def it_returns_all():
+            raise NotImplementedError
+
+        def it_filters_nul_calls():
+            raise NotImplementedError
+
+        def it_filters_k_range():
+            raise NotImplementedError
+
+        def it_filters_k_score():
+            raise NotImplementedError
+
+        zest()
 
     @zest.skip(reason="Need to deal with sigproc v2 calibration fixtures")
     def it_runs_with_sigproc():
@@ -122,7 +152,7 @@ def zest_v2_stress_like_e2e():
     sim_v2_result._generate_flu_info(prep_result)
 
     nn_v2_params = NNV2Params(
-        beta=5000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0, row_k_std=0.0,
+        beta=5000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0, row_k_sigma=0.0,
     )
     nn_result = nn_v2(nn_v2_params, prep_result, sim_v2_result, None)
     assert np.all(nn_result.test_pred_pep_iz == 1)

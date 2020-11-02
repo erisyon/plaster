@@ -8,7 +8,16 @@ class NNV2Result(BaseResult):
     name = "nn_v2"
     filename = "nn_v2.pkl"
 
-    columns = ("radrow_i", "pep_i", "dyt_i", "k", "logp_dyt", "logp_pep", "logp_k", "score")
+    columns = (
+        "radrow_i",
+        "dyt_i",
+        "pep_i",
+        "dyt_score",
+        "score",
+        "k",
+        "logp_dyt",
+        "logp_k",
+    )
 
     # * "calls" are the "best" assignment for each radrow based on top score.
     # * "all" is a structrure (potentially much larger) of each radrow compare
@@ -16,11 +25,9 @@ class NNV2Result(BaseResult):
 
     required_props = dict(
         params=NNV2Params,
-
         _test_calls=pd.DataFrame,  # This is the only required field
         _train_calls=(type(None), pd.DataFrame),
         _sigproc_calls=(type(None), pd.DataFrame),
-
         # "all_calls" are created when params.against_all_dyetracks_output is True
         _test_all=(type(None), pd.DataFrame),
         _train_all=(type(None), pd.DataFrame),
@@ -64,7 +71,6 @@ class NNV2Result(BaseResult):
                 mask &= score_range[0] <= df.score
             if score_range[1] is not None:
                 mask &= df.score <= score_range[1]
-
 
     def calls(self, dataset="test", **kwargs):
         """
