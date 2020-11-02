@@ -60,8 +60,6 @@ class SimV1Params(Params):
         utils.safe_del(self, "df")
         utils.safe_del(self, "by_channel")
         utils.safe_del(self, "ch_by_aa")
-        utils.safe_del(self, "channel_i_to_gain")
-        utils.safe_del(self, "channel_i_to_vpd")
 
         dst = utils.munch_deep_copy(self, klass_set={SimV1Params})
         dst.error_model = ErrorModel(**dst.error_model)
@@ -178,19 +176,11 @@ class SimV1Params(Params):
                 .p_bleach_per_cycle,
                 beta=self.df[self.df.ch_i == ch].iloc[0].beta,
                 sigma=self.df[self.df.ch_i == ch].iloc[0].sigma,
-                gain=self.df[self.df.ch_i == ch].iloc[0].gain,
-                vpd=self.df[self.df.ch_i == ch].iloc[0].vpd,
             )
             for ch in range(self.n_channels)
         ]
 
         self.ch_by_aa = {row.amino_acid: row.ch_i for row in self.df.itertuples()}
-
-        # These two needs to be lists (not ndarray) because they have to be duplicated
-        self.channel_i_to_gain = [
-            self.by_channel[i].gain for i in range(self.n_channels)
-        ]
-        self.channel_i_to_vpd = [self.by_channel[i].vpd for i in range(self.n_channels)]
 
     def to_label_list(self):
         """Summarize labels like: ["DE", "C"]"""

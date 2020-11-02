@@ -572,6 +572,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib)
 
     fitmat = None
+    sftmat = None
     if sigproc_v2_params.run_fitter:
         fitmat = _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params)
 

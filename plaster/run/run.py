@@ -46,9 +46,7 @@ from plaster.run.prep.prep_task import PrepTask
 from plaster.run.report.report_task import ReportTask
 from plaster.run.survey_v2.survey_v2_task import SurveyV2Task
 from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
-from plaster.run.nn_v1.nn_v1_task import NNV1Task
 from plaster.run.nn_v2.nn_v2_task import NNV2Task
-from plaster.run.nn_v1.nn_v1_result import NNV1Result
 from plaster.run.nn_v2.nn_v2_result import NNV2Result
 
 
@@ -113,7 +111,6 @@ def task_list_from_config(config):
         test_rf=TestRFTask,
         classify_rf=ClassifyRFTask,
         survey_v2=SurveyV2Task,
-        nn_v1=NNV1Task,
         nn_v2=NNV2Task,
         report=ReportTask,
     )
@@ -143,7 +140,6 @@ def task_list_from_config(config):
         TrainRFTask,
         TestRFTask,
         ClassifyRFTask,
-        NNV1Task,
         NNV2Task,
         ReportTask,
     ]
@@ -304,7 +300,6 @@ class RunResult:
         sigproc_v2=SigprocV2Result,
         sim_v1=SimV1Result,
         sim_v2=SimV2Result,
-        nn_v1=NNV1Result,
         nn_v2=NNV2Result,
         test_rf=TestRFResult,
         train_rf=TrainRFResult,

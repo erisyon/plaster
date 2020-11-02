@@ -10,11 +10,13 @@ from plaster.tools.log.log import debug
 
 
 DyeType = np.uint8
-DyeWeightType = np.float32
+DytWeightType = np.uint64
 RadType = np.float32
 IndexType = np.uint32
 RecallType = np.float32
 ScoreType = np.float32
+DyePepType = np.uint64
+DytIndexType = np.uint64
 
 
 class SimV2Params(Params):
@@ -84,8 +86,6 @@ class SimV2Params(Params):
         utils.safe_del(self, "df")
         utils.safe_del(self, "by_channel")
         utils.safe_del(self, "ch_by_aa")
-        utils.safe_del(self, "channel_i_to_gain")
-        utils.safe_del(self, "channel_i_to_vpd")
 
         dst = utils.munch_deep_copy(self, klass_set={SimV2Params})
         dst.error_model = ErrorModel(**dst.error_model)
@@ -143,6 +143,9 @@ class SimV2Params(Params):
     @property
     def n_channels_and_cycles(self):
         return self.n_channels, self.n_cycles
+
+    def to_error_model(self):
+        return ErrorModel(**self.error_model)
 
     def _build_join_dfs(self):
         """
@@ -202,19 +205,13 @@ class SimV2Params(Params):
                 .p_bleach_per_cycle,
                 beta=self.df[self.df.ch_i == ch].iloc[0].beta,
                 sigma=self.df[self.df.ch_i == ch].iloc[0].sigma,
-                gain=self.df[self.df.ch_i == ch].iloc[0].gain,
-                vpd=self.df[self.df.ch_i == ch].iloc[0].vpd,
+                zero_beta=self.df[self.df.ch_i == ch].iloc[0].zero_beta,
+                zero_sigma=self.df[self.df.ch_i == ch].iloc[0].zero_sigma,
             )
             for ch in range(self.n_channels)
         ]
 
         self.ch_by_aa = {row.amino_acid: row.ch_i for row in self.df.itertuples()}
-
-        # These two needs to be lists (not ndarray) because they have to be duplicated
-        self.channel_i_to_gain = [
-            self.by_channel[i].gain for i in range(self.n_channels)
-        ]
-        self.channel_i_to_vpd = [self.by_channel[i].vpd for i in range(self.n_channels)]
 
     def to_label_list(self):
         """Summarize labels like: ["DE", "C"]"""

@@ -59,13 +59,13 @@ def zest_radmat_from_sampled_pep_dyemat():
     # fmt: on
 
     ch_params_no_noise = [
-        Munch(beta=10.0, sigma=0.0),
-        Munch(beta=10.0, sigma=0.0),
+        Munch(beta=10.0, sigma=0.0, zero_beta=0.0, zero_sigma=0.0),
+        Munch(beta=10.0, sigma=0.0, zero_beta=0.0, zero_sigma=0.0),
     ]
 
     ch_params_with_noise = [
-        Munch(beta=10.0, sigma=0.1),
-        Munch(beta=10.0, sigma=0.1),
+        Munch(beta=10.0, sigma=0.1, zero_beta=0.0, zero_sigma=200.0),
+        Munch(beta=10.0, sigma=0.1, zero_beta=0.0, zero_sigma=200.0),
     ]
 
     output_radmat = None
@@ -82,7 +82,11 @@ def zest_radmat_from_sampled_pep_dyemat():
         )
 
         assert output_radmat.shape == (n_peps, n_samples_per_pep, n_channels, n_cycles)
+
+        # Peptide 0 is all zero:
         assert np.all(output_radmat[0, :, :, :] == 0.0)
+
+        # Peptide 1 is noise-free
         assert np.all(
             output_radmat[1, :, :, :] == 10.0 * sampled_dyemat.astype(np.float32)
         )
@@ -116,13 +120,13 @@ def zest_radmat_from_sampled_pep_dyemat():
 
 def zest_radmat_sim():
     ch_params_with_noise = [
-        Munch(beta=7500.0, sigma=0.16),
-        Munch(beta=7500.0, sigma=0.16),
+        Munch(beta=7500.0, sigma=0.16, zero_beta=0.0, zero_sigma=200),
+        Munch(beta=7500.0, sigma=0.16, zero_beta=0.0, zero_sigma=200),
     ]
 
     ch_params_no_noise = [
-        Munch(beta=1.0, sigma=0.0),
-        Munch(beta=1.0, sigma=0.0),
+        Munch(beta=1.0, sigma=0.0, zero_beta=0.0, zero_sigma=0.0),
+        Munch(beta=1.0, sigma=0.0, zero_beta=0.0, zero_sigma=0.0),
     ]
 
     # fmt: off
@@ -170,7 +174,8 @@ def zest_radmat_sim():
         )
         assert radiometry.shape == (10, n_channels, n_cycles)
         assert true_pep_iz.tolist() == [1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
-        assert np.all(radiometry[radiometry > 0.0] > 1000.0)
+        # I'm not sure of a good test here
+        # assert np.all(radiometry[radiometry > 0.0] > 1000.0)
 
     def it_returns_correct_radiometry_with_no_noise():
         # By using no noise, we can just compare that radiometry gave back the dyemat
@@ -212,14 +217,14 @@ def zest_radmat_sim():
 def zest_sim_v2_worker():
     prep_result = prep_fixtures.result_simple_fixture()
 
-    def _sim(err_kwargs=None, _prep_result=None):
+    def _sim(err_kwargs=None, _prep_result=None, sim_kwargs=None):
         if _prep_result is None:
             _prep_result = prep_result
 
         error_model = ErrorModel.no_errors(n_channels=2, **(err_kwargs or {}))
 
         sim_v2_params = SimV2Params.construct_from_aa_list(
-            ["A", "B"], error_model=error_model, n_edmans=4
+            ["A", "B"], error_model=error_model, n_edmans=4, **(sim_kwargs or {})
         )
 
         return sim_v2_worker.sim_v2(sim_v2_params, _prep_result), sim_v2_params
@@ -295,6 +300,14 @@ def zest_sim_v2_worker():
             assert sim_v2_result.test_radmat.shape == (1000, 2, 5)
 
         zest()
+
+    def it_skips_row_noise():
+        sim_v2_result, sim_v2_params = _sim(err_kwargs=dict(row_k_sigma=0.0))
+        assert np.all(sim_v2_result.test_true_ks == 1.0)
+
+    def it_adds_row_noise():
+        sim_v2_result, sim_v2_params = _sim(err_kwargs=dict(row_k_sigma=0.5))
+        assert np.any(sim_v2_result.test_true_ks != 1.0)
 
     @zest.skip(reason="Not implemented")
     def it_raises_if_train_and_test_identical():

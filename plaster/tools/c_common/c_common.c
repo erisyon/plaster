@@ -9,7 +9,7 @@
 #include "inttypes.h"
 #include "time.h"
 #include "pthread.h"
-#include "c_common.h"
+#include "c_common_old.h"
 
 
 Uint64 now() {
@@ -33,13 +33,20 @@ void ensure(int expr, const char *fmt, ...) {
     va_end(args);
 }
 
-
-void _trace(const char *fmt, ...) {
+FILE *_log = (FILE *)NULL;
+void _trace(char *file, int line, const char *fmt, ...) {
     // Replacement for printf that also flushes
+    FILE *log = stdout;
+    if(!_log) {
+        _log = fopen("c_common.log", "wt");
+        log = _log;
+    }
+
     va_list args;
     va_start(args, fmt);
-    vfprintf(stdout, fmt, args);
-    fflush(stdout);
+    fprintf(log, "@%s:%d ", file, line);
+    vfprintf(log, fmt, args);
+    fflush(log);
     va_end(args);
 }
 
@@ -211,13 +218,13 @@ void hash_dump(Hash hash) {
 //=========================================================================================
 
 
-Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int b_growable) {
+Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, Uint64 flags) {
     Tab tab;
     tab.base = base;
     tab.n_bytes_per_row = n_bytes_per_row;
     tab.n_max_rows = n_bytes / n_bytes_per_row;
-    tab.b_growable = b_growable;
-    if(b_growable) {
+    tab.flags = flags;
+    if(flags & TAB_GROWABLE) {
         memset(tab.base, 0, n_bytes);
         tab.n_rows = 0;
     }
@@ -228,14 +235,55 @@ Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, int b_growable) 
 }
 
 
-Tab tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, int b_growable) {
-    return tab_by_size(base, n_rows * n_bytes_per_row, n_bytes_per_row, b_growable);
+Tab tab_malloc_by_size(Size n_bytes, Size n_bytes_per_row, Uint64 flags) {
+    Tab tab;
+    tab.base = malloc(n_bytes);
+    memset(tab.base, 0, n_bytes);
+    tab.n_bytes_per_row = n_bytes_per_row;
+    tab.n_max_rows = n_bytes / n_bytes_per_row;
+    tab.flags = flags;
+    if(flags & TAB_GROWABLE) {
+        tab.n_rows = 0;
+    }
+    else {
+        tab.n_rows = tab.n_max_rows;
+    }
+    return tab;
 }
 
 
-Tab tab_subset(Tab *src, Index row_i, Size n_rows) {
-    ensure_only_in_debug(n_rows >= 0, "tab_subset has illegal n_rows %lu", n_rows);
-    ensure_only_in_debug(0 <= row_i && row_i < src->n_rows, "tab_subset has illegal row_i %lu", row_i);
+Tab tab_by_n_rows(void *base, Size n_rows, Size n_bytes_per_row, Uint64 flags) {
+    return tab_by_size(base, n_rows * n_bytes_per_row, n_bytes_per_row, flags);
+}
+
+
+Tab tab_malloc_by_n_rows(Size n_rows, Size n_bytes_per_row, Uint64 flags) {
+    return tab_malloc_by_size(n_rows * n_bytes_per_row, n_bytes_per_row, flags);
+}
+
+
+Tab tab_by_arr(void *base, Uint64 n_rows, Uint64 n_cols, Uint64 n_bytes_per_elem, Uint64 flags) {
+    Size n_bytes_per_row = n_cols * n_bytes_per_elem;
+    return tab_by_size(base, n_rows * n_bytes_per_row, n_bytes_per_row, flags | TAB_FLAGS_HAS_ELEMS);
+}
+
+
+Tab tab_malloc_by_arr(Uint64 n_rows, Uint64 n_cols, Uint64 n_bytes_per_elem, Uint64 flags) {
+    Size n_bytes_per_row = n_cols * n_bytes_per_elem;
+    return tab_malloc_by_size(n_rows * n_bytes_per_row, n_bytes_per_row, flags | TAB_FLAGS_HAS_ELEMS);
+}
+
+
+void tab_free(Tab *tab) {
+    free(tab->base);
+    tab->base = NULL;
+}
+
+
+Tab _tab_subset(Tab *src, Index row_i, Size n_rows, char *file, int line) {
+    ensure_only_in_debug(n_rows >= 0, "tab_subset @%s:%d has illegal n_rows %lu", file, line, n_rows);
+    ensure_only_in_debug(0 <= row_i && row_i < src->n_rows, "tab_subset @%s:%d has illegal row_i %lu", file, line, row_i);
+    ensure_only_in_debug(0 <= row_i+n_rows && row_i+n_rows <= src->n_rows, "tab_subset @%s:%d has illegal row_i %lu beyond end", file, line, row_i);
 
     Index last_row = row_i + n_rows;
     last_row = last_row < src->n_max_rows ? last_row : src->n_max_rows;
@@ -246,13 +294,19 @@ Tab tab_subset(Tab *src, Index row_i, Size n_rows) {
     tab.n_bytes_per_row = src->n_bytes_per_row;
     tab.n_max_rows = n_rows;
     tab.n_rows = n_rows;
-    tab.b_growable = TAB_NOT_GROWABLE;
+    tab.flags = src->flags & (~TAB_NOT_GROWABLE);
     return tab;
 }
 
 
-void *_tab_get(Tab *tab, Index row_i, char *file, int line) {
+void *_tab_get(Tab *tab, Index row_i, Uint64 flags, char *file, int line) {
     ensure_only_in_debug(0 <= row_i && row_i < tab->n_rows, "tab_get outside bounds @%s:%d requested=%lu n_rows=%lu n_bytes_per_row=%lu", file, line, row_i, tab->n_rows, tab->n_bytes_per_row);
+    ensure_only_in_debug(
+        !(tab->flags & TAB_FLAGS_HAS_ELEMS) || ((tab->flags & TAB_FLAGS_HAS_ELEMS) && (flags & TAB_FLAGS_HAS_ELEMS)),
+        "requesting elems on a non-array tab @%s:%d",
+        file,
+        line
+    );
     return (void *)(tab->base + tab->n_bytes_per_row * row_i);
 }
 
@@ -265,8 +319,19 @@ void _tab_set(Tab *tab, Index row_i, void *src, char *file, int line) {
 }
 
 
+void _tab_set_col(Tab *tab, Index row_i, Index col_i, void *src, char *file, int line) {
+    ensure_only_in_debug(0 <= row_i && row_i < tab->n_rows, "tab_set outside rouw bounds @%s:%d row_i=%lu n_rows=%lu n_bytes_per_row=%lu", file, line, row_i, tab->n_rows, tab->n_bytes_per_row);
+    ensure_only_in_debug(0 <= col_i && col_i < tab->n_cols, "tab_set outside col bounds @%s:%d col_i=%lu n_cols=%lu", file, line, col_i, tab->n_cols);
+    ensure_only_in_debug(tab->n_bytes_per_elem > 0, "tab_set_col outside on non-column tab @%s:%d", file, line);
+    ensure_only_in_debug(tab->n_cols > 0, "tab_set_col outside on non-column tab @%s:%d", file, line);
+    if(src != (void *)0) {
+        memcpy(tab->base + tab->n_bytes_per_row * row_i + col_i * tab->n_bytes_per_elem, src, tab->n_bytes_per_elem);
+    }
+}
+
+
 Index _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file, int line) {
-    ensure_only_in_debug(tab->b_growable, "Attempting to grow to a un-growable table @%s:%d", file, line);
+    ensure_only_in_debug(tab->flags & TAB_GROWABLE, "Attempting to grow to a un-growable table @%s:%d", file, line);
     if(lock) pthread_mutex_lock(lock);
     Index row_i = tab->n_rows;
     tab->n_rows ++;
@@ -287,13 +352,14 @@ void _tab_validate(Tab *tab, void *ptr, char *file, int line) {
     );
 }
 
+
 void tab_dump(Tab *tab, char *msg) {
     printf("table %s:\n", msg);
     printf("  base=%p\n", tab->base);
     printf("  n_bytes_per_row=%ld\n", tab->n_bytes_per_row);
     printf("  n_max_rows=%ld\n", tab->n_max_rows);
     printf("  n_rows=%ld\n", tab->n_rows);
-    printf("  b_growable=%d\n", tab->b_growable);
+    printf("  flags=%lx\n", tab->flags);
 }
 
 
@@ -372,16 +438,10 @@ int sanity_check() {
     ensure(sizeof(Float32) == 4, "Wrong size: Float32");
     ensure(sizeof(Float64) == 8, "Wrong size: Float64");
 
-    if(UINT64_MAX != 0xFFFFFFFFFFFFFFFFULL) {
-        printf("Failed sanity check: UINT64_MAX\n");
-        return 1;
-    }
+    ensure(UINT64_MAX == 0xFFFFFFFFFFFFFFFFULL, "Failed sanity check: UINT64_MAX");
 
-    if(N_MAX_CYCLES != 64) {
-        // This is particularly annoying. See csim.pxd for explanation
-        printf("Failed sanity check: N_MAX_CYCLES\n");
-        return 8;
-    }
+    // This is particularly annoying. See csim.pxd for explanation
+    ensure(N_MAX_CYCLES == 64, "Failed sanity check: N_MAX_CYCLES");
 
     return 0;
 }

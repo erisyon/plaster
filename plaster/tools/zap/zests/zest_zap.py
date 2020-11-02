@@ -275,7 +275,7 @@ def zest_zap_array():
 def zest_make_batch_slices():
     def it_solves_for_batch_size_by_scaling_the_cpu_count():
         with zest.mock(zap._cpu_count, returns=2):
-            sl = zap._make_batch_slices(_batch_size=None, n_rows=32, _limit_slice=None)
+            sl = zap.make_batch_slices(_batch_size=None, n_rows=32, _limit_slice=None)
             assert sl == [
                 (0, 3),
                 (3, 6),
@@ -292,33 +292,33 @@ def zest_make_batch_slices():
 
     def it_solves_for_batch_size_by_scaling_the_cpu_count_and_clamps():
         with zest.mock(zap._cpu_count, returns=2):
-            sl = zap._make_batch_slices(_batch_size=None, n_rows=6, _limit_slice=None)
+            sl = zap.make_batch_slices(_batch_size=None, n_rows=6, _limit_slice=None)
             assert sl == [(0, 2), (2, 4), (4, 6)]
 
     def it_uses_batch_size():
         with zest.mock(zap._cpu_count) as m:
-            sl = zap._make_batch_slices(_batch_size=2, n_rows=6, _limit_slice=None)
+            sl = zap.make_batch_slices(_batch_size=2, n_rows=6, _limit_slice=None)
             assert sl == [(0, 2), (2, 4), (4, 6)]
         assert not m.called()
 
     def it_handles_odd():
-        sl = zap._make_batch_slices(_batch_size=5, n_rows=6, _limit_slice=None)
+        sl = zap.make_batch_slices(_batch_size=5, n_rows=6, _limit_slice=None)
         assert sl == [(0, 5), (5, 6)]
 
     def it_handles_one_large_batch():
-        sl = zap._make_batch_slices(_batch_size=10, n_rows=6, _limit_slice=None)
+        sl = zap.make_batch_slices(_batch_size=10, n_rows=6, _limit_slice=None)
         assert sl == [(0, 6)]
 
     def it_handles_zero_rows():
-        sl = zap._make_batch_slices(_batch_size=10, n_rows=0, _limit_slice=None)
+        sl = zap.make_batch_slices(_batch_size=10, n_rows=0, _limit_slice=None)
         assert sl == []
 
     def it_raises_on_illegal_batch_size():
         with zest.raises(ValueError):
-            zap._make_batch_slices(_batch_size=-5, n_rows=10, _limit_slice=None)
+            zap.make_batch_slices(_batch_size=-5, n_rows=10, _limit_slice=None)
 
     def it_limits_from_start():
-        sl = zap._make_batch_slices(_batch_size=2, n_rows=6, _limit_slice=slice(2, 6))
+        sl = zap.make_batch_slices(_batch_size=2, n_rows=6, _limit_slice=slice(2, 6))
         assert sl == [
             (2, 4),
             (4, 6),

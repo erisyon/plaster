@@ -30,11 +30,12 @@ class SigprocV2Params(Params):
         skip_regional_balance=False,
         run_fitter=False,
         run_peak_differencing=False,
+        save_full_signal_radmat_npy=False,
     )
 
     schema = s(
         s.is_kws_r(
-            calibration_file=s.is_str(),
+            calibration_file=s.is_str(noneable=True),
             mode=s.is_str(options=common.SIGPROC_V2_MODES),
             divs=s.is_int(),
             peak_mea=s.is_int(),
@@ -47,6 +48,7 @@ class SigprocV2Params(Params):
             skip_regional_balance=s.is_bool(),
             run_fitter=s.is_bool(),
             run_peak_differencing=s.is_bool(),
+            save_full_signal_radmat_npy=s.is_bool(),
         )
     )
 

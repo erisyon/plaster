@@ -7,11 +7,11 @@ There are three kinds:
         p_detach: The probability that a molecule detaches from the surface; creates a sudden zero of signal
 
     * Dye related:
-        gain: The brightness per dye in arbitrary camera units
-        vpd: The extra variance that each dye induces
-
-        beta: This is the older name for the gain parameter, now deprecated
-        sigma: This is the older name for the variance parameter when it was in Log-Normal units, now deprecated
+        beta: This is the mean of the log-normal
+        sigma: This is std of a log-normal intensity in log space.
+            ie intensity = norm(mu=np.log(beta * dye_count), sigma=sigma)
+        zero_beta: This is the mean of the zero-count (dark)
+        zero_sigma: This is the std of the zero-count intensities
 
         p_bleach_per_cycle: The probability that an individual dye bleaches
         p_non_fluorescent: The probability that an individual dye is dud.
@@ -26,12 +26,45 @@ There are three kinds:
 """
 
 from munch import Munch
+from dataclasses import dataclass
+from typing import List
 from plaster.tools.schema.schema import Schema as s, Params
+
+
+@dataclass
+class ChGainModel:
+    beta: float
+    sigma: float
+    zero_beta: float
+    zero_sigma: float
+
+
+@dataclass
+class GainModel:
+    row_k_beta: float
+    row_k_sigma: float
+    channels: List[ChGainModel]
+
+    @property
+    def n_channels(self):
+        return len(self.channels)
+
+    @classmethod
+    def test_fixture(cls):
+        return GainModel(
+            row_k_beta=1.0,
+            row_k_sigma=0.0,
+            channels=[
+                ChGainModel(beta=7000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0)
+            ],
+        )
 
 
 class ErrorModel(Params):
     schema = s(
         s.is_kws_r(
+            row_k_beta=s.is_float(),
+            row_k_sigma=s.is_float(),
             p_dud=s.is_deprecated(),
             p_edman_failure=s.is_float(bounds=(0, 1)),
             p_detach=s.is_float(bounds=(0, 1)),
@@ -40,11 +73,10 @@ class ErrorModel(Params):
                     dye_name=s.is_str(),
                     p_bleach_per_cycle=s.is_float(bounds=(0, 1)),
                     p_non_fluorescent=s.is_float(bounds=(0, 1)),
-                    # gain and vpd are the new parameters and beta, sigma are the legacy
-                    gain=s.is_float(required=False, bounds=(0, None)),
-                    vpd=s.is_float(required=False, bounds=(0, None)),
                     beta=s.is_float(required=False, bounds=(0, None)),
                     sigma=s.is_float(required=False, bounds=(0, None)),
+                    zero_beta=s.is_float(required=False),
+                    zero_sigma=s.is_float(required=False, bounds=(0, None)),
                 )
             ),
             labels=s.is_list(
@@ -57,7 +89,24 @@ class ErrorModel(Params):
         )
     )
 
-    defaults = Munch(p_edman_failure=0.06, p_detach=0.05, dyes=[], labels=[])
+    defaults = Munch(
+        row_k_beta=1.0, row_k_sigma=0.0, p_edman_failure=0.06, p_detach=0.05, dyes=[], labels=[]
+    )
+
+    def to_gain_model(self):
+        return GainModel(
+            row_k_beta=self.row_k_beta,
+            row_k_sigma=self.row_k_sigma,
+            channels=[
+                ChGainModel(
+                    beta=dye.beta,
+                    sigma=dye.sigma,
+                    zero_beta=dye.zero_beta,
+                    zero_sigma=dye.zero_sigma,
+                )
+                for dye in self.dyes
+            ],
+        )
 
     def __init__(self, **kwargs):
         dyes = kwargs["dyes"] = kwargs.pop("dyes", [])
@@ -84,8 +133,8 @@ class ErrorModel(Params):
     def no_errors(cls, n_channels, **kwargs):
         beta = kwargs.pop("beta", 7500.0)
         sigma = kwargs.pop("sigma", 0.0)
-        gain = kwargs.pop("gain", 10.0)
-        vpd = kwargs.pop("vpd", 0.1)
+        zero_beta = kwargs.pop("zero_beta", 0.0)
+        zero_sigma = kwargs.pop("zero_sigma", 0.0)
         p_bleach = kwargs.pop("p_bleach", 0.0)
         p_non_fluorescent = kwargs.pop("p_non_fluorescent", 0.0)
         return cls(
@@ -98,8 +147,8 @@ class ErrorModel(Params):
                     p_non_fluorescent=p_non_fluorescent,
                     sigma=sigma,
                     beta=beta,
-                    gain=gain,
-                    vpd=vpd,
+                    zero_beta=zero_beta,
+                    zero_sigma=zero_sigma,
                 )
                 for ch in range(n_channels)
             ],
@@ -128,15 +177,15 @@ class ErrorModel(Params):
                     p_non_fluorescent=p_non_fluorescent,
                     sigma=dye_sigma,
                     beta=dye_beta,
-                    gain=dye_gain,
-                    vpd=dye_vpd,
+                    zero_beta=dye_zero_beta,
+                    zero_sigma=dye_zero_sigma,
                 )
-                for ch, dye_beta, dye_sigma, dye_gain, dye_vpd, p_bleach_per_cycle, p_non_fluorescent in zip(
+                for ch, dye_beta, dye_sigma, dye_zero_beta, dye_zero_sigma, p_bleach_per_cycle, p_non_fluorescent in zip(
                     range(n_channels),
                     err_set.dye_beta,
                     err_set.dye_sigma,
-                    err_set.dye_gain,
-                    err_set.dye_vpd,
+                    err_set.zero_beta,
+                    err_set.zero_sigma,
                     err_set.p_bleach_per_cycle,
                     err_set.p_non_fluorescent,
                 )
@@ -164,8 +213,8 @@ class ErrorModel(Params):
                     p_non_fluorescent=0.07,
                     sigma=0.16,
                     beta=7500.0,
-                    gain=7500.0,
-                    vpd=0.10,
+                    zero_beta=300.0,
+                    zero_sigma=700.0,
                 )
                 for ch in range(n_channels)
             ],

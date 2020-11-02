@@ -32,7 +32,9 @@ class SigprocV2Task(PipelineTask):
             sigproc_v2_result = worker.sigproc_analyze(
                 sigproc_v2_params, ims_import_result, self.progress
             )
-            sigproc_v2_result.save()
+            sigproc_v2_result.save(
+                save_full_signal_radmat_npy=sigproc_v2_params.save_full_signal_radmat_npy
+            )
 
         else:
             raise ValueError("Unknown sigproc_v2 mode")

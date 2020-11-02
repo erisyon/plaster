@@ -11,21 +11,14 @@ class NNV2Result(BaseResult):
     required_props = dict(
         params=NNV2Params,
         test_pred_pep_iz=np.ndarray,
-        test_pred_dye_iz=np.ndarray,
+        test_pred_dyt_iz=np.ndarray,
         test_scores=np.ndarray,
         test_true_pep_iz=(type(None), np.ndarray),
         test_peps_pr=(type(None), pd.DataFrame),
         test_peps_pr_abund=(type(None), pd.DataFrame),
         sigproc_pred_pep_iz=(type(None), np.ndarray),
         sigproc_scores=(type(None), np.ndarray),
-        sigproc_pred_dye_i=(type(None), np.ndarray),
-        # Things in nn_v1_result
-        # test_dt_mat=np.ndarray,
-        # test_dyetracks_df=pd.DataFrame,
-        # test_dt_pep_sources_df=pd.DataFrame,
-        # test_true_dt_iz=np.ndarray,
-        # test_pred_dt_iz=np.ndarray,
-        # test_dt_scores=np.ndarray,
+        sigproc_pred_dyt_i=(type(None), np.ndarray),
     )
 
     def includes_train_results(self):

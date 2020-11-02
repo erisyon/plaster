@@ -676,7 +676,7 @@ class ZPlots:
             data = kws.pop("source")[data]
 
         else:
-            data = np.nan_to_num(data, copy=True)
+            data = data.copy()
 
         ustack = self._u_stack()
         ustack.update(kws)
@@ -685,6 +685,13 @@ class ZPlots:
         _normalizer = ustack.get("_normalizer", 1.0)
         _step = ustack.get("_step", False)
         _subsample = ustack.get("_subsample")
+        _remove_nan = ustack.get("_remove_nan")
+        
+        if _remove_nan:
+            data = data[~np.isnan(data)]
+        else:
+            data = np.nan_to_num(data)
+
         if _subsample is not None:
             data = subsample(data, _subsample)
 

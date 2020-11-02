@@ -36,21 +36,19 @@ Nomenclature
     p_*:
         The probability of an event
 """
-import math
-
 import numpy as np
-from plaster.run.sim_v2 import sim_v2_params
+from plaster.run.sim_v2.sim_v2_params import RadType
 from plaster.run.sim_v2.fast import sim_v2_fast
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
-from plaster.tools.log.log import debug, prof
 from plaster.tools.schema import check
 from plaster.tools.utils import data
 from plaster.tools.zap.zap import get_cpu_limit
+from plaster.tools.log.log import debug, prof
 
 
-def _rand_lognormals(logs, sigma):
+def _rand_normals(mu, sigma):
     """Mock-point"""
-    return np.random.lognormal(mean=logs, sigma=sigma, size=logs.shape)
+    return np.random.normal(mu, sigma)
 
 
 """
@@ -139,22 +137,50 @@ def _sample_pep_dyemat(dyepep_group, n_samples_per_pep):
 def _radmat_from_sampled_pep_dyemat(
     dyemat, ch_params, n_channels, output_radmat, pep_i
 ):
+    """
+    Generate into output_radmat for every channel for each pep.
+
+    arguments:
+        dyemat: The sampled dyemat. This function's job is to convert each
+            row of this into a row in output_radmat
+        ch_params
+        n_channels
+        output_radmat
+        pep_i
+    """
+
     if dyemat.shape[0] > 0:
         for ch_i in range(n_channels):
-            ch_log_beta = math.log(ch_params[ch_i].beta)
+            ch_beta = ch_params[ch_i].beta
             ch_sigma = ch_params[ch_i].sigma
+            ch_zero_beta = ch_params[ch_i].zero_beta
+            ch_zero_sigma = ch_params[ch_i].zero_sigma
 
-            # dyemat can have zeros, nan these to prevent log(0)
-            # Also, the dyemat is int so this needs to be converted to float
+            # CONVERT dyemat to float and MASK zeros to NAN
             dm_nan = dyemat[:, ch_i, :].astype(float)
-            dm_nan[dm_nan == 0] = np.nan
-            logs = np.log(dm_nan)  # log(nan) == nan
+            dark_mask = dm_nan == 0
 
-            # Remember: log(a) + log(b) == log(a*b)
-            # So we're scaling the dyes by beta and taking the log
-            ch_radiometry = _rand_lognormals(ch_log_beta + logs, ch_sigma)
+            dm_nan[dark_mask] = np.nan
+            logs = np.log(dm_nan * ch_beta)  # Note: log(nan) == nan
 
-            output_radmat[pep_i, :, ch_i, :] = np.nan_to_num(ch_radiometry)
+            ch_radiometry = np.exp(_rand_normals(logs, ch_sigma))
+
+            # FILL-IN the zero-counts with a different distribution
+            # That is, the darks do not follow the same distribution
+            # Note the LACK of the np.exp because we assume that the
+            # darks do no follow a log-normal.
+            # MAKE a new dyemat-like matrix full of the mean of the zero
+            # counts and then mask out all the non-dark areas with nan
+            # Then we merge the dark_radiometry and the ch_radiometry
+            dm_zero_beta = np.full_like(logs, ch_zero_beta)
+            dm_zero_beta[~dark_mask] = np.nan
+            dark_radiometry = _rand_normals(dm_zero_beta, ch_zero_sigma)
+
+            # PASTE in the dark value into the ch_radiometry
+            ch_radiometry = np.where(dark_mask, dark_radiometry, ch_radiometry)
+
+            # STORE
+            output_radmat[pep_i, :, ch_i, :] = ch_radiometry
 
 
 def _radmat_sim(
@@ -198,7 +224,7 @@ def _radmat_sim(
 
     # TODO: Convert to ArrayResult
     output_radmat = np.zeros(
-        (n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=np.float32
+        (n_peps, n_samples_per_pep, n_channels, n_cycles), dtype=RadType
     )
     output_true_dye_iz = np.zeros((n_peps, n_samples_per_pep), dtype=int)
 
@@ -212,8 +238,9 @@ def _radmat_sim(
             sampled_dye_iz = _sample_pep_dyemat(dyepep_group, n_samples_per_pep)
             if sampled_dye_iz.shape[0] > 0:
                 output_true_dye_iz[pep_i, :] = sampled_dye_iz
+
             _radmat_from_sampled_pep_dyemat(
-                dyemat[sampled_dye_iz], ch_params, n_channels, output_radmat, pep_i
+                dyemat[sampled_dye_iz], ch_params, n_channels, output_radmat, pep_i,
             )
 
     output_radmat = output_radmat.reshape(
@@ -248,6 +275,15 @@ def _any_identical_non_zero_rows(a, b):
 
     if a.shape[0] > 0:
         return np.any(a == b)
+
+
+def _radmat_add_per_row_variance(radmat, row_k_sigma):
+    if row_k_sigma is None:
+        return radmat, np.ones((radmat.shape[0],), dtype=RadType)
+    true_ks = np.random.normal(1.0, row_k_sigma, size=(radmat.shape[0],)).astype(
+        RadType
+    )
+    return radmat * true_ks[:, None, None], true_ks
 
 
 def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
@@ -317,8 +353,16 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params.n_cycles,
             progress,
         )
+        train_radmat, train_true_ks = _radmat_add_per_row_variance(
+            train_radmat, sim_v2_params.row_k_sigma
+        )
     else:
-        train_radmat, train_true_pep_iz, train_true_dye_iz = None, None, None
+        train_radmat, train_true_pep_iz, train_true_dye_iz, train_true_ks = (
+            None,
+            None,
+            None,
+            None,
+        )
 
     # Test data
     #   * does not include decoys
@@ -363,6 +407,9 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             sim_v2_params.n_cycles,
             progress,
         )
+        test_radmat, test_true_ks = _radmat_add_per_row_variance(
+            test_radmat, sim_v2_params.error_model.row_k_sigma
+        )
 
         if not sim_v2_params.allow_train_test_to_be_identical:
             # TASK: Add a dyepeps check
@@ -378,14 +425,12 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
                     "Train and test sets are identical. Probably RNG bug.",
                 )
 
-        # if not sim_v2_params.test_includes_dyemat:
-        #     test_dyemat, test_dyepeps_df = None, None
-
         # REMOVE all-zero rows (EXCEPT THE FIRST which is the nul row)
         non_zero_rows = np.argwhere(test_true_pep_iz != 0).flatten()
         test_radmat = test_radmat[non_zero_rows]
         test_true_pep_iz = test_true_pep_iz[non_zero_rows]
         test_true_dye_iz = test_true_dye_iz[non_zero_rows]
+        test_true_ks = test_true_ks[non_zero_rows]
 
     sim_result_v2 = SimV2Result(
         params=sim_v2_params,
@@ -395,10 +440,12 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
         train_true_pep_iz=train_true_pep_iz,
         train_true_dye_iz=train_true_dye_iz,
         train_dyepeps=train_dyepeps,
+        train_true_ks=train_true_ks,
         test_dyemat=test_dyemat,
         test_radmat=test_radmat,
         test_true_pep_iz=test_true_pep_iz,
         test_true_dye_iz=test_true_dye_iz,
+        test_true_ks=test_true_ks,
         _flus=None,
     )
 
