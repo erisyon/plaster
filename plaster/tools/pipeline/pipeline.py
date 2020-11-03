@@ -612,6 +612,14 @@ class Pipeline:
                                             )
                                             task_munch.task.start_time = time.time()
                                             task_munch.task.progress(0, 1, False)
+
+                                            # I've considered putting a "rm *" here because
+                                            # really it should clear any bad results from a
+                                            # previous run but that scares me a little bit
+                                            # because if the logic of changing correct directory
+                                            # failed somehow then there would be a rogue delete
+                                            # For now, I'm just not going to do this.
+
                                             task_munch.task.start()
                                             self._gc()
                                             PipelineState.set_state(

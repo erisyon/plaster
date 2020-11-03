@@ -96,10 +96,16 @@ class NNV2Context(c_common_tools.FixupStructure):
         return pks
 
     @property
-    def sum_log_z_score(self):
-        slzs = self._output[:, 5]
-        slzs[self.bad_pred_mask()] = np.nan
-        return slzs
+    def logp_dyt(self):
+        p = self._output[:, 5]
+        p[self.bad_pred_mask()] = np.nan
+        return p
+
+    @property
+    def logp_k(self):
+        p = self._output[:, 6]
+        p[self.bad_pred_mask()] = np.nan
+        return p
 
     @property
     def against_all_dyetrack_pvals(self):
