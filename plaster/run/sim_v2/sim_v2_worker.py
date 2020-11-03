@@ -37,13 +37,13 @@ Nomenclature
         The probability of an event
 """
 import numpy as np
-from plaster.run.sim_v2.sim_v2_params import RadType
 from plaster.run.sim_v2.fast import sim_v2_fast
+from plaster.run.sim_v2.sim_v2_params import RadType
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
+from plaster.tools.log.log import debug, prof
 from plaster.tools.schema import check
 from plaster.tools.utils import data
 from plaster.tools.zap.zap import get_cpu_limit
-from plaster.tools.log.log import debug, prof
 
 
 def _rand_normals(mu, sigma):
@@ -301,6 +301,7 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
     test_pep_recalls = None
     test_true_pep_iz = None
     test_true_dye_iz = None
+    test_true_ks = None
 
     phase_i = 0
     n_phases = 1

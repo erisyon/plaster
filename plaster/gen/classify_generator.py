@@ -206,7 +206,7 @@ class ClassifyGenerator(BaseGenerator):
                         sigproc_relative_path = f"../sigproc_v1"
 
                     nn_v2_task = task_templates.nn_v2(
-                        sigproc_relative_path=sigproc_relative_path,
+                        sigproc_relative_path=sigproc_relative_path, err_set=err_set
                     )
 
                 if self.nn_v1 or self.rf:

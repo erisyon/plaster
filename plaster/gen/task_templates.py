@@ -9,14 +9,14 @@ Guidelines:
 """
 
 from munch import Munch
-from plaster.run.sigproc_v2 import sigproc_v2_common
-from plaster.run.sim_v2.sim_v2_params import SimV2Params
 from plaster.run.error_model import ErrorModel
+from plaster.run.sigproc_v2 import sigproc_v2_common
 from plaster.run.sim_v1.sim_v1_params import SimV1Params
+from plaster.run.sim_v2.sim_v2_params import SimV2Params
 from plaster.tools.aaseq.aaseq import aa_list_to_str
+from plaster.tools.log.log import debug
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
-from plaster.tools.log.log import debug
 
 
 def erisyon(generator_name="", sample="", run_name="", **kwargs):
@@ -298,12 +298,19 @@ def calib_nn_v1(
     )
 
 
-def nn_v2(sigproc_relative_path, **kws):
+def nn_v2(sigproc_relative_path, err_set, **kws):
     task = Munch(
         nn_v2=Munch(
             version="1.0",
             inputs=Munch(prep="../prep", sim_v2="../sim_v2"),
-            parameters=Munch(**kws),
+            parameters=Munch(
+                beta=err_set.dye_beta[0],  # TODO: multichannel
+                sigma=err_set.dye_sigma[0],  # TODO: multichannel
+                zero_beta=err_set.dye_zero_beta[0],  # TODO: multichannel
+                zero_sigma=err_set.dye_zero_sigma[0],  # TODO: multichannel
+                row_k_std=0.0,  # TODO: this needs to be added as a parameter
+                **kws,
+            ),
         )
     )
 

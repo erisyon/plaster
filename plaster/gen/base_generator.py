@@ -157,6 +157,8 @@ class BaseGenerator(Munch):
             err_p_detach=s.is_list(elems=s.is_str(help="See Main Help")),
             err_dye_beta=s.is_list(elems=s.is_str(help="See Main Help")),
             err_dye_sigma=s.is_list(elems=s.is_str(help="See Main Help")),
+            err_dye_zero_beta=s.is_list(elems=s.is_str(help="See Main Help")),
+            err_dye_zero_sigma=s.is_list(elems=s.is_str(help="See Main Help")),
             err_p_bleach_per_cycle=s.is_list(elems=s.is_str(help="See Main Help")),
             err_p_non_fluorescent=s.is_list(elems=s.is_str(help="See Main Help")),
         )
@@ -480,7 +482,7 @@ class BaseGenerator(Munch):
                 p_detach=[self.error_model_defaults.err_p_detach] * 1,
                 dye_beta=[self.error_model_defaults.err_dye_beta] * n_channels,
                 dye_sigma=[self.error_model_defaults.err_dye_sigma] * n_channels,
-                dye_zero_mean=[self.error_model_defaults.err_dye_zero_beta]
+                dye_zero_beta=[self.error_model_defaults.err_dye_zero_beta]
                 * n_channels,
                 dye_zero_sigma=[self.error_model_defaults.err_dye_zero_sigma]
                 * n_channels,
