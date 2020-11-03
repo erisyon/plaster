@@ -134,7 +134,15 @@ class NNV2Context(c_common_tools.FixupStructure):
         )
 
         df["radrow_i"] = np.arange(len(df))
+        df = df.sort_values("radrow_i")
+
         return df
+
+    def filter_df(self, df, remove_nul_pred=False):
+        mask = np.ones((len(df),), dtype=bool)
+        if remove_nul_pred:
+            mask &= df.dyt_i != 0
+        return df[mask], mask
 
 
 _lib = None
