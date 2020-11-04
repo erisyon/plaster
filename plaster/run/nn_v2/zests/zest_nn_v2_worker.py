@@ -15,39 +15,54 @@ from plaster.tools.log.log import debug
 
 
 def zest_nn_v2_worker():
+    sim_v2_result, nn_v2_params = None, None, None
+
     prep_result = prep_fixtures.result_random_fixture(2)
 
-    sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result, labels="DE")
+    def _run(labels="DE", sigproc_result=None):
+        nonlocal sim_v2_result, nn_v2_params
 
-    # Flip just to convince myself that it is working
-    # (ie they aren't accidentally in the right order)
-    sim_v2_result.test_radmat = np.flip(sim_v2_result.test_radmat, axis=0).copy()
-    sim_v2_result.test_true_pep_iz = np.flip(
-        sim_v2_result.test_true_pep_iz, axis=0
-    ).copy()
-    import pudb
+        sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(
+            prep_result, labels=labels
+        )
 
-    pudb.set_trace()
-    sim_v2_result.test_true_dye_iz = np.flip(
-        sim_v2_result.test_true_dye_iz, axis=0
-    ).copy()
+        # Flip just to convince myself that it is working
+        # (ie they aren't accidentally in the right order)
+        sim_v2_result.test_radmat = np.flip(sim_v2_result.test_radmat, axis=0).copy()
+        sim_v2_result.test_true_pep_iz = np.flip(
+            sim_v2_result.test_true_pep_iz, axis=0
+        ).copy()
 
-    nn_v2_params = NNV2Params(
-        n_neighbors=4,
-        beta=5000.0,
-        sigma=0.20,
-        zero_beta=0.0,
-        zero_sigma=200.0,
-        row_k_sigma=0.0,
-    )
+        sim_v2_result.test_true_dye_iz = np.flip(
+            sim_v2_result.test_true_dye_iz, axis=0
+        ).copy()
+
+        nn_v2_params = NNV2Params(
+            n_neighbors=4,
+            beta=5000.0,
+            sigma=0.20,
+            zero_beta=0.0,
+            zero_sigma=200.0,
+            row_k_sigma=0.0,
+        )
+
+        nn_v2_result = nn_v2(
+            nn_v2_params, prep_result, sim_v2_result, sigproc_result=sigproc_result
+        )
+
+        return nn_v2_result
+
+    def it_runs_single_channel():
+        nn_v2_result = _run(labels="DE")
+        raise NotImplementedError
+
+    def it_runs_multi_channel():
+        nn_v2_result = _run(labels="DE,C")
+        raise NotImplementedError
 
     def run_without_sigproc():
-        nn_v2_result = nn_v2(
-            nn_v2_params, prep_result, sim_v2_result, sigproc_result=None
-        )
-        import pudb
+        nn_v2_result = _run(sigproc_result=None)
 
-        pudb.set_trace()
         a = (
             sim_v2_result.test_true_dye_iz == nn_v2_result._test_calls.dyt_i.values
         ).sum()
@@ -70,12 +85,12 @@ def zest_nn_v2_worker():
 
         zest()
 
-    @zest.skip(reason="Need to deal with sigproc v2 calibration fixtures")
     def it_runs_with_sigproc():
+        raise NotImplementedError
+        # TODO Need to deal with sigproc v2 calibration fixtures
+
         sigproc_result = simple_sigproc_v2_result_fixture(prep_result)
-        nn_v2_result = nn_v2(
-            nn_v2_params, prep_result, sim_v2_result, sigproc_result=sigproc_result
-        )
+        nn_v2_result = _run(labels="DE", sigproc_result=sigproc_result)
 
     zest()
 

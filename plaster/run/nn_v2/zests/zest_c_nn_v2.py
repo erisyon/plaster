@@ -11,6 +11,10 @@ def zest_c_nn_v2():
     dyemat, dyepeps, gain_model, radmat, true_dyt_iz, true_ks, n_samples = (None,) * 7
 
     def _test(n_neighbors=4, run_against_all_dyetracks=False, run_row_k_fit=True):
+        nonlocal dyemat, dyepeps, gain_model, radmat, true_dyt_iz, true_ks, n_samples
+        radmat, true_dyt_iz, true_ks = synthetic_radmat_from_dyemat(
+            dyemat, gain_model, n_samples=n_samples
+        )
         with c_nn_v2.context(
             dyemat,
             dyepeps,
@@ -48,9 +52,6 @@ def zest_c_nn_v2():
 
         gain_model = GainModel.test_fixture()
         n_samples = 5
-        radmat, true_dyt_iz, true_ks = synthetic_radmat_from_dyemat(
-            dyemat, gain_model, n_samples=n_samples
-        )
 
     def it_catches_non_sequential_dyt_iz_in_dyepeps():
         nonlocal dyepeps
@@ -66,10 +67,12 @@ def zest_c_nn_v2():
         ):
             _test()
 
-    # TODO: Add a retry on assert because it can be wrong
     def it_classifies():
-        nn_v2_context = _test()
-        assert np.all(true_dyt_iz == nn_v2_context.pred_dyt_iz)
+        n_same = 0
+        for tries in range(7):
+            nn_v2_context = _test()
+            n_same += np.all(true_dyt_iz == nn_v2_context.pred_dyt_iz)
+        assert n_same >= 2
 
     def it_fits_k():
         nonlocal radmat, true_dyt_iz, true_ks, gain_model
@@ -89,7 +92,9 @@ def zest_c_nn_v2():
         # ie: true_ks = np.random.normal(1.0, 0.5, true_ks.shape[0])
         # that random true_ks generated correlations of: -0.0004, -0.001, -0.002 off diagonal
         # and that when there was a correlation it gave value like: 0.05, 0.04, 0.04
-        cov = np.cov(true_ks, nn_v2_context.pred_ks)
+        debug(true_ks, nn_v2_context.pred_ks)
+        cov = np.nancov(true_ks, nn_v2_context.pred_ks)
+        debug(cov)
         assert cov[1, 1] > 0.03
 
     def it_compares_to_all_dyetracks_without_row_fit():
