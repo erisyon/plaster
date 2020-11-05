@@ -299,3 +299,38 @@ def css_for_markdown():
         """
         )
     )
+
+
+def movie(ims, _cspan=None, _cper=None, _size=None, _labels=None, duration=250):
+    from IPython.core.display import display, HTML  # Defer slow imports
+    from PIL import Image, ImageFont, ImageDraw
+    import random
+
+    if _cspan is not None:
+        bot, top = _cspan
+    elif _cper is not None:
+        bot, top = np.percentile(ims, _cper)
+    else:
+        bot, top = 0.0, np.percentile(ims, 99.99)
+
+    if _size is None:
+        _size = ims.shape[-1]
+
+    # For now using the "better than nothing" font
+    # I would need to copy a ttf font over to a directory
+    # in our tree to be able to use it on a remote machine
+    font = ImageFont.load_default()
+
+    pil_ims = []
+    for i, im in enumerate(ims):
+        _im = np.clip(255 * (im-bot) / (top-bot), a_min=0, a_max=255)
+        _im = Image.fromarray( _im.astype(np.uint8))
+        draw = ImageDraw.Draw(_im)
+        if _labels is not None:
+            draw.text((6, 11), _labels[i], fill="black", font=font)
+            draw.text((5, 10), _labels[i], fill="white", font=font)
+
+        pil_ims += [_im]
+
+    pil_ims[0].save(fp="./__image.gif", format="GIF", append_images=pil_ims, save_all=True, duration=duration, loop=0)
+    display(HTML(f'<img src="./__image.gif?{random.randint(0,2e9)}" width="{_size}">'))
