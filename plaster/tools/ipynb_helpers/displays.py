@@ -332,5 +332,6 @@ def movie(ims, _cspan=None, _cper=None, _size=None, _labels=None, duration=250):
 
         pil_ims += [_im]
 
-    pil_ims[0].save(fp="./__image.gif", format="GIF", append_images=pil_ims, save_all=True, duration=duration, loop=0)
-    display(HTML(f'<img src="./__image.gif?{random.randint(0,2e9)}" width="{_size}">'))
+    code = random.randint(0,2e9)
+    pil_ims[0].save(fp=f"./__image_{code}.gif", format="GIF", append_images=pil_ims, save_all=True, duration=duration, loop=0)
+    display(HTML(f'<img src="./__image_{code}.gif?{code}" width="{_size}">'))
