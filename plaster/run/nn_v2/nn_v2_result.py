@@ -32,6 +32,8 @@ class NNV2Result(BaseResult):
         _test_all=(type(None), pd.DataFrame),
         _train_all=(type(None), pd.DataFrame),
         _sigproc_all=(type(None), pd.DataFrame),
+        test_peps_pr=(type(None), pd.DataFrame),
+        test_peps_pr_abund=(type(None), pd.DataFrame),
     )
 
     def includes_train_results(self):
