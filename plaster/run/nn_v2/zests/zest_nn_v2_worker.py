@@ -16,13 +16,9 @@ from plaster.tools.log.log import debug
 
 
 def zest_nn_v2_worker():
-    sim_v2_result, nn_v2_params = None, None
-
     prep_result = prep_fixtures.result_random_fixture(2)
 
     def _run(labels="DE", sigproc_result=None, _prep_result=prep_result):
-        nonlocal sim_v2_result, nn_v2_params
-
         sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(
             _prep_result, labels=labels
         )
@@ -45,11 +41,11 @@ def zest_nn_v2_worker():
             nn_v2_params, _prep_result, sim_v2_result, sigproc_result=sigproc_result
         )
 
-        return nn_v2_result
+        return nn_v2_result, sim_v2_result
 
     def it_runs_single_channel():
         for tries in range(3):
-            nn_v2_result = _run(labels="DE")
+            nn_v2_result, sim_v2_result = _run(labels="DE")
             trues = sim_v2_result.test_true_pep_iz
             n_right = (nn_v2_result.calls().pep_i == trues).sum()
             n_total = trues.shape[0]
@@ -60,7 +56,7 @@ def zest_nn_v2_worker():
 
     def it_runs_multi_channel():
         prep_result = prep_fixtures.result_random_fixture(10)
-        nn_v2_result = _run(labels="DE,ABC", _prep_result=prep_result)
+        nn_v2_result, sim_v2_result = _run(labels="DE,ABC", _prep_result=prep_result)
         trues = sim_v2_result.test_true_pep_iz
         n_right = (nn_v2_result.calls().pep_i == trues).sum()
         n_total = trues.shape[0]
@@ -68,7 +64,7 @@ def zest_nn_v2_worker():
 
     @zest.skip(reason="WIP")
     def run_without_sigproc():
-        nn_v2_result = _run(sigproc_result=None)
+        nn_v2_result, sim_v2_result = _run(sigproc_result=None)
 
         a = (
             sim_v2_result.test_true_dye_iz == nn_v2_result._test_calls.dyt_i.values
@@ -98,7 +94,7 @@ def zest_nn_v2_worker():
         # TODO Need to deal with sigproc v2 calibration fixtures
 
         sigproc_result = simple_sigproc_v2_result_fixture(prep_result)
-        nn_v2_result = _run(labels="DE", sigproc_result=sigproc_result)
+        nn_v2_result, sim_v2_result = _run(labels="DE", sigproc_result=sigproc_result)
 
     zest()
 
