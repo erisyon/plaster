@@ -824,7 +824,16 @@ def repl_vec_over_cols(vec, n_cols):
         raise TypeError("repl_vec_over_cols only works on 1 or 2 dimensional vectors")
 
 
-def load(file_path):
+def load(file_path, return_on_non_existing=None):
+    """
+    Load a file. If return_on_non_existing is not None then
+    if the file doesn't exist it returns that value otherwise
+    it will exception as typical of open()
+    """
+    if return_on_non_existing is not None:
+        if not local.path(file_path).exists():
+            return return_on_non_existing
+
     with open(file_path) as f:
         return f.read()
 
@@ -898,6 +907,41 @@ def out_of_date(source_path, target_path):
         return source_time > target_time
     else:
         return True
+
+
+def any_out_of_date(parents, children):
+    """
+    Check if parents are dirty compared to children
+
+    args:
+        parents: a list or singleton of paths.
+            If the path is a dir, all of the files (recursively) in the dir will be used
+        children: a list or singleton of paths.
+            If the path is a dir, all of the files (recursively) in the dir will be used
+
+    return:
+        out_of_date_boolean: True if the youngest file in parents is younger than the oldest file in the children
+    """
+
+    def _timestamps_from_paths(paths):
+        return [
+            (local.path(path).stat().st_mtime if local.path(path).exists() else 0)
+            for path in paths
+        ]
+
+    parent_times = _timestamps_from_paths(parents)
+    child_times = _timestamps_from_paths(children)
+
+    if len(parent_times) == 0:
+        return False  # There are no parents thus children are up to date
+
+    if len(child_times) == 0:
+        return True  # There are no children thus NOT up to date
+
+    if max(parent_times) > max(child_times):
+        return True  # Some child is older than some parent, thus out of date
+
+    return False  # Children are up to date
 
 
 def myself():

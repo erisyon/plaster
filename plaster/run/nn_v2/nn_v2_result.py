@@ -72,6 +72,8 @@ class NNV2Result(BaseResult):
             if score_range[1] is not None:
                 mask &= df.score <= score_range[1]
 
+        return mask
+
     def calls(self, dataset="test", **kwargs):
         """
         Returns a "call" dataframe with optional filter conditions.

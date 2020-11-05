@@ -140,6 +140,11 @@ char *context_init(NNV2Context *ctx) {
 
     check_and_return(ctx->n_neighbors <= ctx->train_fdyemat.n_rows, "Requesting more neighbors than training rows");
 
+    check_and_return(
+        ctx->row_k_sigma > 0.0 || ! ctx->use_row_k_p_val,
+        "row_k_sigma was not set to a reasonable value"
+    );
+
     // Scale fdyemat up by beta
     Float64 beta = ctx->beta;
     Size n_elems = ctx->train_fdyemat.n_rows * ctx->train_fdyemat.n_cols;

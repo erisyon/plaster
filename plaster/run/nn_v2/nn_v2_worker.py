@@ -21,7 +21,7 @@ def nn_v2(
             radmat=radmat,
             train_dyemat=sim_v2_result.flat_train_dyemat(),
             train_dyepeps=sim_v2_result.train_dyepeps,
-            gain_model=sim_v2_result.params.to_error_model().to_gain_model(),
+            gain_model=nn_v2_params.gain_model,
             n_neighbors=nn_v2_params.n_neighbors,
             run_row_k_fit=nn_v2_params.run_row_k_fit,
             run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,

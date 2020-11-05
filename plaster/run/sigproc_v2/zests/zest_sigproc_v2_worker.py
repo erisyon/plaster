@@ -721,6 +721,7 @@ def zest_analyze_step_6_radiometry():
         raise NotImplementedError
 
 
+@zest.skip(reason="WIP")
 def zest_gaussian_fitter():
     def it_runs_fitter():
         raise NotImplementedError
