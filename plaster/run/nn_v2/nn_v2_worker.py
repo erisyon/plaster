@@ -79,7 +79,7 @@ def nn_v2(
 
     # RUN NN on train set if requested
     # -----------------------------------------------------------------------
-    train_context = None
+    train_df = None
     if nn_v2_params.include_training_set:
         train_radmat = sim_v2_result.flat_tr_radmat().astype(RadType)
 
@@ -88,6 +88,10 @@ def nn_v2(
             phase_i += 1
 
         train_context = _run(train_radmat)
+
+        train_df = train_context.to_dataframe()
+        train_df["true_pep_iz"] = sim_v2_result.train_true_pep_iz
+        train_df["true_dyt_iz"] = sim_v2_result.train_true_dye_iz
 
     # RUN NN on sigproc_result if available
     # -----------------------------------------------------------------------
@@ -101,10 +105,14 @@ def nn_v2(
 
         sigproc_context = _run(sigproc_radmat)
 
+    test_df = test_context.to_dataframe()
+    test_df["true_pep_iz"] = sim_v2_result.test_true_pep_iz
+    test_df["true_dyt_iz"] = sim_v2_result.test_true_dye_iz
+
     return NNV2Result(
         params=nn_v2_params,
-        _test_calls=test_context.to_dataframe(),
-        _train_calls=(None if train_context is None else train_context.to_dataframe()),
+        _test_calls=test_df,
+        _train_calls=train_df,
         _sigproc_calls=(
             None if sigproc_context is None else sigproc_context.to_dataframe()
         ),

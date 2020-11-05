@@ -570,9 +570,6 @@ def yaml_load_munch(path):
 
 
 def yaml_save(path, dict_or_list):
-    import pudb
-
-    pudb.set_trace()
     with open(local.path(path), "w", encoding="utf8") as f:
         yaml.dump(
             dict_or_list, f, Dumper=SubclassDumper, width=60, default_flow_style=False

@@ -82,7 +82,7 @@ class NNV2Result(BaseResult):
         Example:
             df = nn_v2_result.df(k_range=(0.5, 1.5))
         """
-        df = self[f"_{dataset}_calls"]
+        df = getattr(self, f"_{dataset}_calls")
         mask = self.filter(df, **kwargs)
         return df[mask]
 
@@ -91,6 +91,6 @@ class NNV2Result(BaseResult):
         Like "calls" but for the "all" set. Only available when the classifier
         was run with the "against_all_dyetracks_output" True.
         """
-        df = self[f"_{dataset}_all"]
+        df = getattr(self, f"_{dataset}_all")
         mask = self.filter(df, **kwargs)
         return df[mask]
