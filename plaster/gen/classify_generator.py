@@ -53,7 +53,7 @@ class ClassifyGenerator(BaseGenerator):
         n_samples_test=1_000,
         decoys="none",
         random_seed=None,
-        nn_v1=False,
+        nnF_v1=False,
         nn_v2=True,
         rf=False,
         sigproc_source=None,

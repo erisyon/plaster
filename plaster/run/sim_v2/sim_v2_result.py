@@ -4,12 +4,14 @@ from plaster.run.base_result import ArrayResult, BaseResult
 from plaster.run.sim_v2.sim_v2_params import SimV2Params
 from plaster.tools.utils import utils
 
+# TODO: Move to a separate common module
 DyeType = np.uint8
 DyeWeightType = np.float32
 RadType = np.float32
 IndexType = np.uint32
 RecallType = np.float32
 ScoreType = np.float32
+RowKType = np.float32
 
 
 class SimV2Result(BaseResult):
