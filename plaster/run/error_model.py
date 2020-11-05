@@ -53,7 +53,7 @@ class GainModel:
     def test_fixture(cls):
         return GainModel(
             row_k_beta=1.0,
-            row_k_sigma=0.0,
+            row_k_sigma=0.15,
             channels=[
                 ChGainModel(beta=7000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0)
             ],
@@ -90,7 +90,12 @@ class ErrorModel(Params):
     )
 
     defaults = Munch(
-        row_k_beta=1.0, row_k_sigma=0.0, p_edman_failure=0.06, p_detach=0.05, dyes=[], labels=[]
+        row_k_beta=1.0,
+        row_k_sigma=0.15,
+        p_edman_failure=0.06,
+        p_detach=0.05,
+        dyes=[],
+        labels=[],
     )
 
     def to_gain_model(self):

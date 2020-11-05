@@ -686,7 +686,7 @@ class ZPlots:
         _step = ustack.get("_step", False)
         _subsample = ustack.get("_subsample")
         _remove_nan = ustack.get("_remove_nan")
-        
+
         if _remove_nan:
             data = data[~np.isnan(data)]
         else:
