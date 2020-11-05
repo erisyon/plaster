@@ -4,10 +4,14 @@ from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.tools.pipeline.pipeline import PipelineTask
 from plaster.run.prep.prep_result import PrepResult
 from plaster.run.sigproc_v1.sigproc_v1_result import SigprocV1Result
+from plaster.run.error_model import GainModel
 
 
 class NNV2Task(PipelineTask):
     def start(self):
+        self.config.parameters["gain_model"] = GainModel(
+            **self.config.parameters["gain_model"]
+        )
         nn_v2_params = NNV2Params(**self.config.parameters)
 
         sigproc_result = None

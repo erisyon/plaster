@@ -18,6 +18,7 @@ import threading
 import time
 import tty
 import warnings
+import dataclasses
 from contextlib import contextmanager
 from functools import wraps
 
@@ -513,18 +514,33 @@ def json_load_munch(path):
     return Munch.fromDict(json_load(path))
 
 
+class JSONDataClassEncoder(json.JSONEncoder):
+    def default(self, o):
+        if dataclasses.is_dataclass(o):
+            return dataclasses.asdict(o)
+        return super().default(o)
+
+
 def json_write(path, **kwargs):
     with open(local.path(path), "w") as f:
-        f.write(json.dumps(Munch(**kwargs), indent=4))
+        f.write(json.dumps(Munch(**kwargs), indent=4, cls=JSONDataClassEncoder))
 
 
 def json_save(path, dict_or_list):
     with open(local.path(path), "w") as f:
-        f.write(json.dumps(dict_or_list, indent=4))
+        f.write(json.dumps(dict_or_list, indent=4, cls=JSONDataClassEncoder))
 
 
 def json_print(dict_or_list):
-    print(json.dumps(dict_or_list, indent=4, sort_keys=True, default=str))
+    print(
+        json.dumps(
+            dict_or_list,
+            indent=4,
+            sort_keys=True,
+            default=str,
+            cls=JSONDataClassEncoder,
+        )
+    )
 
 
 class SubclassDumper(yaml.Dumper):
@@ -533,6 +549,8 @@ class SubclassDumper(yaml.Dumper):
     ignore_aliases = lambda *args: True
 
     def represent_data(self, data):
+        if dataclasses.is_dataclass(data):
+            return self.represent_dict(dataclasses.asdict(data))
         if isinstance(data, dict):
             return self.represent_dict(data)
         if isinstance(data, str):

@@ -53,7 +53,7 @@ class ClassifyGenerator(BaseGenerator):
         n_samples_test=1_000,
         decoys="none",
         random_seed=None,
-        nn_v1=False,
+        nnF_v1=False,
         nn_v2=True,
         rf=False,
         sigproc_source=None,
@@ -206,7 +206,7 @@ class ClassifyGenerator(BaseGenerator):
                         sigproc_relative_path = f"../sigproc_v1"
 
                     nn_v2_task = task_templates.nn_v2(
-                        sigproc_relative_path=sigproc_relative_path,
+                        sigproc_relative_path=sigproc_relative_path, err_set=err_set
                     )
 
                 if self.nn_v1 or self.rf:

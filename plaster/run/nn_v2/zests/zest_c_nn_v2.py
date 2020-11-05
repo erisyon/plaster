@@ -111,7 +111,7 @@ def zest_c_nn_v2():
         # In this mode I expect to get back outputs for every radrow vs every dytrow
 
         assert (true_dyt_iz == nn_v2_context.pred_dyt_iz).sum() >= int(
-            0.9 * true_dyt_iz.shape[0]
+            0.8 * true_dyt_iz.shape[0]
         )
         assert np.all(nn_v2_context.against_all_dyetrack_pred_ks[:, 1:] == 1.0)
         assert nn_v2_context.against_all_dyetrack_pvals.shape == (

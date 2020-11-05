@@ -25,10 +25,13 @@ There are three kinds:
 
 """
 
-from munch import Munch
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import List
-from plaster.tools.schema.schema import Schema as s, Params
+
+from munch import Munch
+from plaster.tools.log.log import debug
+from plaster.tools.schema.schema import Params
+from plaster.tools.schema.schema import Schema as s
 
 
 @dataclass
@@ -58,6 +61,9 @@ class GainModel:
                 ChGainModel(beta=7000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0)
             ],
         )
+
+    def asdict(self):
+        return asdict(self)
 
 
 class ErrorModel(Params):
@@ -172,6 +178,9 @@ class ErrorModel(Params):
     def from_err_set(cls, err_set, **kwargs):
         """err_set is a construct used by the error iterators in pgen"""
         n_channels = len(err_set.p_non_fluorescent)
+        # import pudb
+
+        # pudb.set_trace()
         return cls(
             p_edman_failure=err_set.p_edman_failure[0],
             p_detach=err_set.p_detach[0],
@@ -189,8 +198,8 @@ class ErrorModel(Params):
                     range(n_channels),
                     err_set.dye_beta,
                     err_set.dye_sigma,
-                    err_set.zero_beta,
-                    err_set.zero_sigma,
+                    err_set.dye_zero_beta,
+                    err_set.dye_zero_sigma,
                     err_set.p_bleach_per_cycle,
                     err_set.p_non_fluorescent,
                 )
