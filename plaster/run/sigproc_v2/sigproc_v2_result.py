@@ -16,7 +16,7 @@ from plaster.tools.utils.fancy_indexer import FancyIndexer
 from plaster.run.base_result import BaseResult, disk_memoize
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.tools.calibration.calibration import Calibration
-from plaster.tools.log.log import debug
+from plaster.tools.log.log import debug, prof
 
 
 class SigprocV2Result(BaseResult):
@@ -519,7 +519,7 @@ def df_filter(
     fields=None,
     reject_fields=None,
     roi=None,
-    cycles=None,
+    channel_i=0,
     dark=None,
     on_through_cy_i=None,
     off_at_cy_i=None,
@@ -530,15 +530,33 @@ def df_filter(
     min_intensity_per_cycle=None,
     max_intensity_per_cycle=None,
     max_aspect_ratio=None,
-    radmat_field="signal",
-    **kwargs,
+    min_aspect_ratio=None,
 ):
     """
     A general filtering tool that operates on the dataframe returned by
     sigproc_v2.fields__n_peaks__peaks__radmat()
     """
+    n_channels = df.channel_i.max() + 1
 
-    fields_that_operate_only_on_one_channel = [
+    # REMOVE unwanted fields
+    if fields is None:
+        fields = list(range(df.field_i.max() + 1))
+    if reject_fields is not None:
+        fields = list(filter(lambda x: x not in reject_fields, fields))
+    _df = df[df.field_i.isin(fields)].reset_index(drop=True)
+
+    # REMOVE unwanted peaks by ROI
+    if roi is None:
+        roi = ROI(YX(0, 0), HW(df.raw_y.max(), df.raw_x.max()))
+    _df = _df[
+        (roi[0].start <= _df.raw_y)
+        & (_df.raw_y < roi[0].stop)
+        & (roi[1].start <= _df.raw_x)
+        & (_df.raw_x < roi[1].stop)
+    ].reset_index(drop=True)
+
+    # OPERATE on radmat if needed
+    fields_that_operate_on_radmat = [
         dark,
         on_through_cy_i,
         off_at_cy_i,
@@ -550,127 +568,116 @@ def df_filter(
         max_intensity_per_cycle,
     ]
 
-    if any([field is not None for field in fields_that_operate_only_on_one_channel]):
-        assert df.channel_i.max() == 0
+    if any([field is not None for field in fields_that_operate_on_radmat]):
+        assert 0 <= channel_i < n_channels
 
-    if fields is None:
-        fields = list(range(df.field_i.max() + 1))
-
-    if reject_fields is not None:
-        fields = list(filter(lambda x: x not in reject_fields, fields))
-
-    if roi is None:
-        roi = ROI(YX(0, 0), HW(df.raw_y.max(), df.raw_x.max()))
-    if cycles is None:
-        cycles = list(range(df.cycle_i.max() + 1))
-
-    _df = df[
-        (df.field_i.isin(fields))
-        & (df.cycle_i.isin(cycles))
-        & (roi[0].start <= df.raw_y)
-        & (df.raw_y < roi[0].stop)
-        & (roi[1].start <= df.raw_x)
-        & (df.raw_x < roi[1].stop)
-    ].reset_index(drop=True)
-
-    # radmat = (
-    #     pd.pivot_table(
-    #         _df, values=radmat_field, index=["field_i", "peak_i"], columns=["cycle_i"]
-    #     )
-    #     .reset_index()
-    #     .rename_axis(None, axis=1)
-    #     .drop(columns=["field_i", "peak_i"])
-    # ).values
-    n_channels = df.channel_i.max() + 1
-    n_cycles = df.cycle_i.max() + 1
-    radmat = df_to_radmat(_df, n_channels, n_cycles, radmat_field=radmat_field)
-
-    asr = (
-        pd.pivot_table(
-            _df, values="aspect_ratio", index=["field_i", "peak_i"], columns=["cycle_i"]
+        rad_pt = pd.pivot_table(
+            _df, values="signal", index=["peak_i"], columns=["channel_i", "cycle_i"]
         )
-        .reset_index()
-        .rename_axis(None, axis=1)
-        .drop(columns=["field_i", "peak_i"])
-    ).values
+        ch_rad_pt = rad_pt.loc[:, channel_i]
+        keep_peaks_mask = np.ones((ch_rad_pt.shape[0],), dtype=bool)
 
-    keep_mask = np.ones((radmat.shape[0],), dtype=bool)
-
-    if max_aspect_ratio is not None:
-        sig = (
-            pd.pivot_table(
-                _df, values="signal", index=["field_i", "peak_i"], columns=["cycle_i"]
+        if max_aspect_ratio is not None or min_aspect_ratio is not None:
+            assert dark is not None
+            asr_pt = pd.pivot_table(
+                _df,
+                values="aspect_ratio",
+                index=["peak_i"],
+                columns=["channel_i", "cycle_i"],
             )
+            ch_asr_pt = asr_pt.loc[:, channel_i]
+            if max_aspect_ratio is not None:
+                keep_peaks_mask &= np.all(
+                    (ch_asr_pt <= max_aspect_ratio) | (ch_rad_pt < dark), axis=1
+                )
+            if min_aspect_ratio is not None:
+                keep_peaks_mask &= np.all(
+                    (ch_asr_pt >= min_aspect_ratio) | (ch_rad_pt < dark), axis=1
+                )
+
+        if on_through_cy_i is not None:
+            assert dark is not None
+            keep_peaks_mask &= np.all(
+                ch_rad_pt.loc[:, 0 : on_through_cy_i + 1] > dark, axis=1
+            )
+
+        if off_at_cy_i is not None:
+            assert dark is not None
+            keep_peaks_mask &= np.all(ch_rad_pt.loc[:, off_at_cy_i:] < dark, axis=1)
+
+        if monotonic is not None:
+            d = np.diff(ch_rad_pt.values, axis=1)
+            keep_peaks_mask &= np.all(d < monotonic, axis=1)
+
+        if min_intensity_cy_0 is not None:
+            keep_peaks_mask &= ch_rad_pt.loc[:, 0] >= min_intensity_cy_0
+
+        if max_intensity_cy_0 is not None:
+            keep_peaks_mask &= ch_rad_pt.loc[:, 0] <= max_intensity_cy_0
+
+        if max_intensity_any_cycle is not None:
+            keep_peaks_mask &= np.all(
+                ch_rad_pt.loc[:, :] <= max_intensity_any_cycle, axis=1
+            )
+
+        if min_intensity_per_cycle is not None:
+            for cy_i, inten in enumerate(min_intensity_per_cycle):
+                if inten is not None:
+                    keep_peaks_mask &= ch_rad_pt.loc[:, cy_i] >= inten
+
+        if max_intensity_per_cycle is not None:
+            for cy_i, inten in enumerate(max_intensity_per_cycle):
+                if inten is not None:
+                    keep_peaks_mask &= ch_rad_pt.loc[:, cy_i] <= inten
+
+        keep_peak_i = ch_rad_pt[keep_peaks_mask].index.values
+        keep_df = pd.DataFrame(dict(keep_peak_i=keep_peak_i)).set_index("keep_peak_i")
+        _df = (
+            keep_df.join(df.set_index("peak_i"))
             .reset_index()
-            .rename_axis(None, axis=1)
-            .drop(columns=["field_i", "peak_i"])
-        ).values
-        asr[sig < dark] = np.nan
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            keep_mask &= np.nanmean(asr, axis=1) <= max_aspect_ratio
+            .rename(columns=dict(index="peak_i"))
+        )
 
-    if on_through_cy_i is not None:
-        assert dark is not None
-        keep_mask &= np.all(radmat[:, 0 : on_through_cy_i + 1] > dark, axis=1)
-
-    if off_at_cy_i is not None:
-        assert dark is not None
-        keep_mask &= np.all(radmat[:, off_at_cy_i:] < dark, axis=1)
-
-    if monotonic is not None:
-        d = np.diff(radmat, axis=1)
-        keep_mask &= np.all(d < monotonic, axis=1)
-
-    if min_intensity_cy_0 is not None:
-        keep_mask &= radmat[:, 0] >= min_intensity_cy_0
-
-    if max_intensity_cy_0 is not None:
-        keep_mask &= radmat[:, 0] <= max_intensity_cy_0
-
-    if max_intensity_any_cycle is not None:
-        keep_mask &= np.all(radmat[:, :] <= max_intensity_any_cycle, axis=1)
-
-    if min_intensity_per_cycle is not None:
-        for cy_i, inten in enumerate(min_intensity_per_cycle):
-            if inten is not None:
-                keep_mask &= radmat[:, cy_i] >= inten
-
-    if max_intensity_per_cycle is not None:
-        for cy_i, inten in enumerate(max_intensity_per_cycle):
-            if inten is not None:
-                keep_mask &= radmat[:, cy_i] <= inten
-
-    # Apply the peak mask back into the dataframe
-    peak_iz = np.arange(radmat.shape[0])
-    _df = df[df.peak_i.isin(peak_iz[keep_mask])]
     return _df
 
 
-def df_to_radmat(df, n_channels, n_cycles, radmat_field="signal"):
+def df_to_radmat(df, radmat_field="signal", channel_i=None, n_cycles=None):
     """
-    Convert the dataframe filtered by df_filter into a radmat (n_peaks, n_channels, n_cycles)
+    Convert the dataframe filtered by df_filter into a radmat
     """
-    df["chcy_i"] = df.channel_i * n_cycles + df.cycle_i
-    radmat = (
-        pd.pivot_table(
-            df, values=radmat_field, index=["field_i", "peak_i"], columns=["chcy_i"]
-        )
-        .reset_index()
-        .rename_axis(None, axis=1)
-        .drop(columns=["field_i", "peak_i"])
-        .reindex(np.arange(n_channels * n_cycles), axis=1, fill_value=np.nan)
-    ).values
-    return np.nan_to_num(radmat.reshape(radmat.shape[0], n_channels, n_cycles))
+    if n_cycles is None:
+        n_cycles = df.cycle_i.max() + 1
+
+    if channel_i is None:
+        n_channels = df.channel_i.max() + 1
+    else:
+        n_channels = 1
+
+    radmat = pd.pivot_table(
+        df,
+        values=radmat_field,
+        index=["field_i", "peak_i"],
+        columns=["channel_i", "cycle_i"],
+    )
+    radmat = radmat.values
+    n_rows = radmat.shape[0]
+    radmat = radmat.reshape((n_rows, n_channels, n_cycles))
+    if channel_i is not None:
+        return np.nan_to_num(radmat[:, channel_i, :])
+    else:
+        return np.nan_to_num(radmat)
 
 
-def radmat_from_df_filter(df, radmat_field="signal", **kwargs):
+def radmat_from_df_filter(df, radmat_field="signal", channel_i=None, **kwargs):
     """
     Apply the filter args from df_filter and return a radmat
     """
     n_channels = df.channel_i.max() + 1
     n_cycles = df.cycle_i.max() + 1
-    _df = df_filter(df, radmat_field=radmat_field, **kwargs)
-    return df_to_radmat(
+    _df = df_filter(df, channel_i=channel_i, radmat_field=radmat_field, **kwargs)
+    radmat = df_to_radmat(
         _df, n_channels=n_channels, n_cycles=n_cycles, radmat_field=radmat_field
     )
+    if channel_i is not None:
+        radmat = radmat[:, channel_i, :]
+    return radmat

@@ -37,19 +37,6 @@ def plot_psfs(psfs, scale=1.0, **kwargs):
         z.im(comp, **kwargs)
 
 
-# In development
-# -------------------------------------------------------------------------------------
-
-
-def sigproc_v2_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
-    im = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_i]
-    locs = run.sigproc_v2.locs(fl_i)
-    sig = run.sigproc_v2.sig(fl_i)[:, ch_i, cy_i]
-    snr = run.sigproc_v2.snr(fl_i)[:, ch_i, cy_i]
-
-    _sigproc_v2_im(im, locs, sig, snr, keep_mask=None, **kwargs)
-
-
 def _sigproc_v2_im(im, locs, sig=None, snr=None, keep_mask=None, **kwargs):
     # if keep_mask is not None:
     #     locs = locs[keep_mask]
@@ -92,6 +79,18 @@ def _sigproc_v2_im(im, locs, sig=None, snr=None, keep_mask=None, **kwargs):
     )
 
     z.im_peaks(im, circle_im, index_im, sig_im, snr_im, **kwargs)
+
+
+def sigproc_v2_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
+    """
+    Show a sigproc_v2 static view with roll-over information
+    """
+    im = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_i]
+    locs = run.sigproc_v2.locs(fl_i)
+    sig = run.sigproc_v2.sig(fl_i)[:, ch_i, cy_i]
+    snr = run.sigproc_v2.snr(fl_i)[:, ch_i, cy_i]
+
+    _sigproc_v2_im(im, locs, sig, snr, keep_mask=None, **kwargs)
 
 
 def circle_locs(
@@ -158,6 +157,10 @@ def circle_locs(
             if keep:
                 imops.set_with_mask_in_place(circle_im, brim, val, loc=loc, center=True)
         return circle_im
+
+
+# In development
+# -------------------------------------------------------------------------------------
 
 
 def plot_sigproc_stats(run):

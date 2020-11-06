@@ -41,11 +41,11 @@ def _css_for_collapsible():
                 .wrap-collabsible {
                   margin-bottom: 0.2rem 0;
                 }
-    
+
                 input[type='checkbox'] {
                   display: none;
                 }
-    
+
                 .lbl-toggle {
                   display: block;
                   font-weight: bold;
@@ -55,7 +55,7 @@ def _css_for_collapsible():
                   border-radius: 7px;
                   transition: all 0.25s ease-out;
                 }
-    
+
                 .lbl-toggle::before {
                   content: ' ';
                   display: inline-block;
@@ -67,26 +67,26 @@ def _css_for_collapsible():
                   transform: translateY(-2px);
                   transition: transform .2s ease-out;
                 }
-    
+
                 .toggle:checked + .lbl-toggle::before {
                   transform: rotate(90deg) translateX(-3px);
                 }
-    
+
                 .collapsible-content {
                   max-height: 0px;
-                  overflow: hidden; 
+                  overflow: hidden;
                   transition: max-height .25s ease-in-out;
                 }
-    
+
                 .toggle:checked + .lbl-toggle + .collapsible-content {
                   max-height: 10000000350px;
                 }
-    
+
                 .toggle:checked + .lbl-toggle {
                   border-bottom-right-radius: 0;
                   border-bottom-left-radius: 0;
                 }
-    
+
                 .collapsible-content .content-inner {
                   border: 2px solid rgba(0,0,0,0.2);
                   border-radius: 6px;
@@ -176,7 +176,7 @@ hd("div",
 )
 
 hd("div",
-    h("div", 
+    h("div",
         h("p", "paragraph 1"),
         h("p", "paragraph 2"),
     ),
@@ -301,7 +301,9 @@ def css_for_markdown():
     )
 
 
-def movie(ims, _cspan=None, _cper=None, _size=None, _labels=None, duration=250):
+def movie(
+    ims, overlay=None, _cspan=None, _cper=None, _size=None, _labels=None, _duration=250
+):
     from IPython.core.display import display, HTML  # Defer slow imports
     from PIL import Image, ImageFont, ImageDraw
     import random
@@ -321,17 +323,30 @@ def movie(ims, _cspan=None, _cper=None, _size=None, _labels=None, duration=250):
     # in our tree to be able to use it on a remote machine
     font = ImageFont.load_default()
 
+    if overlay is not None:
+        over_im = Image.fromarray(overlay)
+
     pil_ims = []
     for i, im in enumerate(ims):
-        _im = np.clip(255 * (im-bot) / (top-bot), a_min=0, a_max=255)
-        _im = Image.fromarray( _im.astype(np.uint8))
+        _im = np.clip(255 * (im - bot) / (top - bot), a_min=0, a_max=255)
+        _im = Image.fromarray(_im.astype(np.uint8))
         draw = ImageDraw.Draw(_im)
         if _labels is not None:
             draw.text((6, 11), _labels[i], fill="black", font=font)
             draw.text((5, 10), _labels[i], fill="white", font=font)
 
+        if overlay is not None:
+            _im.paste(over_im, (0, 0), over_im)
+
         pil_ims += [_im]
 
-    code = random.randint(0,2e9)
-    pil_ims[0].save(fp=f"./__image_{code}.gif", format="GIF", append_images=pil_ims, save_all=True, duration=duration, loop=0)
+    code = random.randint(0, 2e9)
+    pil_ims[0].save(
+        fp=f"./__image_{code}.gif",
+        format="GIF",
+        append_images=pil_ims,
+        save_all=True,
+        duration=_duration,
+        loop=0,
+    )
     display(HTML(f'<img src="./__image_{code}.gif?{code}" width="{_size}">'))
