@@ -324,12 +324,12 @@ def movie(
     font = ImageFont.load_default()
 
     if overlay is not None:
-        over_im = Image.fromarray(overlay)
+        over_im = Image.fromarray(overlay[::-1, :])
 
     pil_ims = []
     for i, im in enumerate(ims):
         _im = np.clip(255 * (im - bot) / (top - bot), a_min=0, a_max=255)
-        _im = Image.fromarray(_im.astype(np.uint8))
+        _im = Image.fromarray(_im[::-1, :].astype(np.uint8))
         draw = ImageDraw.Draw(_im)
         if _labels is not None:
             draw.text((6, 11), _labels[i], fill="black", font=font)

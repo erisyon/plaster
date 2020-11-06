@@ -159,172 +159,53 @@ def circle_locs(
         return circle_im
 
 
-# In development
-# -------------------------------------------------------------------------------------
-
-
-def plot_sigproc_stats(run):
-    # Hist quality, peaks per field, background, etc.
-    # Maybe done as rows per field heatmap
-    z = ZPlots()
-    with z(_cols=4, f_plot_width=250, f_plot_height=280):
-        fields_df = run.sigproc_v1.fields()
-        z.hist(
-            fields_df.quality,
-            f_x_axis_label="quality",
-            f_y_axis_label="n_frames",
-            _bins=np.linspace(0, 400, 100),
-        )
-        by_quality = run.sigproc_v1.fields().sort_values(by="quality")
-
-        def get(i):
-            row = by_quality.iloc[i]
-            im = run.sigproc_v1.raw_im(row.field_i, row.channel_i, row.cycle_i)
-            return im, row
-
-        best_im, best = get(-1)
-        worst_im, worst = get(0)
-        median_im, median = get(run.sigproc_v1.n_frames // 2)
-        cspan = (0, np.percentile(median_im.flatten(), q=99, axis=0))
-        z.im(
-            best_im,
-            _cspan=cspan,
-            f_title=f"Best field={best.field_i} channel={best.channel_i} cycle={best.cycle_i}",
-        )
-        z.im(
-            median_im,
-            _cspan=cspan,
-            f_title=f"Median field={median.field_i} channel={median.channel_i} cycle={median.cycle_i}",
-        )
-        z.im(
-            worst_im,
-            _cspan=cspan,
-            f_title=f"Worst field={worst.field_i} channel={worst.channel_i} cycle={worst.cycle_i}",
-        )
-
-
-def text_sigproc_overview(run):
-    # Number of fields, Number of peaks,
-
-    ch_map = " ".join(
-        [
-            f"{in_ch}->{run.sigproc_v1.params.input_channel_to_output_channel(in_ch)}"
-            for in_ch in range(run.sigproc_v1.params.n_input_channels)
-        ]
-    )
-
-    print(
-        f"Sigproc ran over:\n"
-        f"  {run.sigproc_v1.n_fields} fields\n"
-        f"  {run.sigproc_v1.params.n_input_channels} input channels\n"
-        f"Sigproc wrote:\n"
-        f"  {run.sigproc_v1.params.n_output_channels} output channels\n"
-        f"  {len(run.sigproc_v1.peaks()):,} peaks were found\n"
-        f"The channel mapping was:\n"
-        f"  {ch_map}\n"
-    )
-
-
-def plot_channel_signal_histograms(
-    run, limit_cycles=None, limit_field=None, div_noise=False, **kw
-):
-    # Used in sigproc_template
-    _x_ticks = Munch(
-        precision=0, use_scientific=True, power_limit_high=0, power_limit_low=0
-    )
-    if "_x_ticks" not in kw:
-        kw["_x_ticks"] = _x_ticks
-
-    limit_cycles = (
-        range(run.sigproc_v1.n_cycles) if limit_cycles is None else limit_cycles
-    )
-    n_bins = 100
-
-    field_label = "(all fields)" if limit_field is None else f"field {limit_field}"
-
-    def get_signal():
-        signal = (
-            run.sigproc_v1.sig()
-            if limit_field is None
-            else run.sigproc_v1.signal_radmat_for_field(limit_field)
-        )
-        if div_noise:
-            noise = (
-                run.sigproc_v1.noi()
-                if limit_field is None
-                else run.sigproc_v1.noise_radmat_for_field(limit_field)
-            )
-            signal = utils.np_safe_divide(signal, noise, default=0)
-
-        return signal
-
-    def _hist_ch_cy(ch, cy):
-        ch_signal = get_signal()[:, slice(ch, ch + 1, 1), slice(cy, cy + 1, 1)]
-        non_nan = ch_signal[~np.isnan(ch_signal)]
-
-        # If there is no signal then add a zero entry to satisfy logic below.
-        if non_nan.shape[0] == 0:
-            non_nan = np.array([[0]])
-
-        p99 = np.percentile(non_nan, 99)
-        _hist, _edges = np.histogram(non_nan, bins=n_bins)
-
-        # consider returning _hist[1:].max() below because the 0-bin is often dominating
-        # and the shape of the rest of the data is generally more interesting?
-        return non_nan, p99, _hist.max()
-
-    # Establish uniform axes by sampling everything in a first pass
-    max_x = 0
-    max_y = 0
-    for cy in limit_cycles:
-        for ch in range(run.sigproc_v1.n_channels):
-            _, x, y = _hist_ch_cy(ch, cy)
-            max_x = max(max_x, x)
-            max_y = max(max_y, y)
-
-    if kw.get("_range_only", 0):
-        return max_x, max_y
-
-    z = kw.get("_zplots_context", ZPlots())
-    with z(
-        _cols=None if "_cols" in kw else run.sigproc_v1.n_channels,
-        f_plot_width=250,
-        f_plot_height=250,
-        f_x_range=kw.get("f_x_range", (0, max_x)),
-        f_y_range=kw.get("f_y_range", (0, max_y * 1.1)),
-    ):
-        for cy in limit_cycles:
-            for ch in range(run.sigproc_v1.n_channels):
-                data, _, _ = _hist_ch_cy(ch, cy)
-                z.hist(
-                    data,
-                    _bins=n_bins,
-                    f_title=f"CH{ch} cycle {cy} {field_label}",
-                    **kw,
-                )
-
-    return max_x, max_y
-
-
-def wizard_df_filter(run, limit_columns=None):
+def sigproc_v2_movie_from_df(run, df, fl_i=None, ch_i=0):
     """
-    Wizard to explore sigprocv2 data as a a large table
-
-    Audience:
-        Trained technicians.
-
-    Goal:
-        Allow user to see:
-            Any anomalies that are occuring as a result of the stage position
+    Render a movie of cycles for the peaks that are in the df
+    If fl_i is None then it is enforced that all peaks in the df must come form one field
     """
-    import qgrid  # Defer slow imports
+    if fl_i is not None:
+        df = df[df.field_i == fl_i]
 
-    if limit_columns is not None:
-        df = run.sigproc_v1.all_df()[limit_columns]
-    else:
-        df = run.sigproc_v1.fields__n_peaks__peaks__radmat()
+    assert df.field_i.nunique() == 1
+    fl_i = df.field_i[0]
 
-    return qgrid.show_grid(df, show_toolbar=True, precision=2, grid_options=dict())
+    ims = run.sigproc_v2.aln_ims[fl_i, ch_i, :]
+
+    overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
+    locs = df[["aln_y", "aln_x"]].drop_duplicates().values
+    overlay = 255 * circle_locs(
+        overlay, locs, fill_mode="one", inner_radius=4, outer_radius=5
+    ).astype(np.uint8)
+
+    displays.movie(
+        ims,
+        overlay,
+        _cper=(50, 99.9),
+        _duration=1,
+        _labels=[
+            f"aligned & balanced fl_i:{fl_i} ch_i:{ch_i} cy_i: {cy_i}"
+            for cy_i in range(ims.shape[0])
+        ],
+    )
+
+
+def sigproc_v2_im_from_df(run, df, fl_i=None, ch_i=0, cy_i=0, **kwargs):
+    if fl_i is not None:
+        df = df[df.field_i == fl_i]
+
+    assert df.field_i.nunique() == 1
+    fl_i = df.field_i[0]
+
+    df = df[(df.field_i == fl_i) & (df.channel_i == ch_i) & (df.cycle_i == cy_i)]
+
+    im = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_i]
+    locs = df[["aln_y", "aln_x"]].values
+
+    sig = df.signal.values
+    snr = df.snr.values
+
+    _sigproc_v2_im(im, locs, sig, snr, **kwargs)
 
 
 def wizard_xy_df(
@@ -635,6 +516,174 @@ def wizard_raw_images(
         max_bright=max_bright,
         show_circles=show_circles,
     )
+
+
+# In development
+# -------------------------------------------------------------------------------------
+
+
+def plot_sigproc_stats(run):
+    # Hist quality, peaks per field, background, etc.
+    # Maybe done as rows per field heatmap
+    z = ZPlots()
+    with z(_cols=4, f_plot_width=250, f_plot_height=280):
+        fields_df = run.sigproc_v1.fields()
+        z.hist(
+            fields_df.quality,
+            f_x_axis_label="quality",
+            f_y_axis_label="n_frames",
+            _bins=np.linspace(0, 400, 100),
+        )
+        by_quality = run.sigproc_v1.fields().sort_values(by="quality")
+
+        def get(i):
+            row = by_quality.iloc[i]
+            im = run.sigproc_v1.raw_im(row.field_i, row.channel_i, row.cycle_i)
+            return im, row
+
+        best_im, best = get(-1)
+        worst_im, worst = get(0)
+        median_im, median = get(run.sigproc_v1.n_frames // 2)
+        cspan = (0, np.percentile(median_im.flatten(), q=99, axis=0))
+        z.im(
+            best_im,
+            _cspan=cspan,
+            f_title=f"Best field={best.field_i} channel={best.channel_i} cycle={best.cycle_i}",
+        )
+        z.im(
+            median_im,
+            _cspan=cspan,
+            f_title=f"Median field={median.field_i} channel={median.channel_i} cycle={median.cycle_i}",
+        )
+        z.im(
+            worst_im,
+            _cspan=cspan,
+            f_title=f"Worst field={worst.field_i} channel={worst.channel_i} cycle={worst.cycle_i}",
+        )
+
+
+def text_sigproc_overview(run):
+    # Number of fields, Number of peaks,
+
+    ch_map = " ".join(
+        [
+            f"{in_ch}->{run.sigproc_v1.params.input_channel_to_output_channel(in_ch)}"
+            for in_ch in range(run.sigproc_v1.params.n_input_channels)
+        ]
+    )
+
+    print(
+        f"Sigproc ran over:\n"
+        f"  {run.sigproc_v1.n_fields} fields\n"
+        f"  {run.sigproc_v1.params.n_input_channels} input channels\n"
+        f"Sigproc wrote:\n"
+        f"  {run.sigproc_v1.params.n_output_channels} output channels\n"
+        f"  {len(run.sigproc_v1.peaks()):,} peaks were found\n"
+        f"The channel mapping was:\n"
+        f"  {ch_map}\n"
+    )
+
+
+def plot_channel_signal_histograms(
+    run, limit_cycles=None, limit_field=None, div_noise=False, **kw
+):
+    # Used in sigproc_template
+    _x_ticks = Munch(
+        precision=0, use_scientific=True, power_limit_high=0, power_limit_low=0
+    )
+    if "_x_ticks" not in kw:
+        kw["_x_ticks"] = _x_ticks
+
+    limit_cycles = (
+        range(run.sigproc_v1.n_cycles) if limit_cycles is None else limit_cycles
+    )
+    n_bins = 100
+
+    field_label = "(all fields)" if limit_field is None else f"field {limit_field}"
+
+    def get_signal():
+        signal = (
+            run.sigproc_v1.sig()
+            if limit_field is None
+            else run.sigproc_v1.signal_radmat_for_field(limit_field)
+        )
+        if div_noise:
+            noise = (
+                run.sigproc_v1.noi()
+                if limit_field is None
+                else run.sigproc_v1.noise_radmat_for_field(limit_field)
+            )
+            signal = utils.np_safe_divide(signal, noise, default=0)
+
+        return signal
+
+    def _hist_ch_cy(ch, cy):
+        ch_signal = get_signal()[:, slice(ch, ch + 1, 1), slice(cy, cy + 1, 1)]
+        non_nan = ch_signal[~np.isnan(ch_signal)]
+
+        # If there is no signal then add a zero entry to satisfy logic below.
+        if non_nan.shape[0] == 0:
+            non_nan = np.array([[0]])
+
+        p99 = np.percentile(non_nan, 99)
+        _hist, _edges = np.histogram(non_nan, bins=n_bins)
+
+        # consider returning _hist[1:].max() below because the 0-bin is often dominating
+        # and the shape of the rest of the data is generally more interesting?
+        return non_nan, p99, _hist.max()
+
+    # Establish uniform axes by sampling everything in a first pass
+    max_x = 0
+    max_y = 0
+    for cy in limit_cycles:
+        for ch in range(run.sigproc_v1.n_channels):
+            _, x, y = _hist_ch_cy(ch, cy)
+            max_x = max(max_x, x)
+            max_y = max(max_y, y)
+
+    if kw.get("_range_only", 0):
+        return max_x, max_y
+
+    z = kw.get("_zplots_context", ZPlots())
+    with z(
+        _cols=None if "_cols" in kw else run.sigproc_v1.n_channels,
+        f_plot_width=250,
+        f_plot_height=250,
+        f_x_range=kw.get("f_x_range", (0, max_x)),
+        f_y_range=kw.get("f_y_range", (0, max_y * 1.1)),
+    ):
+        for cy in limit_cycles:
+            for ch in range(run.sigproc_v1.n_channels):
+                data, _, _ = _hist_ch_cy(ch, cy)
+                z.hist(
+                    data,
+                    _bins=n_bins,
+                    f_title=f"CH{ch} cycle {cy} {field_label}",
+                    **kw,
+                )
+
+    return max_x, max_y
+
+
+def wizard_df_filter(run, limit_columns=None):
+    """
+    Wizard to explore sigprocv2 data as a a large table
+
+    Audience:
+        Trained technicians.
+
+    Goal:
+        Allow user to see:
+            Any anomalies that are occuring as a result of the stage position
+    """
+    import qgrid  # Defer slow imports
+
+    if limit_columns is not None:
+        df = run.sigproc_v1.all_df()[limit_columns]
+    else:
+        df = run.sigproc_v1.fields__n_peaks__peaks__radmat()
+
+    return qgrid.show_grid(df, show_toolbar=True, precision=2, grid_options=dict())
 
 
 def _raw_peak_i_zoom(
