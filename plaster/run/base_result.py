@@ -1,8 +1,27 @@
 import numpy as np
+from functools import wraps
 from plumbum import local
 from plaster.tools.utils import utils
 from munch import Munch
 from plaster.tools.log.log import debug
+
+
+def disk_memoize():
+    def _wraps(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            assert isinstance(args[0], BaseResult)
+            path = args[0]._folder / f"_cache_{func.__name__}.pkl"
+            try:
+                rv = utils.pickle_load(path)
+            except Exception:
+                rv = func(*args, **kwargs)
+                utils.pickle_save(path, rv)
+            return rv
+
+        return wrapper
+
+    return _wraps
 
 
 class ArrayResult:
