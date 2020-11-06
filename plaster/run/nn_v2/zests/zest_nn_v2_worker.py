@@ -35,7 +35,7 @@ def zest_nn_v2_worker():
         ).copy()
 
         gain_model = sim_v2_result.params.error_model.to_gain_model()
-        nn_v2_params = NNV2Params(n_neighbors=100, gain_model=gain_model,)
+        nn_v2_params = NNV2Params(n_neighbors=10, gain_model=gain_model,)
 
         nn_v2_result = nn_v2(
             nn_v2_params, _prep_result, sim_v2_result, sigproc_result=sigproc_result
@@ -44,7 +44,7 @@ def zest_nn_v2_worker():
         return nn_v2_result, sim_v2_result
 
     def it_runs_single_channel():
-        for tries in range(3):
+        for tries in range(5):
             nn_v2_result, sim_v2_result = _run(labels="DE")
             trues = sim_v2_result.test_true_pep_iz
             n_right = (nn_v2_result.calls().pep_i == trues).sum()
