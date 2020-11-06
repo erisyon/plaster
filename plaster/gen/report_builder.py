@@ -8,6 +8,8 @@ from plumbum import local
 class SectionType(str, Enum):
     """
     By inheriting from str + Enum, we get an Enum that will json.dumps to a string
+
+    TODO: there appears to be "section" types and "cell" types. Do we need another enum for "cell" types? Is the set of valid options different?
     """
 
     MARKDOWN = "markdown"
@@ -48,9 +50,9 @@ class ReportBuilder:
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._report_sections = []
-        self._report_preamble = None
+        self._report_preamble = ""
 
-    def add_report_section(self, section_type, content):
+    def add_report_section(self, section_type: SectionType, content):
         self._report_sections += [(section_type, content)]
 
     def report_preamble(self, markdown):
