@@ -13,7 +13,7 @@ from plaster.tools.image.coord import ROI, YX, HW
 import numpy as np
 from plaster.tools.utils import utils
 from plaster.tools.utils.fancy_indexer import FancyIndexer
-from plaster.run.base_result import BaseResult
+from plaster.run.base_result import BaseResult, disk_memoize
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.log.log import debug
@@ -362,11 +362,13 @@ class SigprocV2Result(BaseResult):
     # DataFrame returns
     # ----------------------------------------------------------------
 
+    @disk_memoize()
     def fields(self):
         df = self._load_df_prop_from_all_fields("field_df")
         check.df_t(df, self.field_df_schema, allow_extra_columns=True)
         return df
 
+    @disk_memoize()
     def peaks(self):
         df = self._load_df_prop_from_all_fields("peak_df")
         check.df_t(df, self.peak_df_schema)
@@ -385,6 +387,7 @@ class SigprocV2Result(BaseResult):
 
         return df
 
+    @disk_memoize()
     def peak_fits(self):
         df = self._load_df_prop_from_all_fields("peak_fit_df")
         check.df_t(df, self.peak_fit_df_schema)
@@ -396,6 +399,7 @@ class SigprocV2Result(BaseResult):
 
         return df
 
+    @disk_memoize()
     def radmats(self):
         """
         Unwind a radmat into a giant dataframe with peak, channel, cycle
@@ -430,11 +434,13 @@ class SigprocV2Result(BaseResult):
             )
         )
 
+    @disk_memoize()
     def mask_rects(self):
         df = self._load_df_prop_from_all_fields("mask_rects_df")
         check.df_t(df, self.mask_rects_df_schema)
         return df
 
+    @disk_memoize()
     def radmats__peaks(self):
         return (
             self.radmats()
@@ -443,6 +449,7 @@ class SigprocV2Result(BaseResult):
             .reset_index()
         )
 
+    @disk_memoize()
     def n_peaks(self):
         df = (
             self.peaks()
@@ -454,6 +461,7 @@ class SigprocV2Result(BaseResult):
         df.n_peaks += 1
         return df
 
+    @disk_memoize()
     def fields__n_peaks__peaks(self):
         """
         Add a "raw_x" "raw_y" position for each peak. This is the
@@ -481,6 +489,7 @@ class SigprocV2Result(BaseResult):
 
         return df
 
+    @disk_memoize()
     def fields__n_peaks__peaks__radmat(self):
         """
         Build a giant joined dataframe useful for debugging.
@@ -502,7 +511,10 @@ class SigprocV2Result(BaseResult):
         return df
 
 
-def sig_from_df_filter(
+# The following operate on dataframes returned by fields__n_peaks__peaks__radmat
+
+
+def df_filter(
     df,
     fields=None,
     reject_fields=None,
@@ -519,13 +531,28 @@ def sig_from_df_filter(
     max_intensity_per_cycle=None,
     max_aspect_ratio=None,
     radmat_field="signal",
-    _return_mask=False,
     **kwargs,
 ):
     """
-    A general filtering tools to go from a sigproc_v2.fields__n_peaks__peaks__radmat()
-    into a signal using various filters
+    A general filtering tool that operates on the dataframe returned by
+    sigproc_v2.fields__n_peaks__peaks__radmat()
     """
+
+    fields_that_operate_only_on_one_channel = [
+        dark,
+        on_through_cy_i,
+        off_at_cy_i,
+        monotonic,
+        min_intensity_cy_0,
+        max_intensity_cy_0,
+        max_intensity_any_cycle,
+        min_intensity_per_cycle,
+        max_intensity_per_cycle,
+    ]
+
+    if any([field is not None for field in fields_that_operate_only_on_one_channel]):
+        assert df.channel_i.max() == 0
+
     if fields is None:
         fields = list(range(df.field_i.max() + 1))
 
@@ -546,14 +573,17 @@ def sig_from_df_filter(
         & (df.raw_x < roi[1].stop)
     ].reset_index(drop=True)
 
-    radmat = (
-        pd.pivot_table(
-            _df, values=radmat_field, index=["field_i", "peak_i"], columns=["cycle_i"]
-        )
-        .reset_index()
-        .rename_axis(None, axis=1)
-        .drop(columns=["field_i", "peak_i"])
-    ).values
+    # radmat = (
+    #     pd.pivot_table(
+    #         _df, values=radmat_field, index=["field_i", "peak_i"], columns=["cycle_i"]
+    #     )
+    #     .reset_index()
+    #     .rename_axis(None, axis=1)
+    #     .drop(columns=["field_i", "peak_i"])
+    # ).values
+    n_channels = df.channel_i.max() + 1
+    n_cycles = df.cycle_i.max() + 1
+    radmat = df_to_radmat(_df, n_channels, n_cycles, radmat_field=radmat_field)
 
     asr = (
         pd.pivot_table(
@@ -611,7 +641,36 @@ def sig_from_df_filter(
             if inten is not None:
                 keep_mask &= radmat[:, cy_i] <= inten
 
-    if _return_mask:
-        return np.nan_to_num(radmat), keep_mask
-    else:
-        return np.nan_to_num(radmat[keep_mask])
+    # Apply the peak mask back into the dataframe
+    peak_iz = np.arange(radmat.shape[0])
+    _df = df[df.peak_i.isin(peak_iz[keep_mask])]
+    return _df
+
+
+def df_to_radmat(df, n_channels, n_cycles, radmat_field="signal"):
+    """
+    Convert the dataframe filtered by df_filter into a radmat (n_peaks, n_channels, n_cycles)
+    """
+    df["chcy_i"] = df.channel_i * n_cycles + df.cycle_i
+    radmat = (
+        pd.pivot_table(
+            df, values=radmat_field, index=["field_i", "peak_i"], columns=["chcy_i"]
+        )
+        .reset_index()
+        .rename_axis(None, axis=1)
+        .drop(columns=["field_i", "peak_i"])
+        .reindex(np.arange(n_channels * n_cycles), axis=1, fill_value=np.nan)
+    ).values
+    return np.nan_to_num(radmat.reshape(radmat.shape[0], n_channels, n_cycles))
+
+
+def radmat_from_df_filter(df, radmat_field="signal", **kwargs):
+    """
+    Apply the filter args from df_filter and return a radmat
+    """
+    n_channels = df.channel_i.max() + 1
+    n_cycles = df.cycle_i.max() + 1
+    _df = df_filter(df, radmat_field=radmat_field, **kwargs)
+    return df_to_radmat(
+        _df, n_channels=n_channels, n_cycles=n_cycles, radmat_field=radmat_field
+    )
