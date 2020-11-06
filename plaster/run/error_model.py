@@ -25,7 +25,7 @@ There are three kinds:
 
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import List
 
 from munch import Munch
@@ -56,11 +56,14 @@ class GainModel:
     def test_fixture(cls):
         return GainModel(
             row_k_beta=1.0,
-            row_k_sigma=0.0,
+            row_k_sigma=0.15,
             channels=[
                 ChGainModel(beta=7000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0)
             ],
         )
+
+    def asdict(self):
+        return asdict(self)
 
 
 class ErrorModel(Params):
@@ -94,7 +97,7 @@ class ErrorModel(Params):
 
     defaults = Munch(
         row_k_beta=1.0,
-        row_k_sigma=0.0,
+        row_k_sigma=0.15,
         p_edman_failure=0.06,
         p_detach=0.05,
         dyes=[],

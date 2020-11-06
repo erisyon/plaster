@@ -480,22 +480,22 @@ class RunResult:
         use_train_data=True when you want to look at over-fitting.
         """
         if use_train_data:
-            true_pep_iz = self.nn_v2.train_true_pep_iz
-            pred_pep_iz = self.nn_v2.train_pred_pep_iz
+            true_pep_iz = self.nn_v2.calls("train").true_pep_iz
+            pred_pep_iz = self.nn_v2.calls("train").pep_iz
             check.affirm(
                 true_pep_iz is not None and pred_pep_iz is not None,
                 "The nn_v1 task was not run with the training_set",
             )
             cached_pr = self.nn_v2.train_peps_pr
         else:
-            true_pep_iz = self.nn_v2.test_true_pep_iz
-            pred_pep_iz = self.nn_v2.test_pred_pep_iz
+            true_pep_iz = self.nn_v2.calls().true_pep_iz
+            pred_pep_iz = self.nn_v2.calls().pep_i
             cached_pr = self.nn_v2.test_peps_pr
 
         return CallBag(
             true_pep_iz=true_pep_iz,
             pred_pep_iz=pred_pep_iz,
-            scores=self.nn_v2.test_scores,
+            scores=self.nn_v2.calls().score,
             prep_result=self.prep,
             sim_result=self.sim_v2,
             cached_pr=cached_pr,

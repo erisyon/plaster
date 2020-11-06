@@ -1,6 +1,7 @@
 from munch import Munch
 from plaster.tools.schema.schema import Params
 from plaster.tools.schema.schema import Schema as s
+from plaster.run.error_model import GainModel
 
 
 class NNV2Params(Params):
@@ -21,11 +22,6 @@ class NNV2Params(Params):
             include_sigproc=s.is_bool(),
             run_row_k_fit=s.is_bool(),
             run_against_all_dyetracks=s.is_bool(),
-            # Consider passing the following around as a GainModel
-            beta=s.is_float(),
-            sigma=s.is_float(),
-            zero_beta=s.is_float(),
-            zero_sigma=s.is_float(),
-            row_k_std=s.is_float(),
+            gain_model=s.is_type(GainModel),
         )
     )

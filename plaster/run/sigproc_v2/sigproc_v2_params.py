@@ -31,6 +31,7 @@ class SigprocV2Params(Params):
         run_fitter=False,
         run_peak_differencing=False,
         save_full_signal_radmat_npy=False,
+        run_gaussian_fitter=False,
     )
 
     schema = s(
@@ -49,6 +50,7 @@ class SigprocV2Params(Params):
             run_fitter=s.is_bool(),
             run_peak_differencing=s.is_bool(),
             save_full_signal_radmat_npy=s.is_bool(),
+            run_gaussian_fitter=s.is_bool(),
         )
     )
 

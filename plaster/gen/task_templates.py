@@ -9,7 +9,7 @@ Guidelines:
 """
 
 from munch import Munch
-from plaster.run.error_model import ErrorModel
+from plaster.run.error_model import ErrorModel, GainModel, ChGainModel
 from plaster.run.sigproc_v2 import sigproc_v2_common
 from plaster.run.sim_v1.sim_v1_params import SimV1Params
 from plaster.run.sim_v2.sim_v2_params import SimV2Params
@@ -299,16 +299,25 @@ def calib_nn_v1(
 
 
 def nn_v2(sigproc_relative_path, err_set, **kws):
+    n_channels = len(err_set.dye_beta)
     task = Munch(
         nn_v2=Munch(
             version="1.0",
             inputs=Munch(prep="../prep", sim_v2="../sim_v2"),
             parameters=Munch(
-                beta=err_set.dye_beta[0],  # TODO: multichannel
-                sigma=err_set.dye_sigma[0],  # TODO: multichannel
-                zero_beta=err_set.dye_zero_beta[0],  # TODO: multichannel
-                zero_sigma=err_set.dye_zero_sigma[0],  # TODO: multichannel
-                row_k_std=0.0,  # TODO: this needs to be added as a parameter
+                gain_model=GainModel(
+                    row_k_beta=1.0,  # TODO: this needs to be added as a parameter
+                    row_k_sigma=0.16,  # TODO: this needs to be added as a parameter
+                    channels=[
+                        ChGainModel(
+                            beta=err_set.dye_beta[ch_i],
+                            sigma=err_set.dye_sigma[ch_i],
+                            zero_beta=err_set.dye_zero_beta[ch_i],
+                            zero_sigma=err_set.dye_zero_sigma[ch_i],
+                        )
+                        for ch_i in range(n_channels)
+                    ],
+                ).asdict(),
                 **kws,
             ),
         )

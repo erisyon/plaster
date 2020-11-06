@@ -6,6 +6,7 @@ from plaster.run.nn_v2.nn_v2_worker import nn_v2
 from plaster.run.prep.prep_worker import prep
 from plaster.run.prep.prep_params import PrepParams
 from plaster.run.prep import prep_fixtures
+from plaster.run.error_model import ErrorModel, GainModel
 from plaster.run.sim_v2 import sim_v2_worker
 from plaster.run.sim_v2 import sim_v2_fixtures
 from plaster.run.sim_v2.sim_v2_params import SimV2Params
@@ -17,35 +18,83 @@ from plaster.tools.log.log import debug
 def zest_nn_v2_worker():
     prep_result = prep_fixtures.result_random_fixture(2)
 
-    sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(prep_result, labels="DE")
-
-    # Flip just to convince myself that it is working
-    # (ie they aren't accidentally in the right order)
-    sim_v2_result.test_radmat = np.flip(sim_v2_result.test_radmat, axis=0).copy()
-    sim_v2_result.test_true_pep_iz = np.flip(
-        sim_v2_result.test_true_pep_iz, axis=0
-    ).copy()
-
-    nn_v2_params = NNV2Params(
-        n_neighbors=4,
-        beta=5000.0,
-        sigma=0.20,
-        zero_beta=0.0,
-        zero_sigma=200.0,
-        row_k_std=0.0,
-    )
-
-    def it_runs_without_sigproc():
-        nn_v2_result = nn_v2(
-            nn_v2_params, prep_result, sim_v2_result, sigproc_result=None
+    def _run(labels="DE", sigproc_result=None, _prep_result=prep_result):
+        sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(
+            _prep_result, labels=labels
         )
 
-    @zest.skip(reason="Need to deal with sigproc v2 calibration fixtures")
+        # Flip just to convince myself that it is working
+        # (ie they aren't accidentally in the right order)
+        sim_v2_result.test_radmat = np.flip(sim_v2_result.test_radmat, axis=0).copy()
+        sim_v2_result.test_true_pep_iz = np.flip(
+            sim_v2_result.test_true_pep_iz, axis=0
+        ).copy()
+
+        sim_v2_result.test_true_dye_iz = np.flip(
+            sim_v2_result.test_true_dye_iz, axis=0
+        ).copy()
+
+        gain_model = sim_v2_result.params.error_model.to_gain_model()
+        nn_v2_params = NNV2Params(n_neighbors=100, gain_model=gain_model,)
+
+        nn_v2_result = nn_v2(
+            nn_v2_params, _prep_result, sim_v2_result, sigproc_result=sigproc_result
+        )
+
+        return nn_v2_result, sim_v2_result
+
+    def it_runs_single_channel():
+        for tries in range(3):
+            nn_v2_result, sim_v2_result = _run(labels="DE")
+            trues = sim_v2_result.test_true_pep_iz
+            n_right = (nn_v2_result.calls().pep_i == trues).sum()
+            n_total = trues.shape[0]
+            if n_right >= int(0.5 * n_total):
+                break
+        else:
+            raise AssertionError("never exceeded 50%")
+
+    def it_runs_multi_channel():
+        prep_result = prep_fixtures.result_random_fixture(10)
+        nn_v2_result, sim_v2_result = _run(labels="DE,ABC", _prep_result=prep_result)
+        trues = sim_v2_result.test_true_pep_iz
+        n_right = (nn_v2_result.calls().pep_i == trues).sum()
+        n_total = trues.shape[0]
+        assert n_right >= int(0.3 * n_total)
+
+    @zest.skip(reason="WIP")
+    def run_without_sigproc():
+        nn_v2_result, sim_v2_result = _run(sigproc_result=None)
+
+        a = (
+            sim_v2_result.test_true_dye_iz == nn_v2_result._test_calls.dyt_i.values
+        ).sum()
+        debug(a)
+
+        def it_returns_calls():
+            raise NotImplementedError
+
+        def it_returns_all():
+            raise NotImplementedError
+
+        def it_filters_nul_calls():
+            raise NotImplementedError
+
+        def it_filters_k_range():
+            raise NotImplementedError
+
+        def it_filters_k_score():
+            raise NotImplementedError
+
+        zest()
+
+    @zest.skip(reason="WIP")
     def it_runs_with_sigproc():
+        raise NotImplementedError
+        # TODO Need to deal with sigproc v2 calibration fixtures
+
         sigproc_result = simple_sigproc_v2_result_fixture(prep_result)
-        nn_v2_result = nn_v2(
-            nn_v2_params, prep_result, sim_v2_result, sigproc_result=sigproc_result
-        )
+        nn_v2_result, sim_v2_result = _run(labels="DE", sigproc_result=sigproc_result)
 
     zest()
 
@@ -98,7 +147,7 @@ def zest_v2_stress_like_e2e():
             ],
             p_detach=0.05,
             p_edman_failure=0.06,
-            row_k_sigma=0.0,
+            row_k_sigma=0.15,
         ),
         is_survey=False,
         labels=[
@@ -122,7 +171,8 @@ def zest_v2_stress_like_e2e():
     sim_v2_result._generate_flu_info(prep_result)
 
     nn_v2_params = NNV2Params(
-        beta=5000.0, sigma=0.20, zero_beta=0.0, zero_sigma=200.0, row_k_std=0.0,
+        gain_model=ErrorModel(**sim_v2_params.error_model).to_gain_model()
     )
     nn_result = nn_v2(nn_v2_params, prep_result, sim_v2_result, None)
-    assert np.all(nn_result.test_pred_pep_iz == 1)
+    df = nn_result.calls()
+    assert np.all(df.pep_i == 1)
