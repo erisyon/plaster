@@ -106,7 +106,6 @@ class BaseGenerator(Munch):
 
     sigproc_source_schema = s(
         s.is_kws_r(
-            sigproc_source=s.is_str(noneable=True, help="See Main Help"),
             movie=s.is_bool(noneable=True, help="See Main Help"),
             n_frames_limit=s.is_int(
                 bounds=(1, 500), noneable=True, help="See Main Help"
@@ -116,6 +115,7 @@ class BaseGenerator(Munch):
 
     sigproc_v1_schema = s(
         s.is_kws_r(
+            sigproc_source=s.is_str(noneable=True, help="See Main Help"),
             radial_filter=s.is_float(
                 noneable=True, bounds=(0.01, 1.0), help="See Main Help"
             ),
@@ -128,7 +128,7 @@ class BaseGenerator(Munch):
     sigproc_v2_schema = s(
         s.is_kws_r(
             calibration_file=s.is_str(),
-            sigproc_source=s.is_list(s.is_str(), help="See Main Help"),
+            sigproc_source=s.is_str(help="See Main Help"),
         )
     )
 
@@ -287,13 +287,13 @@ class BaseGenerator(Munch):
             tasks += [Munch(**ims_import, **sigproc)]
         return tasks
 
-    # def sigprocs_v2(self, **kwargs):
-    #     tasks = {}
-    #     if self.sigproc_source:
-    #         ims_import = self.ims_imports(self.sigproc_source)
-    #         sigproc = task_templates.sigproc_v2_analyze(**kwargs)
-    #         tasks = Munch(**ims_import, **sigproc)
-    #     return tasks
+    def sigprocs_v2(self, **kwargs):
+        tasks = {}
+        if self.sigproc_source:
+            ims_import = self.ims_imports(self.sigproc_source)
+            sigproc = task_templates.sigproc_v2_analyze(**kwargs)
+            tasks = Munch(**ims_import, **sigproc)
+        return tasks
 
     def lnfits(self, sigproc_version):
         # It is common to have multiple lnfit tasks for a single run, so this fn returns a

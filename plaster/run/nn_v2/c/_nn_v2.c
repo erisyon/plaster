@@ -20,7 +20,10 @@ Float64 normalCDF(Float64 value) {
 // TODO: Research best way choose standard_n_dz
 #define standard_n_dz 0.01
 Float64 p_value_from_z_score(Float64 z_score) {
-    ensure(z_score >= 0.0, "z_score must be non-negative");
+    if(isnan(z_score)) {
+        return 0.0;
+    }
+    ensure(z_score >= 0.0, "z_score must be non-negative %f", z_score);
     return normalCDF(z_score + standard_n_dz) - normalCDF(z_score - standard_n_dz);
 }
 
@@ -133,12 +136,34 @@ char *score_k_fit_lognormal_mixture(
 }
 
 
+void validate_radmat_table(NNV2Context *ctx, char *msg) {
+    // Used fore debugging
+    return;
+
+    Size n_rows = ctx->radmat.n_rows;
+    for(int r=0; r<n_rows; r++) {
+        RadType *rr = tab_ptr(RadType, &ctx->radmat, r);
+        for(int c=0; c<ctx->n_cols; c++) {
+            if(!(-10000.0 < rr[c] && rr[c] < 1e6)) {
+                fprintf(stderr, "r=%d c=%d  val=%f\n", r, c, rr[c]);
+                ensure(0, "bad radmat %s", msg);
+                exit(1);
+            }
+        }
+    }
+}
+
+
 char *context_init(NNV2Context *ctx) {
-    // Return NULL on success or pointer to a static string for an error
+    validate_radmat_table(ctx, "context init");
+
     float speedup = 0.0f;
     ctx->_flann_params = &DEFAULT_FLANN_PARAMETERS;
 
-    check_and_return(ctx->n_neighbors <= ctx->train_fdyemat.n_rows, "Requesting more neighbors than training rows");
+    check_and_return(
+        ctx->n_neighbors <= ctx->train_fdyemat.n_rows,
+        "Requesting more neighbors than training rows"
+    );
 
     check_and_return(
         ctx->row_k_sigma > 0.0 || ! ctx->use_row_k_p_val,
@@ -254,11 +279,11 @@ char *classify_radrows(
         // FETCH a batch of neighbors from FLANN in one call.
         Tab _neighbor_dists = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(float), TAB_NOT_GROWABLE);
         neighbor_dists = &_neighbor_dists;
-
         // flann_find_nearest_neighbors_index_float requires and int for indicies.
         // which is compiled to 32 bits and thus neighbor_dyt_iz is typed as int instead
         // of the usual bit-sized specific typing used throughout the rest of the code.
-        flann_find_nearest_neighbors_index_float(
+
+        int flann_ret = flann_find_nearest_neighbors_index_float(
             ctx->_flann_index_id,
             tab_ptr(RadType, &ctx->radmat, radrow_start_i),
             n_radrows,
@@ -267,6 +292,8 @@ char *classify_radrows(
             n_neighbors,
             ctx->_flann_params
         );
+        ensure(flann_ret == 0, "FLANN returned an error. %d", flann_ret);
+
         // TODO: Multithread protection
         // if(ctx->n_threads > 1) {
         //     pthread_mutex_unlock(&ctx->flann_index_lock);
@@ -322,6 +349,22 @@ char *classify_radrows(
             // In this mode the "neighbors" are actually ALL dyetracks.
             row_neighbor_dyt_iz = neighbor_dyt_iz;
         }
+
+//for(Index i=0; i<n_neighbors; i++) {
+//    int dyti = tab_get(int, row_neighbor_dyt_iz, i);
+//    if(dyti > 100000) {
+//
+//        for(Index j=0; j<n_radrows * n_neighbors; j++) {
+//            int dytj = tab_get(int, neighbor_dyt_iz, j);
+//            trace("%ld %d\n", j, dytj);
+////            if(dytj > 100000) {
+////                ensure(0, "FAILED %ld, %ld %ld", dytj, row_i, j);
+////            }
+//        }
+//
+//        ensure(0, "FAILED %ld, %ld", dyti, row_i);
+//    }
+//}
 
         Tab row_neighbor_p_vals = tab_subset(&neighbor_p_vals, row_i * n_neighbors, n_neighbors);
         Tab row_neighbor_pred_row_ks = tab_subset(&neighbor_pred_row_ks, row_i * n_neighbors, n_neighbors);

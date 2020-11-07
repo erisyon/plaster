@@ -185,7 +185,7 @@ def df_t(instance, df_schema, allow_extra_columns=False):
             )
 
 
-def array_t(instance, shape=None, dtype=None, ndim=None, is_square=None):
+def array_t(instance, shape=None, dtype=None, ndim=None, is_square=None, c_contiguous=None):
     """
     If no shape is passed in, it simply prints the dimensions which
     is particularly handy when working in a notebook context.
@@ -194,7 +194,7 @@ def array_t(instance, shape=None, dtype=None, ndim=None, is_square=None):
 
     if ndim is not None and instance.ndim != ndim:
         message = (
-            "ndarray '{var_name}' [shape="
+            "ndarray [shape="
             + str(instance.shape)
             + "] was expected to be ndim '"
             + str(ndim)
@@ -206,7 +206,7 @@ def array_t(instance, shape=None, dtype=None, ndim=None, is_square=None):
 
     if dtype is not None and instance.dtype != dtype:
         message = (
-            "ndarray '{var_name}' [shape="
+            "ndarray [shape="
             + str(instance.shape)
             + "] was expected to be dtype '"
             + str(dtype.__name__)
@@ -219,7 +219,7 @@ def array_t(instance, shape=None, dtype=None, ndim=None, is_square=None):
     if shape is not None:
         if len(shape) != len(instance.shape):
             message = (
-                "ndarray '{var_name}' was expected to have "
+                "ndarray was expected to have "
                 f"{len(shape)} dimensions had {len(instance.shape)}"
             )
             raise CheckError(dtype, instance.dtype, depth=3, message=message)
@@ -228,7 +228,7 @@ def array_t(instance, shape=None, dtype=None, ndim=None, is_square=None):
             if expected is not None:
                 if expected != actual:
                     message = (
-                        "ndarray '{var_name}' dimension "
+                        "ndarray dimension "
                         f"{i} was expected to be {expected} but was "
                         f"{actual}"
                     )
@@ -237,9 +237,13 @@ def array_t(instance, shape=None, dtype=None, ndim=None, is_square=None):
     if is_square is not None and (
         instance.shape[0] != instance.shape[1] or instance.ndim != 2
     ):
-        message = "ndarray '{var_name}' was expected to be square but was " + str(
+        message = "ndarray was expected to be square but was " + str(
             instance.shape
         )
+        raise CheckError(dtype, instance.dtype, depth=3, message=message)
+
+    if c_contiguous is not None and not instance.flags["C_CONTIGUOUS"]:
+        message = "ndarray was expected to be c_contiguous but was not"
         raise CheckError(dtype, instance.dtype, depth=3, message=message)
 
     if shape is None and dtype is None and ndim is None and is_square is None:

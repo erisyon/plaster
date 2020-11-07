@@ -36,7 +36,7 @@ void ensure(int expr, const char *fmt, ...) {
 FILE *_log = (FILE *)NULL;
 void _trace(char *file, int line, const char *fmt, ...) {
     // Replacement for printf that also flushes
-    FILE *log = stdout;
+    FILE *log = stderr;
     if(!_log) {
         _log = fopen("c_common.log", "wt");
         log = _log;

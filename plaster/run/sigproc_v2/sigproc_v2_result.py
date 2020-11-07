@@ -163,9 +163,9 @@ class SigprocV2Result(BaseResult):
 
     def __repr__(self):
         try:
-            return f"SigprocResult with files in {self._folder} {self.n_fields}"
+            return f"SigprocV2Result with files in {self._folder} {self.n_fields}"
         except Exception as e:
-            return "SigprocResult"
+            return "SigprocV2Result"
 
     def _cache(self, prop, val=None):
         # TASK: This might be better done with a yielding context

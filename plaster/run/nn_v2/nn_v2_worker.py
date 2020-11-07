@@ -16,6 +16,8 @@ def nn_v2(
     progress=None,
     pipeline=None,
 ):
+    n_cols = sim_v2_result.flat_train_dyemat().shape[1]
+
     def _run(radmat):
         with c_nn_v2.context(
             radmat=radmat,
@@ -97,7 +99,10 @@ def nn_v2(
     # -----------------------------------------------------------------------
     sigproc_context = None
     if sigproc_result is not None:
-        sigproc_radmat = sigproc_result.flat_radmat().astype(RadType)
+        sigproc_radmat = sigproc_result.sig(flat_chcy=True).astype(RadType)
+
+        if sigproc_radmat.shape[1] != n_cols:
+            raise TypeError(f"In nn_v2 sigproc_radmat did not have same number of columns as training dyemat {sigproc_radmat.shape[1]} vs {n_cols}")
 
         if pipeline:
             pipeline.set_phase(phase_i, n_phases)

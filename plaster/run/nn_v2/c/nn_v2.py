@@ -249,6 +249,8 @@ def context(
     n_dyts = train_fdyemat.shape[0]
     n_radrows = radmat.shape[0]
 
+    assert train_fdyemat.shape[1] == radmat.shape[1]
+
     against_all_dyetracks_output_dtype = None
     against_all_dyetracks_output = None
     if run_against_all_dyetracks:
@@ -267,11 +269,13 @@ def context(
             train_dyepeps, NNV2Context.tab_type("train_dyepeps")
         ),
         radmat=Tab.from_mat(radmat, NNV2Context.tab_type("radmat")),
-        # Temporary hard-coding of channel 0
+
+        # Temporary hard-coding of parameters from channel 0
         beta=gain_model.channels[0].beta,
         sigma=gain_model.channels[0].sigma,
         zero_beta=gain_model.channels[0].zero_beta,
         zero_sigma=gain_model.channels[0].zero_sigma,
+
         row_k_beta=gain_model.row_k_beta,
         row_k_sigma=gain_model.row_k_sigma,
         n_neighbors=n_neighbors,
@@ -286,6 +290,9 @@ def context(
         ),
         _against_all_dyetracks_output=against_all_dyetracks_output,
     )
+
+    assert np.all((-1e5 < radmat) & (radmat < 1e6))
+    assert radmat.dtype == RadType
 
     error = lib.context_init(nn_v2_context)
     if error is not None:
