@@ -269,13 +269,11 @@ def context(
             train_dyepeps, NNV2Context.tab_type("train_dyepeps")
         ),
         radmat=Tab.from_mat(radmat, NNV2Context.tab_type("radmat")),
-
         # Temporary hard-coding of parameters from channel 0
         beta=gain_model.channels[0].beta,
         sigma=gain_model.channels[0].sigma,
         zero_beta=gain_model.channels[0].zero_beta,
         zero_sigma=gain_model.channels[0].zero_sigma,
-
         row_k_beta=gain_model.row_k_beta,
         row_k_sigma=gain_model.row_k_sigma,
         n_neighbors=n_neighbors,

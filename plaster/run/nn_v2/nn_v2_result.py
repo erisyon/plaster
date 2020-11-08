@@ -25,16 +25,27 @@ class NNV2Result(BaseResult):
 
     required_props = dict(
         params=NNV2Params,
-        _test_calls=pd.DataFrame,  # This is the only required field
+        _test_calls=(type(None), pd.DataFrame),
         _train_calls=(type(None), pd.DataFrame),
         _sigproc_calls=(type(None), pd.DataFrame),
         # "all_calls" are created when params.against_all_dyetracks_output is True
         _test_all=(type(None), pd.DataFrame),
         _train_all=(type(None), pd.DataFrame),
         _sigproc_all=(type(None), pd.DataFrame),
-        test_peps_pr=(type(None), pd.DataFrame),
-        test_peps_pr_abund=(type(None), pd.DataFrame),
+        _test_peps_pr=(type(None), pd.DataFrame),
+        _test_peps_pr_abund=(type(None), pd.DataFrame),
     )
+
+    @property
+    def test_peps_pr(self):
+        return self._test_peps_pr
+
+    @property
+    def test_test_peps_pr_abund(self):
+        return self._test_peps_pr_abund
+
+    def includes_test_results(self):
+        return self._test_calls is not None
 
     def includes_train_results(self):
         return self._train_calls is not None
@@ -49,6 +60,7 @@ class NNV2Result(BaseResult):
         try:
             return (
                 f"NNV2Result "
+                f"({'includes' if self.includes_test_results else 'does not include'} test results) "
                 f"({'includes' if self.includes_train_results else 'does not include'} train results) "
                 f"({'includes' if self.includes_sigproc_results else 'does not include'} sigproc results)"
             )

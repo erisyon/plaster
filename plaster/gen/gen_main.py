@@ -138,13 +138,17 @@ def help_template(generators):
         ------------------------------------------------------------------------------
         @--err_p_edman_failure=0.06                   # Edman miss
         @--err_p_detach=0.05                          # Surface detach
+        @--err_row_k_beta=1.0                         # Mean of row adjustment
+        @--err_row_k_sigma=0.16                       # Stdev. of row adjustment
 
                                                       # The following probabilities
                                                       # are specified per-dye like:
                                                       # "dye|prob" where dye count
                                                       # starts at zero.
-        @--err_dye_beta=0|7500                        # Brightness
-        @--err_dye_sigma=0|0.16                       # Log-normal variance
+        @--err_dye_beta=0|7500                        # Brightness per dye
+        @--err_dye_sigma=0|0.16                       # Log-normal stdev
+        @--err_dye_zero_beta=0|0                      # Brightness of the "zero count"
+        @--err_dye_zero_sigma=0|200                   # Std of zero count
         @--err_p_bleach_per_cycle=0|0.05              # Bleach rate
         @--err_p_non_fluorescent=0|0.07               # Dud rate
 

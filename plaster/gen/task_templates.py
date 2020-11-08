@@ -306,8 +306,8 @@ def nn_v2(sigproc_relative_path, err_set, **kws):
             inputs=Munch(prep="../prep", sim_v2="../sim_v2"),
             parameters=Munch(
                 gain_model=GainModel(
-                    row_k_beta=1.0,  # TODO: this needs to be added as a parameter
-                    row_k_sigma=0.16,  # TODO: this needs to be added as a parameter
+                    row_k_beta=err_set.row_k_beta[0],
+                    row_k_sigma=err_set.row_k_sigma[0],
                     channels=[
                         ChGainModel(
                             beta=err_set.dye_beta[ch_i],

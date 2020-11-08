@@ -87,7 +87,9 @@ class ClassifyGenerator(BaseGenerator):
 
         self.report_section_user_config()
 
-        sigproc_v2_task = self.sigprocs_v2(calibration_file=self.calibration_file) or {}  # guarantee traverse loop once
+        sigproc_v2_task = (
+            self.sigprocs_v2(calibration_file=self.calibration_file) or {}
+        )  # guarantee traverse loop once
 
         # TODO: 'default' reporting needs to be rethought.  Maybe we just employ
         # gen switch that says which report type.  The pattern that has developed
@@ -250,9 +252,7 @@ class ClassifyGenerator(BaseGenerator):
                 self.report_section_markdown(f"# RUN {run_desc.run_name}")
                 self.report_section_run_object(run_desc)
                 if test_rf_task or nn_v1_task:
-                    self.report_section_from_template(
-                        "train_and_test_template.ipynb"
-                    )
+                    self.report_section_from_template("train_and_test_template.ipynb")
 
         self.report_section_markdown(f"# JOB {self.job}")
         self.report_section_job_object()

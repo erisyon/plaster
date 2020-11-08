@@ -137,9 +137,6 @@ char *score_k_fit_lognormal_mixture(
 
 
 void validate_radmat_table(NNV2Context *ctx, char *msg) {
-    // Used fore debugging
-    return;
-
     Size n_rows = ctx->radmat.n_rows;
     for(int r=0; r<n_rows; r++) {
         RadType *rr = tab_ptr(RadType, &ctx->radmat, r);
@@ -155,7 +152,7 @@ void validate_radmat_table(NNV2Context *ctx, char *msg) {
 
 
 char *context_init(NNV2Context *ctx) {
-    validate_radmat_table(ctx, "context init");
+    // validate_radmat_table(ctx, "context init");
 
     float speedup = 0.0f;
     ctx->_flann_params = &DEFAULT_FLANN_PARAMETERS;

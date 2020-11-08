@@ -185,7 +185,9 @@ def df_t(instance, df_schema, allow_extra_columns=False):
             )
 
 
-def array_t(instance, shape=None, dtype=None, ndim=None, is_square=None, c_contiguous=None):
+def array_t(
+    instance, shape=None, dtype=None, ndim=None, is_square=None, c_contiguous=None
+):
     """
     If no shape is passed in, it simply prints the dimensions which
     is particularly handy when working in a notebook context.
@@ -237,9 +239,7 @@ def array_t(instance, shape=None, dtype=None, ndim=None, is_square=None, c_conti
     if is_square is not None and (
         instance.shape[0] != instance.shape[1] or instance.ndim != 2
     ):
-        message = "ndarray was expected to be square but was " + str(
-            instance.shape
-        )
+        message = "ndarray was expected to be square but was " + str(instance.shape)
         raise CheckError(dtype, instance.dtype, depth=3, message=message)
 
     if c_contiguous is not None and not instance.flags["C_CONTIGUOUS"]:

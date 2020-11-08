@@ -19,19 +19,26 @@ class SigprocV2Generator(BaseGenerator):
         s.is_kws_r(
             **BaseGenerator.sigproc_v2_schema.schema(),
             **BaseGenerator.lnfit_schema.schema(),
+            **BaseGenerator.error_model_schema.schema(),
+            classify_dyetracks=s.is_bool(help="If true then compare to dyetracks"),
+            dyetrack_n_cycles=s.is_int(
+                noneable=True, help="Number of cycles of simulated dyetracks"
+            ),
+            dyetrack_n_count=s.is_int(noneable=True, help="Number of dyes max."),
         )
     )
+
+    defaults = Munch(classify_dyetracks=False,)
 
     def generate(self):
         runs = []
 
         lnfit_tasks = self.lnfits(sigproc_version="v2")
 
-        if len(self.sigproc_source) != 1:
-            raise ValueError(f"Sigproc_v2 can have only one sigproc_source")
+        assert isinstance(self.sigproc_source, str)
 
         ims_import_task = task_templates.ims_import(
-            self.sigproc_source[0], is_movie=False
+            self.sigproc_source, is_movie=False
         )
 
         calib_src_path = local.path(self.calibration_file)
@@ -41,11 +48,30 @@ class SigprocV2Generator(BaseGenerator):
             self.gen_sources_folder / calib_src_path.name
         )
 
+        nn_n2_task = {}
+        if self.classify_dyetracks:
+            # TODO: This is a bit of a hacked up mess, this mode is
+            # used for calibration purposes and might not be a long-term
+            # feature and so is using hard-coded n_channels for example
+            self.label_set = [""]
+            self.scheme = []
+            for protease, label_set, err_set in self.run_parameter_permutator():
+                nn_n2_task = task_templates.nn_v2(
+                    "../sigproc_v2",
+                    err_set,
+                    run_against_all_dyetracks=True,
+                    run_row_k_fit=True,
+                    include_sigproc=True,
+                    dyetrack_n_cycles=self.dyetrack_n_cycles,
+                    dyetrack_n_count=self.dyetrack_n_count,
+                )
+
         run = Munch(
             run_name=f"sigproc_v2",
             **ims_import_task,
             **sigproc_v2_task,
             **lnfit_tasks,
+            **nn_n2_task,
         )
 
         if self.force_run_name is not None:
