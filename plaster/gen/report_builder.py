@@ -99,9 +99,6 @@ class ReportBuilder:
 
     def report_assemble(self):
         """Assemble the report from its pieces. A giant Munch is returned"""
-        import pudb
-
-        pudb.set_trace()
         report = Munch(**self.report_metadata)
         report.cells = []
 

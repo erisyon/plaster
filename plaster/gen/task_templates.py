@@ -301,11 +301,12 @@ def calib_nn_v1(
 def nn_v2(sigproc_relative_path, err_set, prep_folder, sim_v2_folder, **kws):
     n_channels = len(err_set.dye_beta)
 
-    inputs=Munch()
+    inputs = Munch()
     if prep_folder is not None:
-        inputs.prep = prep_folder, 
+        inputs.prep = prep_folder
+
     if sim_v2_folder is not None:
-        inputs.sim_v2 = sim_v2_folder, 
+        inputs.sim_v2 = sim_v2_folder
 
     task = Munch(
         nn_v2=Munch(
