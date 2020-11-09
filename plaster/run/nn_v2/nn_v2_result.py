@@ -34,6 +34,8 @@ class NNV2Result(BaseResult):
         _sigproc_all=(type(None), pd.DataFrame),
         _test_peps_pr=(type(None), pd.DataFrame),
         _test_peps_pr_abund=(type(None), pd.DataFrame),
+        _dyemat=(type(None), np.ndarray),
+        _dyepeps=(type(None), np.ndarray),
     )
 
     @property

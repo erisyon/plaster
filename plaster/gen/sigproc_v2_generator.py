@@ -3,6 +3,7 @@ from plaster.gen.base_generator import BaseGenerator
 from plaster.gen import task_templates
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
+from plaster.gen.report_builder import ReportBuilder
 from plaster.tools.log.log import debug
 from plaster.tools.calibration.calibration import Calibration
 from plumbum import local
@@ -37,9 +38,7 @@ class SigprocV2Generator(BaseGenerator):
 
         assert isinstance(self.sigproc_source, str)
 
-        ims_import_task = task_templates.ims_import(
-            self.sigproc_source, is_movie=False
-        )
+        ims_import_task = task_templates.ims_import(self.sigproc_source, is_movie=False)
 
         calib_src_path = local.path(self.calibration_file)
         calib_dst_path = local.path(self.local_sources_tmp_folder) / calib_src_path.name
@@ -97,5 +96,12 @@ class SigprocV2Generator(BaseGenerator):
             """
             )
         )
+
+        if self.classify_dyetracks:
+            rb = ReportBuilder()
+            rb.report_section_run_object(run)
+            template = "sigproc_v2_classify_dyetracks.ipynb"
+            self.report_section_from_template(template)
+            self.add_report("sigproc_v2_classify_dyetracks", rb)
 
         return runs

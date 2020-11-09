@@ -12,14 +12,16 @@ def triangle_dyemat(n_cycles, n_dyes):
     """
     Generate a "triangle" dyemat.
     Example: n_cycles = 3, n_dyes = 2
-
-    0 0 0
-    1 0 0
-    1 1 0
-    1 1 1
-    2 0 0
-    2 1 0
-    2 2 1
+        0 0 0
+        1 0 0
+        1 1 0
+        1 1 1
+        2 0 0
+        2 1 0
+        2 1 1
+        2 2 0
+        2 2 1
+        2 2 2
     """
     dyemat = []
     for cy0 in range(n_cycles + 1):
@@ -32,21 +34,18 @@ def triangle_dyemat(n_cycles, n_dyes):
             continue
 
         for cy1 in range(cy0):
-            row[0:cy1 + 1] = 2
+            row[0 : cy1 + 1] = 2
             dyemat += [row.copy()]
 
             if n_dyes == 2:
                 continue
 
             for cy2 in range(cy1):
-                row[0:cy2 + 1] = 3
+                row[0 : cy2 + 1] = 3
                 dyemat += [row.copy()]
 
     dyemat = np.array(dyemat, dtype=DyeType)
-    rev_cols = [
-        dyemat[:, cy]
-        for cy in range(dyemat.shape[1] - 1, -1, -1)
-    ]
+    rev_cols = [dyemat[:, cy] for cy in range(dyemat.shape[1] - 1, -1, -1)]
     dyemat = dyemat[np.lexsort(rev_cols)]
 
     dyepeps = np.zeros((dyemat.shape[0] - 1, 3), dtype=np.uint64)
@@ -113,7 +112,11 @@ def nn_v2(
             pipeline.set_phase(phase_i, n_phases)
             phase_i += 1
 
-        test_context = _run(test_radmat, dyemat=sim_v2_result.flat_train_dyemat(), dyepeps=sim_v2_result.train_dyepeps)
+        test_context = _run(
+            test_radmat,
+            dyemat=sim_v2_result.flat_train_dyemat(),
+            dyepeps=sim_v2_result.train_dyepeps,
+        )
 
         test_df = test_context.to_dataframe()
         test_df["true_pep_iz"] = sim_v2_result.test_true_pep_iz
@@ -149,7 +152,11 @@ def nn_v2(
             pipeline.set_phase(phase_i, n_phases)
             phase_i += 1
 
-        train_context = _run(train_radmat, dyemat=sim_v2_result.flat_train_dyemat(), dyepeps=sim_v2_result.train_dyepeps)
+        train_context = _run(
+            train_radmat,
+            dyemat=sim_v2_result.flat_train_dyemat(),
+            dyepeps=sim_v2_result.train_dyepeps,
+        )
 
         train_df = train_context.to_dataframe()
         train_df["true_pep_iz"] = sim_v2_result.train_true_pep_iz
@@ -157,6 +164,8 @@ def nn_v2(
 
     # RUN NN on sigproc_result if requested
     # -----------------------------------------------------------------------
+    dyemat = None
+    dyepeps = None
     sigproc_df = None
     if sigproc_result is not None:
         sigproc_radmat = sigproc_result.sig(flat_chcy=True).astype(RadType)
@@ -172,12 +181,20 @@ def nn_v2(
 
         if nn_v2_params.dyetrack_n_cycles is not None:
             assert nn_v2_params.dyetrack_n_counts is not None
-            assert nn_v2_params.dyetrack_n_counts < 4  # Defend against crazy large memory alloc
+            assert (
+                nn_v2_params.dyetrack_n_counts < 4
+            )  # Defend against crazy large memory alloc
 
-            dyemat, dyepeps = triangle_dyemat(nn_v2_params.dyetrack_n_cycles, nn_v2_params.dyetrack_n_counts)
+            dyemat, dyepeps = triangle_dyemat(
+                nn_v2_params.dyetrack_n_cycles, nn_v2_params.dyetrack_n_counts
+            )
             sigproc_context = _run(sigproc_radmat, dyemat, dyepeps)
         else:
-            sigproc_context = _run(sigproc_radmat, dyemat=sim_v2_result.flat_train_dyemat(), dyepeps=sim_v2_result.train_dyepeps)
+            sigproc_context = _run(
+                sigproc_radmat,
+                dyemat=sim_v2_result.flat_train_dyemat(),
+                dyepeps=sim_v2_result.train_dyepeps,
+            )
 
         sigproc_df = sigproc_context.to_dataframe()
 
@@ -191,6 +208,6 @@ def nn_v2(
         _test_all=None,  # TODO
         _train_all=None,  # TODO
         _sigproc_all=None,  # TODO
+        _dyemat=dyemat,
+        _dyepeps=dyepeps,
     )
-
-

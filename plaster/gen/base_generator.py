@@ -177,9 +177,14 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
         self.setup_err_model()
         self.validate()
 
-        self.reports = Munch(report=self)
+        self.reports = Munch()
+        self.add_report("report", self)
 
         self._validate_protein_of_interest()
+
+    def add_report(self, report_name, builder):
+        assert report_name not in self.reports
+        self.reports[report_name] = builder
 
     def _validate_protein_of_interest(self):
         if "protein" in self:
@@ -208,7 +213,12 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
 
                 prob_parts = prob_parts.split(":")
 
-                if name in ("err_p_edman_failure", "err_p_detach", "err_row_k_beta", "err_row_k_sigma"):
+                if name in (
+                    "err_p_edman_failure",
+                    "err_p_detach",
+                    "err_row_k_beta",
+                    "err_row_k_sigma",
+                ):
                     if dye_part:
                         raise SchemaValidationFailed(
                             f"error model term '{name}' is not allowed to have a dye-index."
@@ -421,13 +431,14 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
             p_detach=[self.error_model_defaults.err_p_detach] * 1,
             row_k_beta=[self.error_model_defaults.err_row_k_beta] * 1,
             row_k_sigma=[self.error_model_defaults.err_row_k_sigma] * 1,
-
             dye_beta=[self.error_model_defaults.err_dye_beta] * n_channels,
             dye_sigma=[self.error_model_defaults.err_dye_sigma] * n_channels,
             dye_zero_beta=[self.error_model_defaults.err_dye_zero_beta] * n_channels,
             dye_zero_sigma=[self.error_model_defaults.err_dye_zero_sigma] * n_channels,
-            p_bleach_per_cycle=[self.error_model_defaults.err_p_bleach_per_cycle] * n_channels,
-            p_non_fluorescent=[self.error_model_defaults.err_p_non_fluorescent] * n_channels,
+            p_bleach_per_cycle=[self.error_model_defaults.err_p_bleach_per_cycle]
+            * n_channels,
+            p_non_fluorescent=[self.error_model_defaults.err_p_non_fluorescent]
+            * n_channels,
         )
 
     def run_parameter_permutator(self):

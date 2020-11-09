@@ -535,6 +535,9 @@ def df_filter(
     max_intensity_per_cycle=None,
     max_aspect_ratio=None,
     min_aspect_ratio=None,
+    radmat_field="signal",
+    max_k=None,
+    min_score=None,
 ):
     """
     A general filtering tool that operates on the dataframe returned by
@@ -559,6 +562,12 @@ def df_filter(
         & (_df.raw_x < roi[1].stop)
     ].reset_index(drop=True)
 
+    if max_k is not None:
+        _df = _df[_df.k <= max_k]
+
+    if min_score is not None:
+        _df = _df[_df.score >= min_score]
+
     # OPERATE on radmat if needed
     fields_that_operate_on_radmat = [
         dark,
@@ -576,7 +585,7 @@ def df_filter(
         assert 0 <= channel_i < n_channels
 
         rad_pt = pd.pivot_table(
-            _df, values="signal", index=["peak_i"], columns=["channel_i", "cycle_i"]
+            _df, values=radmat_field, index=["peak_i"], columns=["channel_i", "cycle_i"]
         )
         ch_rad_pt = rad_pt.loc[:, channel_i]
         keep_peaks_mask = np.ones((ch_rad_pt.shape[0],), dtype=bool)
@@ -672,16 +681,104 @@ def df_to_radmat(df, radmat_field="signal", channel_i=None, n_cycles=None):
         return np.nan_to_num(radmat)
 
 
-def radmat_from_df_filter(df, radmat_field="signal", channel_i=None, **kwargs):
+def radmat_from_df_filter(
+    df, radmat_field="signal", channel_i=None, return_df=False, **kwargs
+):
     """
     Apply the filter args from df_filter and return a radmat
     """
-    n_channels = df.channel_i.max() + 1
-    n_cycles = df.cycle_i.max() + 1
     _df = df_filter(df, channel_i=channel_i, radmat_field=radmat_field, **kwargs)
-    radmat = df_to_radmat(
-        _df, n_channels=n_channels, n_cycles=n_cycles, radmat_field=radmat_field
-    )
-    if channel_i is not None:
-        radmat = radmat[:, channel_i, :]
-    return radmat
+    radmat = df_to_radmat(_df, channel_i=channel_i, radmat_field=radmat_field)
+
+    if return_df:
+        return radmat, _df
+    else:
+        return radmat
+
+
+"""
+n_dyts = dyemat.shape[0]
+with z(_cols=3, _remove_nan=True, _size=300):
+    pred_dyt_iz = calls_df.dyt_i
+
+    z.hist(calls_df.k, _bins=(0, 4, 200), f_title="k", f_x_axis_label="row_k")
+    z.hist(pred_dyt_iz, _bins=(0, n_dyts, n_dyts), f_title="dyt_i, ie cy-off (excl. cy=0 and last)", f_x_axis_label="cy assign")
+    z.hist(calls_df.dyt_score, f_title="dyt_score", f_x_axis_label="dyt_score")
+    z.hist(calls_df.score, f_title="scores", f_x_axis_label="score")
+
+    z.hist(np.nan_to_num(calls_df.logp_dyt), _bins=(-600, -250, 100), f_title="logp_dyt", f_x_axis_label="logp_dyt")
+    z.hist(np.nan_to_num(calls_df.logp_k), _bins=(-50, 0, 100), f_title="logp_k", f_x_axis_label="logp_k")
+"""
+
+
+"""
+# Here we need to combine the dataframes from sigproc and nn_v2
+# so that we can filter on both column sets.
+
+def apply_filter(calls_df, sigproc_df, n_subsample_peaks=None, **kwargs):
+
+    if n_subsample_peaks is not None:
+        calls_df = calls_df.sample(n_subsample_peaks)
+
+    joined_df = calls_df.set_index("radrow_i").join(
+        sigproc_df.set_index("peak_i")
+    ).reset_index().rename(columns=dict(index="peak_i"))
+    radmat, filt_df = radmat_from_df_filter(joined_df, channel_i=0, return_df=True, **kwargs)
+    return radmat, filter_df
+"""
+
+
+"""
+balanced = radmat / calls_df.k[:, None]
+stack_im = np.hstack((radmat, balanced))
+
+with z(_cspan=(0, 20000), _size=800):
+    im = stack_im[np.argsort(calls_df.dyt_i)]
+    z.im(im[0::20], f_title=f"Raw vs. k-balanced, filter nul assignments, sorted by pred_dyt_i")
+    #z.im(im[80000:100000:2], f_title=f"Raw vs. k-balanced, filter nul assignments, sorted by pred_dyt_i")
+"""
+
+"""
+n_rows_total = len(calls_df)
+balanced = radmat / calls_df.k[:, None]
+stack_im = np.hstack((radmat, balanced))
+
+# logp_dyt_10, logp_dyt_50, logp_dyt_90 = np.percentile(df.logp_dyt, (10, 50, 90))
+# logp_k_10, logp_k_90 = np.percentile(df.logp_k, (10, 90))
+# dyt_score_90, dyt_score_99 = np.percentile(df.dyt_score, (10, 99))
+
+# mask = np.ones((len(radmat),), dtype=bool)
+# mask &= df.dyt_i != 0
+# mask &= df.logp_dyt > logp_dyt_10
+# mask &= 0.5 < df.k
+# mask &= df.k < 1.5
+# mask &= df.dyt_score > dyt_score_90
+# mask &= df.score > dyt_score_90
+
+# show_with_mask(df, stack_im, mask)
+
+# dyts that have all ones
+one_count_dyt_iz = np.argwhere(np.all(dyemat <= 1, axis=1)).flatten()
+two_count_dyt_iz = np.argwhere(np.all(dyemat <= 2, axis=1) & np.any(dyemat == 2, axis=1)).flatten()
+three_count_dyt_iz = np.argwhere(np.all(dyemat <= 3, axis=1) & np.any(dyemat == 3, axis=1)).flatten()
+
+one_rows = np.isin(calls_df.dyt_i, one_count_dyt_iz)
+two_rows = np.isin(calls_df.dyt_i, two_count_dyt_iz)
+three_rows = np.isin(calls_df.dyt_i, three_count_dyt_iz)
+
+n_rows_total = sigproc_df.peak_i.max() + 1
+n_rows_keep = len(calls_df)
+n_ones = one_rows.sum()
+n_twos = two_rows.sum()
+n_threes = three_rows.sum()
+debug(n_rows_total, n_rows_keep, n_ones, n_twos)
+debug(n_rows_keep / n_rows_total, n_ones / n_rows_total, n_twos / n_rows_total, n_threes / n_rows_total)
+"""
+
+f"""
+n_rows_total={n_rows_total}
+n_rows_keep={n_rows_keep} {100 * n_rows_keep / n_rows_total:3.1f}%
+n_ones={n_ones} {100 * n_ones / n_rows_total:3.1f}%
+n_twos={n_twos} {100 * n_twos / n_rows_total:3.1f}%
+n_threes={n_threes} {100 * n_threes / n_rows_total:3.1f}%
+"""
