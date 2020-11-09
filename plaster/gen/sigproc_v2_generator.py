@@ -100,8 +100,8 @@ class SigprocV2Generator(BaseGenerator):
         if self.classify_dyetracks:
             rb = ReportBuilder()
             rb.report_section_run_object(run)
-            template = "sigproc_v2_classify_dyetracks.ipynb"
-            self.report_section_from_template(template)
+            template = "sigproc_v2_classify_dyetracks_template.ipynb"
+            rb.report_section_from_template(template)
             self.add_report("sigproc_v2_classify_dyetracks", rb)
 
         return runs
