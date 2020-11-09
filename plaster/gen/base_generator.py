@@ -7,7 +7,7 @@ from typing import List, Tuple
 
 import numpy as np
 from munch import Munch
-from plaster.gen import helpers, task_templates
+from plaster.gen import helpers, report_builder, task_templates
 from plaster.run.sigproc_v2 import sigproc_v2_common
 from plaster.tools.log.log import debug
 from plaster.tools.schema import check
@@ -19,12 +19,14 @@ from plumbum import local
 Scheme = namedtuple("Scheme", ["protease", "label_set"])
 
 
-class BaseGenerator(Munch):
+class BaseGenerator(report_builder.ReportBuilder, Munch):
     """
     Base of all generators.
 
     Expects sub-classes to provide a class member "required_schema"
     which is used for parsing the kwargs on the __init__()
+
+    Inherits from ReportBuilder for backwards compatibility with generators which expect to find report methods on the generator class
     """
 
     schema = None  # Should be overloaded in any sub-class
@@ -131,25 +133,6 @@ class BaseGenerator(Munch):
         )
     )
 
-    report_metadata = Munch(
-        metadata=Munch(
-            kernelspec=Munch(
-                display_name="Python 3", language="python", name="python3"
-            ),
-            language_info=Munch(
-                codemirror_mode=Munch(name="ipython", version=3),
-                file_extension=".py",
-                mimetype="text/x-python",
-                name="python",
-                nbconvert_exporter="python",
-                pygments_lexer="ipython3",
-                version="3.6.7",
-            ),
-        ),
-        nbformat=4,
-        nbformat_minor=2,
-    )
-
     error_model_schema = s(
         s.is_kws_r(
             err_p_edman_failure=s.is_list(elems=s.is_str(help="See Main Help")),
@@ -184,12 +167,6 @@ class BaseGenerator(Munch):
         err_p_non_fluorescent=0.07,
     )
 
-    code_block = Munch(
-        cell_type="code", execution_count=None, metadata=Munch(), outputs=[], source=[]
-    )
-
-    markdown_block = Munch(cell_type="markdown", metadata=Munch(), source=[])
-
     has_report = True
 
     def __init__(self, **kwargs):
@@ -200,12 +177,9 @@ class BaseGenerator(Munch):
         self.setup_err_model()
         self.validate()
 
-        self._report_sections = []
-        self._report_preamble = None
-        self._validate_protein_of_interest()
+        self.reports = Munch(report=self)
 
-    def _nb_template_path(self, template_name):
-        return local.path(__file__) / "../nb_templates" / template_name
+        self._validate_protein_of_interest()
 
     def _validate_protein_of_interest(self):
         if "protein" in self:
@@ -513,39 +487,14 @@ class BaseGenerator(Munch):
             generator_name=self.__class__.__name__,
         )
 
-    def _markdown_to_markdown_block(self, markdown):
-        lines = [f"{line}\n" for line in markdown.split("\n")]
-        block = Munch(**self.markdown_block)
-        block.source = lines
-        return block
-
-    def report_preamble(self, markdown):
-        """A a preamble in markdown format"""
-        self._report_preamble = markdown
-
-    def report_section_markdown(self, markdown):
-        self._report_sections += [("markdown", markdown)]
-
-    def report_section_run_object(self, run):
-        self._report_sections += [
-            ("code", [f'run = RunResult("./{run.run_name}")'],),
-        ]
-
-    def report_section_first_run_object(self):
-        self._report_sections += [
-            ("code", [f"run = job.runs[0]"],),
-        ]
-
-    def report_section_job_object(self):
-        self._report_sections += [
-            ("code", [f'job = JobResult(".")'],),
-        ]
-
-    def report_section_user_config(self):
+    def report_section_user_config(self, report=None):
         """
         Emit report configuation parameters specified by the user via gen so that they
         can be further edited if desired, and used by reporting functions in the templates.
         """
+        if report is None:
+            report = self
+
         config = []
         if self.protein_of_interest:
             config += [f"PGEN_protein_of_interest = {self.protein_of_interest}\n"]
@@ -556,96 +505,16 @@ class BaseGenerator(Munch):
             config = [
                 f"# These values were or can be specified by the user at gen time:\n"
             ] + config
-            self._report_sections += [("code", config)]
-
-    def report_section_run_array(self, runs, to_load=None):
-        to_load_string = "" if to_load is None else f", to_load={to_load}"
-        run_names = [run.run_name for run in runs]
-        self._report_sections += [
-            (
-                "code",
-                [
-                    f"run_names = {run_names}\n"
-                    f'runs = [RunLoader(f"./{{name}}"{to_load_string}) for name in run_names]'
-                ],
-            )
-        ]
-
-    def report_section_from_template(self, template_name):
-        """Write the report from its pieces"""
-        self._report_sections += [("template", template_name)]
+            report.add_report_section("code", config)
 
     def report_assemble(self):
-        """Assemble the report from its pieces. A giant Munch is returned"""
+        """
+        Overrides report_assemble in ReportBuilder to implement the self.has_report behavior
+        """
         if not self.has_report:
             return None
-
-        report = Munch(**self.report_metadata)
-        report.cells = []
-
-        preamble_block = self._markdown_to_markdown_block(self._report_preamble)
-        report.cells += [preamble_block]
-
-        # LOAD all templates
-        templates_by_name = {}
-        for section_type, section_data in self._report_sections:
-            if section_type == "template":
-                templates_by_name[section_data] = utils.json_load_munch(
-                    self._nb_template_path(section_data)
-                )
-
-        # FIND all of the @IMPORT-MERGE blocks
-        import_merge = []
-        for _, template in templates_by_name.items():
-            for cell in template.cells:
-                if cell.cell_type == "code":
-                    first_line = utils.safe_list_get(cell.source, 0, "")
-                    if "# @IMPORT-MERGE" in first_line:
-                        for line in cell.source:
-                            if "import" in line:
-                                import_merge += [line]
-
-        import_merge += ["from plaster.tools.zplots import zplots\n"]
-        import_merge = sorted(list(set(import_merge))) + ["z=zplots.setup()"]
-        import_block = Munch(**self.code_block)
-        import_block.source = import_merge
-        report.cells += [import_block]
-
-        for section_type, section_data in self._report_sections:
-            if section_type == "code":
-                lines = section_data
-                block = Munch(**self.code_block)
-                block.source = lines
-                report.cells += [block]
-
-            elif section_type == "markdown":
-                block = self._markdown_to_markdown_block(section_data)
-                report.cells += [block]
-
-            elif section_type == "template":
-                file_path = section_data
-                template = templates_by_name[file_path]
-                for cell in template.cells:
-                    if cell.cell_type == "code":
-                        first_line = utils.safe_list_get(cell.source, 0, "")
-
-                        if (
-                            "@IMPORT-MERGE" not in first_line
-                            and "@REMOVE-FROM-TEMPLATE" not in first_line
-                        ):
-                            block = Munch(**self.code_block)
-                            block.source = cell.source
-                            report.cells += [block]
-
-                    if cell.cell_type == "markdown":
-                        block = Munch(**self.markdown_block)
-                        block.source = cell.source
-                        report.cells += [block]
-
-        return report
-
-    def report_task(self):
-        pass
+        else:
+            return super().report_assemble()
 
     def generate(self):
         """

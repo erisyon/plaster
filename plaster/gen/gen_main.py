@@ -761,9 +761,10 @@ class GenApp(cli.Application, GenFuncs):
         self.local_sources_tmp_folder.move(gen_sources_folder)
 
         if not self.skip_report:
-            report = generator.report_assemble()
-            if report is not None:
-                utils.json_save(job_folder / "report.ipynb", report)
+            for report_name, report_builder in generator.reports.items():
+                report = report_builder.report_assemble()
+                if report is not None:
+                    utils.json_save(job_folder / f"{report_name}.ipynb", report)
 
         utils.yaml_write(
             job_folder / "job_manifest.yaml",
