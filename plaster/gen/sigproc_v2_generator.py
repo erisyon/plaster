@@ -24,7 +24,7 @@ class SigprocV2Generator(BaseGenerator):
             dyetrack_n_cycles=s.is_int(
                 noneable=True, help="Number of cycles of simulated dyetracks"
             ),
-            dyetrack_n_count=s.is_int(noneable=True, help="Number of dyes max."),
+            dyetrack_n_counts=s.is_int(noneable=True, help="Number of dyes max."),
         )
     )
 
@@ -65,7 +65,7 @@ class SigprocV2Generator(BaseGenerator):
                     run_row_k_fit=True,
                     include_sigproc=True,
                     dyetrack_n_cycles=self.dyetrack_n_cycles,
-                    dyetrack_n_count=self.dyetrack_n_count,
+                    dyetrack_n_counts=self.dyetrack_n_counts,
                 )
 
         run = Munch(

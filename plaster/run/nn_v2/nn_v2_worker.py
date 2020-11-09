@@ -70,7 +70,7 @@ def nn_v2(
     else:
         n_cols = sigproc_result.n_cols
 
-    def _run(radmat, dyemat=sim_v2_result.flat_train_dyemat(), dyepeps=sim_v2_result.train_dyepeps):
+    def _run(radmat, dyemat, dyepeps):
         with c_nn_v2.context(
             radmat=radmat,
             train_dyemat=dyemat,
