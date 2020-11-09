@@ -774,11 +774,3 @@ n_threes = three_rows.sum()
 debug(n_rows_total, n_rows_keep, n_ones, n_twos)
 debug(n_rows_keep / n_rows_total, n_ones / n_rows_total, n_twos / n_rows_total, n_threes / n_rows_total)
 """
-
-f"""
-n_rows_total={n_rows_total}
-n_rows_keep={n_rows_keep} {100 * n_rows_keep / n_rows_total:3.1f}%
-n_ones={n_ones} {100 * n_ones / n_rows_total:3.1f}%
-n_twos={n_twos} {100 * n_twos / n_rows_total:3.1f}%
-n_threes={n_threes} {100 * n_threes / n_rows_total:3.1f}%
-"""
