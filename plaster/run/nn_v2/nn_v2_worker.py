@@ -65,7 +65,10 @@ def nn_v2(
     progress=None,
     pipeline=None,
 ):
-    n_cols = sim_v2_result.flat_train_dyemat().shape[1]
+    if sim_v2_result is not None:
+        n_cols = sim_v2_result.flat_train_dyemat().shape[1]
+    else:
+        n_cols = sigproc_result.n_cols
 
     def _run(radmat, dyemat=sim_v2_result.flat_train_dyemat(), dyepeps=sim_v2_result.train_dyepeps):
         with c_nn_v2.context(
@@ -110,7 +113,7 @@ def nn_v2(
             pipeline.set_phase(phase_i, n_phases)
             phase_i += 1
 
-        test_context = _run(test_radmat)
+        test_context = _run(test_radmat, dyemat=sim_v2_result.flat_train_dyemat(), dyepeps=sim_v2_result.train_dyepeps)
 
         test_df = test_context.to_dataframe()
         test_df["true_pep_iz"] = sim_v2_result.test_true_pep_iz
@@ -146,7 +149,7 @@ def nn_v2(
             pipeline.set_phase(phase_i, n_phases)
             phase_i += 1
 
-        train_context = _run(train_radmat)
+        train_context = _run(train_radmat, dyemat=sim_v2_result.flat_train_dyemat(), dyepeps=sim_v2_result.train_dyepeps)
 
         train_df = train_context.to_dataframe()
         train_df["true_pep_iz"] = sim_v2_result.train_true_pep_iz
@@ -174,7 +177,7 @@ def nn_v2(
             dyemat, dyepeps = triangle_dyemat(nn_v2_params.dyetrack_n_cycles, nn_v2_params.dyetrack_n_counts)
             sigproc_context = _run(sigproc_radmat, dyemat, dyepeps)
         else:
-            sigproc_context = _run(sigproc_radmat)
+            sigproc_context = _run(sigproc_radmat, dyemat=sim_v2_result.flat_train_dyemat(), dyepeps=sim_v2_result.train_dyepeps)
 
         sigproc_df = sigproc_context.to_dataframe()
 

@@ -183,6 +183,10 @@ class SigprocV2Result(BaseResult):
         return utils.safe_len(self.field_files)
 
     @property
+    def n_cols(self):
+        return self.n_cycles * self.n_channels
+
+    @property
     def n_frames(self):
         return (
             self.n_fields

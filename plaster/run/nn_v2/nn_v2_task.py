@@ -20,8 +20,13 @@ class NNV2Task(PipelineTask):
                 self.inputs.sigproc, prop_list=["n_cycles", "n_channels"]
             )
 
-        prep_result = PrepResult.load_from_folder(self.inputs.prep)
-        sim_v2_result = SimV2Result.load_from_folder(self.inputs.sim_v2)
+        prep_result = None
+        if self.inputs.get("prep") is not None:
+            prep_result = PrepResult.load_from_folder(self.inputs.prep)
+
+        sim_v2_result = None
+        if self.inputs.get("sim_v2") is not None:
+            sim_v2_result = SimV2Result.load_from_folder(self.inputs.sim_v2)
 
         nn_v2_result = nn_v2(
             nn_v2_params,

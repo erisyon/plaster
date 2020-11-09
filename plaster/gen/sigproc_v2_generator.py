@@ -59,6 +59,8 @@ class SigprocV2Generator(BaseGenerator):
                 nn_n2_task = task_templates.nn_v2(
                     "../sigproc_v2",
                     err_set,
+                    prep_folder=None,
+                    sim_v2_folder=None,
                     run_against_all_dyetracks=True,
                     run_row_k_fit=True,
                     include_sigproc=True,
