@@ -26,10 +26,11 @@ class SigprocV2Generator(BaseGenerator):
                 noneable=True, help="Number of cycles of simulated dyetracks"
             ),
             dyetrack_n_counts=s.is_int(noneable=True, help="Number of dyes max."),
+            is_timelapse=s.is_bool(help="Is a timelapse experiment"),
         )
     )
 
-    defaults = Munch(classify_dyetracks=False,)
+    defaults = Munch(classify_dyetracks=False, is_timelapse=False,)
 
     def generate(self):
         runs = []
@@ -54,6 +55,7 @@ class SigprocV2Generator(BaseGenerator):
             # feature and so is using hard-coded n_channels for example
             self.label_set = [""]
             self.scheme = []
+            n_schemes = 0
             for protease, label_set, err_set in self.run_parameter_permutator():
                 nn_n2_task = task_templates.nn_v2(
                     "../sigproc_v2",
@@ -66,6 +68,10 @@ class SigprocV2Generator(BaseGenerator):
                     dyetrack_n_cycles=self.dyetrack_n_cycles,
                     dyetrack_n_counts=self.dyetrack_n_counts,
                 )
+
+                n_schemes += 1
+
+            assert n_schemes == 1
 
         run = Munch(
             run_name=f"sigproc_v2",
@@ -103,5 +109,12 @@ class SigprocV2Generator(BaseGenerator):
             template = "sigproc_v2_classify_dyetracks_template.ipynb"
             rb.report_section_from_template(template)
             self.add_report("sigproc_v2_classify_dyetracks", rb)
+
+            if self.is_timelapse and self.dyetrack_n_counts == 1:
+                rb = ReportBuilder()
+                rb.report_section_run_object(run)
+                template = "sigproc_v2_timelapse_template.ipynb"
+                rb.report_section_from_template(template)
+                self.add_report("sigproc_v2_timelapse", rb)
 
         return runs
