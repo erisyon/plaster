@@ -25,7 +25,6 @@ from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zplots.zplots import ZPlots
 
-
 # Mature
 # ====================================================================================================
 
@@ -826,6 +825,11 @@ def text_lnfit_links(run):
 
     cwd = local.cwd
     for ch, html_files in enumerate(lnfit.html_files()):
+        if not html_files:
+            # TODO: should we print some kind of warning here? Due to the structure of the data returned by LNFitResult.html_files,
+            #       if html_files is empty then there's not a whole lot of other information to relay to the user.
+            continue
+
         task_folder = html_files[0].split()[-2]
         md(f"### {task_folder}")
         m = ""
@@ -877,14 +881,13 @@ def plot_signal_for_lnfit_sequence(run, channel, sequence, lnfit_taskname=None):
 def wizard_boxplot_df(
     df, value_col, group_col, f_x_axis_label=None, f_y_axis_label=None, f_title=None
 ):
-    from bokeh.plotting import figure  # Defer slow imports
     from bokeh.io import show  # Defer slow imports
+    from bokeh.plotting import figure  # Defer slow imports
 
     #
     # Adapted from https://bokeh.pydata.org/en/latest/docs/gallery/boxplot.html
     #
     # This similar to the scat wizard, but with box & whisker.
-
     # find the quartiles and IQR for each category
     groups = df[[group_col, value_col]].groupby(group_col)
     q1 = groups.quantile(q=0.25)
@@ -988,13 +991,9 @@ def abund_abund_plot(
     highlight_impacted=True,
     omit_needle=False,
 ):
-    from bokeh.models import (
-        HoverTool,
-        PanTool,
-        ResetTool,
-        WheelZoomTool,
-    )  # Defer slow imports
-    from bokeh.plotting import figure, ColumnDataSource, show  # Defer slow imports
+    from bokeh.models import PanTool  # Defer slow imports
+    from bokeh.models import HoverTool, ResetTool, WheelZoomTool
+    from bokeh.plotting import ColumnDataSource, figure, show  # Defer slow imports
 
     def abun(df, n_classes):
         return (
