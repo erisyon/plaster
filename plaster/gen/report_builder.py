@@ -124,23 +124,24 @@ class ReportBuilder:
                             if "import" in line:
                                 import_merge += [line]
 
+        # report.cells += [
+        #     (
+        #         SectionType.CODE,
+        #         (
+        #             "# Uncomment this line to restart kernel\n"
+        #             "# from plaster.tools.ipynb_helpers.displays import restart_kernel; restart_kernel()\n"
+        #         ),
+        #     )
+        # ]
+
         import_merge += ["from plaster.tools.zplots import zplots\n"]
         import_merge = sorted(list(set(import_merge))) + ["z = zplots.setup()"]
+        
         import_block = Munch(**self.code_block)
         import_block.source = import_merge
         report.cells += [import_block]
 
-        reset_preamble = [
-            (
-                SectionType.CODE,
-                (
-                    "# Uncomment this line to restart kernel\n"
-                    "# from plaster.tools.ipynb_helpers.displays import restart_kernel; restart_kernel()\n"
-                ),
-            )
-        ]
-
-        for section_type, section_data in reset_preamble + self._report_sections:
+        for section_type, section_data in self._report_sections:
             if section_type == SectionType.CODE:
                 lines = section_data
                 block = Munch(**self.code_block)
