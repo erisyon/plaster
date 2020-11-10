@@ -351,7 +351,7 @@ def wizard_scat_df(
         n_peaks_subsample=n_peaks_subsample
     )
 
-    if include_metadata:
+    if include_metadata and run.ims_import.has_metadata():
         idx_fields = ["field_i", "cycle_i"]
         meta_df = run.ims_import.metadata().set_index(idx_fields)
         df = df.set_index(idx_fields).join(meta_df).reset_index()

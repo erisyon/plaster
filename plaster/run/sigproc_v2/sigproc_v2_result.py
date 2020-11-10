@@ -393,7 +393,7 @@ class SigprocV2Result(BaseResult):
         df.peak_i = df.index
 
         if n_peaks_subsample is not None:
-            df = df.sample(n_peaks_subsample)
+            df = df.sample(n_peaks_subsample, replace=True)
 
         return df
 
@@ -656,7 +656,9 @@ def df_filter(
     return _df
 
 
-def df_to_radmat(df, radmat_field="signal", channel_i=None, n_cycles=None, nan_to_zero=True):
+def df_to_radmat(
+    df, radmat_field="signal", channel_i=None, n_cycles=None, nan_to_zero=True
+):
     """
     Convert the dataframe filtered by df_filter into a radmat
     """
