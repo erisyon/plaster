@@ -125,7 +125,7 @@ class ReportBuilder:
                                 import_merge += [line]
 
         import_merge += ["from plaster.tools.zplots import zplots\n"]
-        import_merge = sorted(list(set(import_merge))) + ["z=zplots.setup()"]
+        import_merge = sorted(list(set(import_merge))) + ["z = zplots.setup()"]
         import_block = Munch(**self.code_block)
         import_block.source = import_merge
         report.cells += [import_block]
