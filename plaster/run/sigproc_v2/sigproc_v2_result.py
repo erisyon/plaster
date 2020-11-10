@@ -656,7 +656,7 @@ def df_filter(
     return _df
 
 
-def df_to_radmat(df, radmat_field="signal", channel_i=None, n_cycles=None):
+def df_to_radmat(df, radmat_field="signal", channel_i=None, n_cycles=None, nan_to_zero=True):
     """
     Convert the dataframe filtered by df_filter into a radmat
     """
@@ -677,10 +677,14 @@ def df_to_radmat(df, radmat_field="signal", channel_i=None, n_cycles=None):
     radmat = radmat.values
     n_rows = radmat.shape[0]
     radmat = radmat.reshape((n_rows, n_channels, n_cycles))
+
     if channel_i is not None:
-        return radmat[:, channel_i, :]
-    else:
-        return radmat
+        radmat = radmat[:, channel_i, :]
+
+    if nan_to_zero:
+        return np.nan_to_num(radmat)
+
+    return radmat
 
 
 def radmat_from_df_filter(
