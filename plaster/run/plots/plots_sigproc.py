@@ -330,6 +330,9 @@ def wizard_scat_df(
     default_y="signal",
     channel_i=None,
     result_block="sigproc_v2",
+    include_metadata=False,
+    n_peaks_subsample=3000,
+    n_rows_subsample=3000,
 ):
     """
     Wizard to explore sigprocv2 data on any pivot.
@@ -344,17 +347,22 @@ def wizard_scat_df(
     from ipywidgets import interact  # Defer slow imports
     from bokeh.plotting import figure, ColumnDataSource, show  # Defer slow imports
 
-    df = run[result_block].fields__n_peaks__peaks__radmat()
+    df = run[result_block].fields__n_peaks__peaks__radmat(
+        n_peaks_subsample=n_peaks_subsample
+    )
+
+    if include_metadata:
+        idx_fields = ["field_i", "cycle_i"]
+        meta_df = run.ims_import.metadata().set_index(idx_fields)
+        df = df.set_index(idx_fields).join(meta_df).reset_index()
+
     if channel_i is not None:
         df = df[df.channel_i == channel_i].reset_index()
     x_name_wid = displays.dropdown(df, "X:", default_x)
     y_name_wid = displays.dropdown(df, "Y:", default_y)
 
     def scat(x_name, y_name, x_noise):
-        n_peaks = df.shape[0]
-        n_samples = 3000
-        mask = data.subsample(np.arange(n_peaks), n_samples)
-        _df = df.loc[mask].copy()
+        _df = df.sample(n_rows_subsample).copy()
         _df[x_name] = _df[x_name] + np.random.uniform(-x_noise, +x_noise, size=len(_df))
         source = ColumnDataSource(_df)
         f = figure(

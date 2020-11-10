@@ -107,6 +107,9 @@ class SigprocV2Result(BaseResult):
     # )
     # fmt: on
 
+    def __hash__(self):
+        return hash(id(self))
+
     def _field_filename(self, field_i, is_debug):
         return self._folder / f"{'_debug_' if is_debug else ''}field_{field_i:03d}.ipkl"
 
@@ -373,7 +376,7 @@ class SigprocV2Result(BaseResult):
         return df
 
     @disk_memoize()
-    def peaks(self):
+    def peaks(self, n_peaks_subsample=None):
         df = self._load_df_prop_from_all_fields("peak_df")
         check.df_t(df, self.peak_df_schema)
 
@@ -388,6 +391,9 @@ class SigprocV2Result(BaseResult):
         # don't have their pan-field peak_i set yet.
         df = df.reset_index(drop=True)
         df.peak_i = df.index
+
+        if n_peaks_subsample is not None:
+            df = df.sample(n_peaks_subsample)
 
         return df
 
@@ -466,14 +472,12 @@ class SigprocV2Result(BaseResult):
         return df
 
     @disk_memoize()
-    def fields__n_peaks__peaks(self):
+    def fields__n_peaks__peaks(self, n_peaks_subsample=None):
         """
         Add a "raw_x" "raw_y" position for each peak. This is the
         coordinate of the peak relative to the original raw image
         so that circles can be used to
         """
-        fc_index = ["field_i"]
-
         df = (
             self.fields()
             .set_index("field_i")
@@ -482,11 +486,9 @@ class SigprocV2Result(BaseResult):
             .reset_index()
         )
 
-        df = (
-            df.set_index(fc_index)
-            .join(self.peaks().set_index(fc_index), how="outer")
-            .reset_index()
-        )
+        pdf = self.peaks(n_peaks_subsample=n_peaks_subsample)
+
+        df = pdf.set_index("field_i").join(df.set_index("field_i")).reset_index()
 
         df["raw_x"] = df.aln_x - (df.field_aln_x)
         df["raw_y"] = df.aln_y - (df.field_aln_y)
@@ -494,7 +496,7 @@ class SigprocV2Result(BaseResult):
         return df
 
     @disk_memoize()
-    def fields__n_peaks__peaks__radmat(self):
+    def fields__n_peaks__peaks__radmat(self, n_peaks_subsample=None):
         """
         Build a giant joined dataframe useful for debugging.
         The masked_rects are excluded from this as they clutter it up.
@@ -502,7 +504,7 @@ class SigprocV2Result(BaseResult):
         pcc_index = ["peak_i", "channel_i", "cycle_i"]
 
         df = (
-            self.fields__n_peaks__peaks()
+            self.fields__n_peaks__peaks(n_peaks_subsample=n_peaks_subsample)
             .set_index(pcc_index)
             .join(
                 self.radmats__peaks().set_index(pcc_index)[

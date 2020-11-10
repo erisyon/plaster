@@ -7,11 +7,17 @@ from plaster.tools.log.log import debug
 
 
 def disk_memoize():
+    """
+    Ignores args that are instances of BaseResult so that we
+    will get coherency between restarts of a jupyter kernel
+    """
+
     def _wraps(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            assert isinstance(args[0], BaseResult)
-            path = args[0]._folder / f"_cache_{func.__name__}.pkl"
+            keep_args = tuple([a for a in args if not isinstance(a, BaseResult)])
+            h = hash(keep_args + tuple(sorted(kwargs.items()))) ** 2
+            path = args[0]._folder / f"_cache_{func.__name__}_{h:X}.pkl"
             try:
                 rv = utils.pickle_load(path)
             except Exception:
