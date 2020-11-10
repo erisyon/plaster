@@ -141,8 +141,8 @@ class NNV2Context(c_common_tools.FixupStructure):
             )
         )
 
-        df["radrow_i"] = np.arange(len(df))
-        df = df.sort_values("radrow_i")
+        df["peak_i"] = np.arange(len(df))
+        df = df.sort_values("peak_i")
 
         return df
 

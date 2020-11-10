@@ -9,7 +9,7 @@ class NNV2Result(BaseResult):
     filename = "nn_v2.pkl"
 
     columns = (
-        "radrow_i",
+        "peak_i",
         "dyt_i",
         "pep_i",
         "dyt_score",
