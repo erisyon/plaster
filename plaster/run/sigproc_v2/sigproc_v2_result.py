@@ -678,9 +678,9 @@ def df_to_radmat(df, radmat_field="signal", channel_i=None, n_cycles=None):
     n_rows = radmat.shape[0]
     radmat = radmat.reshape((n_rows, n_channels, n_cycles))
     if channel_i is not None:
-        return np.nan_to_num(radmat[:, channel_i, :])
+        return radmat[:, channel_i, :]
     else:
-        return np.nan_to_num(radmat)
+        return radmat
 
 
 def radmat_from_df_filter(
