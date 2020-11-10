@@ -130,7 +130,17 @@ class ReportBuilder:
         import_block.source = import_merge
         report.cells += [import_block]
 
-        for section_type, section_data in self._report_sections:
+        reset_preamble = [
+            (
+                SectionType.CODE,
+                (
+                    "# Uncomment this line to restart kernel\n"
+                    "# from plaster.tools.ipynb_helpers.displays import restart_kernel; restart_kernel()\n"
+                ),
+            )
+        ]
+
+        for section_type, section_data in reset_preamble + self._report_sections:
             if section_type == SectionType.CODE:
                 lines = section_data
                 block = Munch(**self.code_block)
