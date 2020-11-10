@@ -110,11 +110,11 @@ class SigprocV2Generator(BaseGenerator):
             rb.report_section_from_template(template)
             self.add_report("sigproc_v2_classify_dyetracks", rb)
 
-            if self.is_timelapse and self.dyetrack_n_counts == 1:
-                rb = ReportBuilder()
-                rb.report_section_run_object(run)
-                template = "sigproc_v2_timelapse_template.ipynb"
-                rb.report_section_from_template(template)
-                self.add_report("sigproc_v2_timelapse", rb)
+        if self.is_timelapse and self.dyetrack_n_counts == 1:
+            rb = ReportBuilder()
+            rb.report_section_run_object(run)
+            template = "sigproc_v2_timelapse_template.ipynb"
+            rb.report_section_from_template(template)
+            self.add_report("sigproc_v2_timelapse", rb)
 
         return runs
