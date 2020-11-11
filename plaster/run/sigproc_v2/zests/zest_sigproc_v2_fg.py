@@ -30,7 +30,7 @@ def zest_fit_method():
         divs = 5
         psf_params = np.broadcast_to(
             np.array(
-                [100.0, 1.8, 1.8, peaks.mea / 2, peaks.mea / 2, 0.0, 0.0, peaks.mea]
+                [1000.0, 1.8, 1.8, peaks.mea / 2, peaks.mea / 2, 0.0, 0.0, peaks.mea]
             ),
             (1, divs, divs, 8),
         )

@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import random
 import copy
+import math
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
@@ -145,8 +146,9 @@ class PeaksModel(BaseSynthModel):
         )
         return self
 
-    def locs_grid(self, steps=10):
+    def locs_grid(self):
         pad = 10
+        steps = math.floor(math.sqrt(self.n_peaks))
         self.locs = [
             (y, x)
             for y in utils.ispace(pad, self.dim[0] - 2 * pad, steps)

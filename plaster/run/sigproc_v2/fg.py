@@ -4,6 +4,7 @@ from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
+from plaster.tools.gauss2d import gauss2d
 
 
 def peak_find(im, kernel, bg_std):
@@ -212,60 +213,111 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
         11 typle:
             signal, noise, aspect_ratio, fit parameters
     """
-    check.array_t(im, ndim=2)
+    lib = gauss2d.load_lib()
+
+    im = im.astype(np.float32)
+    check.array_t(im, ndim=2, dtype=np.float32, c_contiguous=True, is_square=True)
     check.array_t(psf_params, ndim=4)
     check.array_t(locs, ndim=2, shape=(None, 2))
 
-    n_z_slices, divs, _, _ = psf_params.shape
-    n_locs = len(locs)
+    n_z_slices, n_divs, _, _ = psf_params.shape
+    n_locs = int(len(locs))
 
-    params = np.zeros((n_locs, 3 + 8))  # sig, noi rsr, 8 gaussian parameters
-
-    assert psf_params.shape[1] == divs
-    assert psf_params.shape[2] == divs
+    assert psf_params.shape[1] == n_divs
+    assert psf_params.shape[2] == n_divs
     assert psf_params.shape[3] == 8
-    psf_mea = psf_params[0, 0, 0, 7]
-    psf_dim = (psf_mea, psf_mea)
+    psf_mea = int(psf_params[0, 0, 0, 7])
 
-    for loc_i, loc in enumerate(locs):
-        # if loc_i % 100 == 0:
-        #     print(f"{100 * loc_i / n_locs:3.2f}%")
-        peak_im = imops.crop(im, off=YX(loc), dim=HW(psf_dim), center=True)
-        if peak_im.shape != psf_dim:
-            # Skip near edges
-            continue
+    locs_y = np.ascontiguousarray(locs[:, 0], dtype=np.int64)
+    locs_x = np.ascontiguousarray(locs[:, 1], dtype=np.int64)
 
-        if np.any(np.isnan(peak_im)):
-            # Skip nan collisions
-            continue
+    # 7 gaussian parameters are:
+    #    amp, sig_x, sig_y, pos_x, pos_y, rho, offset
 
-        y, x = loc_to_div(loc, divs, im.shape)
-        fit_guess = psf_params[psf_params.shape[0] // 2, y, x]
+    # These params have to be initialized based on the regional psf_params
+    most_in_focus_i = psf_params.shape[0] // 2
+    psf_lookup = np.floor(n_divs * locs / im.shape[0]).astype(int)
+    fit_params = np.ascontiguousarray(
+        psf_params[most_in_focus_i, psf_lookup[:, 0], psf_lookup[:, 1], 0:7],
+        dtype=np.float64,
+    ).flatten()
 
-        (amp, std_x, std_y, pos_x, pos_y, rho, const, mea), _ = imops.fit_gauss2(
-            peak_im, fit_guess
-        )
-        # The fit gauss may have a const offset, so this needs to be removed
-        # from both the kernel and the peak
-        psf_kernel = imops.gauss2_rho_form(
-            amp, std_x, std_y, pos_x, pos_y, rho, 0.0, mea
-        )
-        psf_kernel_sum = psf_kernel.sum()
-        if psf_kernel_sum == 0.0:
-            _signal, _noise, _aspect_ratio = np.nan, np.nan, np.nan
-        else:
-            psf_kernel /= psf_kernel_sum
-            psf_kernel = np.nan_to_num(psf_kernel)
-            peak_im -= const
-            allow_subpixel_shift = False
-            _signal, _noise, _aspect_ratio = _radiometry_one_peak(
-                peak_im, psf_kernel, allow_subpixel_shift=allow_subpixel_shift
-            )
+    check.array_t(fit_params, dtype=np.float64, c_contiguous=True)
 
-        params[loc_i][0:3] = (_signal, _noise, _aspect_ratio)
-        params[loc_i][3:] = (amp, std_x, std_y, pos_x, pos_y, rho, const, mea)
+    fit_fails = np.zeros((n_locs,), dtype=np.int64)
+    check.array_t(fit_fails, dtype=np.int64, c_contiguous=True)
 
-    return params
+    ret = lib.fit_array_of_gauss_2d_on_float_image(
+        im,
+        im.shape[1],
+        im.shape[0],
+        psf_mea,
+        n_locs,
+        locs_y,
+        locs_x,
+        fit_params,
+        fit_fails,
+    )
+
+    fit_params = fit_params.reshape((n_locs, 7))
+
+    ret_params = np.zeros((n_locs, 3 + 8))  # sig, noi, asr, 8 gaussian parameters
+    ret_params[:, 0:3] = (0.0, 0.0, 0.0)
+    ret_params[:, 3:10] = fit_params
+    ret_params[:, 10] = psf_mea
+
+    # TODO: sig, noi, asr
+    #   Render it out and subtract to get residuals
+    #   and examine the distribution of the residuals
+    #   to find collisions.  I'll need to do this in C
+    #   which means I'm back to compiling so I need to
+    #   conert my lmfitter to the C style.
+    ret_params[:, 0] = fit_params[:, 0]
+
+    return ret_params
+
+
+#        (amp, std_x, std_y, pos_x, pos_y, rho, const, mea)
+
+# for loc_i, loc in enumerate(locs):
+#     # if loc_i % 100 == 0:
+#     #     print(f"{100 * loc_i / n_locs:3.2f}%")
+#     peak_im = imops.crop(im, off=YX(loc), dim=HW(psf_dim), center=True)
+#     if peak_im.shape != psf_dim:
+#         # Skip near edges
+#         continue
+#
+#     if np.any(np.isnan(peak_im)):
+#         # Skip nan collisions
+#         continue
+#
+#     y, x = loc_to_div(loc, divs, im.shape)
+#     fit_guess = psf_params[psf_params.shape[0] // 2, y, x]
+#
+#     (amp, std_x, std_y, pos_x, pos_y, rho, const, mea), _ = imops.fit_gauss2(
+#         peak_im, fit_guess
+#     )
+#     # The fit gauss may have a const offset, so this needs to be removed
+#     # from both the kernel and the peak
+#     psf_kernel = imops.gauss2_rho_form(
+#         amp, std_x, std_y, pos_x, pos_y, rho, 0.0, mea
+#     )
+#     psf_kernel_sum = psf_kernel.sum()
+#     if psf_kernel_sum == 0.0:
+#         _signal, _noise, _aspect_ratio = np.nan, np.nan, np.nan
+#     else:
+#         psf_kernel /= psf_kernel_sum
+#         psf_kernel = np.nan_to_num(psf_kernel)
+#         peak_im -= const
+#         allow_subpixel_shift = False
+#         _signal, _noise, _aspect_ratio = _radiometry_one_peak(
+#             peak_im, psf_kernel, allow_subpixel_shift=allow_subpixel_shift
+#         )
+#
+#     params[loc_i][0:3] = (_signal, _noise, _aspect_ratio)
+#     params[loc_i][3:] = (amp, std_x, std_y, pos_x, pos_y, rho, const, mea)
+#
+# return params
 
 
 def fg_estimate(fl_ims, z_reg_psfs, progress=None):
@@ -343,3 +395,58 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
     # RETURN the balance adjustment. That is, multiply by this matrix
     # to balance an image. In other words, the brightest region will == 1.0
     return np.nanmax(bal) / bal, mean_im
+
+
+"""
+import pandas as pd
+import numpy as np
+from plaster.run.sigproc_v2 import synth
+from plaster.tools.zplots import zplots
+from plaster.tools.log.log import debug
+import cv2
+from plaster.run.sigproc_v2 import fg
+z = zplots.setup()
+
+with synth.Synth(n_channels=1, n_cycles=2, overwrite=True, dim=(512, 512)) as s:
+    bg_mean = 100
+    peaks = (
+        synth.PeaksModelGaussianCircular(n_peaks=400)
+        #.locs_grid()
+        .widths_uniform(1.5)
+        .amps_constant(2000)
+    )
+#     peaks.locs = []
+#     for y in range(20, 200, 20):
+#         for x in range(20, 200, 20):
+#             peaks.locs += [(y, x)]
+    synth.CameraModel(bias=bg_mean, std=10)
+    chcy_ims = s.render_chcy()
+
+    im = chcy_ims[0, 0]
+
+    divs = 5
+    psf_params = np.broadcast_to(
+        np.array(
+            [1800.0, 1.4, 1.6, peaks.mea / 2, peaks.mea / 2, 0.0, 0.0, peaks.mea]
+        ),
+        (1, divs, divs, 8),
+    )
+
+    fit_params = fg.radiometry_one_channel_one_cycle_fit_method(
+        im, psf_params, np.array(peaks.locs)
+    )
+
+z.im(im)
+with z(_cols=4, _size=250):
+    z.hist(fit_params[:, 3], _bins=(0, 3000, 200), f_x_axis_label="amp")
+    z.hist(fit_params[:, 4], _bins=(1, 2, 200), f_x_axis_label="std_x")
+    z.hist(fit_params[:, 5], _bins=(1, 2, 200), f_x_axis_label="std_y")
+
+    z.hist(fit_params[:, 6], _bins=(3, 6, 200), f_x_axis_label="pos_x")
+    z.hist(fit_params[:, 7], _bins=(3, 6, 200), f_x_axis_label="pos_y")
+
+    z.hist(fit_params[:, 8], _bins=(-0.5, 0.5, 200), f_x_axis_label="rho")
+    z.hist(fit_params[:, 9], _bins=(50, 150, 200), f_x_axis_label="off")
+
+
+"""
