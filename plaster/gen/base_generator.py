@@ -129,7 +129,8 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
 
     sigproc_v2_schema = s(
         s.is_kws_r(
-            calibration_file=s.is_str(), sigproc_source=s.is_str(help="See Main Help"),
+            calibration_file=s.is_str(noneable=True),
+            sigproc_source=s.is_str(noneable=True, help="See Main Help"),
         )
     )
 
