@@ -1,15 +1,14 @@
 import itertools
+
 import numpy as np
 from munch import Munch
-
 from plaster.tools.image import imops
 from plaster.tools.image.coord import XY
 from plaster.tools.ipynb_helpers import displays
 from plaster.tools.log.log import debug
 from plaster.tools.schema import check
-from plaster.tools.utils import utils, data
+from plaster.tools.utils import data, utils
 from plaster.tools.zplots.zplots import ZPlots
-
 
 # Mature
 # -------------------------------------------------------------------------------------
@@ -89,6 +88,39 @@ def sigproc_v2_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
     locs = run.sigproc_v2.locs(fl_i)
     sig = run.sigproc_v2.sig(fl_i)[:, ch_i, cy_i]
     snr = run.sigproc_v2.snr(fl_i)[:, ch_i, cy_i]
+
+    _sigproc_v2_im(im, locs, sig, snr, keep_mask=None, **kwargs)
+
+
+def sigproc_v1_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
+    """
+    Show a sigproc_v1 static view with roll-over information
+
+    Backported from sigproc_v2
+    """
+
+    fields = run.sigproc_v1.fields()
+    fields = fields.loc[
+        (fields["field_i"] == fl_i)
+        & (fields["channel_i"] == ch_i)
+        & (fields["cycle_i"] == cy_i)
+    ]
+    peaks = run.sigproc_v1.peaks()
+    peaks = peaks.loc[peaks["field_i"] == fl_i]
+
+    df = (
+        fields.set_index("field_i")
+        .join(peaks.set_index("field_i"), how="outer")
+        .reset_index()
+    )
+
+    df["raw_x"] = df.aln_x + (df.shift_x - df.border_size)
+    df["raw_y"] = df.aln_y + (df.shift_y - df.border_size)
+
+    im = run.sigproc_v1.raw_chcy_ims(fl_i)[ch_i, cy_i]
+    locs = df[["raw_y", "raw_x"]].to_numpy()
+    sig = run.sigproc_v1.signal_radmat_for_field(fl_i)[:, ch_i, cy_i]
+    snr = run.sigproc_v1.snr(fl_i)[:, ch_i, cy_i]
 
     _sigproc_v2_im(im, locs, sig, snr, keep_mask=None, **kwargs)
 
@@ -230,11 +262,11 @@ def wizard_xy_df(
         ignore_fields allows you to remove certain fields from
         consideration because they mess up the auto-scale.
     """
-    from ipywidgets import interact  # Defer slow imports
     from bokeh.models import ColorBar  # Defer slow imports
-    from bokeh.plotting import figure, ColumnDataSource, show  # Defer slow imports
-    from bokeh.transform import linear_cmap  # Defer slow imports
     from bokeh.palettes import Viridis256
+    from bokeh.plotting import ColumnDataSource, figure, show  # Defer slow imports
+    from bokeh.transform import linear_cmap  # Defer slow imports
+    from ipywidgets import interact  # Defer slow imports
 
     stage_df = (
         run.ims_import.metadata()
@@ -341,8 +373,8 @@ def wizard_scat_df(
         Allow user to see:
             Any pivot version of the sigprocv2 data
     """
+    from bokeh.plotting import ColumnDataSource, figure, show  # Defer slow imports
     from ipywidgets import interact  # Defer slow imports
-    from bokeh.plotting import figure, ColumnDataSource, show  # Defer slow imports
 
     df = run[result_block].fields__n_peaks__peaks__radmat()
     if channel_i is not None:

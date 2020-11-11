@@ -3,17 +3,18 @@ Sigproc results are generated in parallel by field.
 
 At save time, the radmats for all fields is composited into one big radmat.
 """
-import pandas as pd
 import itertools
-from plumbum import local
-from plaster.tools.schema import check
-from munch import Munch
+
 import numpy as np
-from plaster.tools.utils import utils
-from plaster.tools.image.coord import Rect
+import pandas as pd
+from munch import Munch
 from plaster.run.base_result import BaseResult
 from plaster.run.sigproc_v1.sigproc_v1_params import SigprocV1Params
+from plaster.tools.image.coord import Rect
 from plaster.tools.log.log import debug
+from plaster.tools.schema import check
+from plaster.tools.utils import utils
+from plumbum import local
 
 
 class SigprocV1Result(BaseResult):
@@ -240,6 +241,13 @@ class SigprocV1Result(BaseResult):
         """
         return self._load_ndarray_prop_from_all_fields("noise_radmat")
 
+    def snr(self, field):
+        return np.nan_to_num(
+            utils.np_safe_divide(
+                self.signal_radmat_for_field(field), self.noise_radmat_for_field(field)
+            )
+        )
+
     def localbg_radmat_for_field(self, field_i):
         return self._load_field_prop(field_i, "localbg_radmat")
 
@@ -261,6 +269,31 @@ class SigprocV1Result(BaseResult):
 
     def raw_im(self, field_i, channel_i, cycle_i):
         return self.raw_chcy_ims(int(field_i))[int(channel_i), int(cycle_i)]
+
+    def locs(self, fields=None):
+        """Return peak locations in array form"""
+        df = self.peaks()
+        field_start, field_stop = self._fields_to_start_stop(fields)
+        field_stop -= 1  # Because the following is inclusive
+        df = df[df.field_i.between(field_start, field_stop, inclusive=True)]
+        return df[["aln_y", "aln_x"]].values
+
+    def _fields_to_start_stop(self, fields):
+        if fields is None:
+            start = 0
+            stop = self.n_fields
+        elif isinstance(fields, slice):
+            start = fields.start or 0
+            stop = fields.stop or self.n_fields
+            assert fields.step in (None, 1)
+        elif isinstance(fields, int):
+            start = fields
+            stop = fields + 1
+        else:
+            raise TypeError(
+                f"fields of unknown type in _load_ndarray_prop_from_fields. {type(fields)}"
+            )
+        return start, stop
 
     # DataFrame returns
     # ----------------------------------------------------------------
