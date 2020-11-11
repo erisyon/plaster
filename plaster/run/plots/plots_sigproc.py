@@ -159,7 +159,7 @@ def circle_locs(
         return circle_im
 
 
-def sigproc_v2_movie_from_df(run, df, fl_i=None, ch_i=0):
+def sigproc_v2_movie_from_df(run, df, fl_i=None, ch_i=0, bg_only=False, fg_only=False):
     """
     Render a movie of cycles for the peaks that are in the df
     If fl_i is None then it is enforced that all peaks in the df must come form one field
@@ -170,13 +170,30 @@ def sigproc_v2_movie_from_df(run, df, fl_i=None, ch_i=0):
     assert df.field_i.nunique() == 1
     fl_i = df.field_i[0]
 
+    locs = df[["aln_y", "aln_x"]].drop_duplicates().values
+
     ims = run.sigproc_v2.aln_ims[fl_i, ch_i, :]
 
-    overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
-    locs = df[["aln_y", "aln_x"]].drop_duplicates().values
-    overlay = 255 * circle_locs(
-        overlay, locs, fill_mode="one", inner_radius=4, outer_radius=5
-    ).astype(np.uint8)
+    overlay = None
+    if bg_only:
+        zero_fg = np.ones((ims.shape[-2:]))
+        zero_fg = circle_locs(
+            zero_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=6
+        )
+        zero_fg[np.isnan(zero_fg)] = 0
+        ims = (ims * zero_fg)
+    elif fg_only:
+        one_fg = np.zeros((ims.shape[-2:]))
+        one_fg = circle_locs(
+            one_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=6
+        )
+        one_fg[np.isnan(one_fg)] = 1
+        ims = (ims * one_fg)
+    else:
+        overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
+        overlay = 255 * circle_locs(
+            overlay, locs, fill_mode="one", inner_radius=4, outer_radius=5
+        ).astype(np.uint8)
 
     displays.movie(
         ims,
