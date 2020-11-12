@@ -430,7 +430,9 @@ def _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params):
     n_locs = len(locs)
     n_channels, n_cycles = chcy_ims.shape[0:2]
 
-    fitmat = np.full((n_locs, n_channels, n_cycles, Gauss2FitParams.N_FULL_PARAMS), np.nan)
+    fitmat = np.full(
+        (n_locs, n_channels, n_cycles, Gauss2FitParams.N_FULL_PARAMS), np.nan
+    )
 
     for ch_i in range(n_channels):
         for cy_i in range(n_cycles):

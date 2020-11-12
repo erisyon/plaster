@@ -425,6 +425,9 @@ int fit_array_of_gauss_2d_on_float_image(
         params[peak_i * PARAM_N_FULL_PARAMS + PARAM_SIGNAL] = params[peak_i * PARAM_N_FULL_PARAMS + PARAM_AMP];
         params[peak_i * PARAM_N_FULL_PARAMS + PARAM_NOISE] = noise;
 
+//        int n_iters = (int)info[5];
+//        printf("%d %s\n", n_iters, dlevmar_stop_reasons[(int)info[6]]);
+
         int failed_to_converge = (int)info[6] == 3;
         int failed = (res != 0 || failed_to_converge) ? 1 : 0;
         n_fails += failed;

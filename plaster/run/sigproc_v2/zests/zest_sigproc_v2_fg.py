@@ -23,7 +23,7 @@ def zest_fit_method():
                 .uniform_width_and_heights(peak_width, peak_height)
                 .locs_randomize_away_from_edges(dist=15)
             )
-            if(peak_shift_x > 0.0):
+            if peak_shift_x > 0.0:
                 peaks.locs = np.floor(peaks.locs)
                 peaks.locs[:, 1] += peak_shift_x
             synth.CameraModel(bias=bg_mean, std=bg_std)
@@ -33,7 +33,16 @@ def zest_fit_method():
         divs = 5
         psf_params = np.broadcast_to(
             np.array(
-                [1000.0, 1.8, 1.8, peaks.mea / 2, peaks.mea / 2, 0.0, 0.0, peaks.mea]
+                [
+                    amp,
+                    peak_height,
+                    peak_width,
+                    peaks.mea / 2,
+                    peaks.mea / 2,
+                    0.0,
+                    0.0,
+                    peaks.mea,
+                ]
             ),
             (1, divs, divs, 8),
         )
@@ -66,9 +75,12 @@ def zest_fit_method():
         assert -0.05 < rho < 0.05
 
         off = np.nanmedian(fit_params[:, Gauss2FitParams.OFFSET])
-        assert bg_mean*0.5 < off < bg_mean*1.5
+        assert bg_mean * 0.5 < off < bg_mean * 1.5
 
-        assert np.all(fit_params[:, Gauss2FitParams.MEA] == mea)
+        assert np.all(
+            (fit_params[:, Gauss2FitParams.MEA] == mea)
+            | np.isnan(fit_params[:, Gauss2FitParams.MEA])
+        )
 
     def it_handles_all_noise():
         fit_params = _run(amp=0)
