@@ -5,6 +5,7 @@ from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
 from plaster.tools.gauss2d import gauss2d
+from enum import Enum
 
 
 def peak_find(im, kernel, bg_std):
@@ -205,6 +206,26 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
     return signal, noise, aspect_ratio
 
 
+class Gauss2FitParams(Enum):
+    SIGNAL = 0
+    NOISE = 1
+    ASPECT_RATIO = 2
+
+    FIRST_FIT_PARAM = 3
+    AMP = 3
+    SIGMA_Y = 4
+    SIGMA_X = 5
+    CENTER_Y = 6
+    CENTER_X = 7
+    RHO = 8
+    OFFSET = 9
+
+    MEA = 10
+
+    N_FULL_PARAMS = 11
+    N_FIT_PARAMS = 7
+
+
 def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     """
     Like radiometry_one_channel_one_cycle() but using a gaussian fit
@@ -231,9 +252,6 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     locs_y = np.ascontiguousarray(locs[:, 0], dtype=np.int64)
     locs_x = np.ascontiguousarray(locs[:, 1], dtype=np.int64)
 
-    # 7 gaussian parameters are:
-    #    amp, sig_x, sig_y, pos_x, pos_y, rho, offset
-
     # These params have to be initialized based on the regional psf_params
     most_in_focus_i = psf_params.shape[0] // 2
     psf_lookup = np.floor(n_divs * locs / im.shape[0]).astype(int)
@@ -247,7 +265,7 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     fit_fails = np.zeros((n_locs,), dtype=np.int64)
     check.array_t(fit_fails, dtype=np.int64, c_contiguous=True)
 
-    ret = lib.fit_array_of_gauss_2d_on_float_image(
+    lib.fit_array_of_gauss_2d_on_float_image(
         im,
         im.shape[1],
         im.shape[0],
@@ -261,18 +279,17 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
 
     fit_params = fit_params.reshape((n_locs, 7))
 
-    ret_params = np.zeros((n_locs, 3 + 8))  # sig, noi, asr, 8 gaussian parameters
-    ret_params[:, 0:3] = (0.0, 0.0, 0.0)
-    ret_params[:, 3:10] = fit_params
-    ret_params[:, 10] = psf_mea
+    ret_params = np.zeros((n_locs, Gauss2FitParams.N_FULL_PARAMS))
+    ret_params[:, Gauss2FitParams.FIRST_FIT_PARAM:] = fit_params
+    ret_params[:, Gauss2FitParams.MEA] = psf_mea
 
     # TODO: sig, noi, asr
     #   Render it out and subtract to get residuals
     #   and examine the distribution of the residuals
     #   to find collisions.  I'll need to do this in C
     #   which means I'm back to compiling so I need to
-    #   conert my lmfitter to the C style.
-    ret_params[:, 0] = fit_params[:, 0]
+    #   convert my lmfitter to the C style.
+    ret_params[:, Gauss2FitParams.AMP] = fit_params[:, 0]
 
     return ret_params
 
