@@ -15,6 +15,21 @@ def zest_prep_params_validate():
             proteins=[_fake_protein(None), _fake_protein(None)]
         )
 
+    def it_allows_missing_abundance_data():
+        abundance_data_missing_abundance = PrepParams(
+            proteins=[Munch(name="a", sequence="a"), Munch(name="a", sequence="a")]
+        )
+        assert all(p.abundance == 1 for p in abundance_data_missing_abundance.proteins)
+
+    def it_allows_all_nans():
+        """
+        This is the case that occurs when a protein csv is provided with no abundance column
+        """
+        abundance_data_missing_abundance = PrepParams(
+            proteins=[_fake_protein(math.nan), _fake_protein(math.nan)]
+        )
+        assert all(p.abundance == 1 for p in abundance_data_missing_abundance.proteins)
+
     def it_doesnt_warn_when_abundance_data_is_already_normalized():
         with zest.mock(log.info) as m_log:
             normalized_abundance_data = PrepParams(

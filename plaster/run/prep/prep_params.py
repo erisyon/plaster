@@ -44,10 +44,13 @@ class PrepParams(Params):
         super().validate()
 
         # Try to normalize abundance values if provided. If abundance values are provided, do basic validation.
-        # If no abundance values are provided, do nothing
+        # If no abundance values are provided, do nothing.
+        # When a protein csv with no abundance columns is provided, it will come through as all nans
 
         abundance_info_present = any(
-            hasattr(protein, "abundance") and protein.abundance is not None
+            hasattr(protein, "abundance")
+            and protein.abundance is not None
+            and not math.isnan(protein.abundance)
             for protein in self.proteins
         )
 
@@ -98,3 +101,8 @@ class PrepParams(Params):
                     for protein in self.proteins:
                         if protein.abundance is not None:
                             protein.abundance /= min_abundance
+        else:
+            # Abundance information is missing from all proteins
+            # Set abudance to 1
+            for protein in self.proteins:
+                protein.abundance = 1
