@@ -209,7 +209,7 @@ class ClassifyGenerator(BaseGenerator):
                     sigproc_relative_path=sigproc_relative_path,
                     err_set=err_set,
                     prep_folder="../prep",
-                    sim_v2_folder="../sim_v2"
+                    sim_v2_folder="../sim_v2",
                 )
 
             if self.nn_v1 or self.rf:

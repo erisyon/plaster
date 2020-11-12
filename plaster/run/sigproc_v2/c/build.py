@@ -7,7 +7,7 @@ from plaster.tools.utils.utils import any_out_of_date
 def build(dst_folder, c_common_folder):
     with local.cwd("./levmar-2.6"):
         with local.env(ENV_OPTS="-fPIC"):
-            local["make"] & FG
+            local["make"]()
 
     c_opts = [
         "-c",
@@ -24,10 +24,7 @@ def build(dst_folder, c_common_folder):
     def build_c(src_name, include_files):
         base_src_name = local.path(src_name).stem
         target_o = f"{dst_folder}/{base_src_name}.o"
-        if any_out_of_date(
-            parents=[src_name, *include_files],
-            children=[target_o],
-        ):
+        if any_out_of_date(parents=[src_name, *include_files], children=[target_o],):
             gcc[c_opts, src_name, "-o", target_o] & FG
         return target_o
 
@@ -36,13 +33,21 @@ def build(dst_folder, c_common_folder):
     c_common_o = build_c(f"{c_common_folder}/c_common.c", common_include_files)
 
     gauss2_fitter_so = f"{dst_folder}/_gauss2_fitter.so"
-    if any_out_of_date(parents=[gauss2_fitter_o, c_common_o], children=[gauss2_fitter_so]):
+    if any_out_of_date(
+        parents=[gauss2_fitter_o, c_common_o], children=[gauss2_fitter_so]
+    ):
         gcc[
             "-shared",
-            gauss2_fitter_o,
-            c_common_o,
             "-o",
             gauss2_fitter_so,
+            gauss2_fitter_o,
+            c_common_o,
+            "-L",
+            "./levmar-2.6",
+            "-llevmar",
+            "-lm",
+            "-llapack",
+            "-lblas",
         ] & FG
 
 

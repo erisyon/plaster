@@ -233,7 +233,7 @@ int fit_gauss_2d(np_float64 *pixels, np_int64 mea, np_float64 params[7], np_floa
         jac_gauss_2d,
         (double *)params,
         (double *)pixels,
-        N_GAUSSIAN_2D_PARAMETERS,
+        PARAM_N_FIT_PARAMS,
         n_pixels,
         N_MAX_ITERATIONS,
         dlevmar_opts,
@@ -249,7 +249,7 @@ int fit_gauss_2d(np_float64 *pixels, np_int64 mea, np_float64 params[7], np_floa
 //    ret = dlevmar_dif(
 //        gauss_2d,
 //        params,
-//        pixels, N_GAUSSIAN_2D_PARAMETERS, n_pixels,
+//        pixels, PARAM_N_FIT_PARAMS, n_pixels,
 //        N_MAX_ITERATIONS, dlevmar_opts, info,
 //        NULL,  // See above about working buffer
 //        covar, NULL
@@ -266,9 +266,10 @@ int fit_gauss_2d_on_float_image(
     np_int64 center_y,
     np_int64 center_x,
     np_int64 mea,
-    np_float64 params[7],
+    np_float64 params[PARAM_N_FIT_PARAMS],
     np_float64 *info,
-    np_float64 *covar
+    np_float64 *covar,
+    np_float64 *noise
 ) {
     /*
     Like fit_gauss_2d but operates on an image with specified dimensions.
@@ -291,7 +292,7 @@ int fit_gauss_2d_on_float_image(
     int n_pixels = mea * mea;
     int ret = 0;
 
-    double *pixels = (double *)alloca(sizeof(double) * mea * mea);
+    double *pixels = (double *)alloca(sizeof(double) * n_pixels);
     double *dst = pixels;
     int top = center_y - half_mea;
     int bot = center_y + half_mea;
@@ -313,9 +314,9 @@ int fit_gauss_2d_on_float_image(
     ret = dlevmar_der(
         gauss_2d,
         jac_gauss_2d,
-        (double *)params,
+        params,
         pixels,
-        N_GAUSSIAN_2D_PARAMETERS,
+        PARAM_N_FIT_PARAMS,
         n_pixels,
         N_MAX_ITERATIONS,
         dlevmar_opts,
@@ -328,21 +329,51 @@ int fit_gauss_2d_on_float_image(
         NULL
     );
 
-//    ret = dlevmar_dif(
-//        gauss_2d,
-//        params,
-//        pixels,
-//        N_GAUSSIAN_2D_PARAMETERS,
-//        n_pixels,
-//        N_MAX_ITERATIONS,
-//        dlevmar_opts,
-//        info,
-//        NULL,  // See above about working buffer
-//        covar,
-//        NULL
-//    );
+    // Compute numerical jacobian
+    //    ret = dlevmar_dif(
+    //        gauss_2d,
+    //        (double *)&params[PARAM_FIRST_FIT_PARAM],
+    //        pixels,
+    //        PARAM_N_FIT_PARAMS,
+    //        n_pixels,
+    //        N_MAX_ITERATIONS,
+    //        dlevmar_opts,
+    //        info,
+    //        NULL,  // See above about working buffer
+    //        covar,
+    //        NULL
+    //    );
 
-    return ret > 0 ? 0 : ret;
+    int success = ret >= 0;
+    *noise = 0.0;
+
+    // ret is the number of iterations (>=0) if successful other a negative value
+    if(success) {
+        // RENDER out the fit and subtract to get residuals
+        double *model_pixels = (double *)alloca(sizeof(double) * n_pixels);
+        gauss_2d(
+            (double *)&params[PARAM_FIRST_FIT_PARAM],
+            model_pixels,
+            PARAM_N_FIT_PARAMS,
+            n_pixels,
+            NULL
+        );
+
+        np_float64 sse = 0.0;
+        for(int i=0; i<n_pixels; i++) {
+            double *data = &pixels[i];
+            double *model = &model_pixels[i];
+            double residual = data - model;
+            sse += residual * residual;
+        }
+        *noise = sqrt(sse);
+    }
+
+    return success ? 0 : ret;
+}
+
+
+int gauss2_check() {
 }
 
 
@@ -354,7 +385,7 @@ int fit_array_of_gauss_2d_on_float_image(
     np_int64 n_peaks,
     np_int64 *center_y,
     np_int64 *center_x,
-    np_float64 *params,
+    np_float64 *params, // This is a full set (PARAM_N_FULL_PARAMS columns)
     np_int64 *fails
 ) {
     /*
@@ -364,19 +395,19 @@ int fit_array_of_gauss_2d_on_float_image(
         See fit_gauss_2d_on_float_image
         n_peaks: number of elements in the center_y and center_x arrays
         center_y, center_x: Peak positions
-        params: n_peaks * 7 doubles expected to be initialized to a guess of the paramters
+        params: n_peaks * 7 doubles expected to be initialized to a guess of the parameters
         fails: n_peaks. Will be zero if success or non-zero on any sort of failure
 
     Returns:
         Number of failures
     */
-
     np_float64 info[N_INFO_ELEMENTS];
     assert(sizeof(np_int64) == 8);
 
     np_int64 n_fails = 0;
     for(np_int64 peak_i=0; peak_i<n_peaks; peak_i++) {
-        np_float64 *p = &params[peak_i * N_GAUSSIAN_2D_PARAMETERS];
+        np_float64 *p = &params[peak_i * PARAM_N_FULL_PARAMS + PARAM_FIRST_FIT_PARAM];
+        np_float64 noise = 0.0;
 
         int res = fit_gauss_2d_on_float_image(
             im,
@@ -387,8 +418,12 @@ int fit_array_of_gauss_2d_on_float_image(
             mea,
             p,
             info,
-            NULL
+            NULL,
+            &noise
         );
+
+        params[peak_i * PARAM_N_FULL_PARAMS + PARAM_SIGNAL] = params[peak_i * PARAM_N_FULL_PARAMS + PARAM_AMP];
+        params[peak_i * PARAM_N_FULL_PARAMS + PARAM_NOISE] = noise;
 
         int failed_to_converge = (int)info[6] == 3;
         int failed = (res != 0 || failed_to_converge) ? 1 : 0;

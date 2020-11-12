@@ -20,12 +20,12 @@ def load_lib():
 
     with local.cwd("/erisyon/plaster/plaster/run/sigproc_v2/c"):
         build(
-            dst_folder="/erisyon/plaster/plaster/run/nn_v2/c",
+            dst_folder="/erisyon/plaster/plaster/run/sigproc_v2/c",
             c_common_folder="/erisyon/plaster/plaster/tools/c_common",
         )
         lib = c.CDLL("./_gauss2_fitter.so")
 
-    lib.sanity_check()
+    lib.gauss2_check.argtypes = []
 
     lib.fit_array_of_gauss_2d_on_float_image.argtypes = [
         np.ctypeslib.ndpointer(
@@ -54,7 +54,76 @@ def load_lib():
     return lib
 
 
-def do_fit_image(im, locs, psf_params):
+class Gauss2FitParams:
+    # These must match in gauss2_fitter.h
+    SIGNAL = 0
+    NOISE = 1
+    ASPECT_RATIO = 2
+    FIRST_FIT_PARAM = 3
+    AMP = 3
+    SIGMA_Y = 4
+    SIGMA_X = 5
+    CENTER_Y = 6
+    CENTER_X = 7
+    RHO = 8
+    OFFSET = 9
+    LAST_FIT_PARAM = 10
+    MEA = 10
+    N_FULL_PARAMS = 11
+    N_FIT_PARAMS = 7
+
+
+def fit_image(im, locs, fit_params, psf_mea):
     lib = load_lib()
-    raise NotImplementedError
-    lib.fit_array_of_gauss_2d_on_float_image()
+
+    n_locs = int(len(locs))
+
+    im = im.astype(np.float32)
+    check.array_t(im, ndim=2, dtype=np.float32, c_contiguous=True, is_square=True)
+    check.array_t(locs, ndim=2, shape=(None, 2))
+
+    locs_y = np.ascontiguousarray(locs[:, 0], dtype=np.int64)
+    locs_x = np.ascontiguousarray(locs[:, 1], dtype=np.int64)
+
+    fit_fails = np.zeros((n_locs,), dtype=np.int64)
+    check.array_t(fit_fails, dtype=np.int64, c_contiguous=True)
+
+    check.array_t(
+        fit_params,
+        dtype=np.float64,
+        ndim=2,
+        shape=(n_locs, Gauss2FitParams.N_FIT_PARAMS,),
+    )
+
+    ret_params = np.zeros((n_locs, Gauss2FitParams.N_FULL_PARAMS))
+    ret_params[
+        :, Gauss2FitParams.FIRST_FIT_PARAM : Gauss2FitParams.LAST_FIT_PARAM
+    ] = fit_params
+    ret_params[:, Gauss2FitParams.MEA] = psf_mea
+    ret_params = np.ascontiguousarray(ret_params.flatten())
+
+    check.array_t(
+        ret_params,
+        dtype=np.float64,
+        c_contiguous=True,
+        ndim=1,
+        shape=(n_locs * Gauss2FitParams.N_FULL_PARAMS,),
+    )
+
+    lib.gauss2_check()
+
+    lib.fit_array_of_gauss_2d_on_float_image(
+        im,
+        im.shape[1],
+        im.shape[0],
+        psf_mea,
+        n_locs,
+        locs_y,
+        locs_x,
+        ret_params,
+        fit_fails,
+    )
+
+    ret_params = ret_params.reshape((n_locs, Gauss2FitParams.N_FULL_PARAMS))
+    ret_params[fit_fails == 1, :] = np.nan
+    return ret_params

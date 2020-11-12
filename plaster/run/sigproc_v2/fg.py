@@ -1,5 +1,6 @@
 import numpy as np
 from plaster.run.sigproc_v2 import bg, psf
+from plaster.run.sigproc_v2.c.gauss2_fitter import fit_image, Gauss2FitParams
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
@@ -206,26 +207,6 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
     return signal, noise, aspect_ratio
 
 
-class Gauss2FitParams(Enum):
-    SIGNAL = 0
-    NOISE = 1
-    ASPECT_RATIO = 2
-
-    FIRST_FIT_PARAM = 3
-    AMP = 3
-    SIGMA_Y = 4
-    SIGMA_X = 5
-    CENTER_Y = 6
-    CENTER_X = 7
-    RHO = 8
-    OFFSET = 9
-
-    MEA = 10
-
-    N_FULL_PARAMS = 11
-    N_FIT_PARAMS = 7
-
-
 def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     """
     Like radiometry_one_channel_one_cycle() but using a gaussian fit
@@ -234,62 +215,22 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
         11 typle:
             signal, noise, aspect_ratio, fit parameters
     """
-    lib = gauss2d.load_lib()
+    n_z_slices, n_divs, _, _ = psf_params.shape
 
-    im = im.astype(np.float32)
-    check.array_t(im, ndim=2, dtype=np.float32, c_contiguous=True, is_square=True)
-    check.array_t(psf_params, ndim=4)
     check.array_t(locs, ndim=2, shape=(None, 2))
 
-    n_z_slices, n_divs, _, _ = psf_params.shape
-    n_locs = int(len(locs))
-
+    check.array_t(psf_params, ndim=4)
     assert psf_params.shape[1] == n_divs
     assert psf_params.shape[2] == n_divs
     assert psf_params.shape[3] == 8
     psf_mea = int(psf_params[0, 0, 0, 7])
 
-    locs_y = np.ascontiguousarray(locs[:, 0], dtype=np.int64)
-    locs_x = np.ascontiguousarray(locs[:, 1], dtype=np.int64)
-
     # These params have to be initialized based on the regional psf_params
     most_in_focus_i = psf_params.shape[0] // 2
     psf_lookup = np.floor(n_divs * locs / im.shape[0]).astype(int)
-    fit_params = np.ascontiguousarray(
-        psf_params[most_in_focus_i, psf_lookup[:, 0], psf_lookup[:, 1], 0:7],
-        dtype=np.float64,
-    ).flatten()
+    fit_params = psf_params[most_in_focus_i, psf_lookup[:, 0], psf_lookup[:, 1], 0:Gauss2FitParams.N_FIT_PARAMS]
 
-    check.array_t(fit_params, dtype=np.float64, c_contiguous=True)
-
-    fit_fails = np.zeros((n_locs,), dtype=np.int64)
-    check.array_t(fit_fails, dtype=np.int64, c_contiguous=True)
-
-    lib.fit_array_of_gauss_2d_on_float_image(
-        im,
-        im.shape[1],
-        im.shape[0],
-        psf_mea,
-        n_locs,
-        locs_y,
-        locs_x,
-        fit_params,
-        fit_fails,
-    )
-
-    fit_params = fit_params.reshape((n_locs, 7))
-
-    ret_params = np.zeros((n_locs, Gauss2FitParams.N_FULL_PARAMS))
-    ret_params[:, Gauss2FitParams.FIRST_FIT_PARAM:] = fit_params
-    ret_params[:, Gauss2FitParams.MEA] = psf_mea
-
-    # TODO: sig, noi, asr
-    #   Render it out and subtract to get residuals
-    #   and examine the distribution of the residuals
-    #   to find collisions.  I'll need to do this in C
-    #   which means I'm back to compiling so I need to
-    #   convert my lmfitter to the C style.
-    ret_params[:, Gauss2FitParams.AMP] = fit_params[:, 0]
+    ret_params = fit_image(im, locs, fit_params, psf_mea)
 
     return ret_params
 
