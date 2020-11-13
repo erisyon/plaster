@@ -72,7 +72,7 @@ class Tab(c.Structure):
             tab.flags = 0
 
         else:
-            check.array_t(mat, ndim=2, dtype=expected_dtype)
+            check.array_t(mat, ndim=2, dtype=expected_dtype, c_contiguous=True)
             tab = Tab()
             tab.base = mat.ctypes.data_as(c.c_void_p)
             tab.n_bytes_per_row = mat.itemsize * mat.shape[1]

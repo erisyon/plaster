@@ -108,7 +108,6 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
 
     sigproc_source_schema = s(
         s.is_kws_r(
-            sigproc_source=s.is_str(noneable=True, help="See Main Help"),
             movie=s.is_bool(noneable=True, help="See Main Help"),
             n_frames_limit=s.is_int(
                 bounds=(1, 500), noneable=True, help="See Main Help"
@@ -118,6 +117,7 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
 
     sigproc_v1_schema = s(
         s.is_kws_r(
+            sigproc_source=s.is_str(noneable=True, help="See Main Help"),
             radial_filter=s.is_float(
                 noneable=True, bounds=(0.01, 1.0), help="See Main Help"
             ),
@@ -129,8 +129,8 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
 
     sigproc_v2_schema = s(
         s.is_kws_r(
-            calibration_file=s.is_str(),
-            sigproc_source=s.is_list(s.is_str(), help="See Main Help"),
+            calibration_file=s.is_str(noneable=True),
+            sigproc_source=s.is_str(noneable=True, help="See Main Help"),
         )
     )
 
@@ -138,6 +138,8 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
         s.is_kws_r(
             err_p_edman_failure=s.is_list(elems=s.is_str(help="See Main Help")),
             err_p_detach=s.is_list(elems=s.is_str(help="See Main Help")),
+            err_row_k_beta=s.is_list(elems=s.is_str(help="See Main Help")),
+            err_row_k_sigma=s.is_list(elems=s.is_str(help="See Main Help")),
             err_dye_beta=s.is_list(elems=s.is_str(help="See Main Help")),
             err_dye_sigma=s.is_list(elems=s.is_str(help="See Main Help")),
             err_dye_zero_beta=s.is_list(elems=s.is_str(help="See Main Help")),
@@ -156,6 +158,8 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
     error_model_defaults = Munch(
         err_p_edman_failure=0.06,
         err_p_detach=0.05,
+        err_row_k_beta=1.0,
+        err_row_k_sigma=0.16,
         err_dye_beta=7500.0,
         err_dye_sigma=0.16,
         err_dye_zero_beta=0.0,
@@ -174,9 +178,14 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
         self.setup_err_model()
         self.validate()
 
-        self.reports = Munch(report=self)
+        self.reports = Munch()
+        self.add_report("report", self)
 
         self._validate_protein_of_interest()
+
+    def add_report(self, report_name, builder):
+        assert report_name not in self.reports
+        self.reports[report_name] = builder
 
     def _validate_protein_of_interest(self):
         if "protein" in self:
@@ -205,7 +214,12 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
 
                 prob_parts = prob_parts.split(":")
 
-                if name in ("err_p_edman_failure", "err_p_detach"):
+                if name in (
+                    "err_p_edman_failure",
+                    "err_p_detach",
+                    "err_row_k_beta",
+                    "err_row_k_sigma",
+                ):
                     if dye_part:
                         raise SchemaValidationFailed(
                             f"error model term '{name}' is not allowed to have a dye-index."
@@ -261,13 +275,13 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
             tasks += [Munch(**ims_import, **sigproc)]
         return tasks
 
-    # def sigprocs_v2(self, **kwargs):
-    #     tasks = {}
-    #     if self.sigproc_source:
-    #         ims_import = self.ims_imports(self.sigproc_source)
-    #         sigproc = task_templates.sigproc_v2_analyze(**kwargs)
-    #         tasks = Munch(**ims_import, **sigproc)
-    #     return tasks
+    def sigprocs_v2(self, **kwargs):
+        tasks = {}
+        if self.sigproc_source:
+            ims_import = self.ims_imports(self.sigproc_source)
+            sigproc = task_templates.sigproc_v2_analyze(**kwargs)
+            tasks = Munch(**ims_import, **sigproc)
+        return tasks
 
     def lnfits(self, sigproc_version):
         # It is common to have multiple lnfit tasks for a single run, so this fn returns a
@@ -412,6 +426,22 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
             ]
         return parsed_schemes
 
+    def default_err_set(self, n_channels):
+        return Munch(
+            p_edman_failure=[self.error_model_defaults.err_p_edman_failure] * 1,
+            p_detach=[self.error_model_defaults.err_p_detach] * 1,
+            row_k_beta=[self.error_model_defaults.err_row_k_beta] * 1,
+            row_k_sigma=[self.error_model_defaults.err_row_k_sigma] * 1,
+            dye_beta=[self.error_model_defaults.err_dye_beta] * n_channels,
+            dye_sigma=[self.error_model_defaults.err_dye_sigma] * n_channels,
+            dye_zero_beta=[self.error_model_defaults.err_dye_zero_beta] * n_channels,
+            dye_zero_sigma=[self.error_model_defaults.err_dye_zero_sigma] * n_channels,
+            p_bleach_per_cycle=[self.error_model_defaults.err_p_bleach_per_cycle]
+            * n_channels,
+            p_non_fluorescent=[self.error_model_defaults.err_p_non_fluorescent]
+            * n_channels,
+        )
+
     def run_parameter_permutator(self):
         """
         Generate permutations of all the variable parameters
@@ -451,20 +481,7 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
 
             # Given that the label_set is now known, the error model can be setup
             n_channels = len(label_set)
-            err_set = Munch(
-                p_edman_failure=[self.error_model_defaults.err_p_edman_failure] * 1,
-                p_detach=[self.error_model_defaults.err_p_detach] * 1,
-                dye_beta=[self.error_model_defaults.err_dye_beta] * n_channels,
-                dye_sigma=[self.error_model_defaults.err_dye_sigma] * n_channels,
-                dye_zero_beta=[self.error_model_defaults.err_dye_zero_beta]
-                * n_channels,
-                dye_zero_sigma=[self.error_model_defaults.err_dye_zero_sigma]
-                * n_channels,
-                p_bleach_per_cycle=[self.error_model_defaults.err_p_bleach_per_cycle]
-                * n_channels,
-                p_non_fluorescent=[self.error_model_defaults.err_p_non_fluorescent]
-                * n_channels,
-            )
+            err_set = self.default_err_set(n_channels)
 
             for param in params:
                 if param[0].startswith("err_"):

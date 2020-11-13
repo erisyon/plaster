@@ -36,9 +36,8 @@ typedef Uint64 DytIndexType;
 #define max(a,b) ((a) > (b) ? (a) : (b))
 #define min(a,b) ((a) < (b) ? (a) : (b))
 
-// Used foe returning exception-like values from calls
+// Used for returning exception-like values from calls
 #define check_and_return(expr, static_fail_string) if(!(expr)) return static_fail_string;
-
 
 // Ensure
 void ensure(int expr, const char *fmt, ...);

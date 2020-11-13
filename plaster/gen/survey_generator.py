@@ -36,18 +36,23 @@ class SurveyGenerator(BaseGenerator):
         n_ptms_limit=0,
     )
 
-    error_model_defaults = Munch(
-        err_p_edman_failure=0.0,
-        err_p_detach=0.0,
-        err_dye_beta=7500.0,
-        err_dye_sigma=0.16,
-        err_dye_zero_beta=0.0,
-        err_dye_zero_sigma=200.0,
-        err_p_bleach_per_cycle=0.0,
-        err_p_non_fluorescent=0.0,
-    )
-
     def generate(self):
+
+        # DISABLE all error modes
+        SurveyGenerator.error_model_defaults = Munch(
+            **BaseGenerator.error_model_defaults,
+        )
+        SurveyGenerator.error_model_defaults.update(
+            Munch(
+                err_p_edman_failure=0.0,
+                err_p_detach=0.0,
+                err_dye_zero_beta=0.0,
+                err_p_bleach_per_cycle=0.0,
+                err_p_non_fluorescent=0.0,
+                err_row_k_sigma=0.0,
+            )
+        )
+
         # To start we model the survey task structure identically on how normal
         # sim/classify runs are done -- one run per protease/label-scheme.
         # A single job-level report then gathers the results from the runs

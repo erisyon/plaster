@@ -37,7 +37,7 @@ class ClassifyGenerator(BaseGenerator):
             **BaseGenerator.scope_run_schema.schema(),
             **BaseGenerator.peptide_setup_schema.schema(),
             **BaseGenerator.sigproc_source_schema.schema(),
-            **BaseGenerator.sigproc_v1_schema.schema(),
+            **BaseGenerator.sigproc_v2_schema.schema(),
             **BaseGenerator.error_model_schema.schema(),
             **BaseGenerator.sim_schema.schema(),
             **BaseGenerator.classify_schema.schema(),
@@ -66,8 +66,6 @@ class ClassifyGenerator(BaseGenerator):
         peak_find_n_cycles=4,
         peak_find_start=0,
         anomaly_iqr_cutoff=95,
-        # dye_beta=[7500.0],
-        # dye_sigma=[0.16],
         n_ptms_limit=5,
         report_prec=[0.95, 0.9, 0.8],
     )
@@ -89,7 +87,9 @@ class ClassifyGenerator(BaseGenerator):
 
         self.report_section_user_config()
 
-        sigproc_tasks = self.sigprocs_v1() or [{}]  # guarantee traverse loop once
+        sigproc_v2_task = (
+            self.sigprocs_v2(calibration_file=self.calibration_file) or {}
+        )  # guarantee traverse loop once
 
         # TODO: 'default' reporting needs to be rethought.  Maybe we just employ
         # gen switch that says which report type.  The pattern that has developed
@@ -159,105 +159,103 @@ class ClassifyGenerator(BaseGenerator):
 
         run_descs = []
         for protease, aa_list, err_set in self.run_parameter_permutator():
-            for sigproc_i, sigproc_v1_task in enumerate(sigproc_tasks):
-                prep_task = task_templates.prep(
-                    self.protein,
-                    protease,
-                    self.decoys,
-                    proteins_of_interest=self.protein_of_interest,
-                    n_ptms_limit=self.n_ptms_limit,
-                )
+            prep_task = task_templates.prep(
+                self.protein,
+                protease,
+                self.decoys,
+                proteins_of_interest=self.protein_of_interest,
+                n_ptms_limit=self.n_ptms_limit,
+            )
 
-                sim_v1_task = {}
-                sim_v2_task = {}
-                train_rf_task = {}
-                test_rf_task = {}
-                nn_v1_task = {}
-                nn_v2_task = {}
-                classify_rf_task = {}
+            sim_v1_task = {}
+            sim_v2_task = {}
+            train_rf_task = {}
+            test_rf_task = {}
+            nn_v1_task = {}
+            nn_v2_task = {}
+            classify_rf_task = {}
+            classify_nn_v2_task = {}
 
-                if self.rf:
-                    train_rf_task = task_templates.train_rf()
-                    test_rf_task = task_templates.test_rf()
-                    if sigproc_v1_task:
-                        classify_rf_task = task_templates.classify_rf(
-                            sim_relative_path="../sim_v1",
-                            train_relative_path="../train_rf",
-                            sigproc_relative_path=f"../sigproc_v1",
-                        )
-
-                if self.nn_v1:
-                    # note: same seed is used to generate decoys
-                    nn_v1_task = task_templates.nn_v1()
-
-                if self.nn_v2:
-                    sim_v2_task = task_templates.sim_v2(
-                        list(aa_list),
-                        err_set,
-                        n_pres=self.n_pres,
-                        n_mocks=self.n_mocks,
-                        n_edmans=self.n_edmans,
-                        n_samples_train=self.n_samples_train,
-                        n_samples_test=self.n_samples_test,
-                    )
-                    sim_v2_task.sim_v2.parameters.random_seed = self.random_seed
-                    sigproc_relative_path = None
-                    if sigproc_v1_task:
-                        sigproc_relative_path = f"../sigproc_v1"
-
-                    nn_v2_task = task_templates.nn_v2(
-                        sigproc_relative_path=sigproc_relative_path, err_set=err_set
+            if self.rf:
+                train_rf_task = task_templates.train_rf()
+                test_rf_task = task_templates.test_rf()
+                if sigproc_v2_task:
+                    classify_rf_task = task_templates.classify_rf(
+                        sim_relative_path="../sim_v1",
+                        train_relative_path="../train_rf",
+                        sigproc_relative_path=f"../sigproc_v2",
                     )
 
-                if self.nn_v1 or self.rf:
-                    sim_v1_task = task_templates.sim_v1(
-                        list(aa_list),
-                        err_set,
-                        n_pres=self.n_pres,
-                        n_mocks=self.n_mocks,
-                        n_edmans=self.n_edmans,
-                        n_samples_train=self.n_samples_train,
-                        n_samples_test=self.n_samples_test,
-                    )
-                    sim_v1_task.sim_v1.parameters.random_seed = self.random_seed
+            if self.nn_v1:
+                # note: same seed is used to generate decoys
+                nn_v1_task = task_templates.nn_v1()
 
-                lnfit_task = self.lnfits("v2")
+            if self.nn_v2:
+                sim_v2_task = task_templates.sim_v2(
+                    list(aa_list),
+                    err_set,
+                    n_pres=self.n_pres,
+                    n_mocks=self.n_mocks,
+                    n_edmans=self.n_edmans,
+                    n_samples_train=self.n_samples_train,
+                    n_samples_test=self.n_samples_test,
+                )
+                sim_v2_task.sim_v2.parameters.random_seed = self.random_seed
+                sigproc_relative_path = None
+                if sigproc_v2_task:
+                    sigproc_relative_path = f"../sigproc_v2"
 
-                e_block = self.erisyon_block(aa_list, protease, err_set)
-
-                sigproc_suffix = (
-                    f"_sigproc_{sigproc_i}" if len(sigproc_tasks) > 1 else ""
+                nn_v2_task = task_templates.nn_v2(
+                    sigproc_relative_path=sigproc_relative_path,
+                    err_set=err_set,
+                    prep_folder="../prep",
+                    sim_v2_folder="../sim_v2"
                 )
 
-                run_name = f"{e_block._erisyon.run_name}{sigproc_suffix}"
-                if self.force_run_name is not None:
-                    run_name = self.force_run_name
-
-                run_desc = Munch(
-                    run_name=run_name,
-                    **e_block,
-                    **prep_task,
-                    **sim_v1_task,
-                    **sim_v2_task,
-                    **train_rf_task,
-                    **test_rf_task,
-                    **nn_v1_task,
-                    **nn_v2_task,
-                    **sigproc_v1_task,
-                    **lnfit_task,
-                    **classify_rf_task,
+            if self.nn_v1 or self.rf:
+                sim_v1_task = task_templates.sim_v1(
+                    list(aa_list),
+                    err_set,
+                    n_pres=self.n_pres,
+                    n_mocks=self.n_mocks,
+                    n_edmans=self.n_edmans,
+                    n_samples_train=self.n_samples_train,
+                    n_samples_test=self.n_samples_test,
                 )
-                run_descs += [run_desc]
+                sim_v1_task.sim_v1.parameters.random_seed = self.random_seed
 
-                # for classify jobs that involve PTMs or MHC, we'll do run reporting
-                # differently rather than emitting a section for each run.
-                if not ptm_report and not mhc_report and not pro_report:
-                    self.report_section_markdown(f"# RUN {run_desc.run_name}")
-                    self.report_section_run_object(run_desc)
-                    if test_rf_task or nn_v1_task:
-                        self.report_section_from_template(
-                            "train_and_test_template.ipynb"
-                        )
+            lnfit_task = self.lnfits("v2")
+
+            e_block = self.erisyon_block(aa_list, protease, err_set)
+
+            run_name = f"{e_block._erisyon.run_name}"
+            if self.force_run_name is not None:
+                run_name = self.force_run_name
+
+            run_desc = Munch(
+                run_name=run_name,
+                **e_block,
+                **prep_task,
+                **sim_v1_task,
+                **sim_v2_task,
+                **train_rf_task,
+                **test_rf_task,
+                **nn_v1_task,
+                **nn_v2_task,
+                **sigproc_v2_task,
+                **lnfit_task,
+                **classify_rf_task,
+                **classify_nn_v2_task,
+            )
+            run_descs += [run_desc]
+
+            # for classify jobs that involve PTMs or MHC, we'll do run reporting
+            # differently rather than emitting a section for each run.
+            if not ptm_report and not mhc_report and not pro_report:
+                self.report_section_markdown(f"# RUN {run_desc.run_name}")
+                self.report_section_run_object(run_desc)
+                if test_rf_task or nn_v1_task:
+                    self.report_section_from_template("train_and_test_template.ipynb")
 
         self.report_section_markdown(f"# JOB {self.job}")
         self.report_section_job_object()
@@ -272,19 +270,17 @@ class ClassifyGenerator(BaseGenerator):
             self.report_section_from_template("train_and_test_epilog_template.ipynb")
 
         n_runs = len(run_descs)
-        if n_runs > 1 and sigproc_tasks[0]:
+        if n_runs > 1 and sigproc_v2_task:
             # TASK: better logic for when to include spike_template.  --spike?
             self.report_section_from_template("spike_template.ipynb")
 
         sigproc_imports_desc = ""
-        if sigproc_tasks[0]:
+        if sigproc_v2_task:
             sigproc_imports_desc = "## Sigproc imports:\n"
-            sigproc_imports_desc += "\n".join(
-                [f"\t* {s.ims_import.inputs.src_dir}" for s in sigproc_tasks]
-            )
+            sigproc_imports_desc += f"\t* {sigproc_v2_task.ims_import.inputs.src_dir}"
 
             self.report_section_first_run_object()
-            self.report_section_from_template("sigproc_v1_template.ipynb")
+            self.report_section_from_template("sigproc_v2_analyze_template.ipynb")
             self.report_section_from_template("classify_template.ipynb")
 
         self.report_preamble(

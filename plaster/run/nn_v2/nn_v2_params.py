@@ -12,6 +12,8 @@ class NNV2Params(Params):
         include_sigproc=False,
         run_against_all_dyetracks=False,
         run_row_k_fit=False,
+        dyetrack_n_counts=None,
+        dyetrack_n_cycles=None,
     )
 
     schema = s(
@@ -23,5 +25,7 @@ class NNV2Params(Params):
             run_row_k_fit=s.is_bool(),
             run_against_all_dyetracks=s.is_bool(),
             gain_model=s.is_type(GainModel),
+            dyetrack_n_counts=s.is_int(noneable=True),
+            dyetrack_n_cycles=s.is_int(noneable=True),
         )
     )

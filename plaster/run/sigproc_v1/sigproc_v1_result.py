@@ -139,9 +139,9 @@ class SigprocV1Result(BaseResult):
 
     def __repr__(self):
         try:
-            return f"SigprocResult with files in {self._folder} {self.n_fields}"
+            return f"SigprocV1Result with files in {self._folder} {self.n_fields}"
         except Exception as e:
-            return "SigprocResult"
+            return "SigprocV1Result"
 
     def _cache(self, prop, val=None):
         # TASK: This might be better done with a yielding context
@@ -360,10 +360,13 @@ class SigprocV1Result(BaseResult):
 
         return df
 
-    def fields__n_peaks__peaks__radmat(self):
+    def fields__n_peaks__peaks__radmat(self, **kwargs):
         """
         Build a giant joined dataframe useful for debugging.
         The masked_rects are excluded from this as they clutter it up.
+
+        NOTE: kwargs was added so that this call will be backward compatibile
+        with the new features of sigproc_v2
         """
         pcc_index = ["peak_i", "channel_i", "cycle_i"]
 

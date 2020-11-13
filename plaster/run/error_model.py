@@ -178,9 +178,6 @@ class ErrorModel(Params):
     def from_err_set(cls, err_set, **kwargs):
         """err_set is a construct used by the error iterators in pgen"""
         n_channels = len(err_set.p_non_fluorescent)
-        # import pudb
-
-        # pudb.set_trace()
         return cls(
             p_edman_failure=err_set.p_edman_failure[0],
             p_detach=err_set.p_detach[0],

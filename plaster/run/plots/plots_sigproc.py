@@ -159,7 +159,7 @@ def circle_locs(
         return circle_im
 
 
-def sigproc_v2_movie_from_df(run, df, fl_i=None, ch_i=0):
+def sigproc_v2_movie_from_df(run, df, fl_i=None, ch_i=0, bg_only=False, fg_only=False):
     """
     Render a movie of cycles for the peaks that are in the df
     If fl_i is None then it is enforced that all peaks in the df must come form one field
@@ -170,13 +170,30 @@ def sigproc_v2_movie_from_df(run, df, fl_i=None, ch_i=0):
     assert df.field_i.nunique() == 1
     fl_i = df.field_i[0]
 
+    locs = df[["aln_y", "aln_x"]].drop_duplicates().values
+
     ims = run.sigproc_v2.aln_ims[fl_i, ch_i, :]
 
-    overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
-    locs = df[["aln_y", "aln_x"]].drop_duplicates().values
-    overlay = 255 * circle_locs(
-        overlay, locs, fill_mode="one", inner_radius=4, outer_radius=5
-    ).astype(np.uint8)
+    overlay = None
+    if bg_only:
+        zero_fg = np.ones((ims.shape[-2:]))
+        zero_fg = circle_locs(
+            zero_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=6
+        )
+        zero_fg[np.isnan(zero_fg)] = 0
+        ims = (ims * zero_fg)
+    elif fg_only:
+        one_fg = np.zeros((ims.shape[-2:]))
+        one_fg = circle_locs(
+            one_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=6
+        )
+        one_fg[np.isnan(one_fg)] = 1
+        ims = (ims * one_fg)
+    else:
+        overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
+        overlay = 255 * circle_locs(
+            overlay, locs, fill_mode="one", inner_radius=4, outer_radius=5
+        ).astype(np.uint8)
 
     displays.movie(
         ims,
@@ -244,8 +261,8 @@ def wizard_xy_df(
     )
 
     df = run[result_block].fields__n_peaks__peaks__radmat()
-    if result_block == "sigproc_v1":
-        df = df.drop(["stage_x", "stage_y"], axis=1)
+    # if result_block == "sigproc_v1":
+    #     df = df.drop(["stage_x", "stage_y"], axis=1)
 
     if ignore_fields is not None:
         stage_df = stage_df[~stage_df.field_i.isin(ignore_fields)]
@@ -330,6 +347,9 @@ def wizard_scat_df(
     default_y="signal",
     channel_i=None,
     result_block="sigproc_v2",
+    include_metadata=False,
+    n_peaks_subsample=3000,
+    n_rows_subsample=3000,
 ):
     """
     Wizard to explore sigprocv2 data on any pivot.
@@ -344,17 +364,22 @@ def wizard_scat_df(
     from ipywidgets import interact  # Defer slow imports
     from bokeh.plotting import figure, ColumnDataSource, show  # Defer slow imports
 
-    df = run[result_block].fields__n_peaks__peaks__radmat()
+    df = run[result_block].fields__n_peaks__peaks__radmat(
+        n_peaks_subsample=n_peaks_subsample
+    )
+
+    if include_metadata and run.ims_import.has_metadata():
+        idx_fields = ["field_i", "cycle_i"]
+        meta_df = run.ims_import.metadata().set_index(idx_fields)
+        df = df.set_index(idx_fields).join(meta_df).reset_index()
+
     if channel_i is not None:
         df = df[df.channel_i == channel_i].reset_index()
     x_name_wid = displays.dropdown(df, "X:", default_x)
     y_name_wid = displays.dropdown(df, "Y:", default_y)
 
     def scat(x_name, y_name, x_noise):
-        n_peaks = df.shape[0]
-        n_samples = 3000
-        mask = data.subsample(np.arange(n_peaks), n_samples)
-        _df = df.loc[mask].copy()
+        _df = df.sample(n_rows_subsample, replace=True).copy()
         _df[x_name] = _df[x_name] + np.random.uniform(-x_noise, +x_noise, size=len(_df))
         source = ColumnDataSource(_df)
         f = figure(

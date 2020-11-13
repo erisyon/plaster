@@ -748,7 +748,7 @@ def strip_underscore_keys(struct):
     if isinstance(struct, dict):
         return {
             k: strip_underscore_keys(v)
-            for k, v in struct.items()
+            for k, v in sorted(struct.items())
             if not k.startswith("_")
         }
     elif isinstance(struct, list):

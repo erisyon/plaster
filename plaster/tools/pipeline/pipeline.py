@@ -263,7 +263,7 @@ class PipelineTask:
             is_ood, reason = self._out_of_date(
                 inputs,
                 self.dst_dir,
-                ignore_fn=lambda f: local.path(f).suffix == ".state",
+                ignore_fn=lambda f: local.path(f).suffix == ".state" or local.path(f).name.startswith("_cache"),
             )
             if is_ood:
                 self.dirty_reason = reason

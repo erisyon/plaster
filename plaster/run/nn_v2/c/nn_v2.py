@@ -64,11 +64,7 @@ class NNV2Context(c_common_tools.FixupStructure):
         ("_flann_index_id", "void *"),
         ("_dyt_weights", Tab, DytWeightType),
         ("_dyt_i_to_dyepep_offset", Tab, DytIndexType),
-
-        # TODO:
-        # ("_work_order_lock", "pthread_mutex_t"),
-        # ("_flann_index_lock", "pthread_mutex_t"),
-        # ("_pyfunction_lock", "pthread_mutex_t"),
+        ("_flann_index_lock", "struct pthread_mutex_t *"),
     ]
     # fmt: on
 
@@ -141,8 +137,8 @@ class NNV2Context(c_common_tools.FixupStructure):
             )
         )
 
-        df["radrow_i"] = np.arange(len(df))
-        df = df.sort_values("radrow_i")
+        df["peak_i"] = np.arange(len(df))
+        df = df.sort_values("peak_i")
 
         return df
 
@@ -249,6 +245,8 @@ def context(
     n_dyts = train_fdyemat.shape[0]
     n_radrows = radmat.shape[0]
 
+    assert train_fdyemat.shape[1] == radmat.shape[1]
+
     against_all_dyetracks_output_dtype = None
     against_all_dyetracks_output = None
     if run_against_all_dyetracks:
@@ -267,7 +265,7 @@ def context(
             train_dyepeps, NNV2Context.tab_type("train_dyepeps")
         ),
         radmat=Tab.from_mat(radmat, NNV2Context.tab_type("radmat")),
-        # Temporary hard-coding of channel 0
+        # Temporary hard-coding of parameters from channel 0
         beta=gain_model.channels[0].beta,
         sigma=gain_model.channels[0].sigma,
         zero_beta=gain_model.channels[0].zero_beta,
@@ -286,6 +284,9 @@ def context(
         ),
         _against_all_dyetracks_output=against_all_dyetracks_output,
     )
+
+    assert np.all((-1e5 < radmat) & (radmat < 1e6))
+    assert radmat.dtype == RadType
 
     error = lib.context_init(nn_v2_context)
     if error is not None:

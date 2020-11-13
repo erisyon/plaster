@@ -107,6 +107,9 @@ class SigprocV2Result(BaseResult):
     # )
     # fmt: on
 
+    def __hash__(self):
+        return hash(id(self))
+
     def _field_filename(self, field_i, is_debug):
         return self._folder / f"{'_debug_' if is_debug else ''}field_{field_i:03d}.ipkl"
 
@@ -163,9 +166,9 @@ class SigprocV2Result(BaseResult):
 
     def __repr__(self):
         try:
-            return f"SigprocResult with files in {self._folder} {self.n_fields}"
+            return f"SigprocV2Result with files in {self._folder} {self.n_fields}"
         except Exception as e:
-            return "SigprocResult"
+            return "SigprocV2Result"
 
     def _cache(self, prop, val=None):
         # TASK: This might be better done with a yielding context
@@ -181,6 +184,10 @@ class SigprocV2Result(BaseResult):
     @property
     def n_fields(self):
         return utils.safe_len(self.field_files)
+
+    @property
+    def n_cols(self):
+        return self.n_cycles * self.n_channels
 
     @property
     def n_frames(self):
@@ -369,7 +376,7 @@ class SigprocV2Result(BaseResult):
         return df
 
     @disk_memoize()
-    def peaks(self):
+    def peaks(self, n_peaks_subsample=None):
         df = self._load_df_prop_from_all_fields("peak_df")
         check.df_t(df, self.peak_df_schema)
 
@@ -384,6 +391,9 @@ class SigprocV2Result(BaseResult):
         # don't have their pan-field peak_i set yet.
         df = df.reset_index(drop=True)
         df.peak_i = df.index
+
+        if n_peaks_subsample is not None:
+            df = df.sample(n_peaks_subsample, replace=True)
 
         return df
 
@@ -462,14 +472,12 @@ class SigprocV2Result(BaseResult):
         return df
 
     @disk_memoize()
-    def fields__n_peaks__peaks(self):
+    def fields__n_peaks__peaks(self, n_peaks_subsample=None):
         """
         Add a "raw_x" "raw_y" position for each peak. This is the
         coordinate of the peak relative to the original raw image
         so that circles can be used to
         """
-        fc_index = ["field_i"]
-
         df = (
             self.fields()
             .set_index("field_i")
@@ -478,11 +486,9 @@ class SigprocV2Result(BaseResult):
             .reset_index()
         )
 
-        df = (
-            df.set_index(fc_index)
-            .join(self.peaks().set_index(fc_index), how="outer")
-            .reset_index()
-        )
+        pdf = self.peaks(n_peaks_subsample=n_peaks_subsample)
+
+        df = pdf.set_index("field_i").join(df.set_index("field_i")).reset_index()
 
         df["raw_x"] = df.aln_x - (df.field_aln_x)
         df["raw_y"] = df.aln_y - (df.field_aln_y)
@@ -490,7 +496,7 @@ class SigprocV2Result(BaseResult):
         return df
 
     @disk_memoize()
-    def fields__n_peaks__peaks__radmat(self):
+    def fields__n_peaks__peaks__radmat(self, n_peaks_subsample=None):
         """
         Build a giant joined dataframe useful for debugging.
         The masked_rects are excluded from this as they clutter it up.
@@ -498,7 +504,7 @@ class SigprocV2Result(BaseResult):
         pcc_index = ["peak_i", "channel_i", "cycle_i"]
 
         df = (
-            self.fields__n_peaks__peaks()
+            self.fields__n_peaks__peaks(n_peaks_subsample=n_peaks_subsample)
             .set_index(pcc_index)
             .join(
                 self.radmats__peaks().set_index(pcc_index)[
@@ -531,6 +537,9 @@ def df_filter(
     max_intensity_per_cycle=None,
     max_aspect_ratio=None,
     min_aspect_ratio=None,
+    radmat_field="signal",
+    max_k=None,
+    min_score=None,
 ):
     """
     A general filtering tool that operates on the dataframe returned by
@@ -555,6 +564,12 @@ def df_filter(
         & (_df.raw_x < roi[1].stop)
     ].reset_index(drop=True)
 
+    if max_k is not None:
+        _df = _df[_df.k <= max_k]
+
+    if min_score is not None:
+        _df = _df[_df.score >= min_score]
+
     # OPERATE on radmat if needed
     fields_that_operate_on_radmat = [
         dark,
@@ -572,7 +587,7 @@ def df_filter(
         assert 0 <= channel_i < n_channels
 
         rad_pt = pd.pivot_table(
-            _df, values="signal", index=["peak_i"], columns=["channel_i", "cycle_i"]
+            _df, values=radmat_field, index=["peak_i"], columns=["channel_i", "cycle_i"]
         )
         ch_rad_pt = rad_pt.loc[:, channel_i]
         keep_peaks_mask = np.ones((ch_rad_pt.shape[0],), dtype=bool)
@@ -641,7 +656,9 @@ def df_filter(
     return _df
 
 
-def df_to_radmat(df, radmat_field="signal", channel_i=None, n_cycles=None):
+def df_to_radmat(
+    df, radmat_field="signal", channel_i=None, n_cycles=None, nan_to_zero=True
+):
     """
     Convert the dataframe filtered by df_filter into a radmat
     """
@@ -662,22 +679,26 @@ def df_to_radmat(df, radmat_field="signal", channel_i=None, n_cycles=None):
     radmat = radmat.values
     n_rows = radmat.shape[0]
     radmat = radmat.reshape((n_rows, n_channels, n_cycles))
+
     if channel_i is not None:
-        return np.nan_to_num(radmat[:, channel_i, :])
-    else:
+        radmat = radmat[:, channel_i, :]
+
+    if nan_to_zero:
         return np.nan_to_num(radmat)
 
+    return radmat
 
-def radmat_from_df_filter(df, radmat_field="signal", channel_i=None, **kwargs):
+
+def radmat_from_df_filter(
+    df, radmat_field="signal", channel_i=None, return_df=False, **kwargs
+):
     """
     Apply the filter args from df_filter and return a radmat
     """
-    n_channels = df.channel_i.max() + 1
-    n_cycles = df.cycle_i.max() + 1
     _df = df_filter(df, channel_i=channel_i, radmat_field=radmat_field, **kwargs)
-    radmat = df_to_radmat(
-        _df, n_channels=n_channels, n_cycles=n_cycles, radmat_field=radmat_field
-    )
-    if channel_i is not None:
-        radmat = radmat[:, channel_i, :]
-    return radmat
+    radmat = df_to_radmat(_df, channel_i=channel_i, radmat_field=radmat_field)
+
+    if return_df:
+        return radmat, _df
+    else:
+        return radmat
