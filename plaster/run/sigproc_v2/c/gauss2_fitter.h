@@ -49,10 +49,10 @@ typedef double np_float64;
 #define PARAM_ASPECT_RATIO (2)
 #define PARAM_FIRST_FIT_PARAM (3)
 #define PARAM_AMP (3)
-#define PARAM_SIGMA_Y (4)
-#define PARAM_SIGMA_X (5)
-#define PARAM_CENTER_Y (6)
-#define PARAM_CENTER_X (7)
+#define PARAM_SIGMA_X (4)
+#define PARAM_SIGMA_Y (5)
+#define PARAM_CENTER_X (6)
+#define PARAM_CENTER_Y (7)
 #define PARAM_RHO (8)
 #define PARAM_OFFSET (9)
 #define PARAM_LAST_FIT_PARAM (10)
@@ -72,19 +72,19 @@ char *gauss2_check();
 int fit_gauss_2d(
     np_float64 *pixels,
     np_int64 mea,
-    np_float64 params[7],
+    np_float64 params[PARAM_N_FIT_PARAMS],
     np_float64 *info,
     np_float64 *covar
 );
 
 int fit_gauss_2d_on_float_image(
     np_float32 *im,
-    np_int64 im_h,
     np_int64 im_w,
-    np_int64 center_y,
+    np_int64 im_h,
     np_int64 center_x,
+    np_int64 center_y,
     np_int64 mea,
-    np_float64 params[7],
+    np_float64 params[PARAM_N_FIT_PARAMS],
     np_float64 *info,
     np_float64 *covar,
     np_float64 *noise
@@ -92,13 +92,14 @@ int fit_gauss_2d_on_float_image(
 
 char *fit_array_of_gauss_2d_on_float_image(
     np_float32 *im,
-    np_int64 im_h,
     np_int64 im_w,
+    np_int64 im_h,
     np_int64 mea,
     np_int64 n_peaks,
-    np_int64 *center_y,
     np_int64 *center_x,
+    np_int64 *center_y,
     np_float64 *params,
+    np_float64 *std_params,
     np_int64 *fails
 );
 

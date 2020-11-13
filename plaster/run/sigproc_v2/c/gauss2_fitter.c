@@ -184,7 +184,13 @@ char *get_dlevmar_stop_reason(int reason) {
 }
 
 
-int fit_gauss_2d(np_float64 *pixels, np_int64 mea, np_float64 params[7], np_float64 *info, np_float64 *covar) {
+int fit_gauss_2d(
+    np_float64 *pixels,
+    np_int64 mea,
+    np_float64 params[PARAM_N_FIT_PARAMS],
+    np_float64 *info,
+    np_float64 *covar
+) {
     /*
     Fit a 2D Gaussian given a square array of pixels with length of size "mea"
 
@@ -242,7 +248,8 @@ int fit_gauss_2d(np_float64 *pixels, np_int64 mea, np_float64 params[7], np_floa
             // This is a working buffer that will be allocated if NULL
             // I timed it and it made no difference so it seemed easier
             // to let levmar handle malloc/free.
-        (double *)covar, NULL
+        (double *)covar,
+        NULL
     );
 
     // Without jacobian, useful for sanity checking
@@ -261,10 +268,10 @@ int fit_gauss_2d(np_float64 *pixels, np_int64 mea, np_float64 params[7], np_floa
 
 int fit_gauss_2d_on_float_image(
     np_float32 *im,
-    np_int64 im_h,
     np_int64 im_w,
-    np_int64 center_y,
+    np_int64 im_h,
     np_int64 center_x,
+    np_int64 center_y,
     np_int64 mea,
     np_float64 params[PARAM_N_FIT_PARAMS],
     np_float64 *info,
@@ -313,29 +320,7 @@ int fit_gauss_2d_on_float_image(
         }
     }
 
-trace("5IMAGE FIT y=%ld x=%ld  h=%ld w=%ld\n", center_y, center_x, im_h, im_w);
-extern FILE *_log;
-fprintf(_log, "[ ");
-for(int i=0; i<n_pixels; i++) {
-    fprintf(_log, "%f, ", pixels[i]);
-}
-fprintf(_log, "]\n");
-
-params[0] = 5000.0;
-params[1] = 1.8;
-params[2] = 1.8;
-params[3] = 5.0;
-params[4] = 5.0;
-params[5] = 0.0;
-params[6] = 200.0;
-
-fprintf(_log, "[ ");
-for(int i=0; i<PARAM_N_FIT_PARAMS; i++) {
-    fprintf(_log, "%4.2e, ", params[i]);
-}
-fprintf(_log, "]\n");
-
-trace("ABOUT TO CALL dlevmar_der\n");
+trace("guess p3=%f p4=%f\n", params[3], params[4]);
 
     ret = dlevmar_der(
         gauss_2d,
@@ -355,37 +340,8 @@ trace("ABOUT TO CALL dlevmar_der\n");
         NULL
     );
 
-trace("BACK FROM dlevma ret=%d\n", ret);
-
-fprintf(_log, "RET PARAMS [ ");
-for(int i=0; i<PARAM_N_FIT_PARAMS; i++) {
-    fprintf(_log, "%4.2e, ", params[i]);
-}
-fprintf(_log, "]\n");
-
-
-//fflush(_log);
-
-    // Compute numerical jacobian
-    //    ret = dlevmar_dif(
-    //        gauss_2d,
-    //        (double *)&params[PARAM_FIRST_FIT_PARAM],
-    //        pixels,
-    //        PARAM_N_FIT_PARAMS,
-    //        n_pixels,
-    //        N_MAX_ITERATIONS,
-    //        dlevmar_opts,
-    //        info,
-    //        NULL,  // See above about working buffer
-    //        covar,
-    //        NULL
-    //    );
-
     int success = ret >= 0;
     *noise = 0.0;
-
-trace("RET=%d SUCCESS=%d\n", ret, success);
-//fflush(_log);
 
     // ret is the number of iterations (>=0) if successful other a negative value
     if(success) {
@@ -399,9 +355,8 @@ trace("RET=%d SUCCESS=%d\n", ret, success);
             n_pixels,
             NULL
         );
-trace("SIG=%f\n", params[PARAM_FIRST_FIT_PARAM]);
-// fprintf(_log, "WHAT?\n");
-// fflush(_log);
+
+trace("p3=%f p4=%f\n", params[3], params[4]);
 
         np_float64 sse = 0.0;
         for(int i=0; i<n_pixels; i++) {
@@ -425,13 +380,14 @@ char *gauss2_check() {
 
 char *fit_array_of_gauss_2d_on_float_image(
     np_float32 *im,
-    np_int64 im_h,
     np_int64 im_w,
+    np_int64 im_h,
     np_int64 mea,
     np_int64 n_peaks,
-    np_int64 *center_y,
     np_int64 *center_x,
+    np_int64 *center_y,
     np_float64 *params, // This is a full set (PARAM_N_FULL_PARAMS columns)
+    np_float64 *std_params, // This is a partial set (PARAM_N_FIT_PARAMS columns)
     np_int64 *fails
 ) {
     /*
@@ -447,8 +403,11 @@ char *fit_array_of_gauss_2d_on_float_image(
     Returns:
         Number of failures
     */
+
     np_float64 info[N_INFO_ELEMENTS];
-    
+
+    double covar[PARAM_N_FIT_PARAMS][PARAM_N_FIT_PARAMS];
+
     np_int64 n_fails = 0;
     for(np_int64 peak_i=0; peak_i<n_peaks; peak_i++) {
         np_float64 *p = &params[peak_i * PARAM_N_FULL_PARAMS + PARAM_FIRST_FIT_PARAM];
@@ -463,23 +422,23 @@ char *fit_array_of_gauss_2d_on_float_image(
             mea,
             p,
             info,
-            NULL,
+            &covar[0][0],
             &noise
         );
 
         params[peak_i * PARAM_N_FULL_PARAMS + PARAM_SIGNAL] = params[peak_i * PARAM_N_FULL_PARAMS + PARAM_AMP];
         params[peak_i * PARAM_N_FULL_PARAMS + PARAM_NOISE] = noise;
 
-//        int n_iters = (int)info[5];
-//        printf("%d %s\n", n_iters, dlevmar_stop_reasons[(int)info[6]]);
+        // COPY std of the covar into the std_params (from its diagonal)
+        np_float64 *dst_std = &std_params[peak_i * PARAM_N_FIT_PARAMS];
+        for(int i=0; i<PARAM_N_FIT_PARAMS; i++) {
+            *dst_std++ = sqrt(covar[i][i]);
+        }
 
         int failed_to_converge = (int)info[6] == 3;
         int failed = (res != 0 || failed_to_converge) ? 1 : 0;
         n_fails += failed;
         fails[peak_i] = failed;
-
-// EARLY STOP HACK
-break;
     }
 
     return (char *)NULL;
