@@ -212,8 +212,17 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             if not sigproc_params.skip_regional_balance:
                 im *= bal_im
 
-            reg_bg, reg_bg_stds = bg.background_regional_estimate_im(im, kernel)
-            bg_std = np.mean(reg_bg_stds)
+            # The following background_regional_estimate_im is the slowest
+            # part of step_1. I made an option for skipping this
+            # while developing the Gauss2 fitter where I don't need it
+            if sigproc_params.skip_regional_background:
+                bg_std = np.std(im)
+                bg_median = np.median(im)
+                reg_bg = np.full((5, 5), bg_median)
+
+            else:
+                reg_bg, reg_bg_stds = bg.background_regional_estimate_im(im, kernel)
+                bg_std = np.mean(reg_bg_stds)
 
             chcy_bg_std[ch_i, cy_i] = bg_std
             dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_remove(im, reg_bg)
@@ -576,7 +585,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
 
     fitmat = None
     sftmat = None
-    if sigproc_v2_params.run_fitter:
+    if sigproc_v2_params.run_analysis_gauss2_fitter:
         fitmat = _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params)
 
     difmat = None
@@ -608,14 +617,12 @@ def _do_sigproc_analyze_and_save_field(
     """
     Analyze AND SAVE one field by calling the sigproc_v2_result.save_field()
     """
-    prof()
     chcy_ims = ims_import_result.ims[field_i]
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
     psf_params = None
-    if sigproc_v2_params.run_fitter:
+    if sigproc_v2_params.run_psf_gauss2_fitter:
         psf_params = psf.psf_fit_gaussian(calib.psfs(0))
-    prof()
 
     (
         chcy_ims,
@@ -628,12 +635,10 @@ def _do_sigproc_analyze_and_save_field(
         picmat,
         sftmat,
     ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params)
-    prof()
 
     mea = np.array([chcy_ims.shape[-1:]])
     if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
         important(f"field {field_i} has bad alignment {aln_offsets}")
-    prof()
 
     # Assign 0 to "peak_i" in the following DF because that is the GLOBAL peak_i
     # which is not computable until all fields are processed. It will be fixed up later
@@ -642,7 +647,6 @@ def _do_sigproc_analyze_and_save_field(
         [(0, field_i, peak_i, loc[0], loc[1]) for peak_i, loc in enumerate(locs)],
         columns=list(SigprocV2Result.peak_df_schema.keys()),
     )
-    prof()
 
     field_df = pd.DataFrame(
         [
@@ -661,7 +665,6 @@ def _do_sigproc_analyze_and_save_field(
     )
 
     assert len(radmat) == len(peak_df)
-    prof()
 
     sigproc_v2_result.save_field(
         field_i,
@@ -674,7 +677,6 @@ def _do_sigproc_analyze_and_save_field(
         sftmat=sftmat,
         _aln_chcy_ims=chcy_ims,
     )
-    prof()
 
 
 # Entrypoints

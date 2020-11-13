@@ -17,7 +17,7 @@ def build(dst_folder, c_common_folder):
         c_common_folder,
         "-I",
         "./levmar-2.6",
-        "-DNDEBUG",
+        "-DDEBUG",
     ]
     gcc = local["gcc"]
 

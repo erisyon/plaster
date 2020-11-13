@@ -7,6 +7,7 @@ from plaster.tools.schema import check
 from plaster.tools.c_common import c_common_tools
 from plaster.tools.c_common.c_common_tools import Tab
 from plaster.run.sigproc_v2.c.build import build
+from plaster.tools.image import imops, coord
 from plaster.tools.log.log import debug
 
 
@@ -26,6 +27,7 @@ def load_lib():
         lib = c.CDLL("./_gauss2_fitter.so")
 
     lib.gauss2_check.argtypes = []
+    lib.gauss2_check.restype = c.c_char_p
 
     lib.fit_array_of_gauss_2d_on_float_image.argtypes = [
         np.ctypeslib.ndpointer(
@@ -48,10 +50,16 @@ def load_lib():
             dtype=np.int64, ndim=1, flags="C_CONTIGUOUS"
         ),  # np_int64 *fail
     ]
-    lib.fit_array_of_gauss_2d_on_float_image.restpye = c.c_int
+    lib.fit_array_of_gauss_2d_on_float_image.restype = c.c_char_p
 
     _lib = lib
     return lib
+
+
+# TODO: Mo ve this and NNV2Exception to a generic CException
+class Gauss2FitException(Exception):
+    def __init__(self, s):
+        super().__init__(s.decode("ascii"))
 
 
 class Gauss2FitParams:
@@ -78,8 +86,9 @@ def fit_image(im, locs, fit_params, psf_mea):
 
     n_locs = int(len(locs))
 
-    im = im.astype(np.float32)
-    check.array_t(im, ndim=2, dtype=np.float32, c_contiguous=True, is_square=True)
+    im = np.ascontiguousarray(im, dtype=np.float32)
+
+    check.array_t(im, ndim=2, dtype=np.float32, c_contiguous=True)
     check.array_t(locs, ndim=2, shape=(None, 2))
 
     locs_y = np.ascontiguousarray(locs[:, 0], dtype=np.int64)
@@ -110,12 +119,19 @@ def fit_image(im, locs, fit_params, psf_mea):
         shape=(n_locs * Gauss2FitParams.N_FULL_PARAMS,),
     )
 
-    lib.gauss2_check()
+    error = lib.gauss2_check()
+    if error is not None:
+        raise Gauss2FitException(error)
 
-    lib.fit_array_of_gauss_2d_on_float_image(
+    debug(im.shape)
+    # debug(locs_y[0], locs_x[0])
+    # _im = imops.crop(im, off=coord.XY(locs_x[0], locs_y[0]), dim=coord.WH(11, 11), center=True)
+    # np.save("_im.npy", _im)
+
+    error = lib.fit_array_of_gauss_2d_on_float_image(
         im,
-        im.shape[1],
         im.shape[0],
+        im.shape[1],
         psf_mea,
         n_locs,
         locs_y,
@@ -123,6 +139,15 @@ def fit_image(im, locs, fit_params, psf_mea):
         ret_params,
         fit_fails,
     )
+    if error is not None:
+        raise Gauss2FitException(error)
+
+    debug(n_locs)
+    n_fails = (fit_fails == 1).sum()
+    debug(n_fails)
+    np.save("_wtf.npy", im)
+    raise NotImplementedError
+
 
     ret_params = ret_params.reshape((n_locs, Gauss2FitParams.N_FULL_PARAMS))
     ret_params[fit_fails == 1, :] = np.nan

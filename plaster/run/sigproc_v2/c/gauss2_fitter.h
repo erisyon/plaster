@@ -67,6 +67,8 @@ void jac_gauss_2d(double *p, double *dst_jac, int m, int n, void *data);
 char *get_dlevmar_stop_reason(int reason);
 
 
+char *gauss2_check();
+
 int fit_gauss_2d(
     np_float64 *pixels,
     np_int64 mea,
@@ -88,7 +90,7 @@ int fit_gauss_2d_on_float_image(
     np_float64 *noise
 );
 
-int fit_array_of_gauss_2d_on_float_image(
+char *fit_array_of_gauss_2d_on_float_image(
     np_float32 *im,
     np_int64 im_h,
     np_int64 im_w,

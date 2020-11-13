@@ -5,7 +5,7 @@
 #include "time.h"
 #include "string.h"
 #include "levmar.h"
-#include "assert.h"
+#include "c_common.h"
 #include "gauss2_fitter.h"
 #ifndef LM_DBL_PREC
 #error Demo program assumes that levmar has been compiled with double precision, see LM_DBL_PREC!
@@ -224,7 +224,7 @@ int fit_gauss_2d(np_float64 *pixels, np_int64 mea, np_float64 params[7], np_floa
         0 on success, -1 on any sort of error
     */
 
-    assert(sizeof(np_float64) == 8);
+    ensure(sizeof(np_float64) == 8, "np_float64 wrong size");
     int n_pixels = mea * mea;
     int ret = 0;
 
@@ -287,13 +287,12 @@ int fit_gauss_2d_on_float_image(
         -2 if any portion of the request is outside the bounds of im.
     */
 
-    assert((mea & 1) == 1);  // Must be odd so that there is a center pixel
+    ensure((mea & 1) == 1, "Mea must be odd");  // Must be odd so that there is a center pixel
     int half_mea = mea / 2;
     int n_pixels = mea * mea;
     int ret = 0;
 
     double *pixels = (double *)alloca(sizeof(double) * n_pixels);
-    double *dst = pixels;
     int top = center_y - half_mea;
     int bot = center_y + half_mea;
     int lft = center_x - half_mea;
@@ -303,13 +302,40 @@ int fit_gauss_2d_on_float_image(
         return -2;
     }
 
+    ensure( (bot - top + 1) * (rgt - lft + 1) == n_pixels, "size mismatch" );
+
     // CONVERT to a linear array of doubles
+    double *dst = pixels;
     for(int y=top; y<=bot; y++) {
         float *src = &im[y * im_w + lft];
         for(int x=lft; x<=rgt; x++) {
             *dst++ = (double)*src++;
         }
     }
+
+trace("5IMAGE FIT y=%ld x=%ld  h=%ld w=%ld\n", center_y, center_x, im_h, im_w);
+extern FILE *_log;
+fprintf(_log, "[ ");
+for(int i=0; i<n_pixels; i++) {
+    fprintf(_log, "%f, ", pixels[i]);
+}
+fprintf(_log, "]\n");
+
+params[0] = 5000.0;
+params[1] = 1.8;
+params[2] = 1.8;
+params[3] = 5.0;
+params[4] = 5.0;
+params[5] = 0.0;
+params[6] = 200.0;
+
+fprintf(_log, "[ ");
+for(int i=0; i<PARAM_N_FIT_PARAMS; i++) {
+    fprintf(_log, "%4.2e, ", params[i]);
+}
+fprintf(_log, "]\n");
+
+trace("ABOUT TO CALL dlevmar_der\n");
 
     ret = dlevmar_der(
         gauss_2d,
@@ -329,6 +355,17 @@ int fit_gauss_2d_on_float_image(
         NULL
     );
 
+trace("BACK FROM dlevma ret=%d\n", ret);
+
+fprintf(_log, "RET PARAMS [ ");
+for(int i=0; i<PARAM_N_FIT_PARAMS; i++) {
+    fprintf(_log, "%4.2e, ", params[i]);
+}
+fprintf(_log, "]\n");
+
+
+//fflush(_log);
+
     // Compute numerical jacobian
     //    ret = dlevmar_dif(
     //        gauss_2d,
@@ -347,8 +384,12 @@ int fit_gauss_2d_on_float_image(
     int success = ret >= 0;
     *noise = 0.0;
 
+trace("RET=%d SUCCESS=%d\n", ret, success);
+//fflush(_log);
+
     // ret is the number of iterations (>=0) if successful other a negative value
     if(success) {
+
         // RENDER out the fit and subtract to get residuals
         double *model_pixels = (double *)alloca(sizeof(double) * n_pixels);
         gauss_2d(
@@ -358,6 +399,9 @@ int fit_gauss_2d_on_float_image(
             n_pixels,
             NULL
         );
+trace("SIG=%f\n", params[PARAM_FIRST_FIT_PARAM]);
+// fprintf(_log, "WHAT?\n");
+// fflush(_log);
 
         np_float64 sse = 0.0;
         for(int i=0; i<n_pixels; i++) {
@@ -373,11 +417,13 @@ int fit_gauss_2d_on_float_image(
 }
 
 
-int gauss2_check() {
+char *gauss2_check() {
+    check_and_return(sizeof(np_int64) == 8, "np_int64 not 8 bytes");
+    check_and_return(sizeof(np_float64) == 8, "np_float64 not 8 bytes");
 }
 
 
-int fit_array_of_gauss_2d_on_float_image(
+char *fit_array_of_gauss_2d_on_float_image(
     np_float32 *im,
     np_int64 im_h,
     np_int64 im_w,
@@ -402,8 +448,7 @@ int fit_array_of_gauss_2d_on_float_image(
         Number of failures
     */
     np_float64 info[N_INFO_ELEMENTS];
-    assert(sizeof(np_int64) == 8);
-
+    
     np_int64 n_fails = 0;
     for(np_int64 peak_i=0; peak_i<n_peaks; peak_i++) {
         np_float64 *p = &params[peak_i * PARAM_N_FULL_PARAMS + PARAM_FIRST_FIT_PARAM];
@@ -432,7 +477,10 @@ int fit_array_of_gauss_2d_on_float_image(
         int failed = (res != 0 || failed_to_converge) ? 1 : 0;
         n_fails += failed;
         fails[peak_i] = failed;
+
+// EARLY STOP HACK
+break;
     }
 
-    return n_fails;
+    return (char *)NULL;
 }
