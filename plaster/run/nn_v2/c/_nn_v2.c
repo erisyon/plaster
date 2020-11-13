@@ -150,6 +150,8 @@ void validate_radmat_table(NNV2Context *ctx, char *msg) {
     }
 }
 
+static int flann_index_lock_initialized = 0;
+static pthread_mutex_t flann_index_lock;
 
 char *context_init(NNV2Context *ctx) {
     // validate_radmat_table(ctx, "context init");
@@ -175,6 +177,20 @@ char *context_init(NNV2Context *ctx) {
         *elem++ = *elem * beta;
     }
 
+    if (flann_index_lock_initialized == 0) {
+        int ret = pthread_mutex_init(&flann_index_lock, NULL);
+        check_and_return(
+            ret == 0,
+            "flann_index_lock_initialized failed to initialize"
+        );
+        flann_index_lock_initialized = 1;
+    }
+    ctx->_flann_index_lock = (struct pthread_mutex_t *)&flann_index_lock;
+
+    if(ctx->_flann_index_lock != NULL) {
+        pthread_mutex_lock((pthread_mutex_t *)ctx->_flann_index_lock);
+    }
+
     ctx->_flann_index_id = flann_build_index_float(
         tab_ptr(RadType, &ctx->train_fdyemat, 0),
         ctx->train_fdyemat.n_rows,
@@ -182,6 +198,10 @@ char *context_init(NNV2Context *ctx) {
         &speedup,
         ctx->_flann_params
     );
+
+    if(ctx->_flann_index_lock != NULL) {
+        pthread_mutex_unlock((pthread_mutex_t *)ctx->_flann_index_lock);
+    }
 
     // COMPUTE weights and dyt_i_to_dyepep_offset lookup tables
     // Set last dye to a huge number so that it will be different on first
@@ -241,6 +261,9 @@ void context_free(NNV2Context *ctx) {
     }
     tab_free(&ctx->_dyt_weights);
     tab_free(&ctx->_dyt_i_to_dyepep_offset);
+
+    pthread_mutex_destroy((pthread_mutex_t *)ctx->_flann_index_lock);
+    flann_index_lock_initialized = 0;
 }
 
 
@@ -268,10 +291,9 @@ char *classify_radrows(
         Tab _neighbor_dyt_iz = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(int), TAB_NOT_GROWABLE);
         neighbor_dyt_iz = &_neighbor_dyt_iz;
 
-        // TODO: Multithread protection
-        // if(ctx->n_threads > 1) {
-        //     pthread_mutex_lock(&ctx->flann_index_lock);
-        // }
+        if(ctx->_flann_index_lock != NULL) {
+            pthread_mutex_lock((pthread_mutex_t *)ctx->_flann_index_lock);
+        }
 
         // FETCH a batch of neighbors from FLANN in one call.
         Tab _neighbor_dists = tab_malloc_by_n_rows(n_radrows * n_neighbors, sizeof(float), TAB_NOT_GROWABLE);
@@ -291,10 +313,9 @@ char *classify_radrows(
         );
         ensure(flann_ret == 0, "FLANN returned an error. %d", flann_ret);
 
-        // TODO: Multithread protection
-        // if(ctx->n_threads > 1) {
-        //     pthread_mutex_unlock(&ctx->flann_index_lock);
-        // }
+        if(ctx->_flann_index_lock != NULL) {
+            pthread_mutex_unlock((pthread_mutex_t *)ctx->_flann_index_lock);
+        }
     }
     else {
         // In this mode there is no neighbor look-up; rather ALL dytracks are treated
@@ -346,22 +367,6 @@ char *classify_radrows(
             // In this mode the "neighbors" are actually ALL dyetracks.
             row_neighbor_dyt_iz = neighbor_dyt_iz;
         }
-
-//for(Index i=0; i<n_neighbors; i++) {
-//    int dyti = tab_get(int, row_neighbor_dyt_iz, i);
-//    if(dyti > 100000) {
-//
-//        for(Index j=0; j<n_radrows * n_neighbors; j++) {
-//            int dytj = tab_get(int, neighbor_dyt_iz, j);
-//            trace("%ld %d\n", j, dytj);
-////            if(dytj > 100000) {
-////                ensure(0, "FAILED %ld, %ld %ld", dytj, row_i, j);
-////            }
-//        }
-//
-//        ensure(0, "FAILED %ld, %ld", dyti, row_i);
-//    }
-//}
 
         Tab row_neighbor_p_vals = tab_subset(&neighbor_p_vals, row_i * n_neighbors, n_neighbors);
         Tab row_neighbor_pred_row_ks = tab_subset(&neighbor_pred_row_ks, row_i * n_neighbors, n_neighbors);

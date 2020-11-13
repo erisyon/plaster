@@ -64,11 +64,7 @@ class NNV2Context(c_common_tools.FixupStructure):
         ("_flann_index_id", "void *"),
         ("_dyt_weights", Tab, DytWeightType),
         ("_dyt_i_to_dyepep_offset", Tab, DytIndexType),
-
-        # TODO:
-        # ("_work_order_lock", "pthread_mutex_t"),
-        # ("_flann_index_lock", "pthread_mutex_t"),
-        # ("_pyfunction_lock", "pthread_mutex_t"),
+        ("_flann_index_lock", "struct pthread_mutex_t *"),
     ]
     # fmt: on
 
