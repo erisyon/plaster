@@ -107,7 +107,7 @@ from plaster.run.sigproc_v2.c.gauss2_fitter import Gauss2FitParams
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug, important
+from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
 from plumbum import local
@@ -608,12 +608,14 @@ def _do_sigproc_analyze_and_save_field(
     """
     Analyze AND SAVE one field by calling the sigproc_v2_result.save_field()
     """
+    prof()
     chcy_ims = ims_import_result.ims[field_i]
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
     psf_params = None
     if sigproc_v2_params.run_fitter:
         psf_params = psf.psf_fit_gaussian(calib.psfs(0))
+    prof()
 
     (
         chcy_ims,
@@ -626,10 +628,12 @@ def _do_sigproc_analyze_and_save_field(
         picmat,
         sftmat,
     ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params)
+    prof()
 
     mea = np.array([chcy_ims.shape[-1:]])
     if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
         important(f"field {field_i} has bad alignment {aln_offsets}")
+    prof()
 
     # Assign 0 to "peak_i" in the following DF because that is the GLOBAL peak_i
     # which is not computable until all fields are processed. It will be fixed up later
@@ -638,6 +642,7 @@ def _do_sigproc_analyze_and_save_field(
         [(0, field_i, peak_i, loc[0], loc[1]) for peak_i, loc in enumerate(locs)],
         columns=list(SigprocV2Result.peak_df_schema.keys()),
     )
+    prof()
 
     field_df = pd.DataFrame(
         [
@@ -656,6 +661,7 @@ def _do_sigproc_analyze_and_save_field(
     )
 
     assert len(radmat) == len(peak_df)
+    prof()
 
     sigproc_v2_result.save_field(
         field_i,
@@ -668,6 +674,7 @@ def _do_sigproc_analyze_and_save_field(
         sftmat=sftmat,
         _aln_chcy_ims=chcy_ims,
     )
+    prof()
 
 
 # Entrypoints
