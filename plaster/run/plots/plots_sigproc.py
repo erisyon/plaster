@@ -261,8 +261,8 @@ def wizard_xy_df(
     )
 
     df = run[result_block].fields__n_peaks__peaks__radmat()
-    if result_block == "sigproc_v1":
-        df = df.drop(["stage_x", "stage_y"], axis=1)
+    # if result_block == "sigproc_v1":
+    #     df = df.drop(["stage_x", "stage_y"], axis=1)
 
     if ignore_fields is not None:
         stage_df = stage_df[~stage_df.field_i.isin(ignore_fields)]
@@ -379,7 +379,7 @@ def wizard_scat_df(
     y_name_wid = displays.dropdown(df, "Y:", default_y)
 
     def scat(x_name, y_name, x_noise):
-        _df = df.sample(n_rows_subsample).copy()
+        _df = df.sample(n_rows_subsample, replace=True).copy()
         _df[x_name] = _df[x_name] + np.random.uniform(-x_noise, +x_noise, size=len(_df))
         source = ColumnDataSource(_df)
         f = figure(
