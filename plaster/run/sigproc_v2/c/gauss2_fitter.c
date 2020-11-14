@@ -45,11 +45,11 @@ void gauss_2d(double *p, double *dst_x, int m, int n, void *data) {
     int mea = (int)sqrt(n);
     double *dst = dst_x;
     for (int i=0; i<mea; i++) {
-        double x = (double)i;
-        double xmpx = x - pos_x;
+        double y = (double)i;
+        double ympy = y - pos_y;
         for (int j=0; j<mea; j++) {
-            double y = (double)j;
-            double ympy = y - pos_y;
+            double x = (double)j;
+            double xmpx = x - pos_x;
             *dst++ = (
                 offset + linear_term * exp(
                     (
@@ -92,11 +92,11 @@ void jac_gauss_2d(double *p, double *dst_jac, int m, int n, void *data) {
 
     double *dst = dst_jac;
     for (int i =0; i<mea; i++) {
-        double x = (double)i;
-        double xmpx = x - pos_x;
+        double y = (double)i;
+        double ympy = y - pos_y;
         for (int j =0; j<mea; j++) {
-            double y = (double)j;
-            double ympy = y - pos_y;
+            double x = (double)j;
+            double xmpx = x - pos_x;
             double tem_b = tem_a * sqrt(omrs) * exp(
                 (
                     linear_term * xmpx * ympy
