@@ -70,6 +70,7 @@ def nn_v2(
         n_cols = sigproc_result.n_cols
 
     def _run(radmat, dyemat, dyepeps):
+        debug(radmat.shape)
         with c_nn_v2.context(
             radmat=radmat,
             train_dyemat=dyemat,
@@ -78,6 +79,7 @@ def nn_v2(
             n_neighbors=nn_v2_params.n_neighbors,
             run_row_k_fit=nn_v2_params.run_row_k_fit,
             run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
+            row_k_score_factor=nn_v2_params.row_k_score_factor,
         ) as nn_v2_context:
             batches = zap.make_batch_slices(n_rows=radmat.shape[0])
             work_orders = [

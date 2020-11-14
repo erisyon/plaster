@@ -37,6 +37,7 @@ class NNV2Context(c_common_tools.FixupStructure):
         ("zero_sigma", "Float64"),
         ("row_k_beta", "Float64"),
         ("row_k_sigma", "Float64"),
+        ("row_k_score_factor", "Float64"),
 
         # Options
         ("n_neighbors", "Size"),
@@ -225,6 +226,7 @@ def context(
     run_row_k_fit=False,
     run_against_all_dyetracks=False,
     use_row_k_p_val=True,
+    row_k_score_factor=1.0,
 ):
     """
     with nn_v2.context(...) as ctx:
@@ -272,6 +274,7 @@ def context(
         zero_sigma=gain_model.channels[0].zero_sigma,
         row_k_beta=gain_model.row_k_beta,
         row_k_sigma=gain_model.row_k_sigma,
+        row_k_score_factor=row_k_score_factor,
         n_neighbors=n_neighbors,
         run_row_k_fit=run_row_k_fit,
         run_against_all_dyetracks=run_against_all_dyetracks,

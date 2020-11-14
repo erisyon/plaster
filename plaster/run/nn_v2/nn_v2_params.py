@@ -14,6 +14,7 @@ class NNV2Params(Params):
         run_row_k_fit=False,
         dyetrack_n_counts=None,
         dyetrack_n_cycles=None,
+        row_k_score_factor=1.0,
     )
 
     schema = s(
@@ -27,5 +28,6 @@ class NNV2Params(Params):
             gain_model=s.is_type(GainModel),
             dyetrack_n_counts=s.is_int(noneable=True),
             dyetrack_n_cycles=s.is_int(noneable=True),
+            row_k_score_factor=s.is_float(),
         )
     )

@@ -732,6 +732,7 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         calib=calib,
         focus_per_field_per_channel=None,
     )
+    debug(ims_import_result.n_cycles)
 
     n_fields = ims_import_result.n_fields
     n_fields_limit = sigproc_v2_params.n_fields_limit
