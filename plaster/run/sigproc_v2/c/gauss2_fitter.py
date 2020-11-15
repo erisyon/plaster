@@ -114,6 +114,8 @@ def fit_image(im, locs, fit_params, psf_mea):
 
     im = np.ascontiguousarray(im, dtype=np.float32)
 
+    # assert np.all(~np.isnan(im))
+
     check.array_t(im, ndim=2, dtype=np.float32, c_contiguous=True)
     check.array_t(locs, ndim=2, shape=(None, 2))
 
@@ -151,10 +153,6 @@ def fit_image(im, locs, fit_params, psf_mea):
     error = lib.gauss2_check()
     if error is not None:
         raise Gauss2FitException(error)
-
-    # debug(locs_y[0], locs_x[0])
-    # _im = imops.crop(im, off=coord.XY(locs_x[0], locs_y[0]), dim=coord.WH(11, 11), center=True)
-    # np.save("_im.npy", _im)
 
     error = lib.fit_array_of_gauss_2d_on_float_image(
         im,

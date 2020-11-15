@@ -176,7 +176,8 @@ char *dlevmar_stop_reasons[] = {
 };
 
 
-char *get_dlevmar_stop_reason(int reason) {
+char *get_dlevmar_stop_reason_from_info(np_float64 *info) {
+    int reason = (int)info[6];
     if(0 <= reason && reason < 8) {
         return dlevmar_stop_reasons[reason];
     }
@@ -316,11 +317,10 @@ int fit_gauss_2d_on_float_image(
     for(int y=top; y<=bot; y++) {
         float *src = &im[y * im_w + lft];
         for(int x=lft; x<=rgt; x++) {
-            *dst++ = (double)*src++;
+            double pix = (double)*src++;
+            *dst++ = pix;
         }
     }
-
-trace("guess p3=%f p4=%f\n", params[3], params[4]);
 
     ret = dlevmar_der(
         gauss_2d,
@@ -343,28 +343,38 @@ trace("guess p3=%f p4=%f\n", params[3], params[4]);
     int success = ret >= 0;
     *noise = 0.0;
 
+    // trace("%s\n", get_dlevmar_stop_reason_from_info(info));
+
     // ret is the number of iterations (>=0) if successful other a negative value
     if(success) {
 
         // RENDER out the fit and subtract to get residuals
         double *model_pixels = (double *)alloca(sizeof(double) * n_pixels);
         gauss_2d(
-            (double *)&params[PARAM_FIRST_FIT_PARAM],
+            params,
             model_pixels,
             PARAM_N_FIT_PARAMS,
             n_pixels,
             NULL
         );
 
-trace("p3=%f p4=%f\n", params[3], params[4]);
+        np_float64 residual_mean = 0.0;
+        for(int i=0; i<n_pixels; i++) {
+            double *data = &pixels[i];
+            double *model = &model_pixels[i];
+            double residual = *data - *model;
+            residual_mean += residual;
+        }
+        residual_mean /= (np_float64)n_pixels;
 
         np_float64 sse = 0.0;
         for(int i=0; i<n_pixels; i++) {
             double *data = &pixels[i];
             double *model = &model_pixels[i];
-            double residual = data - model;
+            double residual = (*data - *model) - residual_mean;
             sse += residual * residual;
         }
+
         *noise = sqrt(sse);
     }
 
@@ -407,6 +417,12 @@ char *fit_array_of_gauss_2d_on_float_image(
     np_float64 info[N_INFO_ELEMENTS];
 
     double covar[PARAM_N_FIT_PARAMS][PARAM_N_FIT_PARAMS];
+
+    // SANITY check for no nan
+    // TODO: Remove this?
+//    for(np_int64 i=0; i<im_w*im_h; i++) {
+//        check_and_return(!isnan(im[i]), "nan in image");
+//    }
 
     np_int64 n_fails = 0;
     for(np_int64 peak_i=0; peak_i<n_peaks; peak_i++) {
