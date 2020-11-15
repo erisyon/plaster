@@ -133,7 +133,7 @@ def fit_image(im, locs, fit_params, psf_mea):
     )
 
     std_params = np.zeros((n_locs, Gauss2FitParams.N_FIT_PARAMS))
-    std_params = np.ascontiguousarray(std_params.flatten())
+    _std_params = np.ascontiguousarray(std_params.flatten())
 
     ret_params = np.zeros((n_locs, Gauss2FitParams.N_FULL_PARAMS))
     ret_params[
@@ -163,7 +163,7 @@ def fit_image(im, locs, fit_params, psf_mea):
         locs_x,
         locs_y,
         ret_params,
-        std_params,
+        _std_params,
         fit_fails,
     )
     if error is not None:
@@ -173,8 +173,28 @@ def fit_image(im, locs, fit_params, psf_mea):
     # n_fails = (fit_fails == 1).sum()
     # debug(n_fails)
 
-    # After some very basic analysis, it seems that
+    # After some very basic analysis, it seems that the follow
+    # parameters are a resonable guess for out of bound on the
+    # std of fit.
+
+    param_std_of_fit_limits = np.array((
+        500,
+        0.18,
+        0.18,
+        0.15,
+        0.15,
+        0.08,
+        5,
+    ))
+
+    out_of_bounds_mask = np.any(std_params > param_std_of_fit_limits[None, :], axis=1)
 
     ret_params = ret_params.reshape((n_locs, Gauss2FitParams.N_FULL_PARAMS))
     ret_params[fit_fails == 1, :] = np.nan
+    ret_params[out_of_bounds_mask, :] = np.nan
+
+    # TODO: I have a mess here becaue the std_params is a different length
+    #       and this perpetuates the problem, I need a reorg the parameters
+    #       so that the fit args are first, there's no reduncancy, etc. etc
+
     return ret_params, std_params

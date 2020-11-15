@@ -71,14 +71,15 @@ def zest_gauss2_fitter():
         For each parameter I need to understand how the distribution
         of the std_params is related to the error
         """
-
-        for amp in np.linspace(150.0, 0.0, 10):
+        import pudb; pudb.set_trace()
+        for amp in np.linspace(1000.0, 0.0, 10):
             print()
             true_params, pred_params, std_params = _test(
                 (amp, 1.8, 1.8, 5.0, 5.0, 0.0, 100.0),
                 (amp, 1.8, 1.8, 5.0, 5.0, 0.0, 100.0),
                 noise=1.5,
             )
+            import pudb; pudb.set_trace()
             _params_close(true_params, pred_params, std_params)
             # assert np.all(np.isnan(pred_params))
 
