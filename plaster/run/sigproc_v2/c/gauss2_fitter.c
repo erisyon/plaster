@@ -160,8 +160,8 @@ void gauss_2d(double *params, double *pixels, int m, int n, void *data) {
         }
     }
 
-    dump_params("model func", params);
-    dump_pixels("model func", pixels);
+//    dump_params("model func", params);
+//    dump_pixels("model func", pixels);
 }
 
 
@@ -246,7 +246,7 @@ void jac_gauss_2d(double *params, double *dst_jac, int m, int n, void *data) {
         }
     }
 
-    dump_jacobian("jac", dst_jac, mea * mea * 7);
+//    dump_jacobian("jac", dst_jac, mea * mea * 7);
 }
 
 
@@ -397,7 +397,7 @@ int fit_gauss_2d_on_float_image(
         params[PARAM_AMP] = 2.0 * 3.141592654 * params[PARAM_SIGMA_X] * params[PARAM_SIGMA_Y] * (max_val - min_val);
     }
 
-    dump_pixels("entrypoint", pixels);
+    // dump_pixels("entrypoint", pixels);
 
     ret = dlevmar_der(
         gauss_2d,
@@ -420,7 +420,7 @@ int fit_gauss_2d_on_float_image(
     int success = ret >= 0;
     *noise = 0.0;
 
-    dump_info(info);
+    //dump_info(info);
     //trace("%s\n", get_dlevmar_stop_reason_from_info(info));
 
     // ret is the number of iterations (>=0) if successful other a negative value
@@ -506,7 +506,7 @@ char *fit_array_of_gauss_2d_on_float_image(
 
     double covar[PARAM_N_FIT_PARAMS][PARAM_N_FIT_PARAMS];
 
-    check_and_return(validate_im(im, im_w, im_h), "Invalid im");
+    // check_and_return(validate_im(im, im_w, im_h), "Invalid im");
 
     np_int64 n_fails = 0;
     for(np_int64 peak_i=0; peak_i<n_peaks; peak_i++) {
