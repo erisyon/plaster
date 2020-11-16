@@ -43,8 +43,8 @@ def load_lib():
 
     lib.fit_array_of_gauss_2d_on_float_image.argtypes = [
         np.ctypeslib.ndpointer(
-            dtype=np.float32, ndim=2, flags="C_CONTIGUOUS"
-        ),  # np_float32 *im
+            dtype=np.float64, ndim=2, flags="C_CONTIGUOUS"
+        ),  # np_float64 *im
         c.c_int,  # np_int64 im_w
         c.c_int,  # np_int64 im_h
         c.c_int,  # np_int64 mea
@@ -79,21 +79,19 @@ class Gauss2FitException(Exception):
 
 class Gauss2FitParams:
     # These must match in gauss2_fitter.h
-    SIGNAL = 0
-    NOISE = 1
-    ASPECT_RATIO = 2
-    FIRST_FIT_PARAM = 3
-    AMP = 3
-    SIGMA_X = 4
-    SIGMA_Y = 5
-    CENTER_X = 6
-    CENTER_Y = 7
-    RHO = 8
-    OFFSET = 9
-    LAST_FIT_PARAM = 10
-    MEA = 10
-    N_FULL_PARAMS = 11
-    N_FIT_PARAMS = 7
+    AMP = 0
+    SIGNAL = 0  # Alias for AMP
+    SIGMA_X = 1
+    SIGMA_Y = 2
+    CENTER_X = 3
+    CENTER_Y = 4
+    RHO = 5
+    OFFSET = 6
+    N_FIT_PARAMS = 7  # Number above this point
+    MEA = 7
+    NOISE = 8
+    ASPECT_RATIO = 9
+    N_FULL_PARAMS = 10
 
 
 def gauss2(params):
@@ -107,16 +105,16 @@ def gauss2(params):
     return im.reshape((11, 11))
 
 
-def fit_image(im, locs, fit_params, psf_mea):
+def fit_image(im, locs, guess_params, psf_mea):
     lib = load_lib()
 
     n_locs = int(len(locs))
 
-    im = np.ascontiguousarray(im, dtype=np.float32)
-
+    check.array_t(im, ndim=2, dtype=np.float64)
+    im = np.ascontiguousarray(im, dtype=np.float64)
     # assert np.all(~np.isnan(im))
 
-    check.array_t(im, ndim=2, dtype=np.float32, c_contiguous=True)
+    check.array_t(im, ndim=2, dtype=np.float64, c_contiguous=True)
     check.array_t(locs, ndim=2, shape=(None, 2))
 
     locs_y = np.ascontiguousarray(locs[:, 0], dtype=np.int64)
@@ -126,24 +124,21 @@ def fit_image(im, locs, fit_params, psf_mea):
     check.array_t(fit_fails, dtype=np.int64, c_contiguous=True)
 
     check.array_t(
-        fit_params,
+        guess_params,
         dtype=np.float64,
         ndim=2,
-        shape=(n_locs, Gauss2FitParams.N_FIT_PARAMS,),
+        shape=(n_locs, Gauss2FitParams.N_FULL_PARAMS,),
     )
 
-    std_params = np.zeros((n_locs, Gauss2FitParams.N_FIT_PARAMS))
-    _std_params = np.ascontiguousarray(std_params.flatten())
+    fit_params = guess_params.copy()
+    fit_params[:, Gauss2FitParams.MEA] = psf_mea
+    fit_params = np.ascontiguousarray(fit_params.flatten())
 
-    ret_params = np.zeros((n_locs, Gauss2FitParams.N_FULL_PARAMS))
-    ret_params[
-        :, Gauss2FitParams.FIRST_FIT_PARAM : Gauss2FitParams.LAST_FIT_PARAM
-    ] = fit_params
-    ret_params[:, Gauss2FitParams.MEA] = psf_mea
-    ret_params = np.ascontiguousarray(ret_params.flatten())
+    std_params = np.zeros((n_locs, Gauss2FitParams.N_FULL_PARAMS))
+    std_params = np.ascontiguousarray(std_params.flatten())
 
     check.array_t(
-        ret_params,
+        fit_params,
         dtype=np.float64,
         c_contiguous=True,
         ndim=1,
@@ -154,6 +149,11 @@ def fit_image(im, locs, fit_params, psf_mea):
     if error is not None:
         raise Gauss2FitException(error)
 
+    # np.save("_fit_im.npy", im)
+    # debug(locs_x, locs_y)
+    # peak0 = imops.crop(im, coord.XY(locs_x[0], locs_y[0]), coord.WH(11,11), center=True)
+    # np.save("_fit_im_peak_0.npy", peak0)
+
     error = lib.fit_array_of_gauss_2d_on_float_image(
         im,
         im.shape[1],  # Note inversion of axis (y is primary in numpy)
@@ -162,8 +162,8 @@ def fit_image(im, locs, fit_params, psf_mea):
         n_locs,
         locs_x,
         locs_y,
-        ret_params,
-        _std_params,
+        fit_params,
+        std_params,
         fit_fails,
     )
     if error is not None:
@@ -176,25 +176,21 @@ def fit_image(im, locs, fit_params, psf_mea):
     # After some very basic analysis, it seems that the follow
     # parameters are a resonable guess for out of bound on the
     # std of fit.
+    # Note, this analysis was done on 11x11 pixels and might
+    # need to be different for other sizes
 
-    param_std_of_fit_limits = np.array((
-        500,
-        0.18,
-        0.18,
-        0.15,
-        0.15,
-        0.08,
-        5,
-    ))
+    std_params = std_params.reshape((n_locs, Gauss2FitParams.N_FULL_PARAMS))
 
-    out_of_bounds_mask = np.any(std_params > param_std_of_fit_limits[None, :], axis=1)
+    param_std_of_fit_limits = np.array((500, 0.18, 0.18, 0.15, 0.15, 0.08, 5,))
 
-    ret_params = ret_params.reshape((n_locs, Gauss2FitParams.N_FULL_PARAMS))
-    ret_params[fit_fails == 1, :] = np.nan
-    ret_params[out_of_bounds_mask, :] = np.nan
+    out_of_bounds_mask = np.any(
+        std_params[:, 0 : Gauss2FitParams.N_FIT_PARAMS]
+        > param_std_of_fit_limits[None, :],
+        axis=1,
+    )
 
-    # TODO: I have a mess here becaue the std_params is a different length
-    #       and this perpetuates the problem, I need a reorg the parameters
-    #       so that the fit args are first, there's no reduncancy, etc. etc
+    fit_params = fit_params.reshape((n_locs, Gauss2FitParams.N_FULL_PARAMS))
+    fit_params[fit_fails == 1, :] = np.nan
+    fit_params[out_of_bounds_mask, :] = np.nan
 
-    return ret_params, std_params
+    return fit_params, std_params

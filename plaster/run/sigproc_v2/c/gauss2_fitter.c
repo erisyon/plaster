@@ -266,9 +266,20 @@ int fit_gauss_2d(
     return ret > 0 ? 0 : -1;
 }
 
+void dump_pixels(double *pixels) {
+    trace("PIXELS [\n");
+    for(int i=0; i<11*11; i++) {
+        if(i % 11 == 0){
+            fprintf(_log, "\n");
+        }
+        fprintf(_log, "%f, ", pixels[i]);
+    }
+    fprintf(_log, "]\n\n");
+}
+
 
 int fit_gauss_2d_on_float_image(
-    np_float32 *im,
+    np_float64 *im,
     np_int64 im_w,
     np_int64 im_h,
     np_int64 center_x,
@@ -312,15 +323,17 @@ int fit_gauss_2d_on_float_image(
 
     ensure( (bot - top + 1) * (rgt - lft + 1) == n_pixels, "size mismatch" );
 
-    // CONVERT to a linear array of doubles
+    // COPY from the image to a linear array of values
     double *dst = pixels;
     for(int y=top; y<=bot; y++) {
-        float *src = &im[y * im_w + lft];
+        np_float64 *src = &im[y * im_w + lft];
         for(int x=lft; x<=rgt; x++) {
-            double pix = (double)*src++;
+            double pix = *src++;
             *dst++ = pix;
         }
     }
+
+    // dump_pixels(pixels);
 
     ret = dlevmar_der(
         gauss_2d,
@@ -347,7 +360,6 @@ int fit_gauss_2d_on_float_image(
 
     // ret is the number of iterations (>=0) if successful other a negative value
     if(success) {
-
         // RENDER out the fit and subtract to get residuals
         double *model_pixels = (double *)alloca(sizeof(double) * n_pixels);
         gauss_2d(
@@ -389,7 +401,7 @@ char *gauss2_check() {
 
 
 char *fit_array_of_gauss_2d_on_float_image(
-    np_float32 *im,
+    np_float64 *im,
     np_int64 im_w,
     np_int64 im_h,
     np_int64 mea,
@@ -397,7 +409,7 @@ char *fit_array_of_gauss_2d_on_float_image(
     np_int64 *center_x,
     np_int64 *center_y,
     np_float64 *params, // This is a full set (PARAM_N_FULL_PARAMS columns)
-    np_float64 *std_params, // This is a partial set (PARAM_N_FIT_PARAMS columns)
+    np_float64 *std_params, // This is a parallel set of params (same size) for the std. of the fit
     np_int64 *fails
 ) {
     /*
@@ -407,7 +419,8 @@ char *fit_array_of_gauss_2d_on_float_image(
         See fit_gauss_2d_on_float_image
         n_peaks: number of elements in the center_y and center_x arrays
         center_y, center_x: Peak positions
-        params: n_peaks * 7 doubles expected to be initialized to a guess of the parameters
+        params: n_peaks * N_FULL_PARAMS doubles expected to be initialized to a guess of the parameters
+        std_params: n_peaks * N_FULL_PARAMS doubles expected to be initialized to a guess of the parameters
         fails: n_peaks. Will be zero if success or non-zero on any sort of failure
 
     Returns:
@@ -418,23 +431,18 @@ char *fit_array_of_gauss_2d_on_float_image(
 
     double covar[PARAM_N_FIT_PARAMS][PARAM_N_FIT_PARAMS];
 
-    // SANITY check for no nan
-    // TODO: Remove this?
-//    for(np_int64 i=0; i<im_w*im_h; i++) {
-//        check_and_return(!isnan(im[i]), "nan in image");
-//    }
-
     np_int64 n_fails = 0;
     for(np_int64 peak_i=0; peak_i<n_peaks; peak_i++) {
-        np_float64 *p = &params[peak_i * PARAM_N_FULL_PARAMS + PARAM_FIRST_FIT_PARAM];
+        np_float64 *p = &params[peak_i * PARAM_N_FULL_PARAMS];
         np_float64 noise = 0.0;
 
+        // trace("PEAK_I=%ld\n", peak_i);
         int res = fit_gauss_2d_on_float_image(
             im,
-            im_h,
             im_w,
-            center_y[peak_i],
+            im_h,
             center_x[peak_i],
+            center_y[peak_i],
             mea,
             p,
             info,
@@ -442,11 +450,12 @@ char *fit_array_of_gauss_2d_on_float_image(
             &noise
         );
 
-        params[peak_i * PARAM_N_FULL_PARAMS + PARAM_SIGNAL] = params[peak_i * PARAM_N_FULL_PARAMS + PARAM_AMP];
         params[peak_i * PARAM_N_FULL_PARAMS + PARAM_NOISE] = noise;
 
-        // COPY std of the covar into the std_params (from its diagonal)
-        np_float64 *dst_std = &std_params[peak_i * PARAM_N_FIT_PARAMS];
+        // COPY stdev of the covar. into the std_params (from its diagonal)
+        np_float64 *dst_std = &std_params[peak_i * PARAM_N_FULL_PARAMS];
+
+        // Note that this is only traversing the fit_params...
         for(int i=0; i<PARAM_N_FIT_PARAMS; i++) {
             *dst_std++ = sqrt(covar[i][i]);
         }

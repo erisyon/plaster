@@ -44,21 +44,19 @@ typedef double np_float64;
 #define N_MAX_ITERATIONS (75)
 
 // These must match in gauss2_fitter.py
-#define PARAM_SIGNAL (0)
-#define PARAM_NOISE (1)
-#define PARAM_ASPECT_RATIO (2)
-#define PARAM_FIRST_FIT_PARAM (3)
-#define PARAM_AMP (3)
-#define PARAM_SIGMA_X (4)
-#define PARAM_SIGMA_Y (5)
-#define PARAM_CENTER_X (6)
-#define PARAM_CENTER_Y (7)
-#define PARAM_RHO (8)
-#define PARAM_OFFSET (9)
-#define PARAM_LAST_FIT_PARAM (10)
-#define PARAM_MEA (10)
-#define PARAM_N_FULL_PARAMS (11)
-#define PARAM_N_FIT_PARAMS (7)
+
+#define PARAM_AMP (0)
+#define PARAM_SIGMA_X (1)
+#define PARAM_SIGMA_Y (2)
+#define PARAM_CENTER_X (3)
+#define PARAM_CENTER_Y (4)
+#define PARAM_RHO (5)
+#define PARAM_OFFSET (6)
+#define PARAM_N_FIT_PARAMS (7)  // This is number above here
+#define PARAM_MEA (7)
+#define PARAM_NOISE (8)
+#define PARAM_ASPECT_RATIO (9)
+#define PARAM_N_FULL_PARAMS (10)
 
 
 
@@ -78,7 +76,7 @@ int fit_gauss_2d(
 );
 
 int fit_gauss_2d_on_float_image(
-    np_float32 *im,
+    np_float64 *im,
     np_int64 im_w,
     np_int64 im_h,
     np_int64 center_x,
@@ -91,7 +89,7 @@ int fit_gauss_2d_on_float_image(
 );
 
 char *fit_array_of_gauss_2d_on_float_image(
-    np_float32 *im,
+    np_float64 *im,
     np_int64 im_w,
     np_int64 im_h,
     np_int64 mea,

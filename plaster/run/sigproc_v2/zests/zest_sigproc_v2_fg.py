@@ -3,6 +3,7 @@ from plaster.run.sigproc_v2 import fg
 from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.c.gauss2_fitter import Gauss2FitParams
 from plaster.tools.log.log import debug
+from plaster.tools.utils import utils
 from zest import zest
 
 
@@ -88,11 +89,18 @@ def zest_fit_method():
         assert n_nan > fit_params.shape[0] - 5
 
     def it_handles_wide_peaks():
-        fit_params = _run(peak_width=3.0, peak_height=1.5)
+        fit_params = _run(peak_width=2.7, peak_height=1.5)
         w = np.nanmedian(fit_params[:, Gauss2FitParams.SIGMA_X])
         h = np.nanmedian(fit_params[:, Gauss2FitParams.SIGMA_Y])
-        assert 2.9 < w < 3.1
+        assert 2.55 < w < 2.8
         assert 1.4 < h < 1.6
+
+    def it_handles_tall_peaks():
+        fit_params = _run(peak_width=1.5, peak_height=2.7)
+        w = np.nanmedian(fit_params[:, Gauss2FitParams.SIGMA_X])
+        h = np.nanmedian(fit_params[:, Gauss2FitParams.SIGMA_Y])
+        assert 2.55 < h < 2.8
+        assert 1.4 < w < 1.6
 
     def it_handles_shifted_right_peaks():
         fit_params = _run(peak_shift_x=0.2)
@@ -104,9 +112,10 @@ def zest_fit_method():
     def it_handles_collisions():
         fit_params = _run(n_peaks=50)
         n_nans = np.isnan(fit_params[:, 0]).sum()
-        assert n_nans < 4
-        fit_params = _run(n_peaks=1000)
+        assert n_nans < 10
+
+        fit_params = _run(n_peaks=500)
         n_nans = np.isnan(fit_params[:, 0]).sum()
-        assert 20 < n_nans < 70
+        assert n_nans < 220
 
     zest()
