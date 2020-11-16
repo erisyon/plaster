@@ -239,6 +239,9 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
         0 : Gauss2FitParams.N_FIT_PARAMS,
     ]
 
+    # Pass zero to amp to force the fitter to make its own guess
+    guess_params[:, Gauss2FitParams.AMP] = 0.0
+
     ret_params, _ = fit_image(im, locs, guess_params, psf_mea)
 
     return ret_params
