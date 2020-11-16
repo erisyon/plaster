@@ -56,6 +56,12 @@ def zest_prep_params_validate():
                 proteins=[_fake_protein(10), _fake_protein(5), _fake_protein(0)]
             )
 
+    def it_allows_zeros_as_first_value_in_unnormalized_abundance_data():
+        with zest.mock(log.info) as m_log:
+            unnormalized_abundance_data_with_zeros = PrepParams(
+                proteins=[_fake_protein(0), _fake_protein(5), _fake_protein(10)]
+            )
+
     def it_doesnt_allow_none_in_abundance_data():
         with zest.raises():
             normalized_abundance_data = PrepParams(
