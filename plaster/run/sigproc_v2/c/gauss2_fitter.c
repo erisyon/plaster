@@ -16,21 +16,119 @@
 // Thanks to John Haven Davis for the Jacobian
 
 
-void gauss_2d(double *p, double *dst_x, int m, int n, void *data) {
+double dlevmar_opts[LM_OPTS_SZ] = {
+    LM_INIT_MU,
+        // scale factor for initial mu
+    1e-15,
+        // stopping threshold for ||J^T e||_inf
+    1e-15,
+        // stopping threshold for ||Dp||^2
+    1e-20,
+        // stopping threshold for ||e||^2
+    LM_DIFF_DELTA
+        // step used in difference approximation to the Jacobian.
+        // If delta<0, the Jacobian is approximated  with central differences
+        // which are more accurate (but slower!) compared to the forward differences
+        // employed by default. Set to NULL for defaults to be used.
+};
+
+
+char *dlevmar_stop_reasons[] = {
+    "Unknown",
+    "stopped by small gradient J^T e",
+    "stopped by small Dp",
+    "stopped by itmax",
+    "singular matrix. Restart from current p with increased mu",
+    "no further error reduction is possible. Restart with increased mu",
+    "stopped by small ||e||_2",
+    "stopped by invalid (i.e. NaN or Inf) 'func' values. This is a user error",
+};
+
+
+char *get_dlevmar_stop_reason_from_info(np_float64 *info) {
+    int reason = (int)info[6];
+    if(0 <= reason && reason < 8) {
+        return dlevmar_stop_reasons[reason];
+    }
+    return dlevmar_stop_reasons[0];
+}
+
+
+void dump_pixels(char *msg, double *pixels) {
+    trace("%s: PIXELS [\n", msg);
+    for(int i=0; i<11*11; i++) {
+        if(i % 11 == 0){
+            fprintf(_log, "\n");
+        }
+        fprintf(_log, "%f, ", pixels[i]);
+    }
+    fprintf(_log, "]\n\n");
+}
+
+void dump_params(char *msg, double *params) {
+    trace("%s: PARAMS [\n", msg);
+    for(int i=0; i<PARAM_N_FULL_PARAMS; i++) {
+        fprintf(_log, "%f, ", params[i]);
+    }
+    fprintf(_log, "]\n\n");
+}
+
+void dump_jacobian(char *msg, double *jac, int cnt) {
+    trace("%s: JAC [\n", msg);
+    for(int i=0; i<cnt; i++) {
+        if(i % 7 == 0) {
+            fprintf(_log, "\n");
+        }
+        if(i % (7 * 11) == 0) {
+            fprintf(_log, "\n");
+        }
+        fprintf(_log, "%f, ", jac[i]);
+    }
+    fprintf(_log, "]\n\n");
+}
+
+void dump_info(double *info) {
+    /*
+    info[0] = ||e||_2 at initial p.
+    info[1-4] = [ ||e||_2, ||J^T e||_inf,  ||Dp||_2, \mu/max[J^T J]_ii ], all computed at estimated p.
+    info[5] = number of iterations,
+    info[6] = reason for terminating:
+        (See dlevmar_stop_reasons for string constants)
+        0 - Unknown
+        1 - stopped by small gradient J^T e
+        2 - stopped by small Dp
+        3 - stopped by itmax
+        4 - singular matrix. Restart from current p with increased \mu
+        5 - no further error reduction is possible. Restart with increased mu
+        6 - stopped by small ||e||_2
+        7 - stopped by invalid (i.e. NaN or Inf) "func" values; a user error
+    info[7] = number of function evaluations
+    info[8] = number of Jacobian evaluations
+    info[9] = number of linear systems solved, i.e. number of attempts for reducing error
+    */
+    trace("INFO:\n");
+    trace("  e^2 at p0: %f\n", info[0]);
+    trace("  mu?: %f\n", info[4]);
+    trace("  n_iter: %f\n", info[5]);
+    trace("  reason to stop: %s\n", get_dlevmar_stop_reason_from_info(info));
+}
+
+
+void gauss_2d(double *params, double *pixels, int m, int n, void *data) {
     // Arguments:
     //   p: parameters of the 2D Gaussian: array [amp, sig_x, sig_y, pos_x, pos_y, rho, offset]
-    //   dst_x: Destination buffer that will contain the function evaluation given the parameters
+    //   pixels: Destination buffer that will contain the function evaluation given the parameters
     //   m: number of parameters (length of p)
     //   n: number of data points
     //   data: data
 
-    double amp = p[0];
-    double sig_x = p[1];
-    double sig_y = p[2];
-    double pos_x = p[3];
-    double pos_y = p[4];
-    double rho = p[5];
-    double offset = p[6];
+    double amp = params[0];
+    double sig_x = params[1];
+    double sig_y = params[2];
+    double pos_x = params[3];
+    double pos_y = params[4];
+    double rho = params[5];
+    double offset = params[6];
 
     double pi2 = 2.0 * M_PI;
     double sgxs = sig_x * sig_x;
@@ -43,7 +141,7 @@ void gauss_2d(double *p, double *dst_x, int m, int n, void *data) {
     double linear_term = amp * tem_a * sqrt(omrs);
 
     int mea = (int)sqrt(n);
-    double *dst = dst_x;
+    double *dst = pixels;
     for (int i=0; i<mea; i++) {
         double y = (double)i;
         double ympy = y - pos_y;
@@ -61,10 +159,13 @@ void gauss_2d(double *p, double *dst_x, int m, int n, void *data) {
             );
         }
     }
+
+    dump_params("model func", params);
+    dump_pixels("model func", pixels);
 }
 
 
-void jac_gauss_2d(double *p, double *dst_jac, int m, int n, void *data) {
+void jac_gauss_2d(double *params, double *dst_jac, int m, int n, void *data) {
     // Arguments:
     //   p: parameters array [amp, sig_x, sig_y, pos_x, pos_y, rho, offset]
     //   dst_jac: destination buffer to hold the Jacobian
@@ -72,13 +173,13 @@ void jac_gauss_2d(double *p, double *dst_jac, int m, int n, void *data) {
     //   n: number of data points
     //   data: data
 
-    double amp = p[0];
-    double sig_x = p[1];
-    double sig_y = p[2];
-    double pos_x = p[3];
-    double pos_y = p[4];
-    double rho = p[5];
-    double offset = p[6];
+    double amp = params[0];
+    double sig_x = params[1];
+    double sig_y = params[2];
+    double pos_x = params[3];
+    double pos_y = params[4];
+    double rho = params[5];
+    double offset = params[6];
 
     double pi2 = 2.0 * M_PI;
     double sgxs = sig_x * sig_x;
@@ -144,44 +245,8 @@ void jac_gauss_2d(double *p, double *dst_jac, int m, int n, void *data) {
             *dst++ = 1.0;
         }
     }
-}
 
-
-double dlevmar_opts[LM_OPTS_SZ] = {
-    LM_INIT_MU,
-        // scale factor for initial mu
-    1e-15,
-        // stopping threshold for ||J^T e||_inf
-    1e-15,
-        // stopping threshold for ||Dp||^2
-    1e-20,
-        // stopping threshold for ||e||^2
-    LM_DIFF_DELTA
-        // step used in difference approximation to the Jacobian.
-        // If delta<0, the Jacobian is approximated  with central differences
-        // which are more accurate (but slower!) compared to the forward differences
-        // employed by default. Set to NULL for defaults to be used.
-};
-
-
-char *dlevmar_stop_reasons[] = {
-    "Unknown",
-    "stopped by small gradient J^T e",
-    "stopped by small Dp",
-    "stopped by itmax",
-    "singular matrix. Restart from current p with increased mu",
-    "no further error reduction is possible. Restart with increased mu",
-    "stopped by small ||e||_2",
-    "stopped by invalid (i.e. NaN or Inf) 'func' values. This is a user error",
-};
-
-
-char *get_dlevmar_stop_reason_from_info(np_float64 *info) {
-    int reason = (int)info[6];
-    if(0 <= reason && reason < 8) {
-        return dlevmar_stop_reasons[reason];
-    }
-    return dlevmar_stop_reasons[0];
+    dump_jacobian("jac", dst_jac, mea * mea * 7);
 }
 
 
@@ -266,18 +331,6 @@ int fit_gauss_2d(
     return ret > 0 ? 0 : -1;
 }
 
-void dump_pixels(double *pixels) {
-    trace("PIXELS [\n");
-    for(int i=0; i<11*11; i++) {
-        if(i % 11 == 0){
-            fprintf(_log, "\n");
-        }
-        fprintf(_log, "%f, ", pixels[i]);
-    }
-    fprintf(_log, "]\n\n");
-}
-
-
 int fit_gauss_2d_on_float_image(
     np_float64 *im,
     np_int64 im_w,
@@ -324,16 +377,27 @@ int fit_gauss_2d_on_float_image(
     ensure( (bot - top + 1) * (rgt - lft + 1) == n_pixels, "size mismatch" );
 
     // COPY from the image to a linear array of values
+    double min_val = 1e10;
+    double max_val = 0.0;
     double *dst = pixels;
     for(int y=top; y<=bot; y++) {
         np_float64 *src = &im[y * im_w + lft];
         for(int x=lft; x<=rgt; x++) {
             double pix = *src++;
             *dst++ = pix;
+            min_val = min(min_val, pix);
+            max_val = max(max_val, pix);
         }
     }
 
-    // dump_pixels(pixels);
+    if(params[PARAM_AMP] == 0.0) {
+        // This is a special case meaning that we are to
+        // estimate the amplitude initial guess based on
+        // the peak width and data.
+        params[PARAM_AMP] = 2.0 * 3.141592654 * params[PARAM_SIGMA_X] * params[PARAM_SIGMA_Y] * (max_val - min_val);
+    }
+
+    dump_pixels("entrypoint", pixels);
 
     ret = dlevmar_der(
         gauss_2d,
@@ -356,7 +420,8 @@ int fit_gauss_2d_on_float_image(
     int success = ret >= 0;
     *noise = 0.0;
 
-    // trace("%s\n", get_dlevmar_stop_reason_from_info(info));
+    dump_info(info);
+    //trace("%s\n", get_dlevmar_stop_reason_from_info(info));
 
     // ret is the number of iterations (>=0) if successful other a negative value
     if(success) {
@@ -400,6 +465,16 @@ char *gauss2_check() {
 }
 
 
+int validate_im(np_float64 *im, np_int64 im_w, np_int64 im_h) {
+    for(int i=0; i<im_w * im_h; i++) {
+        if(isnan(im[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
 char *fit_array_of_gauss_2d_on_float_image(
     np_float64 *im,
     np_int64 im_w,
@@ -430,6 +505,8 @@ char *fit_array_of_gauss_2d_on_float_image(
     np_float64 info[N_INFO_ELEMENTS];
 
     double covar[PARAM_N_FIT_PARAMS][PARAM_N_FIT_PARAMS];
+
+    check_and_return(validate_im(im, im_w, im_h), "Invalid im");
 
     np_int64 n_fails = 0;
     for(np_int64 peak_i=0; peak_i<n_peaks; peak_i++) {

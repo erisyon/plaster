@@ -191,6 +191,6 @@ def fit_image(im, locs, guess_params, psf_mea):
 
     fit_params = fit_params.reshape((n_locs, Gauss2FitParams.N_FULL_PARAMS))
     fit_params[fit_fails == 1, :] = np.nan
-    fit_params[out_of_bounds_mask, :] = np.nan
+    # fit_params[out_of_bounds_mask, :] = np.nan
 
     return fit_params, std_params
