@@ -390,12 +390,19 @@ int fit_gauss_2d_on_float_image(
         }
     }
 
+    // Handle special cases where the initial guess based on data.
     if(params[PARAM_AMP] == 0.0) {
-        // This is a special case meaning that we are to
-        // estimate the amplitude initial guess based on
-        // the peak width and data.
+        // Use peak width and max_val to guess amp
         params[PARAM_AMP] = 2.0 * 3.141592654 * params[PARAM_SIGMA_X] * params[PARAM_SIGMA_Y] * (max_val - min_val);
     }
+
+    if(params[PARAM_OFFSET] == 0.0) {
+        // Use min_val to guess offfset
+        params[PARAM_OFFSET] = min_val;
+    }
+
+    // Similarly, the min
+    params[PARAM_OFFSET] = min_val;
 
     // dump_pixels("entrypoint", pixels);
 

@@ -588,8 +588,8 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     fitmat = None
     sftmat = None
     if sigproc_v2_params.run_analysis_gauss2_fitter:
-        # fitmat = _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params)
-        fitmat = _analyze_step_6b_fitter(chcy_ims_with_bg, locs, calib, psf_params)
+        fitmat = _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params)
+        # fitmat = _analyze_step_6b_fitter(chcy_ims_with_bg, locs, calib, psf_params)
 
     difmat = None
     picmat = None

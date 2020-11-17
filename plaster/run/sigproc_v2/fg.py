@@ -239,8 +239,9 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
         0 : Gauss2FitParams.N_FIT_PARAMS,
     ]
 
-    # Pass zero to amp to force the fitter to make its own guess
+    # Pass zero to amp and offset to force the fitter to make its own guess
     guess_params[:, Gauss2FitParams.AMP] = 0.0
+    guess_params[:, Gauss2FitParams.OFFSET] = 0.0
 
     ret_params, _ = fit_image(im, locs, guess_params, psf_mea)
 
@@ -344,6 +345,7 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
             # SPLAT circles of the intensity of the signal into an accumulator
             for loc, sig in zip(locs, signals):
                 if low <= sig <= high:
+                    # TODO: The CENTER=FALSE here smells wrong
                     imops.accum_inplace(fg, sig * circle, loc, center=False)
                     imops.accum_inplace(cnt, circle, loc, center=False)
 
