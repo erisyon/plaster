@@ -1,9 +1,11 @@
-from zest import zest
 import itertools
+
 import numpy as np
 import pandas as pd
-from plaster.run.prep.prep_result import PrepResult
 from plaster.run.prep.prep_params import PrepParams
+from plaster.run.prep.prep_result import PrepResult
+from plaster.tools.log import log
+from zest import zest
 
 
 def zest_PrepResult():
@@ -28,7 +30,9 @@ def zest_PrepResult():
             _make_protein(*params)
             for params in itertools.zip_longest(names, seqstrs, abundances, in_report)
         ]
-        params = PrepParams(proteins=proteins)
+        # PrepParams will log if abundance data has to be normalized. Silence those logs in the tests by mocking log
+        with zest.mock(log.info) as m_log:
+            params = PrepParams(proteins=proteins)
 
         _pros = pd.DataFrame(
             [
@@ -104,15 +108,14 @@ def zest_PrepResult():
             assert pros.index.tolist() == list(range(len(pros)))
 
         def it_includes_abundances_if_in_params_proteins():
-            assert "abundance" not in result.pros().columns
-
             result_with_abundances = _make_prep_result(
-                [".", ["ABC", "DEF"], "XXD"], abundances=[None, 5, 10]
+                [".", ["ABC", "DEF"], "XXD"], abundances=[0, 5, 10]
             )
             assert "abundance" in result_with_abundances.pros().columns
+            # Note that abundances get normalized
             assert np.allclose(
                 result_with_abundances.pros().abundance.tolist(),
-                [np.nan, 5.0, 10.0],
+                [0, 1.0, 2.0],
                 equal_nan=True,
             )
 
@@ -121,15 +124,18 @@ def zest_PrepResult():
 
         def it_gets_pros_abundance():
             result = _make_prep_result(
-                [".", ["ABC", "DEF"], "XXD"], abundances=[np.nan, 5, 10]
+                [".", ["ABC", "DEF"], "XXD"], abundances=[0, 5, 10]
             )
             pros_abundance = result.pros_abundance()
             assert len(pros_abundance) == result.n_pros
+            # Note that abundances get normalized
+            assert np.array_equal(pros_abundance, [0, 1, 2])
 
-            def it_converts_nans_to_zero():
-                assert np.array_equal(pros_abundance, [0, 5, 10])
-
-            zest()
+        def it_raises_on_nan_abundance():
+            with zest.raises():
+                result = _make_prep_result(
+                    [".", ["ABC", "DEF"], "XXD"], abundances=[math.nan, 5, 10]
+                )
 
         def it_gets_pros__ptm_locs():
             with_ptm_locs = result.pros__ptm_locs()
@@ -220,7 +226,7 @@ def zest_PrepResult():
 
             result = _make_prep_result(
                 [".", ["ABA", "CD"], ["ABA", "CB"]],
-                abundances=[None, 5, 10],
+                abundances=[0, 5, 10],
                 is_decoys=[True, False, True],
             )
 
@@ -248,7 +254,7 @@ def zest_PrepResult():
             assert len(peps_abundance) == 5
 
             def it_fills_zero_for_missing_abundance():
-                assert peps_abundance.tolist() == [0.0, 5.0, 5.0, 10.0, 10.0]
+                assert peps_abundance.tolist() == [0.0, 1.0, 1.0, 2.0, 2.0]
 
             zest()
 

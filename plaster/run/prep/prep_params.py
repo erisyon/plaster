@@ -46,20 +46,21 @@ class PrepParams(Params):
         # Try to normalize abundance values if provided. If abundance values are provided, do basic validation.
         # If no abundance values are provided, do nothing.
         # When a protein csv with no abundance columns is provided, it will come through as all nans
+        # Note that self.proteins is likely a list of Munches, but could be a list of dicts, so don't assume we can access items as attrs
 
         abundance_info_present = any(
-            hasattr(protein, "abundance")
-            and protein.abundance is not None
-            and not math.isnan(protein.abundance)
+            "abundance" in protein
+            and protein["abundance"] is not None
+            and not math.isnan(protein["abundance"])
             for protein in self.proteins
         )
 
         if abundance_info_present:
             abundance_criteria = [
-                (lambda protein: hasattr(protein, "abundance"), "Abundance missing"),
+                (lambda protein: "abundance" in protein, "Abundance missing"),
                 (
-                    lambda protein: protein.abundance >= 0
-                    if protein.abundance is not None
+                    lambda protein: protein["abundance"] >= 0
+                    if protein["abundance"] is not None
                     else True,
                     "Abundance must be greater than or equal to zero",
                 ),
@@ -68,11 +69,11 @@ class PrepParams(Params):
             if not self.ALLOW_NONES_AND_NANS_IN_ABUNDANCE:
                 abundance_criteria += [
                     (
-                        lambda protein: protein.abundance is not None,
+                        lambda protein: protein["abundance"] is not None,
                         "Abundance must not be None",
                     ),
                     (
-                        lambda protein: not math.isnan(protein.abundance),
+                        lambda protein: not math.isnan(protein["abundance"]),
                         "Abundance must not be NaN",
                     ),
                 ]
@@ -83,26 +84,26 @@ class PrepParams(Params):
                 # Check to make sure abundance passes criteria
                 for criteria_fn, msg in abundance_criteria:
                     if not criteria_fn(protein):
-                        abundance_value = getattr(protein, "abundance")
+                        abundance_value = protein.get("abundance")
                         raise SchemaValidationFailed(
-                            f"Protein {protein.name} has invalid abundance: {abundance_value} - {msg}"
+                            f"Protein {protein.get('name')} has invalid abundance: {abundance_value} - {msg}"
                         )
 
                 # Find min abundance value
-                if min_abundance is None or (
-                    protein.abundance < min_abundance and protein.abundance > 0
-                ):
-                    min_abundance = protein.abundance
+                if (
+                    min_abundance is None or protein["abundance"] < min_abundance
+                ) and protein["abundance"] > 0:
+                    min_abundance = protein["abundance"]
 
             if self.NORMALIZE_ABUNDANCE:
                 if min_abundance != 1:
                     log.info("abundance data is not normalized, normalizing.")
                     # normalize abundance by min value
                     for protein in self.proteins:
-                        if protein.abundance is not None:
-                            protein.abundance /= min_abundance
+                        if protein["abundance"] is not None:
+                            protein["abundance"] /= min_abundance
         else:
             # Abundance information is missing from all proteins
             # Set abudance to 1
             for protein in self.proteins:
-                protein.abundance = 1
+                protein["abundance"] = 1
