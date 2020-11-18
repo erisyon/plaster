@@ -228,16 +228,24 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     # These params have to be initialized based on the regional psf_params
     most_in_focus_i = psf_params.shape[0] // 2
     psf_lookup = np.floor(n_divs * locs / im.shape[0]).astype(int)
+    psf_lookup = np.clip(psf_lookup, a_min=0, a_max=n_divs-1)  #TODO think about htis harder
 
     n_locs = len(locs)
 
     guess_params = np.zeros((n_locs, Gauss2FitParams.N_FULL_PARAMS))
-    guess_params[:, 0 : Gauss2FitParams.N_FIT_PARAMS] = psf_params[
-        most_in_focus_i,
-        psf_lookup[:, 0],
-        psf_lookup[:, 1],
-        0 : Gauss2FitParams.N_FIT_PARAMS,
-    ]
+    try:
+        guess_params[:, 0 : Gauss2FitParams.N_FIT_PARAMS] = psf_params[
+            most_in_focus_i,
+            psf_lookup[:, 0],
+            psf_lookup[:, 1],
+            0 : Gauss2FitParams.N_FIT_PARAMS,
+        ]
+    except IndexError as e:
+        debug(most_in_focus_i)
+        debug(guess_params.shape)
+        debug(psf_params.shape)
+        debug(psf_lookup.shape)
+        raise e
 
     # Pass zero to amp and offset to force the fitter to make its own guess
     guess_params[:, Gauss2FitParams.AMP] = 0.0
