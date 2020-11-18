@@ -1,4 +1,6 @@
 import itertools
+from collections import defaultdict
+from dataclasses import dataclass
 
 import numpy as np
 from munch import Munch
@@ -213,14 +215,14 @@ def sigproc_v2_movie_from_df(run, df, fl_i=None, ch_i=0, bg_only=False, fg_only=
             zero_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=6
         )
         zero_fg[np.isnan(zero_fg)] = 0
-        ims = (ims * zero_fg)
+        ims = ims * zero_fg
     elif fg_only:
         one_fg = np.zeros((ims.shape[-2:]))
         one_fg = circle_locs(
             one_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=6
         )
         one_fg[np.isnan(one_fg)] = 1
-        ims = (ims * one_fg)
+        ims = ims * one_fg
     else:
         overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
         overlay = 255 * circle_locs(
@@ -720,6 +722,108 @@ def plot_channel_signal_histograms(
                 )
 
     return max_x, max_y
+
+
+@dataclass
+class ChannelSignalHistogramData:
+    max_x: int
+    max_y: int
+    n_channels: int
+    n_cycles: int
+    n_bins: int
+    data: dict  # cy, ch
+    limit_field: "typing.Any"
+
+    def get_hist_data(self, ch_i=0, cy_i=0):
+        return self.data[ch_i][cy_i]
+
+
+def channel_signal_histogram_data(
+    run, n_bins=100, limit_field=None, div_noise=False, range_only=False
+) -> ChannelSignalHistogramData:
+    def get_signal():
+        signal = (
+            run.sigproc_v1.sig()
+            if limit_field is None
+            else run.sigproc_v1.signal_radmat_for_field(limit_field)
+        )
+        if div_noise:
+            noise = (
+                run.sigproc_v1.noi()
+                if limit_field is None
+                else run.sigproc_v1.noise_radmat_for_field(limit_field)
+            )
+            signal = utils.np_safe_divide(signal, noise, default=0)
+
+        return signal
+
+    def _hist_ch_cy(ch, cy):
+        ch_signal = get_signal()[:, slice(ch, ch + 1, 1), slice(cy, cy + 1, 1)]
+        non_nan = ch_signal[~np.isnan(ch_signal)]
+
+        # If there is no signal then add a zero entry to satisfy logic below.
+        if non_nan.shape[0] == 0:
+            non_nan = np.array([[0]])
+
+        p99 = np.percentile(non_nan, 99)
+        _hist, _edges = np.histogram(non_nan, bins=n_bins)
+
+        # consider returning _hist[1:].max() below because the 0-bin is often dominating
+        # and the shape of the rest of the data is generally more interesting?
+        return non_nan, p99, _hist.max()
+
+    data = ChannelSignalHistogramData(
+        data=defaultdict(dict),
+        n_cycles=run.sigproc_v1.n_cycles,
+        n_channels=run.sigproc_v1.n_channels,
+        max_y=0,
+        max_x=0,
+        n_bins=n_bins,
+        limit_field=limit_field,
+    )
+
+    for cy in range(data.n_cycles):
+        for ch in range(data.n_channels):
+            hist_ch_cy_data, x, y = _hist_ch_cy(ch, cy)
+            data.data[cy][ch] = hist_ch_cy_data
+            data.max_x = max(data.max_x, x)
+            data.max_y = max(data.max_y, y)
+
+    if range_only:
+        return max_x, max_y
+
+    return data
+
+
+def basic_histogram_render(hist_data: ChannelSignalHistogramData, **kw):
+    assert isinstance(hist_data, ChannelSignalHistogramData)
+    _x_ticks = Munch(
+        precision=0, use_scientific=True, power_limit_high=0, power_limit_low=0
+    )
+    if "_x_ticks" not in kw:
+        kw["_x_ticks"] = _x_ticks
+
+    z = kw.get("_zplots_context", ZPlots())
+    field_label = (
+        "(all fields)"
+        if hist_data.limit_field is None
+        else f"field {hist_data.limit_field}"
+    )
+    with z(
+        _cols=None if "_cols" in kw else hist_data.n_channels,
+        f_plot_width=250,
+        f_plot_height=250,
+        f_x_range=kw.get("f_x_range", (0, hist_data.max_x)),
+        f_y_range=kw.get("f_y_range", (0, hist_data.max_y * 1.1)),
+    ):
+        for cy in range(hist_data.n_cycles):
+            for ch in range(hist_data.n_channels):
+                z.hist(
+                    hist_data.data[cy][ch],
+                    _bins=hist_data.n_bins,
+                    f_title=f"CH{ch} cycle {cy} {field_label}",
+                    **kw,
+                )
 
 
 def wizard_df_filter(run, limit_columns=None):

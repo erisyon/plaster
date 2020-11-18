@@ -211,13 +211,7 @@ class ZPlots:
 
         self._add_legend(fig)
 
-        ustack = self._u_stack()
-        if "_export_svg" in ustack:
-            from bokeh.io import export_svgs
-
-            export_svgs(fig, filename=ustack["_export_svg"])
-        else:
-            show(fig)
+        show(fig)
 
     def _merge_stack(self, filter, transform, exclude_last=False):
         """
