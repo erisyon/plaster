@@ -228,7 +228,9 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     # These params have to be initialized based on the regional psf_params
     most_in_focus_i = psf_params.shape[0] // 2
     psf_lookup = np.floor(n_divs * locs / im.shape[0]).astype(int)
-    psf_lookup = np.clip(psf_lookup, a_min=0, a_max=n_divs-1)  #TODO think about htis harder
+    psf_lookup = np.clip(
+        psf_lookup, a_min=0, a_max=n_divs - 1
+    )  # TODO think about htis harder
 
     n_locs = len(locs)
 
