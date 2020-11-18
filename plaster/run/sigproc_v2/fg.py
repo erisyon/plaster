@@ -5,7 +5,6 @@ from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
-from plaster.tools.gauss2d import gauss2d
 from enum import Enum
 
 
