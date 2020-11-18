@@ -149,11 +149,6 @@ def fit_image(im, locs, guess_params, psf_mea):
     if error is not None:
         raise Gauss2FitException(error)
 
-    # np.save("_fit_im.npy", im)
-    # debug(locs_x, locs_y)
-    # peak0 = imops.crop(im, coord.XY(locs_x[0], locs_y[0]), coord.WH(11,11), center=True)
-    # np.save("_fit_im_peak_0.npy", peak0)
-
     error = lib.fit_array_of_gauss_2d_on_float_image(
         im,
         im.shape[1],  # Note inversion of axis (y is primary in numpy)
@@ -169,16 +164,20 @@ def fit_image(im, locs, guess_params, psf_mea):
     if error is not None:
         raise Gauss2FitException(error)
 
-    # debug(n_locs)
-    # n_fails = (fit_fails == 1).sum()
-    # debug(n_fails)
+    # RESHAPE fit_params and NAN-out any where the fit failed
+    fit_params = fit_params.reshape((n_locs, Gauss2FitParams.N_FULL_PARAMS))
+    fit_params[fit_fails == 1, :] = np.nan
 
     # After some very basic analysis, it seems that the follow
-    # parameters are a resonable guess for out of bound on the
+    # parameters are reasonable guess for out of bound on the
     # std of fit.
     # Note, this analysis was done on 11x11 pixels and might
-    # need to be different for other sizes
+    # need to be different for other sizes.
+    # BUT! after using this they seemed to knock out everything
+    # so apparently the are not well tuned yet so this block is
+    # temporarily removed.
 
+    """
     std_params = std_params.reshape((n_locs, Gauss2FitParams.N_FULL_PARAMS))
 
     param_std_of_fit_limits = np.array((500, 0.18, 0.18, 0.15, 0.15, 0.08, 5,))
@@ -189,8 +188,7 @@ def fit_image(im, locs, guess_params, psf_mea):
         axis=1,
     )
 
-    fit_params = fit_params.reshape((n_locs, Gauss2FitParams.N_FULL_PARAMS))
-    fit_params[fit_fails == 1, :] = np.nan
-    # fit_params[out_of_bounds_mask, :] = np.nan
+    fit_params[out_of_bounds_mask, :] = np.nan
+    """
 
     return fit_params, std_params
