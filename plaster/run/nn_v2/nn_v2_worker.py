@@ -70,7 +70,6 @@ def nn_v2(
         n_cols = sigproc_result.n_cols
 
     def _run(radmat, dyemat, dyepeps):
-        debug(radmat.shape)
         with c_nn_v2.context(
             radmat=radmat,
             train_dyemat=dyemat,

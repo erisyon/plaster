@@ -748,7 +748,6 @@ def ims_import(
             pipeline.set_phase(1, 2)
 
         # GATHER
-        debug(scan_result.n_cycles)
         start_cycle, n_cycles = clamp_cycles(scan_result.n_cycles)
 
         field_iz = zap.arrays(
