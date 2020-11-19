@@ -1,7 +1,7 @@
 import numpy as np
 from plaster.run.sigproc_v2 import fg
 from plaster.run.sigproc_v2 import synth
-from plaster.run.sigproc_v2.c.gauss2_fitter import Gauss2FitParams
+from plaster.run.sigproc_v2.c.gauss2_fitter import AugmentedGauss2Params
 from plaster.tools.log.log import debug
 from plaster.tools.utils import utils
 from zest import zest
@@ -57,30 +57,30 @@ def zest_fit_method():
     def it_fits():
         fit_params = _run()
 
-        med = np.nanmedian(fit_params[:, Gauss2FitParams.SIGNAL])
+        med = np.nanmedian(fit_params[:, AugmentedGauss2Params.SIGNAL])
         assert 900 < med < 1100
 
-        h = np.nanmedian(fit_params[:, Gauss2FitParams.SIGMA_Y])
+        h = np.nanmedian(fit_params[:, AugmentedGauss2Params.SIGMA_Y])
         assert 1.7 < h < 1.9
 
-        w = np.nanmedian(fit_params[:, Gauss2FitParams.SIGMA_X])
+        w = np.nanmedian(fit_params[:, AugmentedGauss2Params.SIGMA_X])
         assert 1.7 < w < 2.0
 
-        cy = np.nanmedian(fit_params[:, Gauss2FitParams.CENTER_Y])
+        cy = np.nanmedian(fit_params[:, AugmentedGauss2Params.CENTER_Y])
         assert 5.0 < cy < 6.0
 
-        cx = np.nanmedian(fit_params[:, Gauss2FitParams.CENTER_X])
+        cx = np.nanmedian(fit_params[:, AugmentedGauss2Params.CENTER_X])
         assert 5.0 < cx < 6.0
 
-        rho = np.nanmedian(fit_params[:, Gauss2FitParams.RHO])
+        rho = np.nanmedian(fit_params[:, AugmentedGauss2Params.RHO])
         assert -0.05 < rho < 0.05
 
-        off = np.nanmedian(fit_params[:, Gauss2FitParams.OFFSET])
+        off = np.nanmedian(fit_params[:, AugmentedGauss2Params.OFFSET])
         assert bg_mean * 0.5 < off < bg_mean * 1.5
 
         assert np.all(
-            (fit_params[:, Gauss2FitParams.MEA] == mea)
-            | np.isnan(fit_params[:, Gauss2FitParams.MEA])
+            (fit_params[:, AugmentedGauss2Params.MEA] == mea)
+            | np.isnan(fit_params[:, AugmentedGauss2Params.MEA])
         )
 
     def it_handles_all_noise():
@@ -90,22 +90,22 @@ def zest_fit_method():
 
     def it_handles_wide_peaks():
         fit_params = _run(peak_width=2.7, peak_height=1.5)
-        w = np.nanmedian(fit_params[:, Gauss2FitParams.SIGMA_X])
-        h = np.nanmedian(fit_params[:, Gauss2FitParams.SIGMA_Y])
+        w = np.nanmedian(fit_params[:, AugmentedGauss2Params.SIGMA_X])
+        h = np.nanmedian(fit_params[:, AugmentedGauss2Params.SIGMA_Y])
         assert 2.55 < w < 2.8
         assert 1.4 < h < 1.6
 
     def it_handles_tall_peaks():
         fit_params = _run(peak_width=1.5, peak_height=2.7)
-        w = np.nanmedian(fit_params[:, Gauss2FitParams.SIGMA_X])
-        h = np.nanmedian(fit_params[:, Gauss2FitParams.SIGMA_Y])
+        w = np.nanmedian(fit_params[:, AugmentedGauss2Params.SIGMA_X])
+        h = np.nanmedian(fit_params[:, AugmentedGauss2Params.SIGMA_Y])
         assert 2.55 < h < 2.8
         assert 1.4 < w < 1.6
 
     def it_handles_shifted_right_peaks():
         fit_params = _run(peak_shift_x=0.2)
-        x = np.nanmedian(fit_params[:, Gauss2FitParams.CENTER_X])
-        y = np.nanmedian(fit_params[:, Gauss2FitParams.CENTER_Y])
+        x = np.nanmedian(fit_params[:, AugmentedGauss2Params.CENTER_X])
+        y = np.nanmedian(fit_params[:, AugmentedGauss2Params.CENTER_Y])
         assert 5.15 < x < 5.25
         assert 4.95 < y < 5.15
 

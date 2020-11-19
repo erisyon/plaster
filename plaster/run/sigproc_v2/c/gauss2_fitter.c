@@ -71,6 +71,7 @@ void dump_params(char *msg, double *params) {
         fprintf(_log, "%f, ", params[i]);
     }
     fprintf(_log, "]\n\n");
+    trace("%s: END PARAMS\n", msg);
 }
 
 void dump_jacobian(char *msg, double *jac, int cnt) {
@@ -404,7 +405,8 @@ int fit_gauss_2d_on_float_image(
     // Similarly, the min
     params[PARAM_OFFSET] = min_val;
 
-    // dump_pixels("entrypoint", pixels);
+    //dump_pixels("entrypoint", pixels);
+    dump_params("entrypoint", params);
 
     ret = dlevmar_der(
         gauss_2d,

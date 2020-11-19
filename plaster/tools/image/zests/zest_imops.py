@@ -432,7 +432,7 @@ def zest_region_enumerate():
         im = np.zeros((512, 512))
 
         found_coords = []
-        for win, y, x, coord in imops.region_enumerate(im, divs=4):
+        for win, y, x, coord in imops.region_enumerate(im, n_divs=4):
             assert win.shape == (128, 128)
             found_coords += [(coord // 128)]
 
@@ -442,7 +442,7 @@ def zest_region_enumerate():
         im = np.zeros((5, 512, 512))
 
         found_coords = []
-        for win, y, x, coord in imops.region_enumerate(im, divs=4):
+        for win, y, x, coord in imops.region_enumerate(im, n_divs=4):
             assert win.shape == (5, 128, 128)
             found_coords += [(coord // 128)]
 
@@ -573,18 +573,36 @@ def zest_interp():
     zest()
 
 
+def zest_gauss2_rho_form():
+    def it_centers_odd():
+        # When mea is odd and the center is at +0.5 the center
+        # pixel should be the brightes
+        true_params = (100.0, 1.5, 1.5, 5.5, 5.5, 0.0, 0.0, 11)
+        im = imops.gauss2_rho_form(*true_params)
+        assert np.argwhere(im == im.max()).tolist() == [[5, 5]]
+
+    def it_centers_even():
+        # When mea is even and the center is split between the inner four pixels
+        # pixel should be the brightes
+        true_params = (100.0, 1.5, 1.5, 5.0, 5.0, 0.0, 0.0, 10)
+        im = imops.gauss2_rho_form(*true_params)
+        assert np.argwhere(im == im.max()).tolist() == [[4, 4], [4, 5], [5, 4], [5, 5]]
+
+    zest()
+
+
 def zest_fit_gauss2():
     def it_fits_what_it_generates():
         true_params = (10.0, 1.5, 1.8, 8.5, 8.0, 0.2, 5.0, 17)
         im = imops.gauss2_rho_form(*true_params)
         fit_params, _ = imops.fit_gauss2(im)
-        assert np.all((np.array(fit_params) - np.array(true_params)) ** 2 < 0.0001 ** 2)
+        assert np.all((np.array(fit_params) - np.array(true_params)) ** 2 < 0.001 ** 2)
 
     zest()
 
 
 def zest_distribution_aspect_ratio():
-    def it_returns_1_for_circluar():
+    def it_returns_1_for_circular():
         im = imops.gauss2_rho_form(10, 1.0, 1.0, 8, 8, rho=0.0, const=0, mea=17)
         ratio = imops.distribution_aspect_ratio(im)
         assert (ratio - 1.0) ** 2 < 0.001 ** 2
@@ -592,7 +610,7 @@ def zest_distribution_aspect_ratio():
     def it_returns_3_for_rho_one_half():
         im = imops.gauss2_rho_form(10, 1.0, 1.0, 8, 8, rho=0.5, const=0, mea=17)
         ratio = imops.distribution_aspect_ratio(im)
-        assert (ratio - 3.0) ** 2 < 0.001 ** 2
+        assert (ratio - 3.0) ** 2 < 0.1 ** 2
 
     def it_returns_2_for_x_ellipse():
         im = imops.gauss2_rho_form(10, 1.0, 1.5, 8, 8, rho=0.0, const=0, mea=17)
@@ -605,7 +623,9 @@ def zest_distribution_aspect_ratio():
 def zest_sub_pixel_center():
     def it_centers():
         for x in np.linspace(-1, 1, 10):
-            im = imops.gauss2_rho_form(10, 1.5, 1.5, 8 + x, 8, rho=0.0, const=0, mea=17)
+            im = imops.gauss2_rho_form(
+                10, 1.5, 1.5, 8.5 + x, 8.5, rho=0.0, const=0, mea=17
+            )
             uncentered = imops.com(im)
             assert (uncentered[1] - 8.5 - x) ** 2 < 0.08 ** 2
 
