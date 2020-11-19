@@ -56,14 +56,13 @@ class RegPSF:
             psf_ims[y, x] = self.render_one_reg(y, x)
         return psf_ims
 
-    # def new_widths(self, new_sigma_x, new_sigma_y):
-    #     """
-    #     Make a copy of this RegPSF with the sigma changes
-    #     """
-    #
-    #     Wait! What do I do if not all the regions ahave the same width/heights?
-    #     Maybe I need to take the new wodth by region
-    #
-    #     new_reg_psf = RegPSF(self.peak_mea, self.n_divs)
-    #     new_reg_psf.params = self.params.copy()
-    #     new_reg_psf.params[:, :, ]
+    def new_sigmas(self, new_sigma_x, new_sigma_y):
+        """
+        Make a copy of this RegPSF with the sigma changes
+        """
+
+        new_reg_psf = RegPSF(self.peak_mea, self.n_divs)
+        new_reg_psf.params = self.params.copy()
+        new_reg_psf.params[:, :, Gauss2Params.SIGMA_X] = new_sigma_x
+        new_reg_psf.params[:, :, Gauss2Params.SIGMA_Y] = new_sigma_y
+        return new_reg_psf
