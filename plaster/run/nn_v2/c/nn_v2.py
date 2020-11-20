@@ -1,25 +1,25 @@
-import pandas as pd
-import numpy as np
-from plumbum import local, FG
 import ctypes as c
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from io import StringIO
-from contextlib import contextmanager
-from plaster.tools.schema import check
-from plaster.tools.utils import utils
+
+import numpy as np
+import pandas as pd
 from plaster.run.error_model import GainModel
+from plaster.run.nn_v2.c.build import build
+from plaster.run.nn_v2.nn_v2_result import NNV2Result
+from plaster.run.sim_v2.sim_v2_params import (
+    DyePepType,
+    DytIndexType,
+    DytWeightType,
+    RadType,
+)
+from plaster.run.sim_v2.sim_v2_result import IndexType, RowKType, ScoreType
 from plaster.tools.c_common import c_common_tools
 from plaster.tools.c_common.c_common_tools import Tab
-from plaster.run.nn_v2.nn_v2_result import NNV2Result
-from plaster.run.sim_v2.sim_v2_result import IndexType, ScoreType, RowKType
-from plaster.run.sim_v2.sim_v2_params import (
-    RadType,
-    DyePepType,
-    DytWeightType,
-    DytIndexType,
-)
-from plaster.run.nn_v2.c.build import build
-from contextlib import redirect_stdout, redirect_stderr
 from plaster.tools.log.log import debug
+from plaster.tools.schema import check
+from plaster.tools.utils import utils
+from plumbum import FG, local
 
 
 class NNV2Context(c_common_tools.FixupStructure):
@@ -287,8 +287,9 @@ def context(
         ),
         _against_all_dyetracks_output=against_all_dyetracks_output,
     )
-
-    assert np.all((-1e5 < radmat) & (radmat < 1e6))
+    assert (
+        (-1e5 < radmat) & (radmat < 1e6)
+    ).sum() > 0.5 * radmat.size, "Too many values are out of bounds for radmat"
     assert radmat.dtype == RadType
 
     error = lib.context_init(nn_v2_context)

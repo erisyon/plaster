@@ -8,46 +8,46 @@ Runs are:
     May contain plaster_output/ folders
 """
 
-from munch import Munch
-import time
-import sys
 import hashlib
 import os
+import sys
+import time
 import uuid
 from functools import cmp_to_key
-from plumbum import cli, local, colors, FG
-from plaster.tools.pipeline.pipeline import Pipeline
-from plaster.tools.utils import utils
-from plaster.tools.utils import tmp
-from plaster.tools.schema import check
-from plaster.tools.log.log import debug, important, colorful_exception, info, prof
-from plaster.tools.zap import zap
+
+from munch import Munch
 from plaster.run.call_bag import CallBag
 from plaster.run.classify_rf.classify_rf_result import ClassifyRFResult
+from plaster.run.classify_rf.classify_rf_task import ClassifyRFTask
 from plaster.run.ims_import.ims_import_result import ImsImportResult
 from plaster.run.ims_import.ims_import_task import ImsImportTask
-from plaster.run.prep.prep_result import PrepResult
-from plaster.run.sigproc_v1.sigproc_v1_result import SigprocV1Result
-from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
-from plaster.run.sigproc_v1.sigproc_v1_task import SigprocV1Task
-from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Task
-from plaster.run.lnfit.lnfit_task import LNFitTask
 from plaster.run.lnfit.lnfit_result import LNFitResult
+from plaster.run.lnfit.lnfit_task import LNFitTask
+from plaster.run.nn_v2.nn_v2_result import NNV2Result
+from plaster.run.nn_v2.nn_v2_task import NNV2Task
+from plaster.run.prep.prep_result import PrepResult
+from plaster.run.prep.prep_task import PrepTask
+from plaster.run.report.report_task import ReportTask
+from plaster.run.sigproc_v1.sigproc_v1_result import SigprocV1Result
+from plaster.run.sigproc_v1.sigproc_v1_task import SigprocV1Task
+from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
+from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Task
 from plaster.run.sim_v1.sim_v1_result import SimV1Result
-from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.run.sim_v1.sim_v1_task import SimV1Task
+from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.run.sim_v2.sim_v2_task import SimV2Task
+from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
+from plaster.run.survey_v2.survey_v2_task import SurveyV2Task
 from plaster.run.test_rf.test_rf_result import TestRFResult
 from plaster.run.test_rf.test_rf_task import TestRFTask
 from plaster.run.train_rf.train_rf_result import TrainRFResult
 from plaster.run.train_rf.train_rf_task import TrainRFTask
-from plaster.run.classify_rf.classify_rf_task import ClassifyRFTask
-from plaster.run.prep.prep_task import PrepTask
-from plaster.run.report.report_task import ReportTask
-from plaster.run.survey_v2.survey_v2_task import SurveyV2Task
-from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
-from plaster.run.nn_v2.nn_v2_task import NNV2Task
-from plaster.run.nn_v2.nn_v2_result import NNV2Result
+from plaster.tools.log.log import colorful_exception, debug, important, info, prof
+from plaster.tools.pipeline.pipeline import Pipeline
+from plaster.tools.schema import check
+from plaster.tools.utils import tmp, utils
+from plaster.tools.zap import zap
+from plumbum import FG, cli, colors, local
 
 
 def find_run_folders(default=None, must_include_plaster_output=True):

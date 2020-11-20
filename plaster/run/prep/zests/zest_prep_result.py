@@ -115,7 +115,7 @@ def zest_PrepResult():
             # Note that abundances get normalized
             assert np.allclose(
                 result_with_abundances.pros().abundance.tolist(),
-                [0, 1.0, 2.0],
+                [0, 5, 10],
                 equal_nan=True,
             )
 
@@ -128,8 +128,7 @@ def zest_PrepResult():
             )
             pros_abundance = result.pros_abundance()
             assert len(pros_abundance) == result.n_pros
-            # Note that abundances get normalized
-            assert np.array_equal(pros_abundance, [0, 1, 2])
+            assert np.array_equal(pros_abundance, [0, 5, 10])
 
         def it_raises_on_nan_abundance():
             with zest.raises():
@@ -254,7 +253,7 @@ def zest_PrepResult():
             assert len(peps_abundance) == 5
 
             def it_fills_zero_for_missing_abundance():
-                assert peps_abundance.tolist() == [0.0, 1.0, 1.0, 2.0, 2.0]
+                assert peps_abundance.tolist() == [0.0, 5.0, 5.0, 10.0, 10.0]
 
             zest()
 
