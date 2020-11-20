@@ -26,12 +26,14 @@ class SigprocV2Params(Params):
         n_dst_zslices=9,
         n_src_zslices=15,
         n_fields_limit=None,
+        # TODO: Make these names consistent (skip v run)
         skip_anomaly_detection=True,
         skip_regional_balance=False,
-        run_fitter=False,
         run_peak_differencing=False,
+        run_analysis_gauss2_fitter=False,
+        run_psf_gauss2_fitter=False,
+        skip_regional_background=False,
         save_full_signal_radmat_npy=False,
-        run_gaussian_fitter=False,
     )
 
     schema = s(
@@ -47,10 +49,11 @@ class SigprocV2Params(Params):
             n_fields_limit=s.is_int(noneable=True),
             skip_anomaly_detection=s.is_bool(),
             skip_regional_balance=s.is_bool(),
-            run_fitter=s.is_bool(),
             run_peak_differencing=s.is_bool(),
             save_full_signal_radmat_npy=s.is_bool(),
-            run_gaussian_fitter=s.is_bool(),
+            run_analysis_gauss2_fitter=s.is_bool(),
+            run_psf_gauss2_fitter=s.is_bool(),
+            skip_regional_background=s.is_bool(),
         )
     )
 

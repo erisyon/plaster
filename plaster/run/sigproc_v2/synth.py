@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import random
 import copy
+import math
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
@@ -145,8 +146,9 @@ class PeaksModel(BaseSynthModel):
         )
         return self
 
-    def locs_grid(self, steps=10):
+    def locs_grid(self):
         pad = 10
+        steps = math.floor(math.sqrt(self.n_peaks))
         self.locs = [
             (y, x)
             for y in utils.ispace(pad, self.dim[0] - 2 * pad, steps)
@@ -217,6 +219,12 @@ class PeaksModelGaussian(PeaksModel):
     def z_function(self, z_scale, z_center):
         self.z_scale = z_scale
         self.z_center = z_center
+        return self
+
+    def uniform_width_and_heights(self, width=1.5, height=1.5):
+        self.std_x = [width for _ in self.locs]
+        self.std_y = [height for _ in self.locs]
+        return self
 
     def render(self, im, fl_i, ch_i, cy_i):
         if self.std_x is None:
@@ -241,8 +249,8 @@ class PeaksModelGaussian(PeaksModel):
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
 
-            frac_x = np.modf(loc[0])[0]
-            frac_y = np.modf(loc[1])[0]
+            frac_y = np.modf(loc[0])[0]
+            frac_x = np.modf(loc[1])[0]
             peak_im = imops.gauss2_rho_form(
                 amp=amp,
                 std_x=z_scale * std_x,

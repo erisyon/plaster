@@ -213,14 +213,14 @@ def sigproc_v2_movie_from_df(run, df, fl_i=None, ch_i=0, bg_only=False, fg_only=
             zero_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=6
         )
         zero_fg[np.isnan(zero_fg)] = 0
-        ims = (ims * zero_fg)
+        ims = ims * zero_fg
     elif fg_only:
         one_fg = np.zeros((ims.shape[-2:]))
         one_fg = circle_locs(
             one_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=6
         )
         one_fg[np.isnan(one_fg)] = 1
-        ims = (ims * one_fg)
+        ims = ims * one_fg
     else:
         overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
         overlay = 255 * circle_locs(

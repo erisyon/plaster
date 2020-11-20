@@ -96,9 +96,6 @@ def find_run_folders(default=None, must_include_plaster_output=True):
 
 
 def task_list_from_config(config):
-    """
-    Given a
-    """
     task_map = dict(
         ims_import=ImsImportTask,
         sigproc_v1=SigprocV1Task,

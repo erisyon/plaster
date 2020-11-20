@@ -48,6 +48,7 @@ void ensure(int expr, const char *fmt, ...);
 #endif
 
 // Trace
+extern FILE *_log;
 void _trace(char *file, int line, const char *fmt, ...);
 #ifdef DEBUG
     #define trace(...) _trace(__FILE__, __LINE__, __VA_ARGS__)

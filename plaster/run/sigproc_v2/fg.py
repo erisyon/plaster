@@ -1,9 +1,11 @@
 import numpy as np
 from plaster.run.sigproc_v2 import bg, psf
+from plaster.run.sigproc_v2.c.gauss2_fitter import fit_image, Gauss2FitParams
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
+from enum import Enum
 
 
 def peak_find(im, kernel, bg_std):
@@ -212,60 +214,47 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
         11 typle:
             signal, noise, aspect_ratio, fit parameters
     """
-    check.array_t(im, ndim=2)
-    check.array_t(psf_params, ndim=4)
+    n_z_slices, n_divs, _, _ = psf_params.shape
+
     check.array_t(locs, ndim=2, shape=(None, 2))
 
-    n_z_slices, divs, _, _ = psf_params.shape
+    check.array_t(psf_params, ndim=4)
+    assert psf_params.shape[1] == n_divs
+    assert psf_params.shape[2] == n_divs
+    assert psf_params.shape[3] == 8
+    psf_mea = int(psf_params[0, 0, 0, 7])
+
+    # These params have to be initialized based on the regional psf_params
+    most_in_focus_i = psf_params.shape[0] // 2
+
+    # Convert from each loc's position to the div that it falls it
+    # This is a little bit off because im.shape[0] is the RAW MEA
+    # of the image by the aligned image will typically be a little bit
+    # smaller than the original size. That said, it is typically a small
+    # amount and the differences in the regions are not THAT big
+    # so it is probably ok.
+
+    psf_lookup = np.clip(
+        np.floor(n_divs * locs / im.shape[0]).astype(int), a_min=0, a_max=n_divs - 1
+    )
+
     n_locs = len(locs)
 
-    params = np.zeros((n_locs, 3 + 8))  # sig, noi rsr, 8 gaussian parameters
+    guess_params = np.zeros((n_locs, Gauss2FitParams.N_FULL_PARAMS))
+    guess_params[:, 0 : Gauss2FitParams.N_FIT_PARAMS] = psf_params[
+        most_in_focus_i,
+        psf_lookup[:, 0],
+        psf_lookup[:, 1],
+        0 : Gauss2FitParams.N_FIT_PARAMS,
+    ]
 
-    assert psf_params.shape[1] == divs
-    assert psf_params.shape[2] == divs
-    assert psf_params.shape[3] == 8
-    psf_mea = psf_params[0, 0, 0, 7]
-    psf_dim = (psf_mea, psf_mea)
+    # Pass zero to amp and offset to force the fitter to make its own guess
+    guess_params[:, Gauss2FitParams.AMP] = 0.0
+    guess_params[:, Gauss2FitParams.OFFSET] = 0.0
 
-    for loc_i, loc in enumerate(locs):
-        # if loc_i % 100 == 0:
-        #     print(f"{100 * loc_i / n_locs:3.2f}%")
-        peak_im = imops.crop(im, off=YX(loc), dim=HW(psf_dim), center=True)
-        if peak_im.shape != psf_dim:
-            # Skip near edges
-            continue
+    ret_params, _ = fit_image(im, locs, guess_params, psf_mea)
 
-        if np.any(np.isnan(peak_im)):
-            # Skip nan collisions
-            continue
-
-        y, x = loc_to_div(loc, divs, im.shape)
-        fit_guess = psf_params[psf_params.shape[0] // 2, y, x]
-
-        (amp, std_x, std_y, pos_x, pos_y, rho, const, mea), _ = imops.fit_gauss2(
-            peak_im, fit_guess
-        )
-        # The fit gauss may have a const offset, so this needs to be removed
-        # from both the kernel and the peak
-        psf_kernel = imops.gauss2_rho_form(
-            amp, std_x, std_y, pos_x, pos_y, rho, 0.0, mea
-        )
-        psf_kernel_sum = psf_kernel.sum()
-        if psf_kernel_sum == 0.0:
-            _signal, _noise, _aspect_ratio = np.nan, np.nan, np.nan
-        else:
-            psf_kernel /= psf_kernel_sum
-            psf_kernel = np.nan_to_num(psf_kernel)
-            peak_im -= const
-            allow_subpixel_shift = False
-            _signal, _noise, _aspect_ratio = _radiometry_one_peak(
-                peak_im, psf_kernel, allow_subpixel_shift=allow_subpixel_shift
-            )
-
-        params[loc_i][0:3] = (_signal, _noise, _aspect_ratio)
-        params[loc_i][3:] = (amp, std_x, std_y, pos_x, pos_y, rho, const, mea)
-
-    return params
+    return ret_params
 
 
 def fg_estimate(fl_ims, z_reg_psfs, progress=None):
@@ -322,6 +311,7 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
             # SPLAT circles of the intensity of the signal into an accumulator
             for loc, sig in zip(locs, signals):
                 if low <= sig <= high:
+                    # TODO: The CENTER=FALSE here smells wrong
                     imops.accum_inplace(fg, sig * circle, loc, center=False)
                     imops.accum_inplace(cnt, circle, loc, center=False)
 

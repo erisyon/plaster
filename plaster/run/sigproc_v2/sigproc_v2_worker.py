@@ -103,10 +103,11 @@ from munch import Munch
 from plaster.run.sigproc_v2 import bg, fg, psf
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
+from plaster.run.sigproc_v2.c.gauss2_fitter import Gauss2FitParams
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug, important
+from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
 from plumbum import local
@@ -193,6 +194,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     n_channels, n_cycles = chcy_ims.shape[0:2]
     dim = chcy_ims.shape[-2:]
     dst_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
+    dst_chcy_ims_with_bg = np.zeros((n_channels, n_cycles, *dim))
     chcy_bg_std = np.zeros((n_channels, n_cycles))
     kernel = psf.approximate_kernel()
 
@@ -211,13 +213,23 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             if not sigproc_params.skip_regional_balance:
                 im *= bal_im
 
-            reg_bg, reg_bg_stds = bg.background_regional_estimate_im(im, kernel)
-            bg_std = np.mean(reg_bg_stds)
+            # The following background_regional_estimate_im is the slowest
+            # part of step_1. I made an option for skipping this
+            # while developing the Gauss2 fitter where I don't need it
+            if sigproc_params.skip_regional_background:
+                bg_std = np.std(im)
+                bg_median = np.median(im)
+                reg_bg = np.full((5, 5), bg_median)
+
+            else:
+                reg_bg, reg_bg_stds = bg.background_regional_estimate_im(im, kernel)
+                bg_std = np.mean(reg_bg_stds)
 
             chcy_bg_std[ch_i, cy_i] = bg_std
             dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_remove(im, reg_bg)
+            dst_chcy_ims_with_bg[ch_i, cy_i, :, :] = im
 
-    return dst_chcy_ims, chcy_bg_std
+    return dst_chcy_ims, chcy_bg_std, dst_chcy_ims_with_bg
 
 
 '''
@@ -429,7 +441,9 @@ def _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params):
     n_locs = len(locs)
     n_channels, n_cycles = chcy_ims.shape[0:2]
 
-    fitmat = np.full((n_locs, n_channels, n_cycles, 3 + 8), np.nan)
+    fitmat = np.full(
+        (n_locs, n_channels, n_cycles, Gauss2FitParams.N_FULL_PARAMS), np.nan
+    )
 
     for ch_i in range(n_channels):
         for cy_i in range(n_cycles):
@@ -535,7 +549,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     """
 
     # Step 1: Load the images in output channel order, balance, equalize
-    chcy_ims, chcy_bg_stds = _analyze_step_1_import_balanced_images(
+    chcy_ims, chcy_bg_stds, chcy_ims_with_bg = _analyze_step_1_import_balanced_images(
         chcy_ims, sigproc_v2_params, calib
     )
     # At this point, chcy_ims has its background subtracted and is
@@ -573,8 +587,9 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
 
     fitmat = None
     sftmat = None
-    if sigproc_v2_params.run_fitter:
+    if sigproc_v2_params.run_analysis_gauss2_fitter:
         fitmat = _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params)
+        # fitmat = _analyze_step_6b_fitter(chcy_ims_with_bg, locs, calib, psf_params)
 
     difmat = None
     picmat = None
@@ -609,7 +624,7 @@ def _do_sigproc_analyze_and_save_field(
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
     psf_params = None
-    if sigproc_v2_params.run_fitter:
+    if sigproc_v2_params.run_psf_gauss2_fitter:
         psf_params = psf.psf_fit_gaussian(calib.psfs(0))
 
     (
