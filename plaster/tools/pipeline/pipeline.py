@@ -1,12 +1,13 @@
 import gc
-import time
 import sys
-from munch import Munch
-import numpy as np
+import time
 from os.path import realpath
+
+import numpy as np
+from munch import Munch
+from plaster.tools.log.log import colorful_exception, debug, info
 from plaster.tools.utils import utils
-from plumbum import local, colors
-from plaster.tools.log.log import debug, colorful_exception, info
+from plumbum import colors, local
 
 
 def timestamps_from_paths(paths, ignore_fn=None):
@@ -104,7 +105,7 @@ class PipelineTask:
                 )
                 new_config = utils.strip_underscore_keys(new_config)
                 if str(cur_config) != str(new_config):
-                    return "Config file changed"
+                    return f"Config file changed"
             except FileNotFoundError:
                 return "Never successfully run before"
             except Exception:
@@ -263,7 +264,8 @@ class PipelineTask:
             is_ood, reason = self._out_of_date(
                 inputs,
                 self.dst_dir,
-                ignore_fn=lambda f: local.path(f).suffix == ".state" or local.path(f).name.startswith("_cache"),
+                ignore_fn=lambda f: local.path(f).suffix == ".state"
+                or local.path(f).name.startswith("_cache"),
             )
             if is_ood:
                 self.dirty_reason = reason

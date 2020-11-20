@@ -9,7 +9,7 @@ from plaster.tools.schema.schema import SchemaValidationFailed
 
 class PrepParams(Params):
     ALLOW_NONES_AND_NANS_IN_ABUNDANCE = False
-    NORMALIZE_ABUNDANCE = True
+    NORMALIZE_ABUNDANCE = False  # Abundance is normalized in gen
 
     defaults = Munch(
         protease=None,

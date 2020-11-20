@@ -1,11 +1,11 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 from plaster.run.call_bag import CallBag
 from plaster.run.nn_v2.c import nn_v2 as c_nn_v2
 from plaster.run.nn_v2.nn_v2_result import NNV2Result
-from plaster.run.sim_v2.sim_v2_result import RadType, DyeType
-from plaster.tools.zap import zap
+from plaster.run.sim_v2.sim_v2_result import DyeType, RadType
 from plaster.tools.log.log import debug
+from plaster.tools.zap import zap
 
 
 def triangle_dyemat(n_cycles, n_dyes):
@@ -79,7 +79,10 @@ def nn_v2(
             run_row_k_fit=nn_v2_params.run_row_k_fit,
             run_against_all_dyetracks=nn_v2_params.run_against_all_dyetracks,
         ) as nn_v2_context:
-            batches = zap.make_batch_slices(n_rows=radmat.shape[0])
+            # _nn_v2.c chokes if a batch is larger than 1024*16
+            batches = zap.make_batch_slices(
+                n_rows=radmat.shape[0], _batch_size=1024 * 16
+            )
             work_orders = [
                 dict(
                     fn=c_nn_v2.do_classify_radrows,
