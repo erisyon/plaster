@@ -260,14 +260,15 @@ def sub_pixel_align(im_stack, n_divs=2, precision=10):
 
     More divs means less memory but less accuracy.
     """
-    check.array_t(im_stack, ndim=3, dtype=np.float32)
+    check.array_t(im_stack, ndim=3)
     orig_mea = im_stack.shape[-1]
     assert orig_mea == im_stack.shape[-2]
     n_ims = im_stack.shape[0]
     offsets = np.zeros((n_ims, n_divs, n_divs, 2))
+    n_regions = n_divs ** 2
 
-    for reg_im_stack, y, x, coord in region_enumerate(im_stack, n_divs):
-        check.array_t(reg_im_stack, dtype=np.float32)
+    for i, (reg_im_stack, y, x, coord) in enumerate(region_enumerate(im_stack, n_divs)):
+        debug(100 * i / n_regions)
         reg_mea = reg_im_stack.shape[-1]
         assert reg_mea == reg_im_stack.shape[-2]
         large_dim = (precision * reg_mea, precision * reg_mea)
@@ -277,7 +278,6 @@ def sub_pixel_align(im_stack, n_divs=2, precision=10):
         for im_i in range(1, n_ims):
             im = reg_im_stack[im_i]
             large_im = cv2.resize(im, dsize=large_dim, interpolation=cv2.INTER_CUBIC)
-            check.array_t(large_im, dtype=np.float32)
             conv = cv2.filter2D(
                 src=large_im0,
                 ddepth=-1,  # Use the same bit-depth as the src
@@ -294,7 +294,9 @@ def sub_pixel_align(im_stack, n_divs=2, precision=10):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
         offsets = np.mean(offsets, axis=(1, 2)) / precision
-    return offsets
+
+    # TODO: Put the maxs back it or get rid of it
+    return offsets, np.zeros_like(offsets)
 
 
 def intersection_roi_from_aln_offsets(aln_offsets, raw_dim):

@@ -166,7 +166,7 @@ class SigprocV2Result(BaseResult):
 
     def __repr__(self):
         try:
-            return f"SigprocV2Result with files in {self._folder} {self.n_fields}"
+            return f"SigprocV2Result with files in {self._folder} with {self.n_fields} fields"
         except Exception as e:
             return "SigprocV2Result"
 
@@ -333,6 +333,7 @@ class SigprocV2Result(BaseResult):
 
     @property
     def aln_ims(self):
+        debug(self.n_fields, self.n_channels, self.n_cycles)
         return FancyIndexer(
             (self.n_fields, self.n_channels, self.n_cycles),
             lookup_fn=lambda fl, ch, cy: self.aln_chcy_ims(fl)[ch, cy],
