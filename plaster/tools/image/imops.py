@@ -247,6 +247,50 @@ def align(im_stack):
     return np.array(offsets), np.array(maxs)
 
 
+def sub_pixel_align(im_stack, n_divs=5, precision=10):
+    """
+    Align images with sub-pixel precision.
+    This eats a lot more memory as it scales up the images.
+
+    precision: 10 means you get 1/10 of a pixel of precision and 20 mean 1/20
+    but the memory requirements
+
+    This works by grabbing n_divs by n_divs su-regions, scaling them up by precision
+    and then convolving them.
+    """
+    check.array_t(im_stack, ndim=3)
+    orig_mea = im_stack.shape[-1]
+    assert orig_mea == im_stack.shape[-2]
+    n_ims = im_stack.shape[0]
+    offsets = np.zeros((n_ims, n_divs, n_divs, 2))
+
+    for reg_im_stack, y, x, coord in region_enumerate(im_stack, n_divs):
+        reg_mea = reg_im_stack.shape[-1]
+        assert reg_mea == reg_im_stack.shape[-2]
+        large_dim = (precision * reg_mea, precision * reg_mea)
+        large_im0 = cv2.resize(
+            reg_im_stack[0], dsize=large_dim, interpolation=cv2.INTER_CUBIC
+        )
+        for im_i in range(1, n_ims):
+            im = reg_im_stack[im_i]
+            large_im = cv2.resize(im, dsize=large_dim, interpolation=cv2.INTER_CUBIC)
+            conv = cv2.filter2D(
+                src=large_im0,
+                ddepth=-1,  # Use the same bit-depth as the src
+                kernel=large_im,
+                borderType=cv2.BORDER_REPLICATE,
+            )
+
+            # conv is now zero-centered; that is, the peak is
+            # an offset relative to the center of the image.
+            peak = YX(np.unravel_index(conv.argmax(), conv.shape))
+            center = HW(conv.shape) / 2  # // 2?
+            offsets[im_i, y, x, :] = center - peak
+
+    offsets = np.mean(offsets, axis=(1, 2)) / precision
+    return offsets
+
+
 def intersection_roi_from_aln_offsets(aln_offsets, raw_dim):
     """
     Compute the ROI that contains pixels from all frames
