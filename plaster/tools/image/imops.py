@@ -1,6 +1,6 @@
 import itertools
 import math
-
+import warnings
 import cv2
 import numpy as np
 from numpy import linalg as LA
@@ -247,7 +247,7 @@ def align(im_stack):
     return np.array(offsets), np.array(maxs)
 
 
-def sub_pixel_align(im_stack, n_divs=5, precision=10):
+def sub_pixel_align(im_stack, n_divs=2, precision=10):
     """
     Align images with sub-pixel precision.
     This eats a lot more memory as it scales up the images.
@@ -257,14 +257,17 @@ def sub_pixel_align(im_stack, n_divs=5, precision=10):
 
     This works by grabbing n_divs by n_divs su-regions, scaling them up by precision
     and then convolving them.
+
+    More divs means less memory but less accuracy.
     """
-    check.array_t(im_stack, ndim=3)
+    check.array_t(im_stack, ndim=3, dtype=np.float32)
     orig_mea = im_stack.shape[-1]
     assert orig_mea == im_stack.shape[-2]
     n_ims = im_stack.shape[0]
     offsets = np.zeros((n_ims, n_divs, n_divs, 2))
 
     for reg_im_stack, y, x, coord in region_enumerate(im_stack, n_divs):
+        check.array_t(reg_im_stack, dtype=np.float32)
         reg_mea = reg_im_stack.shape[-1]
         assert reg_mea == reg_im_stack.shape[-2]
         large_dim = (precision * reg_mea, precision * reg_mea)
@@ -274,6 +277,7 @@ def sub_pixel_align(im_stack, n_divs=5, precision=10):
         for im_i in range(1, n_ims):
             im = reg_im_stack[im_i]
             large_im = cv2.resize(im, dsize=large_dim, interpolation=cv2.INTER_CUBIC)
+            check.array_t(large_im, dtype=np.float32)
             conv = cv2.filter2D(
                 src=large_im0,
                 ddepth=-1,  # Use the same bit-depth as the src
@@ -287,7 +291,9 @@ def sub_pixel_align(im_stack, n_divs=5, precision=10):
             center = HW(conv.shape) / 2  # // 2?
             offsets[im_i, y, x, :] = center - peak
 
-    offsets = np.mean(offsets, axis=(1, 2)) / precision
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        offsets = np.mean(offsets, axis=(1, 2)) / precision
     return offsets
 
 
@@ -571,7 +577,8 @@ def rolling_window(im, window_dim, n_samples, return_coords=False):
         slices[d] = [slice(i, i + window_dim[d]) for i in start[d]]
 
     ims = np.zeros(
-        (*extra_dims, n_samples[0], n_samples[1], window_dim[0], window_dim[1])
+        (*extra_dims, n_samples[0], n_samples[1], window_dim[0], window_dim[1]),
+        dtype=im.dtype,
     )
     coords = np.zeros((n_samples[0], n_samples[1], 2))
 
