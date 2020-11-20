@@ -8,7 +8,7 @@
 #include "c_common.h"
 #include "gauss2_fitter.h"
 #ifndef LM_DBL_PREC
-#error Demo program assumes that levmar has been compiled with double precision, see LM_DBL_PREC!
+#error This program assumes that levmar has been compiled with double precision.
 #endif
 
 // A Gaussian 2D fitter using Levenberg-Marquardt algorithm

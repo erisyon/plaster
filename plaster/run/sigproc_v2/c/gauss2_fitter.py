@@ -1,13 +1,9 @@
-import ctypes as c
 import numpy as np
-from plumbum import local, FG
+from plumbum import local
 import ctypes as c
-from contextlib import contextmanager
+from enum import IntEnum
 from plaster.tools.schema import check
-from plaster.tools.c_common import c_common_tools
-from plaster.tools.c_common.c_common_tools import Tab
 from plaster.run.sigproc_v2.c.build import build
-from plaster.tools.image import imops, coord
 from plaster.tools.log.log import debug
 
 
@@ -77,7 +73,7 @@ class Gauss2FitException(Exception):
         super().__init__(s.decode("ascii"))
 
 
-class Gauss2FitParams:
+class Gauss2FitParams(IntEnum):
     # These must match in gauss2_fitter.h
     AMP = 0
     SIGNAL = 0  # Alias for AMP
