@@ -333,7 +333,6 @@ class SigprocV2Result(BaseResult):
 
     @property
     def aln_ims(self):
-        debug(self.n_fields, self.n_channels, self.n_cycles)
         return FancyIndexer(
             (self.n_fields, self.n_channels, self.n_cycles),
             lookup_fn=lambda fl, ch, cy: self.aln_chcy_ims(fl)[ch, cy],
