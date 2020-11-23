@@ -16,7 +16,7 @@ typedef struct {
 void f64arr_set_shape(F64Arr *arr, Size n_dims, Size *shape);
 F64Arr f64arr(void *base, Size n_dims, Size *shape);
 F64Arr f64arr_subset(F64Arr *src, Index i, Size n_rows);
-F64Arr *f64arr_malloc(Size n_dims, Size *shape);
+F64Arr f64arr_malloc(Size n_dims, Size *shape);
 void f64_free(F64Arr *arr);
 
 Float64 *f64arr_ptr1(F64Arr *arr, Index i);

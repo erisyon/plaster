@@ -478,23 +478,22 @@ F64Arr f64arr_subset(F64Arr *src, Index i, Size n_rows) {
 }
 
 
-F64Arr *f64arr_malloc(Size n_dims, Size *shape) {
+F64Arr f64arr_malloc(Size n_dims, Size *shape) {
     Size size = 1;
     for(Index i=0; i<n_dims; i++) {
         size *= shape[i];
     }
-    size = sizeof(F64Arr) + sizeof(Float64) * size;
-    Uint8 *buffer = (Uint8 *)malloc(size);
+    Float64 *buffer = (Float64 *)malloc(sizeof(Float64) * size);
     memset(buffer, 0, size);
-    F64Arr *arr = (F64Arr *)buffer;
-    arr->base = (Float64 *)&buffer[sizeof(F64Arr)];
+    F64Arr arr;
+    arr.base = (Float64 *)buffer;
     f64arr_set_shape(arr, n_dims, shape);
     return arr;
 }
 
 
 void f64_free(F64Arr *arr) {
-    free(arr);
+    free(arr->base);
 }
 
 

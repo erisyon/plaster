@@ -1,4 +1,3 @@
-#include "flann.h"
 #include "stdint.h"
 #include "alloca.h"
 #include "stdio.h"
@@ -122,12 +121,13 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
     Float64 *slice_buffer = (Float64 *)malloc(sizeof(Float64) * width);
     Float64 *large_slice_buffer = (Float64 *)malloc(sizeof(Float64) * width * scale);
 
-    F64Arr cy_im = f64arr_subset(ctx->cy_ims, cy_i, 1);
+    F64Arr cy_im = f64arr_subset(&ctx->cy_ims, cy_i, 1);
     for(Index slice_i=0; slice_i<n_slices; slice_i++) {
         Index row_i = slice_i * slice_h;
         _slice(&cy_im, row_i, slice_h, slice_buffer, width);
         _rescale(slice_buffer, large_slice_buffer, width, scale);
-        Index offset = _convolve(cy0_slice, large_slice_buffer, scale, width);
+        large_cy0_slice = ?
+        Index offset = _convolve(large_cy0_slice, large_slice_buffer, scale, width);
         offset_samples[slice_i] = offset;
     }
 
@@ -156,19 +156,23 @@ char *context_init(SubPixelAlignContext *ctx) {
     Size n_slices = height / slice_h
     ctx->_n_slices = n_slices;
 
-    Size cy0_slices_shape[2] = { n_slices, width };
-    ctx->_cy0_slices = f64arr_malloc(2, &cy0_slices_shape);
+    Float64 *slice_buffer = (Float64 *)malloc(sizeof(Float64) * width);
+    Size cy0_slices_shape[2] = { n_slices, scale * width };
+    ctx->_large_cy0_slices = f64arr_malloc(2, &cy0_slices_shape);
 
     for(Index slice_i=0; slice_i<n_slices; slice_i++) {
         Index row_i = slice_i * slice_h;
-        _slice(&cy_im, row_i, slice_h, f64arr_ptr1(_cy0_slices, slice_i), width);
+        _slice(&cy_im, row_i, slice_h, slice_buffer, width);
+        _rescale(slice_buffer, f64arr_ptr1(ctx->_large_cy0_slices, slice_i), width, scale);
     }
+
+    free(slice_buffer);
 
     return NULL;
 }
 
 
 char *context_free(SubPixelAlignContext *ctx) {
-    f64arr_free(ctx->_cy0_slices);
+    f64arr_free(ctx->_large_cy0_slices);
     return NULL;
 }
