@@ -55,9 +55,7 @@ class Synth:
         self.dim = dim
         self.save_as = save_as
         self.models = []
-        self.aln_offsets = np.random.uniform(-20, 20, size=(self.n_cycles, 2)).astype(
-            int
-        )
+        self.aln_offsets = np.random.uniform(-20, 20, size=(self.n_cycles, 2))
         self.aln_offsets[0] = (0, 0)
         if not overwrite:
             assert Synth.synth is None
@@ -74,7 +72,7 @@ class Synth:
         self._save_np(ims, "ims")
 
     def zero_aln_offsets(self):
-        self.aln_offsets = np.zeros((self.n_cycles, 2), dtype=int)
+        self.aln_offsets = np.zeros((self.n_cycles, 2))
 
     def add_model(self, model):
         self.models += [model]
@@ -96,7 +94,7 @@ class Synth:
                 for model in self.models:
                     model.render(im, fl_i, ch_i, cy_i)
 
-                ims[ch_i, cy_i] = imops.shift(im, self.aln_offsets[cy_i])
+                ims[ch_i, cy_i] = imops.sub_pixel_shift(im, self.aln_offsets[cy_i])
 
         return ims
 
