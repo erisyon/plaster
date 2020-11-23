@@ -358,7 +358,6 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
 
     aligned_chcy_ims = np.zeros((n_channels, n_cycles, *roi_dim))
     for cy, offset in zip(range(n_cycles), aln_offsets):
-        debug(offset)
         shifted_im = imops.sub_pixel_shift(chcy_ims[:, cy], -offset)
         aligned_chcy_ims[:, cy, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
             :, roi[0], roi[1]
