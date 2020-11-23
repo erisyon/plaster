@@ -242,6 +242,8 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     """
     # TODO: Pass reg_psf
 
+    reg_psf = RegPSF
+
     ret_params, _ = gauss2_fitter.fit_image_with_reg_psf(im, locs, reg_psf)
 
     return ret_params

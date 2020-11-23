@@ -7,6 +7,7 @@ from plaster.tools.utils import utils
 from zest import zest
 
 
+@zest.skip(reason="WIP")
 def zest_fit_method():
     mea = 11
     bg_mean = 10
@@ -84,6 +85,7 @@ def zest_fit_method():
         )
 
     def it_handles_all_noise():
+        import pudb; pudb.set_trace()
         fit_params = _run(amp=0)
         n_nan = np.isnan(fit_params[:, 0]).sum()
         assert n_nan > fit_params.shape[0] - 5
