@@ -3,11 +3,13 @@ import cv2
 import random
 import copy
 import math
+from typing import List
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
 from plaster.tools.utils import utils
 from plaster.tools.schema import check
+from plaster.tools.calibration.psf import RegPSF
 from plumbum import local
 
 # see comment below, above "PeaksModelPSF" regarding why this is commented out
@@ -204,6 +206,33 @@ class PeaksModel(BaseSynthModel):
             ]
         )
         return self
+
+
+class PeaksModelPSF(PeaksModel):
+    """Sample from a RegPSF"""
+
+    def __init__(self, psfs_per_cycle: List[RegPSF], **kws):
+        assert all([isinstance(psf, RegPSF) for psf in psfs_per_cycle])
+        self.psfs_per_cycle = psfs_per_cycle
+        super().__init__(**kws)
+
+    def render(self, im, fl_i, ch_i, cy_i):
+        super().render(im, fl_i, ch_i, cy_i)
+
+        n_divs = self.psfs_per_cycle[cy_i].n_divs
+        div_size = im.shape[0] / n_divs
+
+        for loc, amp in zip(self.locs, self.amps):
+            if isinstance(amp, np.ndarray):
+                amp = amp[cy_i]
+
+            div_y, div_x = np.floor(loc / div_size).astype(int)
+            frac_y = np.modf(loc[0])[0]
+            frac_x = np.modf(loc[1])[0]
+            psf_im = self.psfs_per_cycle[cy_i].render_one_reg(
+                div_y, div_x, amp=amp, frac_y=frac_y, frac_x=frac_x, const=0.0
+            )
+            imops.accum_inplace(im, psf_im, loc=YX(*np.floor(loc)), center=True)
 
 
 class PeaksModelGaussian(PeaksModel):

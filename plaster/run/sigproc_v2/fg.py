@@ -1,6 +1,7 @@
 import numpy as np
 from plaster.run.sigproc_v2 import bg, psf
-from plaster.run.sigproc_v2.c.gauss2_fitter import fit_image, Gauss2FitParams
+from plaster.run.sigproc_v2.c import gauss2_fitter
+from plaster.tools.calibration.psf import Gauss2Params, RegPSF
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
@@ -140,12 +141,10 @@ def _radiometry_one_peak(
     return signal, noise, aspect_ratio
 
 
-def loc_to_div(loc, divs, shape):
-    return int(divs * loc[0] / shape[0]), int(divs * loc[1] / shape[1])
-
-
-def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
+def radiometry_one_channel_one_cycle(im, reg_psf: RegPSF, locs):
     """
+    TODO: Convert this to C
+
     Use the PSFs to compute the Area-Under-Curve of the data in chcy_ims
     for each peak location of locs.
 
@@ -158,31 +157,22 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
         signal, noise, aspect_ratio
     """
     check.array_t(im, ndim=2)
-    check.array_t(z_reg_psfs, ndim=5)
+    check.t(reg_psf, RegPSF)
     check.array_t(locs, ndim=2, shape=(None, 2))
 
-    n_z_slices, divs, _, peak_mea, _ = z_reg_psfs.shape
     n_locs = len(locs)
+    div_locs = imops.locs_to_region(locs, reg_psf.n_divs, im.shape)
 
     signal = np.full((n_locs,), np.nan)
     noise = np.full((n_locs,), np.nan)
     aspect_ratio = np.full((n_locs,), np.nan)
 
-    psf_dim = z_reg_psfs.shape[-2:]
-    assert z_reg_psfs.shape[1] == divs
-    assert z_reg_psfs.shape[2] == divs
-    assert z_reg_psfs.shape[3] == peak_mea
-    assert z_reg_psfs.shape[4] == peak_mea
+    psf_ims = reg_psf.render()
+    ss = psf_ims[0, 0].sum()
+    psf_dim = HW(reg_psf.peak_mea, reg_psf.peak_mea)
 
-    # TASK: Eventually this will examine which z-depth of the PSFs is best fit for this cycle.
-    # The result will be a per-cycle index into the chcy_regional_psfs
-    # Until then the index is hard-coded to the middle index of regional_psf_zstack
-    # See _fit_focus
-    best_focus_zslice_i = _fit_focus(z_reg_psfs, locs, im)
-
-    reg_psfs = z_reg_psfs[best_focus_zslice_i, :, :, :, :]
-    for loc_i, loc in enumerate(locs):
-        peak_im = imops.crop(im, off=YX(loc), dim=HW(psf_dim), center=True)
+    for loc_i, (loc, div_loc) in enumerate(zip(locs, div_locs)):
+        peak_im = imops.crop(im, off=YX(loc), dim=psf_dim, center=True)
         if peak_im.shape != psf_dim:
             # Skip near edges
             continue
@@ -191,13 +181,8 @@ def radiometry_one_channel_one_cycle(im, z_reg_psfs, locs):
             # Skip nan collisions
             continue
 
-        y, x = loc_to_div(loc, divs, im.shape)
-        psf_kernel = reg_psfs[y, x]
-
-        if np.sum(psf_kernel) == 0.0:
-            _signal, _noise, _aspect_ratio = np.nan, np.nan, np.nan
-        else:
-            _signal, _noise, _aspect_ratio = _radiometry_one_peak(peak_im, psf_kernel)
+        psf_kernel = psf_ims[div_loc[0], div_loc[1]]
+        _signal, _noise, _aspect_ratio = _radiometry_one_peak(peak_im, psf_kernel)
 
         signal[loc_i] = _signal
         noise[loc_i] = _noise
@@ -225,6 +210,7 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     psf_mea = int(psf_params[0, 0, 0, 7])
 
     # These params have to be initialized based on the regional psf_params
+    """
     most_in_focus_i = psf_params.shape[0] // 2
 
     # Convert from each loc's position to the div that it falls it
@@ -253,6 +239,10 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
     guess_params[:, Gauss2FitParams.OFFSET] = 0.0
 
     ret_params, _ = fit_image(im, locs, guess_params, psf_mea)
+    """
+    # TODO: Pass reg_psf
+
+    ret_params, _ = gauss2_fitter.fit_image_with_reg_psf(im, locs, reg_psf)
 
     return ret_params
 

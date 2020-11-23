@@ -103,8 +103,8 @@ from munch import Munch
 from plaster.run.sigproc_v2 import bg, fg, psf
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
-from plaster.run.sigproc_v2.c.gauss2_fitter import Gauss2FitParams
 from plaster.tools.calibration.calibration import Calibration
+from plaster.tools.calibration.psf import Gauss2Params
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof

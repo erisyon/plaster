@@ -5,10 +5,10 @@ from plaster.tools.image import imops
 from zest import zest
 from plaster.tools.log.log import debug
 
-N_FIT_PARAMS = gauss2_fitter.Gauss2FitParams.N_FIT_PARAMS
-N_FULL_PARAMS = gauss2_fitter.Gauss2FitParams.N_FULL_PARAMS
-RHO = gauss2_fitter.Gauss2FitParams.RHO
-OFFSET = gauss2_fitter.Gauss2FitParams.OFFSET
+N_FIT_PARAMS = gauss2_fitter.AugmentedGauss2Params.N_PARAMS
+N_FULL_PARAMS = gauss2_fitter.AugmentedGauss2Params.N_FULL_PARAMS
+RHO = gauss2_fitter.AugmentedGauss2Params.RHO
+OFFSET = gauss2_fitter.AugmentedGauss2Params.OFFSET
 
 
 def zest_gauss2_fitter():

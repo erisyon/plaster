@@ -594,12 +594,25 @@ def nan_bg(im, background_threshold_im, radius=3):
     return np.where(fg_mask < 1, np.nan, im)
 
 
-def region_enumerate(im, divs):
+def locs_to_region(locs, n_divs, im_dim):
+    """
+    Convert a matrix of locs in (y, x) columns into
+    the regional coords of im_dim divided in n_divs.
+    """
+    check.array_t(locs, shape=(None, 2))
+    reg_locs = np.floor(n_divs * locs / im_dim).astype(int)
+    assert np.all((0 <= reg_locs) & (reg_locs < n_divs))
+    return reg_locs
+
+
+def region_enumerate(im, n_divs):
     assert im.ndim >= 2
-    y_win = (im.shape[-2] // divs) + (0 if im.shape[-2] % divs == 0 else 1)
-    x_win = (im.shape[-1] // divs) + (0 if im.shape[-1] % divs == 0 else 1)
-    wins, coords = rolling_window(im, (y_win, x_win), (divs, divs), return_coords=True)
-    for y, x in itertools.product(range(divs), range(divs)):
+    y_win = (im.shape[-2] // n_divs) + (0 if im.shape[-2] % n_divs == 0 else 1)
+    x_win = (im.shape[-1] // n_divs) + (0 if im.shape[-1] % n_divs == 0 else 1)
+    wins, coords = rolling_window(
+        im, (y_win, x_win), (n_divs, n_divs), return_coords=True
+    )
+    for y, x in itertools.product(range(n_divs), range(n_divs)):
         if wins.ndim == 4:
             yield wins[y, x], y, x, coords[y, x]
         else:
@@ -776,7 +789,7 @@ def gauss2_rot_form(amp, std_x, std_y, pos_x, pos_y, rot, const, mea):
     det_cov = np.linalg.det(cov)
     inv_cov = np.linalg.inv(cov)
 
-    mu = np.array([pos_x, pos_y])
+    mu = np.array([pos_x - 0.5, pos_y - 0.5])
     radius_vectors = (np.array([x.flatten(), y.flatten()]).T - mu).T
 
     r = np.sum(np.multiply((radius_vectors.T @ inv_cov), radius_vectors.T), axis=1)
@@ -815,15 +828,12 @@ def gauss2_rho_form(amp, std_x, std_y, pos_x, pos_y, rho, const, mea):
     det_cov = np.linalg.det(cov)
     inv_cov = np.linalg.inv(cov)
 
-    mu = np.array([pos_x, pos_y])
+    mu = np.array([pos_x - 0.5, pos_y - 0.5])
     radius_vectors = (np.array([x.flatten(), y.flatten()]).T - mu).T
 
     r = np.sum(np.multiply((radius_vectors.T @ inv_cov), radius_vectors.T), axis=1)
 
     exp_term = amp * np.exp(-0.5 * r)
-    if np.any(np.isnan(det_cov) | (det_cov < 0.0)):
-        print(f"det_cov={det_cov}")
-        np.save("wtf.npy",)
     norm_term = np.sqrt(((np.pi * 2.0) ** 2) * det_cov)
 
     return ((exp_term / norm_term) + const).reshape((mea, mea))
