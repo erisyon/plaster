@@ -328,9 +328,7 @@ def _analyze_step_3_align(cy_ims):
     for im in fiducial_cy_ims:
         imops.edge_fill(im, 20)
 
-    aln_offsets, aln_scores = imops.sub_pixel_align(
-        fiducial_cy_ims, n_divs=2, precision=10
-    )
+    aln_offsets, aln_scores = imops.align(fiducial_cy_ims)
     return aln_offsets, aln_scores
 
 
@@ -348,6 +346,7 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     Notes:
         The returned image is likely smaller than the chcy_ims shape.
     """
+    check.array_t(chcy_ims, ndim=4)
     n_channels, n_cycles = chcy_ims.shape[0:2]
     check.array_t(aln_offsets, shape=(n_cycles, 2))
     assert n_cycles == aln_offsets.shape[0]
@@ -357,11 +356,10 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     roi_dim = (roi[0].stop - roi[0].start, roi[1].stop - roi[1].start)
 
     aligned_chcy_ims = np.zeros((n_channels, n_cycles, *roi_dim))
-    for cy, offset in zip(range(n_cycles), aln_offsets):
-        shifted_im = imops.sub_pixel_shift(chcy_ims[:, cy], -offset)
-        aligned_chcy_ims[:, cy, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
-            :, roi[0], roi[1]
-        ]
+    for ch_i in range(n_channels):
+        for cy_i, offset in zip(range(n_cycles), aln_offsets):
+            shifted_im = imops.sub_pixel_shift(chcy_ims[ch_i, cy_i], -offset)
+            aligned_chcy_ims[ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[roi[0], roi[1]]
 
     return aligned_chcy_ims
 
