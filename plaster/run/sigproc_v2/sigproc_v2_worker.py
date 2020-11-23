@@ -328,7 +328,9 @@ def _analyze_step_3_align(cy_ims):
     for im in fiducial_cy_ims:
         imops.edge_fill(im, 20)
 
-    aln_offsets, aln_scores = imops.align(fiducial_cy_ims)
+    aln_offsets, aln_scores = imops.sub_pixel_align(
+        fiducial_cy_ims, n_divs=2, precision=10
+    )
     return aln_offsets, aln_scores
 
 
@@ -356,7 +358,7 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
 
     aligned_chcy_ims = np.zeros((n_channels, n_cycles, *roi_dim))
     for cy, offset in zip(range(n_cycles), aln_offsets):
-        shifted_im = imops.shift(chcy_ims[:, cy], -offset)
+        shifted_im = imops.sub_pixel_shift(chcy_ims[:, cy], -offset)
         aligned_chcy_ims[:, cy, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
             :, roi[0], roi[1]
         ]
@@ -620,6 +622,7 @@ def _do_sigproc_analyze_and_save_field(
     """
     Analyze AND SAVE one field by calling the sigproc_v2_result.save_field()
     """
+
     chcy_ims = ims_import_result.ims[field_i]
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 

@@ -166,7 +166,7 @@ class SigprocV2Result(BaseResult):
 
     def __repr__(self):
         try:
-            return f"SigprocV2Result with files in {self._folder} {self.n_fields}"
+            return f"SigprocV2Result with files in {self._folder} with {self.n_fields} fields"
         except Exception as e:
             return "SigprocV2Result"
 
