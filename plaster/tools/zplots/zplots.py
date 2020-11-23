@@ -42,12 +42,13 @@ TO DO:
 import copy
 import warnings
 from itertools import cycle
+
 import numpy as np
 from munch import Munch
-from plaster.tools.utils import utils
-from plaster.tools.utils.data import subsample, arg_subsample, cluster
+from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug
-from plaster.tools.image.coord import XY, YX, WH, HW, ROI
+from plaster.tools.utils import utils
+from plaster.tools.utils.data import arg_subsample, cluster, subsample
 
 
 def trap():
@@ -1026,8 +1027,8 @@ class ZPlots:
         This is a custom plot for drawing information about sigproc data
         """
         from bokeh.colors import named
-        from bokeh.models import HoverTool
         from bokeh.models import LinearColorMapper  # Defer slow imports
+        from bokeh.models import HoverTool
         from bokeh.palettes import gray
 
         pal = gray(256)
@@ -1098,7 +1099,7 @@ class ZPlots:
 
 
 def notebook_full_width():
-    from IPython.core.display import display, HTML  # Defer slow imports
+    from IPython.core.display import HTML, display  # Defer slow imports
 
     display(HTML("<style>.container { width:100% !important; }</style>"))
 
