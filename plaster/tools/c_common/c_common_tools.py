@@ -190,3 +190,41 @@ class FixupStructure(c.Structure):
     @classmethod
     def tab_type(cls, field):
         return cls._tab_types[field]
+
+
+class F64Arr(c.Structure):
+    # See c_common.h for duplicate define
+    MAX_ARRAY_DIMS = 4
+
+    _fields_ = [
+        ("base", c.c_void_p),
+        ("n_dims", c.c_ulonglong),
+        ("shape0", c.c_ulonglong),
+        ("shape1", c.c_ulonglong),
+        ("shape2", c.c_ulonglong),
+        ("shape3", c.c_ulonglong),
+        ("pitch0", c.c_ulonglong),
+        ("pitch1", c.c_ulonglong),
+        ("pitch2", c.c_ulonglong),
+        ("pitch3", c.c_ulonglong),
+    ]
+
+    @classmethod
+    def from_mat(cls, mat):
+        check.array_t(mat, dtype=np.float64, c_contiguous=True)
+        arr = F64Arr()
+        arr.base = mat.ctypes.data_as(c.c_void_p)
+        assert mat.ndim <= cls.MAX_ARRAY_DIMS
+        arr.n_dims = mat.ndim
+
+        arr.shape0 = mat.shape[0] if arr.ndim <= 1 else 0
+        arr.shape1 = mat.shape[1] if arr.ndim <= 2 else 0
+        arr.shape2 = mat.shape[2] if arr.ndim <= 3 else 0
+        arr.shape3 = mat.shape[3] if arr.ndim <= 4 else 0
+
+        arr.pitch3 = 1 if arr.ndim <= 4 else 0
+        arr.pitch2 = arr.shape[3] * arr.pitch3 if arr.ndim <= 3 else 0
+        arr.pitch1 = arr.shape[2] * arr.pitch2 if arr.ndim <= 2 else 0
+        arr.pitch0 = arr.shape[1] * arr.pitch1 if arr.ndim <= 1 else 0
+
+        return arr

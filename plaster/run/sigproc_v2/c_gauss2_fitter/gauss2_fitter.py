@@ -26,9 +26,9 @@ def load_lib():
     if _lib is not None:
         return _lib
 
-    with local.cwd("/erisyon/plaster/plaster/run/sigproc_v2/c"):
+    with local.cwd("/erisyon/plaster/plaster/run/sigproc_v2/c_gauss2_fitter"):
         build(
-            dst_folder="/erisyon/plaster/plaster/run/sigproc_v2/c",
+            dst_folder="/erisyon/plaster/plaster/run/sigproc_v2/c_gauss2_fitter",
             c_common_folder="/erisyon/plaster/plaster/tools/c_common",
         )
         lib = c.CDLL("./_gauss2_fitter.so")

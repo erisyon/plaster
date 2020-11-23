@@ -1,7 +1,9 @@
 from zest import zest
 from plaster.tools.image import imops
 from plaster.run.sigproc_v2 import synth
-from plaster.run.sigproc_v2.c_gauss2_fitter import sub_pixel_align
+from plaster.run.sigproc_v2.c_sub_pixel_align.sub_pixel_align import (
+    sub_pixel_align_cy_ims,
+)
 import numpy as np
 from plaster.tools.log.log import debug
 
@@ -35,7 +37,8 @@ def zest_sub_pixel_align():
     def it_aligns():
         cy_ims, true_aln = _synth_cycles()
 
-        pred_aln = sub_pixel_align(cy_ims)
+        pred_aln = sub_pixel_align_cy_ims(cy_ims)
+
         diff = pred_aln - true_aln
         assert np.all(np.abs(diff) <= 0.1)
 

@@ -10,27 +10,27 @@ from plaster.tools.image import imops, coord
 from plaster.tools.calibration.psf import Gauss2Params, RegPSF
 from plaster.tools.log.log import debug
 from plaster.tools.c_common import c_common_tools
-from plaster.tools.c_common.c_common_tools import Tab
+from plaster.tools.c_common.c_common_tools import F64Arr
 
 
 class SubPixelAlignContext(c_common_tools.FixupStructure):
     # fmt: off
     _fixup_fields = [
-        ("cy_ims", c.c_void_p),  # Already 1-pixel aligned
+        ("cy_ims", F64Arr),  # Already 1-pixel aligned
 
         # Parameters
         ("n_cycles", "Size"),
         ("mea_h", "Size"),
         ("mea_w", "Size"),
         ("slice_h", "Size"),
-        ("scale", "Float64"),
+        ("scale", "Size"),
 
         # Outputs
-        ("out_offsets", Tab, np.float64),
+        ("out_offsets", F64Arr),
 
         # Internal fields
         ("_n_slices", "Size"),
-        ("_slice_vecs", c.c_void_p),
+        ("_cy0_slices", c.c_void_p),
     ]
     # fmt: on
 
@@ -43,9 +43,9 @@ def load_lib():
     if _lib is not None:
         return _lib
 
-    with local.cwd("/erisyon/plaster/plaster/run/sigproc_v2/c"):
+    with local.cwd("/erisyon/plaster/plaster/run/sigproc_v2/c_sub_pixel_align"):
         build(
-            dst_folder="/erisyon/plaster/plaster/run/sigproc_v2/c",
+            dst_folder="/erisyon/plaster/plaster/run/sigproc_v2/c_sub_pixel_align",
             c_common_folder="/erisyon/plaster/plaster/tools/c_common",
         )
         lib = c.CDLL("./_sub_pixel_align.so")
@@ -84,13 +84,13 @@ def context(cy_ims, slice_h=11):
     """
     lib = load_lib()
 
-    check.array_t(cy_ims, ndim=3, dtype=float)
+    check.array_t(cy_ims, ndim=3, dtype=np.float64)
 
     n_cycles, mea_h, mea_w = cy_ims.shape
 
     pixel_offsets, pixel_aligned_cy_ims = imops.align(cy_ims, return_shifted_ims=True)
 
-    out_offsets = np.zeros((n_cycles, 2), dtype=float)
+    out_offsets = np.zeros((n_cycles,), dtype=np.float64)
 
     ctx = SubPixelAlignContext(
         cy_ims=np.ascontiguousarray(pixel_aligned_cy_ims, dtype=np.float64),
@@ -131,6 +131,8 @@ def sub_pixel_align_cy_ims(cy_ims):
             _trap_exceptions=False,
             ctx=ctx,
         )
+
+    # TODO: Transpose and repeat
 
 
 def sub_pixel_align_chcy_ims(chcy_ims):
