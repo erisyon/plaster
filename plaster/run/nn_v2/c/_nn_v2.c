@@ -112,6 +112,7 @@ char *score_k_fit_lognormal_mixture(
         Float64 log_beta = log(beta);
         Float64 p_value = 1.0; // This is an accumulated product
         Float64 sum_log_z_score = 0.0;
+        Float64 sum_log_p = 0.0;
         for(Index col_i=0; col_i<n_cols; col_i++) {
             Float64 rad, z_score;
             if(target_dt[col_i] > 0) {
@@ -124,8 +125,15 @@ char *score_k_fit_lognormal_mixture(
             }
             z_score = fabs(z_score);
             sum_log_z_score += log(z_score);
-            p_value *= p_value_from_z_score(z_score);
+            Float64 p = p_value_from_z_score(z_score); 
+            p_value *= p;
+            sum_log_p += log(p);
         }
+
+        // EXPERIMENT: use the mean
+        // This does indeed make the k-dist 1-centered but now
+        // I suspect that k is too-important. Will need to sweep this
+        p_value = exp(sum_log_p / (Float64)n_cols);
 
         tab_set(output_p_vals, nn_i, &p_value);
         tab_set(output_sum_log_z_scores, nn_i, &sum_log_z_score);
@@ -430,7 +438,10 @@ char *classify_radrows(
                 normalized_target_weight = 1.0;
             }
 
-            Float64 composite_score = p_val * penalty * normalized_target_weight * p_row_k;
+            // I think it would make sense to convert all these scores to logs
+            // but for now I'm going to experiment with using power
+            // Experiment: reduce importance of p_row_k
+            Float64 composite_score = p_val * penalty * normalized_target_weight * pow(p_row_k, ctx->row_k_score_factor);
 
             // SET the row score
             tab_set(&row_neighbor_scores, nn_i, &composite_score);

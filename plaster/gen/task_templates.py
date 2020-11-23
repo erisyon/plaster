@@ -7,13 +7,15 @@ Guidelines:
       of a caller is to MODIFY the returned value to patch up custom odds and ends
       to avoid a glut of parameter passing.
 """
+import math
 
 from munch import Munch
-from plaster.run.error_model import ErrorModel, GainModel, ChGainModel
+from plaster.run.error_model import ChGainModel, ErrorModel, GainModel
 from plaster.run.sigproc_v2 import sigproc_v2_common
 from plaster.run.sim_v1.sim_v1_params import SimV1Params
 from plaster.run.sim_v2.sim_v2_params import SimV2Params
 from plaster.tools.aaseq.aaseq import aa_list_to_str
+from plaster.tools.log import log
 from plaster.tools.log.log import debug
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
@@ -96,6 +98,60 @@ def lnfit(sigproc_version):
     )
 
 
+def normalize_seq_abundance_if_necessary(seqs):
+    abundance_info_present = any(
+        "abundance" in seq
+        and seq["abundance"] is not None
+        and not math.isnan(seq["abundance"])
+        for seq in seqs
+    )
+
+    if abundance_info_present:
+        abundance_criteria = [
+            (lambda seq: "abundance" in seq, "Abundance missing"),
+            (
+                lambda seq: seq["abundance"] >= 0
+                if seq["abundance"] is not None
+                else True,
+                "Abundance must be greater than or equal to zero",
+            ),
+            (lambda seq: seq["abundance"] is not None, "Abundance must not be None",),
+            (
+                lambda seq: not math.isnan(seq["abundance"]),
+                "Abundance must not be NaN",
+            ),
+        ]
+
+        # Find min abundance value, also check for zeros and NaNs and error if found
+        min_abundance = None
+        for seq in seqs:
+            # Check to make sure abundance passes criteria
+            for criteria_fn, msg in abundance_criteria:
+                if not criteria_fn(seq):
+                    abundance_value = seq.get("abundance")
+                    raise Exception(
+                        f"seq {seq.get('name')} has invalid abundance: {abundance_value} - {msg}"
+                    )
+
+            # Find min abundance value
+            if (min_abundance is None or seq["abundance"] < min_abundance) and seq[
+                "abundance"
+            ] > 0:
+                min_abundance = seq["abundance"]
+
+        if min_abundance != 1:
+            log.info("abundance data is not normalized, normalizing.")
+            # normalize abundance by min value
+            for seq in seqs:
+                if seq["abundance"] is not None:
+                    seq["abundance"] /= min_abundance
+    else:
+        # Abundance information is missing from all seqs
+        # Set abudance to 1
+        for seq in seqs:
+            seq["abundance"] = 1
+
+
 def prep(
     seqs,
     protease,
@@ -116,6 +172,8 @@ def prep(
     else:
         # else no proteins marked "of interest"
         pro_reports = [0] * len(seqs)
+
+    normalize_seq_abundance_if_necessary(seqs)
 
     return Munch(
         prep=Munch(

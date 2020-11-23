@@ -1,11 +1,8 @@
-import ctypes as c
 import numpy as np
-from plumbum import local, FG
+from plumbum import local
 import ctypes as c
-from contextlib import contextmanager
+from enum import IntEnum
 from plaster.tools.schema import check
-from plaster.tools.c_common import c_common_tools
-from plaster.tools.c_common.c_common_tools import Tab
 from plaster.run.sigproc_v2.c.build import build
 from plaster.tools.image import imops, coord
 from plaster.tools.calibration.psf import Gauss2Params, RegPSF
@@ -84,6 +81,23 @@ def load_lib():
 class Gauss2FitException(Exception):
     def __init__(self, s):
         super().__init__(s.decode("ascii"))
+
+
+class Gauss2FitParams(IntEnum):
+    # These must match in gauss2_fitter.h
+    AMP = 0
+    SIGNAL = 0  # Alias for AMP
+    SIGMA_X = 1
+    SIGMA_Y = 2
+    CENTER_X = 3
+    CENTER_Y = 4
+    RHO = 5
+    OFFSET = 6
+    N_FIT_PARAMS = 7  # Number above this point
+    MEA = 7
+    NOISE = 8
+    ASPECT_RATIO = 9
+    N_FULL_PARAMS = 10
 
 
 def gauss2(params):
