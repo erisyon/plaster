@@ -44,7 +44,7 @@ def zest_nn_v2_worker():
         return nn_v2_result, sim_v2_result
 
     def it_runs_single_channel():
-        for tries in range(5):
+        for tries in range(10):
             nn_v2_result, sim_v2_result = _run(labels="DE")
             trues = sim_v2_result.test_true_pep_iz
             n_right = (nn_v2_result.calls().pep_i == trues).sum()

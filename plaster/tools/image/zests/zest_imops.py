@@ -636,7 +636,7 @@ def zest_sub_pixel_center():
 
     zest()
 
-
+@zest.skip(reason="WIP")
 def zest_sub_pixel_align():
     def _synth_cycles():
         n_peaks = 500
