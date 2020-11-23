@@ -406,7 +406,7 @@ int fit_gauss_2d_on_float_image(
     params[PARAM_OFFSET] = min_val;
 
     //dump_pixels("entrypoint", pixels);
-    dump_params("entrypoint", params);
+    //dump_params("entrypoint", params);
 
     ret = dlevmar_der(
         gauss_2d,
