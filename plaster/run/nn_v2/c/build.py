@@ -17,7 +17,7 @@ def build(dst_folder, c_common_folder, flann_include_folder, flann_lib_folder):
 
     nn_v2_o = f"{dst_folder}/_nn_v2.o"
     if any_out_of_date(
-        parents=["./_nn_v2.c", "./_nn_v2.h", f"{c_common_folder}/c_common.h"],
+        parents=["./nn_v2.c", "./_nn_v2.h", f"{c_common_folder}/c_common.h"],
         children=[nn_v2_o],
     ):
         gcc[c_opts, "./_nn_v2.c", "-o", nn_v2_o] & FG

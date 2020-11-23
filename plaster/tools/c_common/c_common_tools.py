@@ -3,6 +3,11 @@ import ctypes as c
 from plaster.tools.schema import check
 
 
+class CException(Exception):
+    def __init__(self, s):
+        super().__init__(s.decode("ascii"))
+
+
 typedefs = {
     # typedef name, c type, python ctype
     "void": ("void", c.c_void_p),

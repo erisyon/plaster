@@ -177,12 +177,6 @@ def zest_ImageOps():
         good = np.array([[2, 2], [2, 2]])
         assert (dst == good).all()
 
-    def it_aligns_two_images():
-        spot_locs, test_images = spotty_images()
-        found_offsets, _ = imops.align(test_images)
-        actual_offset = spot_locs[1] - spot_locs[0]
-        assert np.all(found_offsets[1] == actual_offset)
-
     def it_crops():
         src = np.array([[1, 1, 1, 1], [1, 2, 2, 1], [1, 2, 2, 1], [1, 1, 1, 1]])
         inner = imops.crop(src, XY(1, 1), WH(2, 2))
@@ -332,6 +326,22 @@ def zest_ImageOps():
         )
 
     zest()
+
+
+def alignment():
+    spot_locs, test_images = spotty_images()
+
+    def it_returns_offsets():
+        found_offsets = imops.align(test_images)
+        actual_offset = spot_locs[1] - spot_locs[0]
+        assert np.all(found_offsets[1] == actual_offset)
+
+    def it_returns_images():
+        found_offsets, aligned_ims = imops.align(test_images, return_shifted_ims=True)
+        import pudb
+
+        pudb.set_trace()
+        raise NotImplementedError
 
 
 def zest_ImageOps_dump():
@@ -642,7 +652,10 @@ def zest_sub_pixel_shift():
         im = imops.gauss2_rho_form(1.0, 2.0, 2.0, 5.5, 5.5, 0.0, 0.0, 11)
         shifted_im = imops.sub_pixel_shift(im, (0.2, 0.7))
         com_after = imops.com(shifted_im ** 2)
-        assert -0.05 < com_after[0] - (5.5 + 0.2) < 0.05 and -0.05 < com_after[1] - (5.5 + 0.7) < 0.05
+        assert (
+            -0.05 < com_after[0] - (5.5 + 0.2) < 0.05
+            and -0.05 < com_after[1] - (5.5 + 0.7) < 0.05
+        )
 
     # def it_shifts_all_channels():
     #     im = imops.gauss2_rho_form(1.0, 2.0, 2.0, 5.5, 5.5, 0.0, 0.0, 11)

@@ -1,48 +1,15 @@
 from zest import zest
 from plaster.tools.image import imops
 from plaster.run.sigproc_v2 import synth
+from plaster.run.sigproc_v2.c_gauss2_fitter import sub_pixel_align
 import numpy as np
 from plaster.tools.log.log import debug
 
 
-@zest.skip(reason="Need a massive overhaul since refactor")
-def zest_align():
-    def _ims(mea=512, std=1.5):
-        bg_mean = 145
-        with synth.Synth(n_cycles=3, overwrite=True, dim=(mea, mea)) as s:
-            (
-                synth.PeaksModelGaussianCircular(n_peaks=1000)
-                .amps_constant(val=4_000)
-                .locs_randomize()
-                .widths_uniform(std)
-            )
-            synth.CameraModel(bias=bg_mean, std=14)
-            cy_ims = s.render_chcy()[0]
-            return cy_ims, s.aln_offsets
-
-    def it_removes_the_noise_floor():
-        cy_ims, true_aln_offsets = _ims()
-        pred_aln_offsets, aln_scores = worker._analyze_step_3_align(cy_ims)
-        assert np.all(true_aln_offsets == pred_aln_offsets)
-
-    def it_is_robust_to_different_image_sizes():
-        cy_ims, true_aln_offsets = _ims(mea=128)
-        pred_aln_offsets, aln_scores = worker._analyze_step_3_align(cy_ims)
-        assert np.all(true_aln_offsets == pred_aln_offsets)
-
-    def it_is_robust_to_different_peak_sizes():
-        cy_ims, true_aln_offsets = _ims(std=3.0)
-        pred_aln_offsets, aln_scores = worker._analyze_step_3_align(cy_ims)
-        assert np.all(true_aln_offsets == pred_aln_offsets)
-
-    zest()
-
-
-@zest.skip(reason="WIP")
 def zest_sub_pixel_align():
     def _synth_cycles():
-        n_peaks = 500
-        amp = 5000
+        n_peaks = 800
+        amp = 6000
         dim = (512, 512)
 
         bg_mean = 0
@@ -56,24 +23,20 @@ def zest_sub_pixel_align():
                 .locs_randomize()
             )
             synth.CameraModel(bias=bg_mean, std=bg_std)
-            s.zero_aln_offsets()
+
+            # s.zero_aln_offsets()
+            s.aln_offsets[1] = (0.200, -2.900)
+            s.aln_offsets[2] = (3.510, -4.870)
+
             cy_ims = s.render_chcy()[0, :]
 
-        return cy_ims, peaks.locs
+        return cy_ims, s.aln_offsets
 
     def it_aligns():
-        import pudb; pudb.set_trace()
-        cy_ims, locs = _synth_cycles()
+        cy_ims, true_aln = _synth_cycles()
 
-        # Simulate sub-pixel shift
-        true_offsets = np.array([[0.0, 0.0], [1.235, 3.728], [-3.492, 8.911],])
-
-        im0 = cy_ims[0]
-        im1 = imops.sub_pixel_shift(cy_ims[1], true_offsets[1])
-        im2 = imops.sub_pixel_shift(cy_ims[2], true_offsets[2])
-        im_stack = np.stack((im0, im1, im2)).astype(np.float32)
-        pred_offsets = imops.sub_pixel_align(im_stack, n_divs=2, precision=10)
-        diff = pred_offsets - true_offsets
+        pred_aln = sub_pixel_align(cy_ims)
+        diff = pred_aln - true_aln
         assert np.all(np.abs(diff) <= 0.1)
 
     zest()

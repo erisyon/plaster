@@ -221,30 +221,49 @@ def crop(src, off=XY(0, 0), dim=WH(-1, -1), center=False):
     return src[ROI(off, dim, center=center)]
 
 
-def align(im_stack):
+def align(im_stack, return_shifted_ims=False):
     """
-    Align the stack relative to the first frame.
-    I timed this versus a non-DFT solution and it was WAY better.
+    Align the image stack (1 pixel accuracy) relative to the first frame in the stack
+    Arguments:
+        im_stack (3 dimensions)
+        return_shifted_ims:
+            If True, also return the shifted images truncated to the common
+            region of interest
 
     Returns:
         list of YX tuples
         max_score
+        shifted_ims (optional)
     """
-    check.array_t(im_stack, ndim=3)
+    check.array_t(im_stack, ndim=3, is_square=True, dtype=np.float64)
+    n_cycles, mea_h, mea_w = im_stack.shape
+
     offsets = [YX(0, 0)]
-    maxs = [0]
     primary = im_stack[0]
     for im in im_stack[1:]:
         conv = convolve(src=primary, kernel=im)
 
         # conv is now zero-centered; that is, the peak is
         # an offset relative to the center of the image.
-        maxs += [np.amax(conv)]
         peak = YX(np.unravel_index(conv.argmax(), conv.shape))
         center = HW(conv.shape) // 2
         offsets += [center - peak]
 
-    return np.array(offsets), np.array(maxs)
+    if return_shifted_ims:
+        raw_dim = im_stack.shape[-2:]
+        roi = intersection_roi_from_aln_offsets(offsets, raw_dim)
+        roi_dim = (roi[0].stop - roi[0].start, roi[1].stop - roi[1].start)
+
+        pixel_aligned_cy_ims = np.zeros((n_cycles, mea_h, mea_w))
+        for cy_i, offset in zip(range(n_cycles), offsets):
+            shifted_im = shift(im_stack[cy_i], -offset)
+            pixel_aligned_cy_ims[cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
+                roi[0], roi[1]
+            ]
+        return np.array(offsets), pixel_aligned_cy_ims
+
+    else:
+        return np.array(offsets)
 
 
 def intersection_roi_from_aln_offsets(aln_offsets, raw_dim):

@@ -1,6 +1,6 @@
 import numpy as np
 from plaster.run.sigproc_v2 import bg, psf
-from plaster.run.sigproc_v2.c import gauss2_fitter
+from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
 from plaster.tools.calibration.psf import Gauss2Params, RegPSF
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX

@@ -4,6 +4,7 @@ from plaster.run.sim_v2.sim_v2_result import RadType, DyeType
 from plaster.run.nn_v2.c import nn_v2 as c_nn_v2
 from plaster.run.sigproc_v2.sigproc_v2_fixtures import synthetic_radmat_from_dyemat
 from plaster.run.error_model import GainModel
+from plaster.tools.c_common.c_common_tools import CException
 from zest import zest
 from plaster.tools.log.log import debug
 
@@ -55,7 +56,7 @@ def zest_c_nn_v2():
         radmat, true_dyt_iz, true_ks = synthetic_radmat_from_dyemat(
             dyemat, gain_model, n_samples=5
         )
-        with zest.raises(c_nn_v2.NNV2Exception, in_args="Non sequential dyt_i"):
+        with zest.raises(CException, in_args="Non sequential dyt_i"):
             _test(radmat, _dyepeps=_dyepeps)
 
     def it_enforces_reverse_sort_on_count_per_dyt():
@@ -63,9 +64,7 @@ def zest_c_nn_v2():
         radmat, true_dyt_iz, true_ks = synthetic_radmat_from_dyemat(
             dyemat, gain_model, n_samples=5
         )
-        with zest.raises(
-            c_nn_v2.NNV2Exception, in_args="must be reverse sorted by count per dyt"
-        ):
+        with zest.raises(CException, in_args="must be reverse sorted by count per dyt"):
             _test(radmat, _dyepeps=_dyepeps)
 
     def it_classifies():
