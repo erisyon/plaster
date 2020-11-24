@@ -155,11 +155,7 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
         mean_offset += offset_samples[slice_i];
     }
     mean_offset /= (Float64)n_slices;
-    Float64 ret = 1.0 * mean_offset / scale;
-// WTF? When I use the 1 peak then I need the above to be 2.0
-// But when I use the full image it needs to be 1.0?
-// This this a weird coincidence?
-//trace("%f %f %ld\n", ret, mean_offset, scale);
+    Float64 ret = mean_offset / scale;
     *f64arr_ptr1(&ctx->out_offsets, cy_i) = ret;
 
     free(large_slice_buffer);

@@ -657,20 +657,4 @@ def zest_sub_pixel_shift():
             and -0.05 < com_after[1] - (5.5 + 0.7) < 0.05
         )
 
-    # def it_shifts_all_channels():
-    #     im = imops.gauss2_rho_form(1.0, 2.0, 2.0, 5.5, 5.5, 0.0, 0.0, 11)
-    #
-    #     chcy_im = np.zeros((2, 1, 11, 11))
-    #     chcy_im[0, 0] = im
-    #     chcy_im[1, 0] = im
-    #
-    #     import pudb; pudb.set_trace()
-    #     shifted_ims = imops.sub_pixel_shift(chcy_im, (0.2, 0.7))
-    #
-    #     com_after = imops.com(shifted_ims[0, 0] ** 2)
-    #     assert -0.05 < com_after[0] - (5.5 + 0.2) < 0.05 and -0.05 < com_after[1] - (5.5 + 0.7) < 0.05
-    #
-    #     com_after = imops.com(shifted_ims[1, 0] ** 2)
-    #     assert -0.05 < com_after[0] - (5.5 + 0.2) < 0.05 and -0.05 < com_after[1] - (5.5 + 0.7) < 0.05
-
     zest()
