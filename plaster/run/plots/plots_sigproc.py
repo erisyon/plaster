@@ -415,7 +415,7 @@ def wizard_scat_df(
     y_name_wid = displays.dropdown(df, "Y:", default_y)
     channel_wid = list(range(run[result_block].n_channels))
 
-    def scat(x_name, y_name, channel_i, x_noise):
+    def scat(x_name, y_name, x_noise, channel_i=default_channel):
         _df = (
             df[df.channel_i == channel_i]
             .reset_index()
@@ -435,7 +435,7 @@ def wizard_scat_df(
         show(f)
 
     interact(
-        scat, x_name=x_name_wid, y_name=y_name_wid, channel_i=channel_wid, x_noise=0.1
+        scat, x_name=x_name_wid, y_name=y_name_wid, x_noise=0.1, channel_i=channel_wid
     )
 
 
