@@ -155,10 +155,7 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
         mean_offset += offset_samples[slice_i];
     }
     mean_offset /= (Float64)n_slices;
-    Float64 ret = 2 * mean_offset / scale;
-        // Not sure where this factor of 2 comes from but it
-        // is clear from testing that it is needed. Presumably
-        // because we search both side of the offset
+    Float64 ret = mean_offset / scale;
     *f64arr_ptr1(&ctx->out_offsets, cy_i) = ret;
 
     free(large_slice_buffer);

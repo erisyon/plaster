@@ -155,7 +155,6 @@ def sub_pixel_align_cy_ims(cy_ims):
             zap.arrays(
                 _do_sub_pixel_align_cycle,
                 dict(cy_i=list(range(1, n_cycles))),
-                _debug_mode=True,  # TODO REMOVE ME!
                 _process_mode=False,
                 _trap_exceptions=False,
                 ctx=ctx,
