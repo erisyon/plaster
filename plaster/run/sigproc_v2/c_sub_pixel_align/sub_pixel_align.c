@@ -126,7 +126,7 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
         Index row_i = slice_i * slice_h;
         _slice(&cy_im, row_i, slice_h, slice_buffer, width);
         _rescale(slice_buffer, large_slice_buffer, width, scale);
-        large_cy0_slice = ?
+        Float64 *large_cy0_slice = f64arr_ptr1(&ctx->_large_cy0_slices, slice_i);
         Index offset = _convolve(large_cy0_slice, large_slice_buffer, scale, width);
         offset_samples[slice_i] = offset;
     }
@@ -137,7 +137,7 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
         mean_offset += offset_samples[slice_i];
     }
     mean_offset /= (Float64)n_slices;
-    ctx->out_offsets[cy_i] = (mean_offset - scale) / scale;
+    *f64arr_ptr1(&ctx->out_offsets, cy_i) = (mean_offset - scale) / scale;
 
     free(large_slice_buffer);
     free(slice_buffer);
@@ -153,17 +153,18 @@ char *context_init(SubPixelAlignContext *ctx) {
     Size width = ctx->mea_w;
     Size scale = ctx->scale;
     Size slice_h = ctx->slice_h;
-    Size n_slices = height / slice_h
+    Size n_slices = height / slice_h;
     ctx->_n_slices = n_slices;
 
     Float64 *slice_buffer = (Float64 *)malloc(sizeof(Float64) * width);
     Size cy0_slices_shape[2] = { n_slices, scale * width };
-    ctx->_large_cy0_slices = f64arr_malloc(2, &cy0_slices_shape);
+    ctx->_large_cy0_slices = f64arr_malloc(2, cy0_slices_shape);
 
     for(Index slice_i=0; slice_i<n_slices; slice_i++) {
         Index row_i = slice_i * slice_h;
-        _slice(&cy_im, row_i, slice_h, slice_buffer, width);
-        _rescale(slice_buffer, f64arr_ptr1(ctx->_large_cy0_slices, slice_i), width, scale);
+        F64Arr cy0_im = f64arr_subset(&ctx->cy_ims, 0, 1);
+        _slice(&cy0_im, row_i, slice_h, slice_buffer, width);
+        _rescale(slice_buffer, f64arr_ptr1(&ctx->_large_cy0_slices, slice_i), width, scale);
     }
 
     free(slice_buffer);
@@ -173,6 +174,6 @@ char *context_init(SubPixelAlignContext *ctx) {
 
 
 char *context_free(SubPixelAlignContext *ctx) {
-    f64arr_free(ctx->_large_cy0_slices);
+    f64arr_free(&ctx->_large_cy0_slices);
     return NULL;
 }

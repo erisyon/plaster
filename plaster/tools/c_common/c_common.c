@@ -487,12 +487,12 @@ F64Arr f64arr_malloc(Size n_dims, Size *shape) {
     memset(buffer, 0, size);
     F64Arr arr;
     arr.base = (Float64 *)buffer;
-    f64arr_set_shape(arr, n_dims, shape);
+    f64arr_set_shape(&arr, n_dims, shape);
     return arr;
 }
 
 
-void f64_free(F64Arr *arr) {
+void f64arr_free(F64Arr *arr) {
     free(arr->base);
 }
 
