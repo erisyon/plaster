@@ -134,22 +134,16 @@ def _do_sub_pixel_align_cycle(cy_i, ctx):
         raise CException(error)
 
 
-def sub_pixel_align_cy_ims(cy_ims):
+def sub_pixel_align_cy_ims(cy_ims, slice_h):
     check.array_t(cy_ims, ndim=3, dtype=np.float64)
-
-    slice_h = 30  # TODO: Change to correct value!!
 
     n_cycles = cy_ims.shape[0]
 
-    def _run(_cy_ims):
+    def _run(pixel_aligned_cy_ims):
         # For reference, align returns the position. That is, you
         # must shift a cycle in the OPPOSITE direction to make it line up.
         # Example: Cy0 there's a peak at 10 and at cy1 the peak is now
         # at 15. Therefore cy1 must be shifted left 5 (ie -5) to align with cy0
-
-        pixel_offsets, pixel_aligned_cy_ims = imops.align(
-            _cy_ims, return_shifted_ims=True
-        )
 
         with context(pixel_aligned_cy_ims, slice_h) as ctx:
             zap.arrays(
@@ -160,17 +154,21 @@ def sub_pixel_align_cy_ims(cy_ims):
                 ctx=ctx,
             )
 
-        # Remember the _do_sub_pixel_align_cycle only aligns the x axis.
-        # So the pixel_offsets[:, 1] is the corresponding pixel-shift value.
-        return pixel_offsets[:, 1] + ctx._out_offsets
+        return ctx._out_offsets
 
-    aln_x = _run(cy_ims)
+    pixel_offsets, pixel_aligned_cy_ims = imops.align(cy_ims, return_shifted_ims=True)
+
+    # Remember the _do_sub_pixel_align_cycle only aligns the x axis.
+    # So the pixel_offsets[:, 1] is the corresponding pixel-shift value.
+    aln_x = _run(pixel_aligned_cy_ims)
 
     # Transpose and repeat
-    transposed_cy_ims = np.transpose(cy_ims, (0, 2, 1))
-    aln_y = _run(transposed_cy_ims)
+    t_pixel_aligned_cy_ims = np.ascontiguousarray(np.transpose(pixel_aligned_cy_ims, (0, 2, 1)), dtype=np.float64)
+    aln_y = _run(t_pixel_aligned_cy_ims)
 
-    return np.vstack((aln_y, aln_x)).T
+    #+ pixel_offsets[:, 1]
+    ret = np.vstack((aln_y, aln_x)).T + pixel_offsets
+    return ret
 
 
 def sub_pixel_align_chcy_ims(chcy_ims):

@@ -16,7 +16,7 @@ def zest_sub_pixel_align():
         dim = (512, 512)
 
         bg_mean = 0
-        bg_std = 100
+        bg_std = 0
         n_cycles = 3
         with synth.Synth(overwrite=True, dim=dim, n_cycles=n_cycles) as s:
             peaks = (
@@ -36,33 +36,33 @@ def zest_sub_pixel_align():
         return cy_ims, s.aln_offsets
 
     def it_aligns_one_spot():
-        cy_ims = np.zeros((2, 21, 21))
+        for y_off in np.linspace(-2.0, 2.0, 7):
+            for x_off in np.linspace(-2.0, 2.0, 7):
+                cy_ims = np.zeros((2, 21, 21))
 
-        peak_im = imops.gauss2_rho_form(
-            1000.0, 2.0, 2.0, pos_y=5.5, pos_x=5.5, rho=0.0, const=0.0, mea=11
-        )
-        imops.accum_inplace(cy_ims[0], peak_im, YX(10, 10), center=True)
+                center = YX(21 / 2, 21 / 2)
 
-        peak_im = imops.gauss2_rho_form(
-            1000.0, 2.0, 2.0, pos_y=5.7, pos_x=5.6, rho=0.0, const=0.0, mea=11
-        )
-        imops.accum_inplace(cy_ims[1], peak_im, YX(10 + 1, 10 - 2), center=True)
+                true_aln = np.array([
+                    [0, 0],
+                    [y_off, x_off],
+                ])
 
-        pred_aln = sub_pixel_align_cy_ims(cy_ims)
+                for i in range(2):
+                    cy_ims[i] = imops.gauss2_rho_form(
+                        1000.0, 2.0, 2.0, pos_y=center.y + true_aln[i, 0], pos_x=center.x + true_aln[i, 1], rho=0.0,
+                        const=0.0, mea=21
+                    )
 
-        assert np.all(pred_aln[0, :] == 0)
-
-        diff = pred_aln[1, :] - np.array([1.0 + 0.2, -2.0 + 0.1])
-        assert np.all(np.abs(diff) <= 0.01)
+                pred_aln = sub_pixel_align_cy_ims(cy_ims, slice_h=5)
+                diff = np.abs(pred_aln - true_aln)
+                assert np.all(np.abs(diff) <= 0.05)
 
     def it_aligns_full_image():
         cy_ims, true_aln = _synth_cycles()
-
-        pred_aln = sub_pixel_align_cy_ims(cy_ims)
-
-        debug(pred_aln, true_aln)
-
+        pred_aln = sub_pixel_align_cy_ims(cy_ims, slice_h=50)
         diff = pred_aln - true_aln
-        assert np.all(np.abs(diff) <= 0.1)
+
+        # debug(true_aln, pred_aln, diff)
+        assert np.all(np.abs(diff) <= 0.05)
 
     zest()
