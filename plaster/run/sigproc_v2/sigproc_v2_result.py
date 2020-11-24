@@ -50,8 +50,8 @@ class SigprocV2Result(BaseResult):
         peak_i=int,
         field_i=int,
         field_peak_i=int,
-        aln_y=int,
-        aln_x=int,
+        aln_y=float,
+        aln_x=float,
     )
 
     peak_fit_df_schema = OrderedDict(
@@ -72,9 +72,8 @@ class SigprocV2Result(BaseResult):
         field_i=int,
         channel_i=int,
         cycle_i=int,
-        aln_y=int,
-        aln_x=int,
-        aln_score=float,
+        aln_y=float,
+        aln_x=float,
         # n_mask_rects=int,
         # mask_area=int,
         # quality=float,
@@ -86,8 +85,6 @@ class SigprocV2Result(BaseResult):
 
     radmat_df_schema = OrderedDict(
         peak_i=int,
-        # field_i=int,
-        # field_peak_i=int,
         channel_i=int,
         cycle_i=int,
         signal=float,

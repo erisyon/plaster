@@ -103,6 +103,9 @@ from munch import Munch
 from plaster.run.sigproc_v2 import bg, fg, psf
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
+from plaster.run.sigproc_v2.c_sub_pixel_align.sub_pixel_align import (
+    sub_pixel_align_cy_ims,
+)
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.calibration.psf import Gauss2Params
 from plaster.tools.image import imops
@@ -290,14 +293,13 @@ def _analyze_step_2_mask_anomalies_im(im, den_threshold=300):
 '''
 
 
-def _analyze_step_3_align(cy_ims):
+def _analyze_step_3_align(cy_ims, peak_mea):
     """
     Align a stack of cy_ims by generating simplified fiducials for each cycle
     (assumes camera does not move between channels)
 
     Returns:
-        aln_offsets: list of YX tuples
-        max_score: list of max_score
+        aln_offsets: ndarray(n_cycles, 2); where 2 is (y, x)
     """
 
     kernel = psf.approximate_kernel()
@@ -328,8 +330,10 @@ def _analyze_step_3_align(cy_ims):
     for im in fiducial_cy_ims:
         imops.edge_fill(im, 20)
 
-    aln_offsets, aln_scores = imops.align(fiducial_cy_ims)
-    return aln_offsets, aln_scores
+    # SUB-PIXEL-ALIGN
+    aln_offsets = sub_pixel_align_cy_ims(fiducial_cy_ims, slice_h=peak_mea)
+
+    return aln_offsets
 
 
 def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
@@ -359,7 +363,9 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     for ch_i in range(n_channels):
         for cy_i, offset in zip(range(n_cycles), aln_offsets):
             shifted_im = imops.sub_pixel_shift(chcy_ims[ch_i, cy_i], -offset)
-            aligned_chcy_ims[ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[roi[0], roi[1]]
+            aligned_chcy_ims[ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
+                roi[0], roi[1]
+            ]
 
     return aligned_chcy_ims
 
@@ -565,7 +571,9 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
 
     # Step 3: Find alignment offsets by using the mean of all channels
     # Note that this requires that the channel balancing has equalized the channel weights
-    aln_offsets, aln_scores = _analyze_step_3_align(np.mean(chcy_ims, axis=0))
+    aln_offsets = _analyze_step_3_align(
+        np.mean(chcy_ims, axis=0), sigproc_v2_params.peak_mea
+    )
 
     # Step 4: Composite with alignment
     chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets)
@@ -573,7 +581,6 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     # to be smaller than the original and not necessarily a power of 2.
 
     aln_offsets = np.array(aln_offsets)
-    aln_scores = np.array(aln_scores)
 
     # Step 5: Peak find on combined channels
     # The goal of previous channel equalization and regional balancing is that
@@ -606,7 +613,6 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
         locs,
         radmat,
         aln_offsets,
-        aln_scores,
         fitmat,
         difmat,
         picmat,
@@ -633,7 +639,6 @@ def _do_sigproc_analyze_and_save_field(
         locs,
         radmat,
         aln_offsets,
-        aln_scores,
         fitmat,
         difmat,
         picmat,
@@ -660,7 +665,6 @@ def _do_sigproc_analyze_and_save_field(
                 cycle_i,
                 aln_offsets[cycle_i, 0],
                 aln_offsets[cycle_i, 1],
-                aln_scores[cycle_i],
             )
             for channel_i in range(n_channels)
             for cycle_i in range(n_cycles)
