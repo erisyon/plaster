@@ -13,6 +13,7 @@ from plaster.run.sim_v2.sim_v2_params import (
     DytWeightType,
     RadType,
 )
+from plaster.tools.c_common.c_common_tools import CException
 from plaster.run.sim_v2.sim_v2_result import IndexType, RowKType, ScoreType
 from plaster.tools.c_common import c_common_tools
 from plaster.tools.c_common.c_common_tools import Tab
@@ -211,11 +212,6 @@ def load_lib():
     return lib
 
 
-class NNV2Exception(Exception):
-    def __init__(self, s):
-        super().__init__(s.decode("ascii"))
-
-
 @contextmanager
 def context(
     train_dyemat,
@@ -294,7 +290,7 @@ def context(
 
     error = lib.context_init(nn_v2_context)
     if error is not None:
-        raise NNV2Exception(error)
+        raise CException(error)
 
     try:
         yield nn_v2_context
@@ -306,4 +302,4 @@ def do_classify_radrows(nn_v2_context, radrow_start_i, n_radrows):
     lib = load_lib()
     error = lib.classify_radrows(nn_v2_context, radrow_start_i, n_radrows)
     if error is not None:
-        raise NNV2Exception(error)
+        raise CException(error)

@@ -221,82 +221,50 @@ def crop(src, off=XY(0, 0), dim=WH(-1, -1), center=False):
     return src[ROI(off, dim, center=center)]
 
 
-def align(im_stack):
+def align(im_stack, return_shifted_ims=False):
     """
-    Align the stack relative to the first frame.
-    I timed this versus a non-DFT solution and it was WAY better.
+    Align the image stack (1 pixel accuracy) relative to the first frame in the stack
+    Arguments:
+        im_stack (3 dimensions)
+        return_shifted_ims:
+            If True, also return the shifted images truncated to the common
+            region of interest
 
     Returns:
         list of YX tuples
         max_score
+        shifted_ims (optional)
     """
-    check.array_t(im_stack, ndim=3)
+    check.array_t(im_stack, ndim=3, dtype=np.float64)
+    n_cycles, mea_h, mea_w = im_stack.shape
+    assert mea_h == mea_w
+
     offsets = [YX(0, 0)]
-    maxs = [0]
     primary = im_stack[0]
     for im in im_stack[1:]:
         conv = convolve(src=primary, kernel=im)
 
         # conv is now zero-centered; that is, the peak is
         # an offset relative to the center of the image.
-        maxs += [np.amax(conv)]
         peak = YX(np.unravel_index(conv.argmax(), conv.shape))
         center = HW(conv.shape) // 2
         offsets += [center - peak]
 
-    return np.array(offsets), np.array(maxs)
+    if return_shifted_ims:
+        raw_dim = im_stack.shape[-2:]
+        roi = intersection_roi_from_aln_offsets(offsets, raw_dim)
+        roi_dim = (roi[0].stop - roi[0].start, roi[1].stop - roi[1].start)
 
+        pixel_aligned_cy_ims = np.zeros((n_cycles, mea_h, mea_w))
+        for cy_i, offset in zip(range(n_cycles), offsets):
+            shifted_im = shift(im_stack[cy_i], offset * -1)
+            pixel_aligned_cy_ims[cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
+                roi[0], roi[1]
+            ]
+        return np.array(offsets), pixel_aligned_cy_ims
 
-def sub_pixel_align(im_stack, n_divs=2, precision=10):
-    """
-    Align images with sub-pixel precision.
-    This eats a lot more memory as it scales up the images.
-
-    precision: 10 means you get 1/10 of a pixel of precision and 20 mean 1/20
-    but the memory requirements
-
-    This works by grabbing n_divs by n_divs su-regions, scaling them up by precision
-    and then convolving them.
-
-    More divs means less memory but less accuracy.
-    """
-    check.array_t(im_stack, ndim=3)
-    orig_mea = im_stack.shape[-1]
-    assert orig_mea == im_stack.shape[-2]
-    n_ims = im_stack.shape[0]
-    offsets = np.zeros((n_ims, n_divs, n_divs, 2))
-    n_regions = n_divs ** 2
-
-    for i, (reg_im_stack, y, x, coord) in enumerate(region_enumerate(im_stack, n_divs)):
-        debug(100 * i / n_regions)
-        reg_mea = reg_im_stack.shape[-1]
-        assert reg_mea == reg_im_stack.shape[-2]
-        large_dim = (precision * reg_mea, precision * reg_mea)
-        large_im0 = cv2.resize(
-            reg_im_stack[0], dsize=large_dim, interpolation=cv2.INTER_CUBIC
-        )
-        for im_i in range(1, n_ims):
-            im = reg_im_stack[im_i]
-            large_im = cv2.resize(im, dsize=large_dim, interpolation=cv2.INTER_CUBIC)
-            conv = cv2.filter2D(
-                src=large_im0,
-                ddepth=-1,  # Use the same bit-depth as the src
-                kernel=large_im,
-                borderType=cv2.BORDER_REPLICATE,
-            )
-
-            # conv is now zero-centered; that is, the peak is
-            # an offset relative to the center of the image.
-            peak = YX(np.unravel_index(conv.argmax(), conv.shape))
-            center = HW(conv.shape) / 2  # // 2?
-            offsets[im_i, y, x, :] = center - peak
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=RuntimeWarning)
-        offsets = np.mean(offsets, axis=(1, 2)) / precision
-
-    # TODO: Put the maxs back it or get rid of it
-    return offsets, np.zeros_like(offsets)
+    else:
+        return np.array(offsets)
 
 
 def intersection_roi_from_aln_offsets(aln_offsets, raw_dim):
@@ -791,8 +759,9 @@ def sub_pixel_shift(im, offset):
     Shift with offset in y, x array form.
     A positive x will shift right. A positive y will shift up.
     """
+    check.array_t(im, ndim=2, dtype=float)
     M = np.array([[1.0, 0.0, offset[1]], [0.0, 1.0, offset[0]]])
-    return cv2.warpAffine(im, M, im.shape, flags=cv2.INTER_CUBIC)
+    return cv2.warpAffine(im, M, dsize=im.shape, flags=cv2.INTER_CUBIC)
 
 
 def sub_pixel_center(peak_im):

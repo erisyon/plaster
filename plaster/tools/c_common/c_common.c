@@ -10,6 +10,7 @@
 #include "time.h"
 #include "pthread.h"
 #include "c_common_old.h"
+#include "c_common_new.h"
 
 
 Uint64 now() {
@@ -213,7 +214,7 @@ void hash_dump(Hash hash) {
 
 
 // Tab
-//=========================================================================================
+//----------------------------------------------------------------------------------------
 
 
 Tab tab_by_size(void *base, Size n_bytes, Size n_bytes_per_row, Uint64 flags) {
@@ -442,4 +443,77 @@ int sanity_check() {
     ensure(N_MAX_CYCLES == 64, "Failed sanity check: N_MAX_CYCLES");
 
     return 0;
+}
+
+
+// F64Arr
+//----------------------------------------------------------------------------------------
+
+void f64arr_set_shape(F64Arr *arr, Size n_dims, Size *shape) {
+    arr->n_dims = n_dims;
+    memset(arr->shape, 0, sizeof(Size) * MAX_ARRAY_DIMS);
+    memset(arr->pitch, 0, sizeof(Size) * MAX_ARRAY_DIMS);
+    Size size = 1;
+    ensure(0 < n_dims && n_dims <= MAX_ARRAY_DIMS, "Illegal n_dims for F64Arr");
+    for(Sint64 i=n_dims-1; i>=0; i--) {
+        arr->shape[i] = shape[i];
+        arr->pitch[i] = size;
+        size *= arr->shape[i];
+    }
+}
+
+F64Arr f64arr(void *base, Size n_dims, Size *shape) {
+    F64Arr arr;
+    arr.base = base;
+    f64arr_set_shape(&arr, n_dims, shape);
+    return arr;
+}
+
+
+F64Arr f64arr_subset(F64Arr *src, Index i) {
+    F64Arr arr;
+    arr.base = &src->base[i * src->pitch[0]];
+    f64arr_set_shape(&arr, src->n_dims - 1, &src->shape[1]);
+    return arr;
+}
+
+
+F64Arr f64arr_malloc(Size n_dims, Size *shape) {
+    Size size = 1;
+    for(Index i=0; i<n_dims; i++) {
+        size *= shape[i];
+    }
+    Float64 *buffer = (Float64 *)malloc(sizeof(Float64) * size);
+    memset(buffer, 0, size);
+    F64Arr arr;
+    arr.base = (Float64 *)buffer;
+    f64arr_set_shape(&arr, n_dims, shape);
+    return arr;
+}
+
+
+void f64arr_free(F64Arr *arr) {
+    free(arr->base);
+}
+
+
+Float64 *f64arr_ptr1(F64Arr *arr, Index i) {
+    return &arr->base[i * arr->pitch[0]];
+}
+
+
+Float64 *f64arr_ptr2(F64Arr *arr, Index i, Index j) {
+    return &arr->base[i * arr->pitch[0] + j * arr->pitch[1]];
+}
+
+
+Float64 *f64arr_ptr3(F64Arr *arr, Index i, Index j, Index k) {
+    return &arr->base[i * arr->pitch[0] + j * arr->pitch[1] + k * arr->pitch[2]];
+}
+
+
+Float64 *f64arr_ptr4(F64Arr *arr, Index i, Index j, Index k, Index l) {
+    return &arr->base[
+        i * arr->pitch[0] + j * arr->pitch[1] + k * arr->pitch[2] + l * arr->pitch[3]
+    ];
 }

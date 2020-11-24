@@ -154,4 +154,6 @@ void _tab_validate(Tab *tab, void *ptr, char *file, int line);
     memset(buf##__LINE__, 0, n_rows * n_bytes_per_row); \
     Tab table_name = tab_by_n_rows(buf##__LINE__, n_rows, n_bytes_per_row, TAB_NOT_GROWABLE)
 
+#include "c_common_new.h"
+
 #endif

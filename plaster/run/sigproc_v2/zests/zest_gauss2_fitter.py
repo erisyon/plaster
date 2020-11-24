@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from plaster.run.sigproc_v2.c import gauss2_fitter
+from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
 from plaster.tools.image import imops
 from zest import zest
 from plaster.tools.log.log import debug

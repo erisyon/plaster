@@ -3,6 +3,11 @@ import ctypes as c
 from plaster.tools.schema import check
 
 
+class CException(Exception):
+    def __init__(self, s):
+        super().__init__(s.decode("ascii"))
+
+
 typedefs = {
     # typedef name, c type, python ctype
     "void": ("void", c.c_void_p),
@@ -141,6 +146,10 @@ class FixupStructure(c.Structure):
                 fields += [(field_name, Tab)]
                 cls._tab_types[field_name] = f[2]
 
+            elif f[1] is F64Arr:
+                fields += [(field_name, F64Arr)]
+                cls._tab_types[field_name] = c.POINTER(c.c_double)
+
             else:
                 fields += [(field_name, f[1])]
 
@@ -185,3 +194,44 @@ class FixupStructure(c.Structure):
     @classmethod
     def tab_type(cls, field):
         return cls._tab_types[field]
+
+
+class F64Arr(c.Structure):
+    # See c_common.h for duplicate define
+    MAX_ARRAY_DIMS = 4
+
+    _fields_ = [
+        ("base", c.c_void_p),
+        ("n_dims", c.c_ulonglong),
+        ("shape0", c.c_ulonglong),
+        ("shape1", c.c_ulonglong),
+        ("shape2", c.c_ulonglong),
+        ("shape3", c.c_ulonglong),
+        ("pitch0", c.c_ulonglong),
+        ("pitch1", c.c_ulonglong),
+        ("pitch2", c.c_ulonglong),
+        ("pitch3", c.c_ulonglong),
+    ]
+
+    @classmethod
+    def from_ndarray(cls, ndarr):
+        check.array_t(ndarr, dtype=np.float64, c_contiguous=True)
+        arr = F64Arr()
+        arr.base = ndarr.ctypes.data_as(c.c_void_p)
+
+        assert ndarr.ndim <= cls.MAX_ARRAY_DIMS
+        arr.n_dims = ndarr.ndim
+
+        arr.shape0 = ndarr.shape[0] if ndarr.ndim >= 1 else 0
+        arr.shape1 = ndarr.shape[1] if ndarr.ndim >= 2 else 0
+        arr.shape2 = ndarr.shape[2] if ndarr.ndim >= 3 else 0
+        arr.shape3 = ndarr.shape[3] if ndarr.ndim >= 4 else 0
+
+        # Pitch is the cumulative size of the blocks less than each dimension
+        # (ie how much has to be added to advance one index in eah dimension)
+        arr.pitch3 = 1 if ndarr.ndim >= 4 else 1
+        arr.pitch2 = max(1,arr.shape3) * arr.pitch3 if ndarr.ndim >= 3 else 1
+        arr.pitch1 = max(1,arr.shape2) * arr.pitch2 if ndarr.ndim >= 2 else 1
+        arr.pitch0 = max(1,arr.shape1) * arr.pitch1 if ndarr.ndim >= 1 else 1
+
+        return arr

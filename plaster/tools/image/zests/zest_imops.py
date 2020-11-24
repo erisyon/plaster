@@ -177,12 +177,6 @@ def zest_ImageOps():
         good = np.array([[2, 2], [2, 2]])
         assert (dst == good).all()
 
-    def it_aligns_two_images():
-        spot_locs, test_images = spotty_images()
-        found_offsets, _ = imops.align(test_images)
-        actual_offset = spot_locs[1] - spot_locs[0]
-        assert np.all(found_offsets[1] == actual_offset)
-
     def it_crops():
         src = np.array([[1, 1, 1, 1], [1, 2, 2, 1], [1, 2, 2, 1], [1, 1, 1, 1]])
         inner = imops.crop(src, XY(1, 1), WH(2, 2))
@@ -332,6 +326,22 @@ def zest_ImageOps():
         )
 
     zest()
+
+
+def alignment():
+    spot_locs, test_images = spotty_images()
+
+    def it_returns_offsets():
+        found_offsets = imops.align(test_images)
+        actual_offset = spot_locs[1] - spot_locs[0]
+        assert np.all(found_offsets[1] == actual_offset)
+
+    def it_returns_images():
+        found_offsets, aligned_ims = imops.align(test_images, return_shifted_ims=True)
+        import pudb
+
+        pudb.set_trace()
+        raise NotImplementedError
 
 
 def zest_ImageOps_dump():
@@ -636,41 +646,15 @@ def zest_sub_pixel_center():
 
     zest()
 
-@zest.skip(reason="WIP")
-def zest_sub_pixel_align():
-    def _synth_cycles():
-        n_peaks = 500
-        amp = 6000
-        dim = (256, 256)
 
-        bg_mean = 0
-        bg_std = 100
-        n_cycles = 3
-        with synth.Synth(overwrite=True, dim=dim, n_cycles=n_cycles) as s:
-            peaks = (
-                synth.PeaksModelGaussianCircular(n_peaks=n_peaks)
-                .amps_constant(val=amp)
-                .widths_uniform(width=1.8)
-                .locs_randomize()
-            )
-            synth.CameraModel(bias=bg_mean, std=bg_std)
-            s.zero_aln_offsets()
-            cy_ims = s.render_chcy()[0, :]
-
-        return cy_ims, peaks.locs
-
-    def it_aligns():
-        cy_ims, locs = _synth_cycles()
-
-        # Simulate sub-pixel shift
-        true_offsets = np.array([[0.0, 0.0], [1.235, 3.728], [-3.492, 8.911],])
-
-        im0 = cy_ims[0]
-        im1 = imops.sub_pixel_shift(cy_ims[1], true_offsets[1])
-        im2 = imops.sub_pixel_shift(cy_ims[2], true_offsets[2])
-        im_stack = np.stack((im0, im1, im2)).astype(np.float32)
-        pred_offsets = imops.sub_pixel_align(im_stack, n_divs=2, precision=10)
-        diff = pred_offsets - true_offsets
-        assert np.all(np.abs(diff) <= 0.1)
+def zest_sub_pixel_shift():
+    def it_shifts():
+        im = imops.gauss2_rho_form(1.0, 2.0, 2.0, 5.5, 5.5, 0.0, 0.0, 11)
+        shifted_im = imops.sub_pixel_shift(im, (0.2, 0.7))
+        com_after = imops.com(shifted_im ** 2)
+        assert (
+            -0.05 < com_after[0] - (5.5 + 0.2) < 0.05
+            and -0.05 < com_after[1] - (5.5 + 0.7) < 0.05
+        )
 
     zest()

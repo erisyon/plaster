@@ -539,39 +539,6 @@ def zest_mask_anomalies_im():
 
 
 @zest.skip(reason="Need a massive overhaul since refactor")
-def zest_align():
-    def _ims(mea=512, std=1.5):
-        bg_mean = 145
-        with synth.Synth(n_cycles=3, overwrite=True, dim=(mea, mea)) as s:
-            (
-                synth.PeaksModelGaussianCircular(n_peaks=1000)
-                .amps_constant(val=4_000)
-                .locs_randomize()
-                .widths_uniform(std)
-            )
-            synth.CameraModel(bias=bg_mean, std=14)
-            cy_ims = s.render_chcy()[0]
-            return cy_ims, s.aln_offsets
-
-    def it_removes_the_noise_floor():
-        cy_ims, true_aln_offsets = _ims()
-        pred_aln_offsets, aln_scores = worker._analyze_step_3_align(cy_ims)
-        assert np.all(true_aln_offsets == pred_aln_offsets)
-
-    def it_is_robust_to_different_image_sizes():
-        cy_ims, true_aln_offsets = _ims(mea=128)
-        pred_aln_offsets, aln_scores = worker._analyze_step_3_align(cy_ims)
-        assert np.all(true_aln_offsets == pred_aln_offsets)
-
-    def it_is_robust_to_different_peak_sizes():
-        cy_ims, true_aln_offsets = _ims(std=3.0)
-        pred_aln_offsets, aln_scores = worker._analyze_step_3_align(cy_ims)
-        assert np.all(true_aln_offsets == pred_aln_offsets)
-
-    zest()
-
-
-@zest.skip(reason="Need a massive overhaul since refactor")
 def zest_composite_with_alignment_offsets_chcy_ims():
     def _ims():
         bg_mean = 145

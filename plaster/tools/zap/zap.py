@@ -451,6 +451,7 @@ def arrays(
     _thread_name_prefix="",
     _debug_mode=None,
     _progress=None,
+    _trap_exceptions=False,
     **kwargs,
 ):
     """
@@ -541,7 +542,7 @@ def arrays(
             )
             for batch_slice in batch_slices
         ],
-        _trap_exceptions=False,
+        _trap_exceptions=_trap_exceptions,
         _process_mode=_process_mode,
         _progress=_progress,
         _thread_name_prefix=_thread_name_prefix,

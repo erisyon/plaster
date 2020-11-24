@@ -3,10 +3,20 @@ from functools import wraps
 from plumbum import local
 from plaster.tools.utils import utils
 from munch import Munch
+from contextlib import contextmanager
 from plaster.tools.log.log import debug
 
 
-disable_disk_memoize = False
+_disable_disk_memoize = False
+
+@contextmanager
+def disable_disk_memoize():
+    global _disable_disk_memoize
+    try:
+        _disable_disk_memoize = True
+        yield
+    finally:
+        _disable_disk_memoize = False
 
 
 def disk_memoize():
@@ -21,7 +31,7 @@ def disk_memoize():
         @wraps(func)
         def wrapper(*args, **kwargs):
             assert isinstance(args[0], BaseResult)
-            if not disable_disk_memoize:
+            if not _disable_disk_memoize:
                 keep_args = tuple([a for a in args if not isinstance(a, BaseResult)])
                 h = hash(keep_args + tuple(sorted(kwargs.items()))) ** 2
                 path = args[0]._folder / f"_cache_{func.__name__}_{h:X}.pkl"

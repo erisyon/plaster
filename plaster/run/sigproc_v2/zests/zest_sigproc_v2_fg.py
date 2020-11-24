@@ -1,7 +1,7 @@
 import numpy as np
 from plaster.run.sigproc_v2 import fg
 from plaster.run.sigproc_v2 import synth
-from plaster.run.sigproc_v2.c.gauss2_fitter import AugmentedGauss2Params
+from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import AugmentedGauss2Params
 from plaster.tools.log.log import debug
 from plaster.tools.utils import utils
 from zest import zest
@@ -85,7 +85,6 @@ def zest_fit_method():
         )
 
     def it_handles_all_noise():
-        import pudb; pudb.set_trace()
         fit_params = _run(amp=0)
         n_nan = np.isnan(fit_params[:, 0]).sum()
         assert n_nan > fit_params.shape[0] - 5
