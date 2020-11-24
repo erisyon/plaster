@@ -11,6 +11,18 @@
 #include "_sub_pixel_align.h"
 
 
+void _dump_vec(Float64 *vec, int width, int height, char *msg) {
+    trace("VEC %s [\n", msg);
+    for(int y=0; y<height; y++) {
+        for(int x=0; x<width; x++) {
+            fprintf(_log, "%4.2f, ", vec[y*width + x]);
+        }
+        fprintf(_log, "\n");
+    }
+    trace("]\n");
+}
+
+
 void _slice(F64Arr *im, Index row_i, Index n_rows_per_slice, Float64 *out_slice, Size width) {
     memset(out_slice, 0, sizeof(Float64) * width);
     for(Index i=0; i<n_rows_per_slice; i++) {
@@ -65,24 +77,32 @@ void _rescale(
         );
     }
 
-    // Interpolate the last point
+    // Interpolate the last two points
     Index i = width - 2;
     _cubic_spline_segment(
         slice[i-1], slice[i], slice[i+1], slice[i+1],
-        &out_slice[(i+1) * scale],
+        &out_slice[i * scale],
+        scale
+    );
+
+    i = width - 1;
+    _cubic_spline_segment(
+        slice[i-1], slice[i], slice[i+1], slice[i+1],
+        &out_slice[i * scale],
         scale
     );
 }
 
 
-int _convolve(Float64 *cy0, Float64 *cyi, Size scale, Size width) {
+int _convolve(Float64 *cy0, Float64 *cyi, int scale, int width) {
     // Shift cyi relative to cy0, so a negative offset means
     // that cyi is to the left of cy0
 
     Float64 max_sum = 0.0;
-    Index max_offset = 0;
-    Size _width;
-    for(int offset=-scale; offset<scale; offset++) {
+    int max_offset = 0;
+    int _width;
+    int _scale = scale / 2;  // div 2 because we only want to search half a pixel in each direction
+    for(int offset=-_scale; offset<_scale; offset++) {
         Float64 *_cy0 = cy0;
         Float64 *_cyi = cyi;
 
@@ -106,6 +126,7 @@ int _convolve(Float64 *cy0, Float64 *cyi, Size scale, Size width) {
         }
     }
 
+trace("%d\n", max_offset);
     return max_offset;
 }
 
@@ -116,18 +137,20 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
     Size scale = ctx->scale;
     Size slice_h = ctx->slice_h;
     Size n_slices = ctx->_n_slices;
+    Size large_width = width * scale;
 
     int *offset_samples = (int *)malloc(sizeof(int) * n_slices);
     Float64 *slice_buffer = (Float64 *)malloc(sizeof(Float64) * width);
-    Float64 *large_slice_buffer = (Float64 *)malloc(sizeof(Float64) * width * scale);
+    Float64 *large_slice_buffer = (Float64 *)malloc(sizeof(Float64) * large_width);
 
-    F64Arr cy_im = f64arr_subset(&ctx->cy_ims, cy_i, 1);
+    F64Arr cy_im = f64arr_subset(&ctx->cy_ims, cy_i);
     for(Index slice_i=0; slice_i<n_slices; slice_i++) {
         Index row_i = slice_i * slice_h;
         _slice(&cy_im, row_i, slice_h, slice_buffer, width);
         _rescale(slice_buffer, large_slice_buffer, width, scale);
         Float64 *large_cy0_slice = f64arr_ptr1(&ctx->_large_cy0_slices, slice_i);
-        Index offset = _convolve(large_cy0_slice, large_slice_buffer, scale, width);
+        Index offset = _convolve(large_cy0_slice, large_slice_buffer, scale, large_width);
+trace("%ld\n", offset);
         offset_samples[slice_i] = offset;
     }
 
@@ -148,7 +171,6 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
 
 
 char *context_init(SubPixelAlignContext *ctx) {
-trace("\n");
     // SLICE up cycle 0 and re-use it on each cycle
     Size height = ctx->mea_h;
     Size width = ctx->mea_w;
@@ -156,24 +178,19 @@ trace("\n");
     Size slice_h = ctx->slice_h;
     Size n_slices = height / slice_h;
     ctx->_n_slices = n_slices;
-trace("\n");
 
     Float64 *slice_buffer = (Float64 *)malloc(sizeof(Float64) * width);
     Size cy0_slices_shape[2] = { n_slices, scale * width };
-trace("shape %ld %ld\n", cy0_slices_shape[0], cy0_slices_shape[1]);
     ctx->_large_cy0_slices = f64arr_malloc(2, cy0_slices_shape);
-trace("\n");
 
+    F64Arr cy0_im = f64arr_subset(&ctx->cy_ims, 0);
     for(Index slice_i=0; slice_i<n_slices; slice_i++) {
         Index row_i = slice_i * slice_h;
-        F64Arr cy0_im = f64arr_subset(&ctx->cy_ims, 0, 1);
         _slice(&cy0_im, row_i, slice_h, slice_buffer, width);
         _rescale(slice_buffer, f64arr_ptr1(&ctx->_large_cy0_slices, slice_i), width, scale);
     }
-trace("\n");
 
     free(slice_buffer);
-trace("\n");
 
     return NULL;
 }

@@ -458,10 +458,9 @@ void f64arr_set_shape(F64Arr *arr, Size n_dims, Size *shape) {
     for(Sint64 i=n_dims-1; i>=0; i--) {
         arr->shape[i] = shape[i];
         arr->pitch[i] = size;
-        size *= arr->pitch[i];
+        size *= arr->shape[i];
     }
 }
-
 
 F64Arr f64arr(void *base, Size n_dims, Size *shape) {
     F64Arr arr;
@@ -471,7 +470,7 @@ F64Arr f64arr(void *base, Size n_dims, Size *shape) {
 }
 
 
-F64Arr f64arr_subset(F64Arr *src, Index i, Size n_rows) {
+F64Arr f64arr_subset(F64Arr *src, Index i) {
     F64Arr arr;
     arr.base = &src->base[i * src->pitch[0]];
     f64arr_set_shape(&arr, src->n_dims - 1, &src->shape[1]);

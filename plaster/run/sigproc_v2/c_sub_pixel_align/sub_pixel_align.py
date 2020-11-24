@@ -138,12 +138,15 @@ def _do_sub_pixel_align_cycle(cy_i, ctx):
 def sub_pixel_align_cy_ims(cy_ims):
     check.array_t(cy_ims, ndim=3, dtype=np.float64)
 
+    slice_h = 1  # TODO: Change to correct value!!
+
     n_cycles = cy_ims.shape[0]
     def _run(ims):
-        with context(ims) as ctx:
+        with context(ims, slice_h) as ctx:
             zap.arrays(
                 _do_sub_pixel_align_cycle,
                 dict(cy_i=list(range(1, n_cycles))),
+                _debug_mode=True,  # TODO REMOVE ME!
                 _process_mode=False,
                 _trap_exceptions=False,
                 ctx=ctx,
@@ -151,10 +154,13 @@ def sub_pixel_align_cy_ims(cy_ims):
         return ctx._out_offsets
 
     aln_x = _run(cy_ims)
+    debug(aln_x)
 
+    # TODO: PUT BACK IN
     # Transpose and repeat
-    transposed_cy_ims = np.transpose(cy_ims, (0, 2, 1))
-    aln_y = _run(transposed_cy_ims)
+    # transposed_cy_ims = np.transpose(cy_ims, (0, 2, 1))
+    # aln_y = _run(transposed_cy_ims)
+    aln_y = aln_x
 
     return np.vstack((aln_y, aln_x)).T
 
