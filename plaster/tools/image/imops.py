@@ -235,8 +235,9 @@ def align(im_stack, return_shifted_ims=False):
         max_score
         shifted_ims (optional)
     """
-    check.array_t(im_stack, ndim=3, is_square=True, dtype=np.float64)
+    check.array_t(im_stack, ndim=3, dtype=np.float64)
     n_cycles, mea_h, mea_w = im_stack.shape
+    assert mea_h == mea_w
 
     offsets = [YX(0, 0)]
     primary = im_stack[0]
@@ -256,7 +257,7 @@ def align(im_stack, return_shifted_ims=False):
 
         pixel_aligned_cy_ims = np.zeros((n_cycles, mea_h, mea_w))
         for cy_i, offset in zip(range(n_cycles), offsets):
-            shifted_im = shift(im_stack[cy_i], -offset)
+            shifted_im = shift(im_stack[cy_i], offset * -1)
             pixel_aligned_cy_ims[cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
                 roi[0], roi[1]
             ]

@@ -148,6 +148,7 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
 
 
 char *context_init(SubPixelAlignContext *ctx) {
+trace("\n");
     // SLICE up cycle 0 and re-use it on each cycle
     Size height = ctx->mea_h;
     Size width = ctx->mea_w;
@@ -155,10 +156,13 @@ char *context_init(SubPixelAlignContext *ctx) {
     Size slice_h = ctx->slice_h;
     Size n_slices = height / slice_h;
     ctx->_n_slices = n_slices;
+trace("\n");
 
     Float64 *slice_buffer = (Float64 *)malloc(sizeof(Float64) * width);
     Size cy0_slices_shape[2] = { n_slices, scale * width };
+trace("shape %ld %ld\n", cy0_slices_shape[0], cy0_slices_shape[1]);
     ctx->_large_cy0_slices = f64arr_malloc(2, cy0_slices_shape);
+trace("\n");
 
     for(Index slice_i=0; slice_i<n_slices; slice_i++) {
         Index row_i = slice_i * slice_h;
@@ -166,8 +170,10 @@ char *context_init(SubPixelAlignContext *ctx) {
         _slice(&cy0_im, row_i, slice_h, slice_buffer, width);
         _rescale(slice_buffer, f64arr_ptr1(&ctx->_large_cy0_slices, slice_i), width, scale);
     }
+trace("\n");
 
     free(slice_buffer);
+trace("\n");
 
     return NULL;
 }

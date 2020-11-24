@@ -146,6 +146,10 @@ class FixupStructure(c.Structure):
                 fields += [(field_name, Tab)]
                 cls._tab_types[field_name] = f[2]
 
+            elif f[1] is F64Arr:
+                fields += [(field_name, F64Arr)]
+                cls._tab_types[field_name] = c.POINTER(c.c_double)
+
             else:
                 fields += [(field_name, f[1])]
 
@@ -210,21 +214,24 @@ class F64Arr(c.Structure):
     ]
 
     @classmethod
-    def from_mat(cls, mat):
-        check.array_t(mat, dtype=np.float64, c_contiguous=True)
+    def from_ndarray(cls, ndarr):
+        check.array_t(ndarr, dtype=np.float64, c_contiguous=True)
         arr = F64Arr()
-        arr.base = mat.ctypes.data_as(c.c_void_p)
-        assert mat.ndim <= cls.MAX_ARRAY_DIMS
-        arr.n_dims = mat.ndim
+        arr.base = ndarr.ctypes.data_as(c.c_void_p)
 
-        arr.shape0 = mat.shape[0] if arr.ndim <= 1 else 0
-        arr.shape1 = mat.shape[1] if arr.ndim <= 2 else 0
-        arr.shape2 = mat.shape[2] if arr.ndim <= 3 else 0
-        arr.shape3 = mat.shape[3] if arr.ndim <= 4 else 0
+        assert ndarr.ndim <= cls.MAX_ARRAY_DIMS
+        arr.n_dims = ndarr.ndim
 
-        arr.pitch3 = 1 if arr.ndim <= 4 else 0
-        arr.pitch2 = arr.shape[3] * arr.pitch3 if arr.ndim <= 3 else 0
-        arr.pitch1 = arr.shape[2] * arr.pitch2 if arr.ndim <= 2 else 0
-        arr.pitch0 = arr.shape[1] * arr.pitch1 if arr.ndim <= 1 else 0
+        arr.shape0 = ndarr.shape[0] if ndarr.ndim >= 1 else 0
+        arr.shape1 = ndarr.shape[1] if ndarr.ndim >= 2 else 0
+        arr.shape2 = ndarr.shape[2] if ndarr.ndim >= 3 else 0
+        arr.shape3 = ndarr.shape[3] if ndarr.ndim >= 4 else 0
+
+        # Pitch is the cumulative size of the blocks less than each dimension
+        # (ie how much has to be added to advance one index in eah dimension)
+        arr.pitch3 = 1 if ndarr.ndim >= 4 else 1
+        arr.pitch2 = max(1,arr.shape3) * arr.pitch3 if ndarr.ndim >= 3 else 1
+        arr.pitch1 = max(1,arr.shape2) * arr.pitch2 if ndarr.ndim >= 2 else 1
+        arr.pitch0 = max(1,arr.shape1) * arr.pitch1 if ndarr.ndim >= 1 else 1
 
         return arr

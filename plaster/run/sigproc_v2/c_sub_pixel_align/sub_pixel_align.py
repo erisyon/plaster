@@ -82,12 +82,8 @@ def load_lib():
     ]
 
     lib.sub_pixel_align_one_cycle.argtypes = [
-        np.ctypeslib.ndpointer(
-            dtype=np.float64, ndim=1, flags="C_CONTIGUOUS"
-        ),  # double *p
-        np.ctypeslib.ndpointer(
-            dtype=np.float64, ndim=1, flags="C_CONTIGUOUS"
-        ),  # double *dst_x
+        c.POINTER(SubPixelAlignContext),  # SubPixelAlignContext context
+        c_common_tools.typedef_to_ctype("Index"),  # Index radrow_start_i,
     ]
     lib.sub_pixel_align_one_cycle.restype = c.c_char_p
 
@@ -112,13 +108,14 @@ def context(cy_ims, slice_h=11):
     out_offsets = np.zeros((n_cycles,), dtype=np.float64)
 
     ctx = SubPixelAlignContext(
-        cy_ims=np.ascontiguousarray(pixel_aligned_cy_ims, dtype=np.float64),
+        cy_ims=F64Arr.from_ndarray(pixel_aligned_cy_ims),
         n_cycles=n_cycles,
         mea_h=mea_h,
         mea_w=mea_w,
         slice_h=slice_h,
         scale=100,
-        out_offsets=np.ascontiguousarray(out_offsets, dtype=np.float64),
+        out_offsets=F64Arr.from_ndarray(out_offsets),
+        _out_offsets=out_offsets,
     )
 
     error = lib.context_init(ctx)
@@ -142,16 +139,24 @@ def sub_pixel_align_cy_ims(cy_ims):
     check.array_t(cy_ims, ndim=3, dtype=np.float64)
 
     n_cycles = cy_ims.shape[0]
-    with context(cy_ims) as ctx:
-        zap.arrays(
-            _do_sub_pixel_align_cycle,
-            dict(cy_i=list(range(1, n_cycles))),
-            _process_mode=False,
-            _trap_exceptions=False,
-            ctx=ctx,
-        )
+    def _run(ims):
+        with context(ims) as ctx:
+            zap.arrays(
+                _do_sub_pixel_align_cycle,
+                dict(cy_i=list(range(1, n_cycles))),
+                _process_mode=False,
+                _trap_exceptions=False,
+                ctx=ctx,
+            )
+        return ctx._out_offsets
 
-    # TODO: Transpose and repeat
+    aln_x = _run(cy_ims)
+
+    # Transpose and repeat
+    transposed_cy_ims = np.transpose(cy_ims, (0, 2, 1))
+    aln_y = _run(transposed_cy_ims)
+
+    return np.vstack((aln_y, aln_x)).T
 
 
 def sub_pixel_align_chcy_ims(chcy_ims):

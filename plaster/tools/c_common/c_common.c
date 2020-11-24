@@ -454,7 +454,8 @@ void f64arr_set_shape(F64Arr *arr, Size n_dims, Size *shape) {
     memset(arr->shape, 0, sizeof(Size) * MAX_ARRAY_DIMS);
     memset(arr->pitch, 0, sizeof(Size) * MAX_ARRAY_DIMS);
     Size size = 1;
-    for(Index i=n_dims-1; i>=0; i++) {
+    ensure(0 < n_dims && n_dims <= MAX_ARRAY_DIMS, "Illegal n_dims for F64Arr");
+    for(Sint64 i=n_dims-1; i>=0; i--) {
         arr->shape[i] = shape[i];
         arr->pitch[i] = size;
         size *= arr->pitch[i];
