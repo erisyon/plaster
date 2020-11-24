@@ -1,6 +1,6 @@
 from zest import zest
 from plaster.tools.image import imops
-from plaster.tools.image.coord import XY
+from plaster.tools.image.coord import XY, YX
 from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.c_sub_pixel_align.sub_pixel_align import (
     sub_pixel_align_cy_ims,
@@ -38,21 +38,29 @@ def zest_sub_pixel_align():
     def it_aligns_one_spot():
         cy_ims = np.zeros((2, 21, 21))
 
-        peak_im = imops.gauss2_rho_form(1000.0, 2.0, 2.0, 5.5, 5.5, 0.0, 0.0, 11)
-        imops.accum_inplace(cy_ims[0], peak_im, XY(10, 10), center=True)
+        peak_im = imops.gauss2_rho_form(
+            1000.0, 2.0, 2.0, pos_y=5.5, pos_x=5.5, rho=0.0, const=0.0, mea=11
+        )
+        imops.accum_inplace(cy_ims[0], peak_im, YX(10, 10), center=True)
 
-        peak_im = imops.gauss2_rho_form(1000.0, 2.0, 2.0, 5.8, 4.9, 0.0, 0.0, 11)
-        imops.accum_inplace(cy_ims[1], peak_im, XY(10, 10), center=True)
+        peak_im = imops.gauss2_rho_form(
+            1000.0, 2.0, 2.0, pos_y=5.7, pos_x=5.6, rho=0.0, const=0.0, mea=11
+        )
+        imops.accum_inplace(cy_ims[1], peak_im, YX(10 + 1, 10 - 2), center=True)
 
         pred_aln = sub_pixel_align_cy_ims(cy_ims)
 
-        diff = pred_aln - np.array([10.5, 10.5])
-        assert np.all(np.abs(diff) <= 0.1)
+        assert np.all(pred_aln[0, :] == 0)
+
+        diff = pred_aln[1, :] - np.array([1.0 + 0.2, -2.0 + 0.1])
+        assert np.all(np.abs(diff) <= 0.01)
 
     def it_aligns_full_image():
         cy_ims, true_aln = _synth_cycles()
 
         pred_aln = sub_pixel_align_cy_ims(cy_ims)
+
+        debug(pred_aln, true_aln)
 
         diff = pred_aln - true_aln
         assert np.all(np.abs(diff) <= 0.1)

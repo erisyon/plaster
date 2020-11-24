@@ -15,11 +15,11 @@ void _dump_vec(Float64 *vec, int width, int height, char *msg) {
     trace("VEC %s [\n", msg);
     for(int y=0; y<height; y++) {
         for(int x=0; x<width; x++) {
-            fprintf(_log, "%4.2f, ", vec[y*width + x]);
+            fprintf(_log, "%4.4f, ", vec[y*width + x]);
         }
         fprintf(_log, "\n");
     }
-    trace("]\n");
+    fprintf(_log, "]\n");
 }
 
 
@@ -100,34 +100,29 @@ int _convolve(Float64 *cy0, Float64 *cyi, int scale, int width) {
 
     Float64 max_sum = 0.0;
     int max_offset = 0;
-    int _width;
-    int _scale = scale / 2;  // div 2 because we only want to search half a pixel in each direction
-    for(int offset=-_scale; offset<_scale; offset++) {
+    int _width = width - scale;
+    for(int offset = -scale; offset <= scale; offset++) {
         Float64 *_cy0 = cy0;
         Float64 *_cyi = cyi;
 
         if(offset < 0) {
             _cyi = &cyi[-offset];
-            _width = width + offset;
         }
         else {
             _cy0 = &cy0[offset];
-            _width = width - offset;
         }
 
         Float64 sum = 0.0;
         for(Index i=0; i<_width; i++) {
             sum += (*_cy0++) * (*_cyi++);
         }
-        sum /= (Float64)_width;
         if(sum > max_sum) {
             max_sum = sum;
             max_offset = offset;
         }
     }
 
-trace("%d\n", max_offset);
-    return max_offset;
+    return -1 * max_offset; // Minus to get it into the original coords.
 }
 
 
@@ -149,8 +144,8 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
         _slice(&cy_im, row_i, slice_h, slice_buffer, width);
         _rescale(slice_buffer, large_slice_buffer, width, scale);
         Float64 *large_cy0_slice = f64arr_ptr1(&ctx->_large_cy0_slices, slice_i);
+
         Index offset = _convolve(large_cy0_slice, large_slice_buffer, scale, large_width);
-trace("%ld\n", offset);
         offset_samples[slice_i] = offset;
     }
 
@@ -160,7 +155,11 @@ trace("%ld\n", offset);
         mean_offset += offset_samples[slice_i];
     }
     mean_offset /= (Float64)n_slices;
-    *f64arr_ptr1(&ctx->out_offsets, cy_i) = (mean_offset - scale) / scale;
+    Float64 ret = 2 * mean_offset / scale;
+        // Not sure where this factor of 2 comes from but it
+        // is clear from testing that it is needed. Presumably
+        // because we search both side of the offset
+    *f64arr_ptr1(&ctx->out_offsets, cy_i) = ret;
 
     free(large_slice_buffer);
     free(slice_buffer);
