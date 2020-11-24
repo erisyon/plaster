@@ -116,8 +116,10 @@ from plumbum import local
 # ---------------------------------------------------------------------------------------------
 
 
-def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
+def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
     """
+    Extract a PSF and extract illumination balance
+
     Arguments:
         calib:
             Where to add the calibration
@@ -126,32 +128,17 @@ def _calibrate_psf(calib, ims_import_result, sigproc_v2_params):
             "frames" are "zstacks"
     """
 
-    # TODO: is_movie conflates two things:
-    # 1. For psf calibration, cycles don't mean chemical cycles but rather the stack of images with varying focus
-    # 2. In ims_import, is_movie assumes that input files are nd2 files.
-    # Once this conflation is removed, is_movie can mean just #1, and this assert can be uncommented
-
-    # assert ims_import_result.params.is_movie is True
-
     focus_per_field_per_channel = []
     _, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
     for ch_i in range(0, n_channels):
-        fl_zi_ims = ims_import_result.ims[:, ch_i, :]
-        psf_stats_ch, focus_per_field = psf.psf_all_fields_one_channel(
-            fl_zi_ims, sigproc_v2_params
-        )
+        cy_ims = ims_import_result.ims[:, ch_i, :]
+        reg_psf = psf.psf_all_fields_one_channel(cy_ims, sigproc_v2_params)
 
         prop = f"regional_psf_zstack.instrument_channel[{ch_i}]"
-        calib.add({prop: psf_stats_ch})
-        focus_per_field_per_channel += [focus_per_field]
+        calib.add({prop: reg_psf.to_list()})
 
-    return calib, focus_per_field_per_channel
-
-
-def _calibrate_illum(calib, ims_import_result, progress):
-    """
-    Extract a per-channel regional balance by using the foreground peaks as estimators
-    """
+    # Extract a per-channel regional balance by using the foreground peaks as estimators
+    # using ONLY cycle zero data because cycle 0 has the most peaks.
     n_fields, n_channels, n_cycles = ims_import_result.n_fields_channel_cycles()
     fg_means = np.zeros((n_channels, ims_import_result.dim, ims_import_result.dim))
     for ch_i in range(0, n_channels):
@@ -359,7 +346,9 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     for ch_i in range(n_channels):
         for cy_i, offset in zip(range(n_cycles), aln_offsets):
             shifted_im = imops.sub_pixel_shift(chcy_ims[ch_i, cy_i], -offset)
-            aligned_chcy_ims[ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[roi[0], roi[1]]
+            aligned_chcy_ims[ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
+                roi[0], roi[1]
+            ]
 
     return aligned_chcy_ims
 
@@ -404,6 +393,7 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
 
     for ch_i in range(n_channels):
         z_reg_psfs = calib.psfs(ch_i)
+        # TODO: FIX ME
         z_reg_psfs = psf.psf_gaussianify(z_reg_psfs)
 
         for cy_i in range(n_cycles):
@@ -625,8 +615,6 @@ def _do_sigproc_analyze_and_save_field(
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
     psf_params = None
-    if sigproc_v2_params.run_psf_gauss2_fitter:
-        psf_params = psf.psf_fit_gaussian(calib.psfs(0))
 
     (
         chcy_ims,
