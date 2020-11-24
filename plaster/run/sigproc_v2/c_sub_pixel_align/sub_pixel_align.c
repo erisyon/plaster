@@ -24,6 +24,9 @@ void _dump_vec(Float64 *vec, int width, int height, char *msg) {
 
 
 void _slice(F64Arr *im, Index row_i, Index n_rows_per_slice, Float64 *out_slice, Size width) {
+    // Sum over the vertical element to go from a short 2D signal
+    // to a 1D signal.
+
     memset(out_slice, 0, sizeof(Float64) * width);
     for(Index i=0; i<n_rows_per_slice; i++) {
         Float64 *src = f64arr_ptr1(im, row_i + i);
@@ -37,6 +40,12 @@ void _slice(F64Arr *im, Index row_i, Index n_rows_per_slice, Float64 *out_slice,
 
 void _cubic_spline_segment(Float64 p0, Float64 p1, Float64 p2, Float64 p3, Float64 *dst, Size n_steps) {
     // Catmull-Rom spline
+    //
+    // p0 --------- p1 ----------- p2 ----------- p3
+    //              We are filling
+    //              in this section.
+    //
+
     Float64 cubic     = -0.5*p0 + 1.5*p1 - 1.5*p2 + 0.5*p3;
     Float64 quadratic =      p0 - 2.5*p1 + 2.0*p2 - 0.5*p3;
     Float64 linear    = -0.5*p0          + 0.5*p2;
@@ -59,16 +68,20 @@ void _rescale(
     Size width,
     Size scale
 ) {
-    // Use cubic resampling to expand from slice to out_slice which is scale times larger.
+    // Use cubic resampling to expand from slice to out_slice
+    // which is scale times larger.
+    // The spline interplition uses the derivate of successive points
+    // to estimate the splce. This means that the first and last two points
+    // have to be treated specially -- specifically by duplicating the edge values.
 
-    // Interpolate the first point
+    // Interpolate the first point by duplicating point[0]
     _cubic_spline_segment(
         slice[0], slice[0], slice[1], slice[2],
         &out_slice[0],
         scale
     );
 
-    // Interpolate the middle points
+    // Interpolate the middle points (no boundary effects)
     for(Index i=1; i<width-2; i++) {
         _cubic_spline_segment(
             slice[i-1], slice[i], slice[i+1], slice[i+2],
@@ -77,7 +90,7 @@ void _rescale(
         );
     }
 
-    // Interpolate the last two points
+    // Interpolate the last two points duplicating the point[-1] twice.
     Index i = width - 2;
     _cubic_spline_segment(
         slice[i-1], slice[i], slice[i+1], slice[i+1],
@@ -95,16 +108,24 @@ void _rescale(
 
 
 int _convolve(Float64 *cy0, Float64 *cyi, int scale, int width) {
-    // Shift cyi relative to cy0, so a negative offset means
-    // that cyi is to the left of cy0
+    // Shift cyi relateive to cy0 and sum the product of the intersection.
+    // The inner-most loop and should be the fastest.
 
     Float64 max_sum = 0.0;
     int max_offset = 0;
+
+    // The widht needs to be constant so that all offset functions
+    // end up with the same number of compares (otherwise you have normalize
+    // the comparison)
     int _width = width - scale;
+
+    // SCAN offset, compute sum(a * shifted(b)) and track the maximum
+    // to find the best fit.
     for(int offset = -scale; offset <= scale; offset++) {
         Float64 *_cy0 = cy0;
         Float64 *_cyi = cyi;
 
+        // TRIM appropriate side of the function
         if(offset < 0) {
             _cyi = &cyi[-offset];
         }
@@ -127,6 +148,10 @@ int _convolve(Float64 *cy0, Float64 *cyi, int scale, int width) {
 
 
 char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
+    // The work horse
+    // Loops over each slice and "convolves" each slice re-using the
+    // same buffer on each slice so that the memory requirements don't go up.
+
     Size height = ctx->mea_h;
     Size width = ctx->mea_w;
     Size scale = ctx->scale;
@@ -145,6 +170,7 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
         _rescale(slice_buffer, large_slice_buffer, width, scale);
         Float64 *large_cy0_slice = f64arr_ptr1(&ctx->_large_cy0_slices, slice_i);
 
+        // Compare cycle i slice with the paired cycle 0 slice.
         Index offset = _convolve(large_cy0_slice, large_slice_buffer, scale, large_width);
         offset_samples[slice_i] = offset;
     }
@@ -167,7 +193,10 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
 
 
 char *context_init(SubPixelAlignContext *ctx) {
-    // SLICE up cycle 0 and re-use it on each cycle
+    // The cycle 0 slices are used over and over again so we
+    // cut them up and rescale them once and re-use them even through
+    // this burns a lot memory.
+
     Size height = ctx->mea_h;
     Size width = ctx->mea_w;
     Size scale = ctx->scale;

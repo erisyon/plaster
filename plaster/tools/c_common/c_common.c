@@ -510,3 +510,10 @@ Float64 *f64arr_ptr2(F64Arr *arr, Index i, Index j) {
 Float64 *f64arr_ptr3(F64Arr *arr, Index i, Index j, Index k) {
     return &arr->base[i * arr->pitch[0] + j * arr->pitch[1] + k * arr->pitch[2]];
 }
+
+
+Float64 *f64arr_ptr4(F64Arr *arr, Index i, Index j, Index k, Index l) {
+    return &arr->base[
+        i * arr->pitch[0] + j * arr->pitch[1] + k * arr->pitch[2] + l * arr->pitch[3]
+    ];
+}

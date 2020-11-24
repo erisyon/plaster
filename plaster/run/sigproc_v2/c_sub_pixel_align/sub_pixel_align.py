@@ -1,3 +1,39 @@
+"""
+Our instrument images involve stage movement during each field.
+So cycle 0 and cycle 1 of the same "field (region of the slow cell)
+are usually mis-aligned by a few microns which translates into tens
+of pixels of misalignment.
+
+A single-pixel alignment is relatively easy but a full image sub-pixel
+alignment is trickier due to memory constraints.
+
+The single pixel alignment is done by a 2D convolution of cycles 1+
+relative to cycle 0 an d then picking the maximum coordinate of the
+convolution as the shift.  (The scipy convolve function actually runs
+a DFT and is very fast -- note that convolve(a,b) is the same as
+ifft(fft(a) * fft(B))
+
+But sub-pixel by that method would seem to imply that I would need to scale
+the images byt eh sub-pixel factor of, let's say 100 fold.  Thus an image
+of 1024x1024 become (102400 x 102400) = ten thousand fold larger.
+
+So this code takes the following approach to avoid that memory explosion.
+
+1. Do a single pixel alignment as described.
+2. Slice the image horizontally into smallish strips (full width but only
+   a few pixels tall)
+3. Upscale the 1D image by cubic spline interpolation by the scale factor (100)
+4. Sum those "large" strips vertically creating a 1-D function that is a slice of
+   the horizontal signal.
+5. "Narrow convolve" the 1D signal of cycle 1+ with the equivalent slice
+   of cycle 0.  But we know that the shift is within 1 pixel (100 units in the
+   upscaled version) thus we don't need a full convolution across the
+   entire "large" function -- only within 100 units on either side of zero
+   so this can eb implemented with a for-loop summing over product of
+   sum(cy[0], shifted(cy[i]))
+"""
+
+
 import numpy as np
 from plumbum import local
 import ctypes as c
@@ -135,6 +171,15 @@ def _do_sub_pixel_align_cycle(cy_i, ctx):
 
 
 def sub_pixel_align_cy_ims(cy_ims, slice_h):
+    """
+    The C implementation of the sub=-pixel aligner **ONLY** operates
+    on the x (horizontal) dimension.  To get the vertical you need to
+    transpose the image-stack and run it through the same algorithm
+    which is slightly less efficient but massively simplifies the
+    C implementation as it eliminates all cross indexing terms
+    ("Am I walking through this vertically or horizontally now?")
+    """
+
     check.array_t(cy_ims, ndim=3, dtype=np.float64)
 
     n_cycles = cy_ims.shape[0]
@@ -163,10 +208,11 @@ def sub_pixel_align_cy_ims(cy_ims, slice_h):
     aln_x = _run(pixel_aligned_cy_ims)
 
     # Transpose and repeat
-    t_pixel_aligned_cy_ims = np.ascontiguousarray(np.transpose(pixel_aligned_cy_ims, (0, 2, 1)), dtype=np.float64)
+    t_pixel_aligned_cy_ims = np.ascontiguousarray(
+        np.transpose(pixel_aligned_cy_ims, (0, 2, 1)), dtype=np.float64
+    )
     aln_y = _run(t_pixel_aligned_cy_ims)
 
-    #+ pixel_offsets[:, 1]
     ret = np.vstack((aln_y, aln_x)).T + pixel_offsets
     return ret
 
