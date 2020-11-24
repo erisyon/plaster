@@ -15,19 +15,16 @@ def build(dst_folder, c_common_folder, flann_include_folder, flann_lib_folder):
     ]
     gcc = local["gcc"]
 
-    nn_v2_o = f"{dst_folder}/_nn_v2.o"
-    if any_out_of_date(
-        parents=["./nn_v2.c", "./_nn_v2.h", f"{c_common_folder}/c_common.h"],
-        children=[nn_v2_o],
-    ):
-        gcc[c_opts, "./_nn_v2.c", "-o", nn_v2_o] & FG
+    def build_c(src_name, include_files):
+        base_src_name = local.path(src_name).stem
+        target_o = f"{dst_folder}/_{base_src_name}.o"
+        if any_out_of_date(parents=[src_name, *include_files], children=[target_o],):
+            gcc[c_opts, src_name, "-o", target_o] & FG
+        return target_o
 
-    c_common_o = f"{dst_folder}/c_common.o"
-    if any_out_of_date(
-        parents=[f"{c_common_folder}/c_common.h", f"{c_common_folder}/c_common.c"],
-        children=[c_common_o],
-    ):
-        gcc[c_opts, f"{c_common_folder}/c_common.c", "-o", c_common_o] & FG
+    common_include_files = [f"{c_common_folder}/c_common.h"]
+    nn_v2_o = build_c("nn_v2.c", common_include_files)
+    c_common_o = build_c(f"{c_common_folder}/c_common.c", common_include_files)
 
     nn_v2_so = f"{dst_folder}/_nn_v2.so"
     if any_out_of_date(parents=[nn_v2_o, c_common_o], children=[nn_v2_so]):

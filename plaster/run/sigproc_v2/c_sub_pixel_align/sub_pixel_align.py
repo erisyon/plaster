@@ -5,7 +5,7 @@ from io import StringIO
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
-from plaster.run.sigproc_v2.c_gauss2_fitter.build import build
+from plaster.run.sigproc_v2.c_sub_pixel_align.build import build
 from plaster.tools.c_common.c_common_tools import CException
 from plaster.tools.image import imops, coord
 from plaster.tools.utils import utils
@@ -81,9 +81,6 @@ def load_lib():
         c.POINTER(SubPixelAlignContext),
     ]
 
-    lib.sub_pixel_align_check.argtypes = []
-    lib.sub_pixel_align_check.restype = c.c_char_p
-
     lib.sub_pixel_align_one_cycle.argtypes = [
         np.ctypeslib.ndpointer(
             dtype=np.float64, ndim=1, flags="C_CONTIGUOUS"
@@ -92,7 +89,7 @@ def load_lib():
             dtype=np.float64, ndim=1, flags="C_CONTIGUOUS"
         ),  # double *dst_x
     ]
-    lib.sub_pixel_align.restype = c.c_char_p
+    lib.sub_pixel_align_one_cycle.restype = c.c_char_p
 
     _lib = lib
     return lib

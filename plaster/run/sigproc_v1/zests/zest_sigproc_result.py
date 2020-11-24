@@ -6,6 +6,7 @@ from plaster.run.sigproc_v1.sigproc_v1_result import SigprocV1Result
 from plaster.tools.log.log import debug
 from plaster.tools.utils.utils import npf, np_array_same
 from plaster.tools.schema import check
+from plaster.run.base_result import disable_disk_memoize
 
 
 def zest_all_df():
@@ -119,23 +120,24 @@ def zest_all_df():
         assert res.fields().equals(props.field_df)
 
     def it_radmats():
-        rad_df = res.radmats()
-        check.df_t(rad_df, SigprocV1Result.radmat_df_schema)
-        assert len(rad_df) == 4 * 2 * 3
+        with disable_disk_memoize():
+            rad_df = res.radmats()
+            check.df_t(rad_df, SigprocV1Result.radmat_df_schema)
+            assert len(rad_df) == 4 * 2 * 3
 
-        # Sanity check a few
-        assert (
-            rad_df[
-                (rad_df.peak_i == 1) & (rad_df.channel_i == 1) & (rad_df.cycle_i == 1)
-            ].signal.values[0]
-            == 1.0
-        )
-        assert (
-            rad_df[
-                (rad_df.peak_i == 2) & (rad_df.channel_i == 0) & (rad_df.cycle_i == 0)
-            ].signal.values[0]
-            == 5.0
-        )
+            # Sanity check a few
+            assert (
+                rad_df[
+                    (rad_df.peak_i == 1) & (rad_df.channel_i == 1) & (rad_df.cycle_i == 1)
+                ].signal.values[0]
+                == 1.0
+            )
+            assert (
+                rad_df[
+                    (rad_df.peak_i == 2) & (rad_df.channel_i == 0) & (rad_df.cycle_i == 0)
+                ].signal.values[0]
+                == 5.0
+            )
 
     def it_mask_rects():
         rects_df = res.mask_rects()
