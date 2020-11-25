@@ -42,12 +42,13 @@ TO DO:
 import copy
 import warnings
 from itertools import cycle
+
 import numpy as np
 from munch import Munch
-from plaster.tools.utils import utils
-from plaster.tools.utils.data import subsample, arg_subsample, cluster
+from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug
-from plaster.tools.image.coord import XY, YX, WH, HW, ROI
+from plaster.tools.utils import utils
+from plaster.tools.utils.data import arg_subsample, cluster, subsample
 
 
 def trap():
@@ -1024,10 +1025,15 @@ class ZPlots:
     def im_peaks(self, im, circle_im, index_im, sig_im, snr_im, **kws):
         """
         This is a custom plot for drawing information about sigproc data
+
+        Args:
+            _circle_color (tuple) - Circle colors can be changed by passing _circle_color,
+                                    which should be a tuple of the form:
+                                    (R, G, B) or (R, G, B, A) where each value is 0-255
         """
         from bokeh.colors import named
-        from bokeh.models import HoverTool
         from bokeh.models import LinearColorMapper  # Defer slow imports
+        from bokeh.models import HoverTool
         from bokeh.palettes import gray
 
         pal = gray(256)
@@ -1051,8 +1057,23 @@ class ZPlots:
         view[:, :, 1] = gpal[palette_scaled_im]
         view[:, :, 2] = bpal[palette_scaled_im]
         view[:, :, 3] = 255
-        view[circle_im > 0, 1] = 180
-        view[circle_im > 0, 2] = 255
+
+        ustack = self._u_stack()
+        ustack.update(kws)
+        circle_color = ustack.get("_circle_color", (0, 180, 255, 255))
+
+        try:
+            if len(circle_color) == 3:
+                circle_color = (*circle_color, 255)
+
+            if not all(v >= 0 and v <= 255 for v in circle_color):
+                raise ValueError("_circle_color values must be between 0 and 255")
+        except TypeError as e:
+            raise TypeError(
+                "_circle_color must be of form (R, G, B) or (R, G, B, A)"
+            ) from e
+
+        view[circle_im > 0, :] = circle_color
 
         # See: "Image Hover" here https://docs.bokeh.org/en/latest/docs/user_guide/tools.html
         self._add_prop("_no_labels", True)
@@ -1098,7 +1119,7 @@ class ZPlots:
 
 
 def notebook_full_width():
-    from IPython.core.display import display, HTML  # Defer slow imports
+    from IPython.core.display import HTML, display  # Defer slow imports
 
     display(HTML("<style>.container { width:100% !important; }</style>"))
 

@@ -4,6 +4,72 @@ import re
 from munch import Munch
 from plaster.tools.utils import utils
 from plumbum import local
+from plaster.run.sigproc_v2.reg_psf import RegPSF
+
+
+"""
+There are are variety of un-related calibration data-sets
+    - PSF per instrument
+    - Illumination per instrument
+    - Bleaching rate of a specific dye
+    - Dud-dye rate of a dye
+    - Others I don't know about yet
+
+The business logic doesn't typically care what instrument or name
+of dye was use, it just wants values. But the high levlel code
+always cares to sanity check that the calibration that is loaded matches
+the data source in question.
+
+I want to make sure that identity (serial number, etc) is never
+semantically encoded in filename.. that is, such identiyt inforation should
+be authoritative from metadata inside the file/record.
+
+There would be a loader that would sanity check the identiy and then
+stip that identity and pass the calibraiton data along to the
+inner business logic that cares about it.
+
+Example:
+    RegPSF: (n_divs, n_divs, 3)
+    RegIlluminationBalance: (n_divs, n_divs)
+
+    Both of these are generates by a 1-count multi-dye expriment
+    on a specific insrument using a specific calibrant peptide.
+    Then they are re-used by every sigproc run from that instrument
+
+
+plaster_main:
+    lookup the instrument and dye serial numbers referenced in the run.yaml
+    Calibation shoul dbe laded based on the iodentiy referenced in a data-source
+    As the calib store for records associated and those identi
+    Pass along identityless records to
+    Separate the validation
+
+    identity, data = load_intrument_raw_data
+    calib.load_from_identity(identity)
+
+Two things:
+    - Load/find records based on identity
+    - Validate that the records conform to versioned schema
+        - Sanity check date (warn if calib is too old for example)
+    - Conversion from some possibly serialized, (human readable?)
+      form into an object that the business-logic code actually needs operate.
+
+
+Ideas for refactor:
+
+class CalibRecord:
+    identity: CalibIdentity
+    type: CalibType
+    value: schemaless?
+
+
+class CalibBag:
+    '''A container of CalibRecords''''
+
+    @classmethod
+    def load_identity(cls, identity: CalibIdentity)
+
+"""
 
 
 class Calibration(Munch):
@@ -101,7 +167,7 @@ class Calibration(Munch):
         regional_fg_threshold=list,
         regional_bg_mean=list,
         regional_bg_std=list,
-        regional_psf_zstack=list,
+        regional_psf=list,
         fg_mean=float,
         fg_std=float,
         zstack_depths=list,
@@ -128,7 +194,7 @@ class Calibration(Munch):
         re.compile("regional_fg_threshold\." + instrument_channel_pat),
         re.compile("regional_bg_mean\." + instrument_channel_pat),
         re.compile("regional_bg_std\." + instrument_channel_pat),
-        re.compile("regional_psf_zstack\." + instrument_channel_pat),
+        re.compile("regional_psf\." + instrument_channel_pat),
         re.compile("zstack_depths\." + instrument_pat),
         re.compile("p_failure_to_bind_amino_acid\." + label_aa_pat),
         re.compile("p_failure_to_attach_to_dye\." + label_aa_pat),
@@ -235,17 +301,10 @@ class Calibration(Munch):
         self.add(new_propsubs)
 
     def psfs(self, ch_i):
-        return np.array(self[f"regional_psf_zstack.instrument_channel[{ch_i}]"])
+        return RegPSF.from_array(
+            np.array(self[f"regional_psf.instrument_channel[{ch_i}]"])
+        )
 
     def __init__(self, propsubs=None):
         super().__init__()
         self.add(propsubs)
-
-    # @classmethod
-    # def fixture_uniform(cls, bg_mean=150, bg_std=15, ):
-    #
-    #     re.compile("regional_illumination_balance\." + instrument_channel_pat),
-    #     re.compile("regional_fg_threshold\." + instrument_channel_pat),
-    #     re.compile("regional_bg_mean\." + instrument_channel_pat),
-    #     re.compile("regional_bg_std\." + instrument_channel_pat),
-    #     re.compile("regional_psf_zstack\." + instrument_channel_pat),

@@ -11,7 +11,7 @@ from plaster.tools.utils import data
 from plaster.tools.log.log import debug
 
 
-def bg_remove(im, kernel):
+def bg_remove(im, approx_psf):
     """
     Use a low-cut filter to subtract out background and "bloom" which is
     the light that scatters from foreground to background.
@@ -32,7 +32,7 @@ def bg_remove(im, kernel):
     # mask_radius in pixels of extra space added around FG candidates
     mask_radius = 2  # Empirical
     circle = imops.generate_circle_mask(mask_radius).astype(np.uint8)
-    cim = imops.convolve(np.nan_to_num(low_cut_im.astype(np.float64)), kernel)
+    cim = imops.convolve(np.nan_to_num(low_cut_im.astype(np.float64)), approx_psf)
 
     # cim can end up with artifacts around the nans so the nan_mask
     # is dilated and splatted as zeros back over the low_cut_im

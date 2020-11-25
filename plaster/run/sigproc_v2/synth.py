@@ -4,12 +4,12 @@ import random
 import copy
 import math
 from typing import List
+from plaster.run.sigproc_v2 import psf
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
 from plaster.tools.utils import utils
 from plaster.tools.schema import check
-from plaster.tools.calibration.psf import RegPSF
 from plumbum import local
 
 # see comment below, above "PeaksModelPSF" regarding why this is commented out
@@ -207,10 +207,10 @@ class PeaksModel(BaseSynthModel):
 
 
 class PeaksModelPSF(PeaksModel):
-    """Sample from a RegPSF"""
+    """Sample from a psf.RegPSF"""
 
-    def __init__(self, psfs_per_cycle: List[RegPSF], **kws):
-        assert all([isinstance(psf, RegPSF) for psf in psfs_per_cycle])
+    def __init__(self, psfs_per_cycle: List[psf.RegPSF], **kws):
+        assert all([isinstance(psf, psf.RegPSF) for psf in psfs_per_cycle])
         self.psfs_per_cycle = psfs_per_cycle
         super().__init__(**kws)
 
