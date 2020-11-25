@@ -79,6 +79,27 @@ def arg_subsample(data, count):
             return all_iz
 
 
+def symmetric_nanstd(arr, mean=0.0, negative_side=True):
+    """
+    Sometimes one side of a distribution is the metric of interest
+    so this returns the std of an array that discards elements
+    above the specified mean and is symmetric about that mean.
+
+    Arguments:
+        arr: ndarray (1D)
+        mean: scalar
+        negative_side: Bool (if true, keep the left of the mean, otherwide right)
+    """
+    check.array_t(arr, ndim=1)
+    arr = arr - mean
+    if negative_side:
+        arr = arr[arr < 0]
+        return np.nanstd(np.concatenate((arr, -arr)))
+    else:
+        arr = arr[arr > 0]
+        return np.nanstd(np.concatenate((arr, -arr)))
+
+
 class ConfMat(np.ndarray):
     """
     An instance of a confusion matrix.

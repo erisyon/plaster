@@ -183,12 +183,9 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     Returns:
         Regionally balance and channel equalized images.
         bg_std for each channel and cycle
+        Copy of the original images (before bg subtraction)
 
     Notes:
-        * This is per-frame because there is a significant bleed of the foreground
-          into the background. That is, more peaks in a region clearly increases the background
-          and thus this needs to be done per-frame.
-
         * Because the background is subtracted, the returned images may contain negative values.
 
     TODO:
@@ -198,8 +195,8 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     dim = chcy_ims.shape[-2:]
     dst_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
     dst_chcy_ims_with_bg = np.zeros((n_channels, n_cycles, *dim))
-    chcy_bg_std = np.zeros((n_channels, n_cycles))
-    kernel = psf.approximate_kernel()
+    dst_chcy_bg_std = np.zeros((n_channels, n_cycles))
+    approx_psf = psf.approximate_psf()
 
     # Per-frame background estimation and removal
     n_channels, n_cycles = chcy_ims.shape[0:2]
@@ -216,38 +213,13 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             if not sigproc_params.skip_regional_balance:
                 im *= bal_im
 
-            use_low_cut_filter_method = True
-            if use_low_cut_filter_method:
-                # NEW low-cut technique
-                # These number were hand-tuned to Abbe (512x512) and might be wrong for other
-                # sizes/instruments and will need to be derivied and/or calibrated.
-                falloff = 0.06
-                radius = 0.080
-                check.array_t(im, ndim=2, is_square=True)
-                mask = 1 - imops.generate_center_weighted_tanh(im.shape[0], falloff=falloff, radius=radius)
-                chcy_bg_std[ch_i, cy_i] = np.nan  # TODO
-                dst_chcy_ims[ch_i, cy_i, :, :] = imops.fft_filter_with_mask(im, mask=mask)
-                dst_chcy_ims_with_bg[ch_i, cy_i, :, :] = im
-            else:
-                # The following background_regional_estimate_im is the slowest
-                # part of step_1. I made an option for skipping this
-                # while developing the Gauss2 fitter where I don't need it
-                if sigproc_params.skip_regional_background:
-                    bg_std = np.std(im)
-                    bg_median = np.median(im)
-                    reg_bg = np.full((5, 5), bg_median)
+            filtered_im, _, bg_std = bg.bg_remove(im, approx_psf)
 
-                else:
-                    reg_bg, reg_bg_stds = bg.background_regional_estimate_im(im, kernel)
-                    bg_std = np.mean(reg_bg_stds)
+            dst_chcy_ims_with_bg[ch_i, cy_i, :, :] = im
+            dst_chcy_ims[ch_i, cy_i, :, :] = filtered_im
+            dst_chcy_bg_std[ch_i, cy_i] = bg_std
 
-                chcy_bg_std[ch_i, cy_i] = bg_std
-                dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_remove(im, reg_bg)
-                dst_chcy_ims_with_bg[ch_i, cy_i, :, :] = im
-
-
-
-    return dst_chcy_ims, chcy_bg_std, dst_chcy_ims_with_bg
+    return dst_chcy_ims, dst_chcy_bg_std, dst_chcy_ims_with_bg
 
 
 '''
@@ -317,7 +289,7 @@ def _analyze_step_3_align(cy_ims, peak_mea):
         aln_offsets: ndarray(n_cycles, 2); where 2 is (y, x)
     """
 
-    kernel = psf.approximate_kernel()
+    kernel = psf.approximate_psf()
 
     fiducial_ims = []
     for im in cy_ims:
@@ -399,9 +371,13 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
     Returns:
         locs: ndarray (n_peaks, 2)  where the second dimaension is in y, x order
     """
-    ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
-    bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
-    locs = fg.peak_find(ch_mean_of_cy0_im, kernel, bg_std)
+
+    # Use more than one cycle to improve the quality of the sub-pixel estimate
+    # But then discard peaks that are off after cycle 1??
+
+    ch_mean_of_cy0_im = np.mean(chcy_ims[:, :, :, :], axis=0)
+    bg_std = np.mean(chcy_bg_stds[:, :], axis=0)
+    locs = fg.sub_pixel_peak_find(ch_mean_of_cy0_im, kernel, bg_std)
     return locs
 
 
@@ -610,7 +586,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     # The goal of previous channel equalization and regional balancing is that
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
-    kernel = psf.approximate_kernel()
+    kernel = psf.approximate_psf()
     locs = _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds)
     prof()
 

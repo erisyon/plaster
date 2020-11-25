@@ -13,7 +13,7 @@ from plaster.tools.utils import utils
 from plaster.tools.zap import zap
 
 
-def approximate_kernel():
+def approximate_psf():
     """
     Return a zero-centered AUC=1.0 2D Gaussian for peak finding
     """
@@ -235,7 +235,7 @@ def _do_psf_one_field_one_channel(zi_ims, peak_mea, divs, n_dst_zslices, n_src_z
 
     dst_z_per_src_z = n_src_zslices / n_dst_zslices
 
-    kernel = approximate_kernel()
+    kernel = approximate_psf()
     im_focuses = np.zeros((n_src_zslices_actual,))
     for src_zi in range(n_src_zslices_actual):
         im = zi_ims[src_zi]

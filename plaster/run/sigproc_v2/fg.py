@@ -9,7 +9,7 @@ from plaster.tools.schema import check
 from enum import Enum
 
 
-def peak_find(im, kernel, bg_std):
+def peak_find(im, approx_psf, bg_std):
     """
     Peak find on a single image.
 
@@ -18,7 +18,7 @@ def peak_find(im, kernel, bg_std):
 
     Arguments:
         im: the image to peak find
-        kernel: An estimated kernel
+        approx_psf: An estimated PSF search kernel
         bg_std:
             The stnadard devaiotn of the background,
             this is scaled by 1.25 to pick a threshold
@@ -30,12 +30,12 @@ def peak_find(im, kernel, bg_std):
 
     thresh = 1.25 * bg_std  # This 1.25 was found empirically
 
-    cim = imops.convolve(np.nan_to_num(im, nan=float(np.nanmedian(im))), kernel)
+    cim = imops.convolve(np.nan_to_num(im, nan=float(np.nanmedian(im))), approx_psf)
 
     # CLEAN the edges
     # ZBS: Added because there were often edge effect from the convolution
     # that created false stray edge peaks.
-    imops.edge_fill(cim, kernel.shape[0])
+    imops.edge_fill(cim, approx_psf.shape[0])
 
     # The background is well-described by the the histogram centered
     # around zero thanks to the fact that im and kern are expected
@@ -46,6 +46,23 @@ def peak_find(im, kernel, bg_std):
         return peak_local_max(cim, min_distance=2, threshold_abs=thresh)
     else:
         return np.zeros((0, 2))
+
+
+def _sub_pixel_peak_find(im, dim, locs):
+    com_per_loc = np.zeros(locs.shape)
+    for loc_i, loc in enumerate(locs):
+        peak_im = imops.crop(im, off=YX(loc[0], loc[1]), dim=dim, center=True)
+        com_per_loc[loc_i] = imops.com(peak_im ** 2)
+    return com_per_loc + locs
+
+
+def sub_pixel_peak_find(im, approx_psf, bg_std):
+    """
+    First find peaks with pixel accuracy and then go back over each
+    one and use the center of mass method to sub-locate them
+    """
+    locs = peak_find(im, approx_psf, bg_std)
+    return _sub_pixel_peak_find(im, HW(approx_psf.shape), locs)
 
 
 def _fit_focus(z_reg_psfs, locs, im):
@@ -267,7 +284,7 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
         Make a regional summary
     """
 
-    kernel = psf.approximate_kernel()
+    kernel = psf.approximate_psf()
     n_fields = fl_ims.shape[0]
     dim = fl_ims.shape[-2:]
 

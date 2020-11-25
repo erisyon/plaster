@@ -1,12 +1,38 @@
 import numpy as np
-from plaster.run.sigproc_v2 import fg
-from plaster.run.sigproc_v2 import synth
-from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import AugmentedGauss2Params
+from plaster.run.sigproc_v2 import synth, bg, fg, psf
 from plaster.tools.log.log import debug
-from plaster.tools.utils import utils
 from zest import zest
 
 
+def zest_peak_find():
+    with synth.Synth(overwrite=True, dim=(512, 512), n_cycles=3) as s:
+        true_n_peaks = 100
+        peaks = (
+            synth.PeaksModelGaussianCircular(n_peaks=true_n_peaks)
+            .amps_constant(1000)
+            .widths_uniform(1.5)
+            .locs_randomize()
+        )
+        synth.CameraModel(100, 10)
+        synth.HaloModel()
+        chcy_ims = s.render_chcy()
+
+    def it_find_pixel_accurate():
+        kernel = psf.approximate_psf()
+        im, _, bg_std = bg.bg_remove(chcy_ims[0, 0], kernel)
+        locs = fg.peak_find(im, kernel, np.mean(bg_std))
+        n_peaks, n_dims = locs.shape
+        assert n_dims == 2
+        assert n_peaks > 0.85 * true_n_peaks
+
+    def it_finds_sub_pixel():
+
+        locs = fg.sub_pixel_peak_find(chcy_mean_im, kernel, bg_std)
+
+    zest()
+
+
+"""
 @zest.skip(reason="WIP")
 def zest_fit_method():
     mea = 11
@@ -120,3 +146,4 @@ def zest_fit_method():
         assert n_nans < 220
 
     zest()
+"""

@@ -16,6 +16,25 @@ from plaster.tools.utils.tmp import tmp_folder, tmp_file
 from zest import zest
 
 
+def zest_peak_finder():
+    def it_sub_pixel_locates():
+        with synth.Synth(overwrite=True, dim=(128, 128)) as s:
+            peaks = (
+                synth.PeaksModelGaussianCircular(n_peaks=2)
+                .amps_constant(val=4_000)
+                .widths_uniform(1.5)
+            )
+            im = s.render_chcy()[0, 0]
+        locs = worker._peak_find(im)
+        if dist > 1.5:
+            # After 1.5 pixels (total of 3 pixels) then the peaks should merge
+            assert locs.shape == (2, 2)
+        assert np.all((locs[:, 0] - 64) ** 2 < 1.5 ** 2)
+
+    zest()
+
+
+'''
 @zest.skip(reason="Need a massive overhaul since refactor")
 def zest_kernel():
     def it_has_zero_mean():
@@ -698,3 +717,4 @@ def zest_gaussian_fitter():
         raise NotImplementedError
 
     zest()
+'''
