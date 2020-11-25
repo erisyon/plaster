@@ -1,33 +1,81 @@
 import numpy as np
 from plaster.run.sigproc_v2 import synth, bg, fg, psf
+from plaster.run.sigproc_v2.reg_psf import approximate_psf
+from plaster.tools.image.coord import HW
 from plaster.tools.log.log import debug
 from zest import zest
 
 
 def zest_peak_find():
-    with synth.Synth(overwrite=True, dim=(512, 512), n_cycles=3) as s:
-        true_n_peaks = 100
-        peaks = (
-            synth.PeaksModelGaussianCircular(n_peaks=true_n_peaks)
-            .amps_constant(1000)
-            .widths_uniform(1.5)
-            .locs_randomize()
-        )
-        synth.CameraModel(100, 10)
-        synth.HaloModel()
-        chcy_ims = s.render_chcy()
-
     def it_find_pixel_accurate():
+        bg_std = 10
+        with synth.Synth(overwrite=True, dim=(512, 512), n_cycles=3) as s:
+            true_n_peaks = 100
+            peaks = (
+                synth.PeaksModelGaussianCircular(n_peaks=true_n_peaks)
+                .amps_constant(1000)
+                .widths_uniform(1.5)
+                .locs_randomize()
+            )
+            s.zero_aln_offsets()
+            synth.CameraModel(0, bg_std)
+            chcy_ims = s.render_chcy()
+
         kernel = psf.approximate_psf()
         im, _, bg_std = bg.bg_remove(chcy_ims[0, 0], kernel)
-        locs = fg.peak_find(im, kernel, np.mean(bg_std))
+        locs = fg.peak_find(chcy_ims[0, 0], kernel, np.mean(bg_std))
         n_peaks, n_dims = locs.shape
         assert n_dims == 2
         assert n_peaks > 0.85 * true_n_peaks
 
-    def it_finds_sub_pixel():
+    def it_finds_sub_pixel_exactly_under_ideal_conditions():
+        """
+        Test the helper _sub_pixel_peak_find instead of sub_pixel_peak_find
+        because we don't want to have to reconcile the peak ordering
+        from the synth with the arbitrary order they are found by the
+        peak finder
+        """
 
-        locs = fg.sub_pixel_peak_find(chcy_mean_im, kernel, bg_std)
+        with synth.Synth(overwrite=True, dim=(512, 512), n_cycles=3) as s:
+            true_n_peaks = 100
+            peaks = (
+                synth.PeaksModelGaussianCircular(n_peaks=true_n_peaks)
+                .amps_constant(1000)
+                .widths_uniform(1.5)
+                .locs_grid()
+            )
+            s.zero_aln_offsets()
+            chcy_ims = s.render_chcy()
+
+        chcy_mean_im = np.mean(chcy_ims, axis=(0, 1))
+        locs = fg._sub_pixel_peak_find(
+            chcy_mean_im, HW(peaks.mea, peaks.mea), peaks.locs.astype(int)
+        )
+        dists = np.linalg.norm(locs - peaks.locs, axis=1)
+        assert np.all(dists < 0.01)
+
+    def it_finds_sub_pixel_well_under_typical_conditions():
+        bg_std = 10
+        with synth.Synth(overwrite=True, dim=(512, 512), n_cycles=3) as s:
+            true_n_peaks = 100
+            peaks = (
+                synth.PeaksModelGaussianCircular(n_peaks=true_n_peaks)
+                .amps_constant(1000)
+                .widths_uniform(1.5)
+                .locs_randomize_away_from_edges()
+            )
+            synth.CameraModel(0, bg_std)
+            s.zero_aln_offsets()
+            chcy_ims = s.render_chcy()
+
+        chcy_mean_im = np.mean(chcy_ims, axis=(0, 1))
+        locs = fg._sub_pixel_peak_find(
+            chcy_mean_im, HW(peaks.mea, peaks.mea), peaks.locs.astype(int)
+        )
+        dists = np.linalg.norm(locs - peaks.locs, axis=1)
+
+        assert (dists < 0.1).sum() > 30
+        assert (dists < 0.2).sum() > 70
 
     zest()
 

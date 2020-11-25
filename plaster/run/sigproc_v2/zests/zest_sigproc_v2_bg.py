@@ -23,6 +23,6 @@ def zest_bg():
         median, high = np.percentile(im, (50, 99.9))
 
         assert np.abs(median) < 1.0
-        assert np.abs(high) < 3.8
+        assert np.abs(high) < 4.0
 
     zest()

@@ -149,11 +149,13 @@ class PeaksModel(BaseSynthModel):
     def locs_grid(self):
         pad = 10
         steps = math.floor(math.sqrt(self.n_peaks))
-        self.locs = [
-            (y, x)
-            for y in utils.ispace(pad, self.dim[0] - 2 * pad, steps)
-            for x in utils.ispace(pad, self.dim[0] - 2 * pad, steps)
-        ]
+        self.locs = np.array(
+            [
+                (y, x)
+                for y in utils.ispace(pad, self.dim[0] - 2 * pad, steps)
+                for x in utils.ispace(pad, self.dim[0] - 2 * pad, steps)
+            ]
+        )
         return self
 
     def amps_constant(self, val):

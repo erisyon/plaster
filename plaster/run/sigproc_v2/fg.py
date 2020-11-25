@@ -52,12 +52,15 @@ def peak_find(im, approx_psf, bg_std):
         return np.zeros((0, 2))
 
 
-def _sub_pixel_peak_find(im, dim, locs):
+def _sub_pixel_peak_find(im, peak_dim, locs):
+    check.array_t(locs, dtype=int)
+    assert peak_dim[0] == peak_dim[1]
+    half_peak_mea = peak_dim[0] // 2
     com_per_loc = np.zeros(locs.shape)
     for loc_i, loc in enumerate(locs):
-        peak_im = imops.crop(im, off=YX(loc[0], loc[1]), dim=dim, center=True)
-        com_per_loc[loc_i] = imops.com(peak_im ** 2)
-    return com_per_loc + locs
+        peak_im = imops.crop(im, off=YX(loc[0], loc[1]), dim=peak_dim, center=True)
+        com_per_loc[loc_i] = imops.com(peak_im ** 2) - half_peak_mea
+    return locs + com_per_loc
 
 
 def sub_pixel_peak_find(im, approx_psf, bg_std):
@@ -65,7 +68,7 @@ def sub_pixel_peak_find(im, approx_psf, bg_std):
     First find peaks with pixel accuracy and then go back over each
     one and use the center of mass method to sub-locate them
     """
-    locs = peak_find(im, approx_psf, bg_std)
+    locs = peak_find(im, approx_psf, bg_std).astype(int)
     return _sub_pixel_peak_find(im, HW(approx_psf.shape), locs)
 
 
