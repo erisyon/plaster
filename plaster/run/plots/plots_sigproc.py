@@ -44,6 +44,12 @@ def _sigproc_v2_im(im, locs, sig=None, snr=None, keep_mask=None, **kwargs):
 
     z = kwargs.pop("_zplots_context", None) or ZPlots()
 
+    if "f_plot_width" not in kwargs:
+        kwargs["f_plot_width"] = 800
+
+    if "f_plot_height" not in kwargs:
+        kwargs["f_plot_height"] = 800
+
     n_locs = len(locs)
 
     if sig is None:
@@ -377,7 +383,7 @@ def wizard_scat_df(
     run,
     default_x="field_i",
     default_y="signal",
-    channel_i=None,
+    default_channel=0,
     result_block="sigproc_v2",
     include_metadata=False,
     n_peaks_subsample=3000,
@@ -405,13 +411,17 @@ def wizard_scat_df(
         meta_df = run.ims_import.metadata().set_index(idx_fields)
         df = df.set_index(idx_fields).join(meta_df).reset_index()
 
-    if channel_i is not None:
-        df = df[df.channel_i == channel_i].reset_index()
     x_name_wid = displays.dropdown(df, "X:", default_x)
     y_name_wid = displays.dropdown(df, "Y:", default_y)
+    channel_wid = list(range(run[result_block].n_channels))
 
-    def scat(x_name, y_name, x_noise):
-        _df = df.sample(n_rows_subsample, replace=True).copy()
+    def scat(x_name, y_name, x_noise, channel_i=default_channel):
+        _df = (
+            df[df.channel_i == channel_i]
+            .reset_index()
+            .sample(n_rows_subsample, replace=True)
+            .copy()
+        )
         _df[x_name] = _df[x_name] + np.random.uniform(-x_noise, +x_noise, size=len(_df))
         source = ColumnDataSource(_df)
         f = figure(
@@ -424,12 +434,16 @@ def wizard_scat_df(
         f.scatter(x=x_name, y=y_name, fill_alpha=0.5, line_color=None, source=source)
         show(f)
 
-    interact(scat, x_name=x_name_wid, y_name=y_name_wid, x_noise=0.1)
+    interact(
+        scat, x_name=x_name_wid, y_name=y_name_wid, x_noise=0.1, channel_i=channel_wid
+    )
 
 
 def wizard_raw_images(
     run,
     max_bright=1_000,
+    min_bright=100,
+    bright_range=(0, 3000),
     show_circles=True,
     peak_i_square=True,
     square_radius=4,
@@ -453,7 +467,15 @@ def wizard_raw_images(
     res = run[result_block]
     df = res.fields__n_peaks__peaks()
 
-    def show_raw(peak_i, field_i, channel_i, cycle_i, max_bright, show_circles):
+    def show_raw(
+        peak_i,
+        field_i,
+        channel_i,
+        cycle_i,
+        min_bright=min_bright,
+        max_bright=max_bright,
+        show_circles=show_circles,
+    ):
         field_i = int(field_i) if field_i != "" else None
         channel_i = int(channel_i)
         cycle_i = int(cycle_i)
@@ -492,7 +514,7 @@ def wizard_raw_images(
         """
         mask_rects_for_field = None
 
-        cspan = (0, max_bright)
+        cspan = (min_bright, max_bright)
         circle = cspan[1] * imops.generate_donut_mask(4, 3)
         square = cspan[1] * imops.generate_square_mask(square_radius)
 
@@ -560,7 +582,7 @@ def wizard_raw_images(
             f_title=f"ch_i={channel_i}  cy_i={cycle_i}  fl_i={field_i}",
             _full=True,
             _noaxes=True,
-            _cspan=(0, float(max_bright)),
+            _cspan=(float(min_bright), float(max_bright)),
         )
         displays.fix_auto_scroll()
 
@@ -570,7 +592,8 @@ def wizard_raw_images(
         field_i="",
         channel_i="0",
         cycle_i="0",
-        max_bright=max_bright,
+        max_bright=bright_range,
+        min_bright=bright_range,
         show_circles=show_circles,
     )
 
@@ -654,7 +677,7 @@ def plot_channel_signal_histograms(
     limit_cycles = (
         range(run.sigproc_v1.n_cycles) if limit_cycles is None else limit_cycles
     )
-    n_bins = 100
+    n_bins = kw.pop("n_bins", 100)
 
     field_label = "(all fields)" if limit_field is None else f"field {limit_field}"
 

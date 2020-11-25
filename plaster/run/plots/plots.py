@@ -807,8 +807,14 @@ def plot_channel_signal_scatter(run, ch0=0, ch1=1, **kwargs):
                 f_x_axis_label=f"signal, channel {ch0}",
                 f_y_axis_label=f"signal, channel {ch1}",
                 f_title=f"cycle {cy}",
-                f_x_range=(0, max_x),
+                f_x_range=(
+                    1
+                    if kwargs.get("f_x_axis_type") == "log"
+                    else 0,  # Bokeh has issues with zeros in log scale plots https://github.com/bokeh/bokeh/issues/6536
+                    max_x,
+                ),
                 f_y_range=(0, max_y),
+                **kwargs,
             )
 
 
