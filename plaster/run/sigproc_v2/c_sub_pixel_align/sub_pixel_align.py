@@ -22,14 +22,13 @@ So this code takes the following approach to avoid that memory explosion.
 1. Do a single pixel alignment as described.
 2. Slice the image horizontally into smallish strips (full width but only
    a few pixels tall)
-3. Upscale the 1D image by cubic spline interpolation by the scale factor (100)
-4. Sum those "large" strips vertically creating a 1-D function that is a slice of
-   the horizontal signal.
+3. Sum the strip vertically making this in to a 1D cross-section.
+3. Upscale the 1D cross-seciton by cubic spline interpolation by the scale factor (100)
 5. "Narrow convolve" the 1D signal of cycle 1+ with the equivalent slice
    of cycle 0.  But we know that the shift is within 1 pixel (100 units in the
    upscaled version) thus we don't need a full convolution across the
    entire "large" function -- only within 100 units on either side of zero
-   so this can eb implemented with a for-loop summing over product of
+   so this can be implemented with a for-loop summing over product of
    sum(cy[0], shifted(cy[i]))
 """
 
