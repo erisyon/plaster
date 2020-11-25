@@ -191,18 +191,24 @@ def circle_locs(
         return circle_im
 
 
-def sigproc_v2_movie_from_df(run, df, fl_i=None, ch_i=0, bg_only=False, fg_only=False):
+def sigproc_v2_movie_from_df(run, df=None, fl_i=None, ch_i=0, bg_only=False, fg_only=False):
     """
     Render a movie of cycles for the peaks that are in the df
     If fl_i is None then it is enforced that all peaks in the df must come form one field
     """
-    if fl_i is not None:
-        df = df[df.field_i == fl_i]
 
-    assert df.field_i.nunique() == 1
-    fl_i = df.field_i[0]
+    if df is not None:
+        if fl_i is not None:
+            df = df[df.field_i == fl_i]
 
-    locs = df[["aln_y", "aln_x"]].drop_duplicates().values
+        assert df.field_i.nunique() == 1
+        fl_i = df.field_i[0]
+
+        locs = df[["aln_y", "aln_x"]].drop_duplicates().values
+    else:
+        if fl_i is None:
+            fl_i = 0
+        locs = []
 
     ims = run.sigproc_v2.aln_ims[fl_i, ch_i, :]
 

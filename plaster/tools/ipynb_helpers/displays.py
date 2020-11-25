@@ -3,6 +3,8 @@ import re
 from contextlib import contextmanager
 import binascii
 import os
+from plaster.tools.log.log import debug
+from plaster.tools.schema import check
 
 
 def dropdown(df, description, value):
@@ -304,6 +306,8 @@ def css_for_markdown():
 def movie(
     ims, overlay=None, _cspan=None, _cper=None, _size=None, _labels=None, _duration=250
 ):
+    check.array_t(ims, ndim=3)
+
     from IPython.core.display import display, HTML  # Defer slow imports
     from PIL import Image, ImageFont, ImageDraw
     import random

@@ -216,21 +216,36 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             if not sigproc_params.skip_regional_balance:
                 im *= bal_im
 
-            # The following background_regional_estimate_im is the slowest
-            # part of step_1. I made an option for skipping this
-            # while developing the Gauss2 fitter where I don't need it
-            if sigproc_params.skip_regional_background:
-                bg_std = np.std(im)
-                bg_median = np.median(im)
-                reg_bg = np.full((5, 5), bg_median)
-
+            use_low_cut_filter_method = True
+            if use_low_cut_filter_method:
+                # NEW low-cut technique
+                # These number were hand-tuned to Abbe (512x512) and might be wrong for other
+                # sizes/instruments and will need to be derivied and/or calibrated.
+                falloff = 0.06
+                radius = 0.080
+                check.array_t(im, ndim=2, is_square=True)
+                mask = 1 - imops.generate_center_weighted_tanh(im.shape[0], falloff=falloff, radius=radius)
+                chcy_bg_std[ch_i, cy_i] = np.nan  # TODO
+                dst_chcy_ims[ch_i, cy_i, :, :] = imops.fft_filter_with_mask(im, mask=mask)
+                dst_chcy_ims_with_bg[ch_i, cy_i, :, :] = im
             else:
-                reg_bg, reg_bg_stds = bg.background_regional_estimate_im(im, kernel)
-                bg_std = np.mean(reg_bg_stds)
+                # The following background_regional_estimate_im is the slowest
+                # part of step_1. I made an option for skipping this
+                # while developing the Gauss2 fitter where I don't need it
+                if sigproc_params.skip_regional_background:
+                    bg_std = np.std(im)
+                    bg_median = np.median(im)
+                    reg_bg = np.full((5, 5), bg_median)
 
-            chcy_bg_std[ch_i, cy_i] = bg_std
-            dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_remove(im, reg_bg)
-            dst_chcy_ims_with_bg[ch_i, cy_i, :, :] = im
+                else:
+                    reg_bg, reg_bg_stds = bg.background_regional_estimate_im(im, kernel)
+                    bg_std = np.mean(reg_bg_stds)
+
+                chcy_bg_std[ch_i, cy_i] = bg_std
+                dst_chcy_ims[ch_i, cy_i, :, :] = bg.bg_remove(im, reg_bg)
+                dst_chcy_ims_with_bg[ch_i, cy_i, :, :] = im
+
+
 
     return dst_chcy_ims, chcy_bg_std, dst_chcy_ims_with_bg
 
@@ -306,6 +321,7 @@ def _analyze_step_3_align(cy_ims, peak_mea):
 
     fiducial_ims = []
     for im in cy_ims:
+        im = im.astype(np.float64)
         if not np.all(np.isnan(im)):
             med = float(np.nanmedian(im))
         else:
@@ -332,6 +348,7 @@ def _analyze_step_3_align(cy_ims, peak_mea):
 
     # SUB-PIXEL-ALIGN
     aln_offsets = sub_pixel_align_cy_ims(fiducial_cy_ims, slice_h=peak_mea)
+    # aln_offsets = imops.align(fiducial_cy_ims)
 
     return aln_offsets
 
@@ -354,6 +371,7 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     n_channels, n_cycles = chcy_ims.shape[0:2]
     check.array_t(aln_offsets, shape=(n_cycles, 2))
     assert n_cycles == aln_offsets.shape[0]
+    chcy_ims = chcy_ims.astype(np.float64)
 
     raw_dim = chcy_ims.shape[-2:]
     roi = imops.intersection_roi_from_aln_offsets(aln_offsets, raw_dim)
@@ -554,10 +572,14 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
         calib: calibration
     """
 
+    prof()
+    debug(chcy_ims.shape)
+
     # Step 1: Load the images in output channel order, balance, equalize
     chcy_ims, chcy_bg_stds, chcy_ims_with_bg = _analyze_step_1_import_balanced_images(
         chcy_ims, sigproc_v2_params, calib
     )
+    prof()
     # At this point, chcy_ims has its background subtracted and is
     # regionally and channel balanced. It may contain negative values.
 
@@ -574,9 +596,11 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     aln_offsets = _analyze_step_3_align(
         np.mean(chcy_ims, axis=0), sigproc_v2_params.peak_mea
     )
+    prof()
 
     # Step 4: Composite with alignment
     chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets)
+    prof()
     # chcy_ims is now only the shape of only intersection region so is likely
     # to be smaller than the original and not necessarily a power of 2.
 
@@ -588,15 +612,18 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     # a single values for fg_thresh and bg_thresh.
     kernel = psf.approximate_kernel()
     locs = _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds)
+    prof()
 
     # Step 6: Radiometry over each channel, cycle
     radmat = _analyze_step_6_radiometry(chcy_ims, locs, calib)
+    prof()
 
     fitmat = None
     sftmat = None
     if sigproc_v2_params.run_analysis_gauss2_fitter:
         fitmat = _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params)
         # fitmat = _analyze_step_6b_fitter(chcy_ims_with_bg, locs, calib, psf_params)
+    prof()
 
     difmat = None
     picmat = None
@@ -604,6 +631,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
         difmat, picmat, sftmat = _analyze_step_6c_peak_differencing(
             chcy_ims, locs, sigproc_v2_params.peak_mea
         )
+    prof()
 
     # Temporaily removed until a better metric can be found
     # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
@@ -674,6 +702,8 @@ def _do_sigproc_analyze_and_save_field(
 
     assert len(radmat) == len(peak_df)
 
+    debug(field_df)
+
     sigproc_v2_result.save_field(
         field_i,
         peak_df=peak_df,
@@ -685,6 +715,8 @@ def _do_sigproc_analyze_and_save_field(
         sftmat=sftmat,
         _aln_chcy_ims=chcy_ims,
     )
+
+    debug()
 
 
 # Entrypoints
@@ -757,6 +789,8 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
     n_fields_limit = sigproc_v2_params.n_fields_limit
     if n_fields_limit is not None and n_fields_limit < n_fields:
         n_fields = n_fields_limit
+
+    debug(n_fields)
 
     zap.work_orders(
         [
