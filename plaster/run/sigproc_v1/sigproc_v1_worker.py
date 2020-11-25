@@ -445,7 +445,7 @@ def _step_2_align(raw_chcy_ims, sigproc_params):
         [imops.convolve(im.clip(min=0), kernel) for im in ch_merged_cy_ims]
     )
 
-    alignment_offsets, alignment_scores = imops.align(fiducial_ims)
+    alignment_offsets = imops.align(fiducial_ims)
 
     ch_out_to_in = sigproc_params.output_channel_to_input_channel
 
@@ -455,7 +455,6 @@ def _step_2_align(raw_chcy_ims, sigproc_params):
                 cycle_i=cy,
                 shift_y=off[0],
                 shift_x=off[1],
-                aln_score=aln_score,
                 channel_i=outch,
                 bg_median=medians_by_ch_cy[ch_out_to_in(outch), cy],
                 n_mask_rects=len(raw_mask_rects[ch_out_to_in(outch)][cy]),
@@ -467,9 +466,7 @@ def _step_2_align(raw_chcy_ims, sigproc_params):
                 ),
             )
             for outch in range(n_outchannels)
-            for cy, off, aln_score in zip(
-                range(n_cycles), alignment_offsets, alignment_scores
-            )
+            for cy, off in zip(range(n_cycles), alignment_offsets)
         ]
     )
 

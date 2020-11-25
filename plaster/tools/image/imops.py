@@ -232,7 +232,6 @@ def align(im_stack, return_shifted_ims=False):
 
     Returns:
         list of YX tuples
-        max_score
         shifted_ims (optional)
     """
     check.array_t(im_stack, ndim=3, dtype=np.float64)

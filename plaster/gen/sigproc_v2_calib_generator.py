@@ -15,7 +15,8 @@ class SigprocV2CalibGenerator(BaseGenerator):
     schema = s(
         s.is_kws_r(
             **BaseGenerator.sigproc_v2_schema.schema(),
-            mode=s.is_str(options=["psf", "illum"]),
+            mode=s.is_str(options=["illum"]),
+            # This will eventually have a second option "dye calib"
         )
     )
 
@@ -28,10 +29,8 @@ class SigprocV2CalibGenerator(BaseGenerator):
             self.sigproc_source, is_movie=(self.mode == "psf")
         )
 
-        modes = dict(
-            psf=sigproc_v2_common.SIGPROC_V2_PSF_CALIB,
-            illum=sigproc_v2_common.SIGPROC_V2_ILLUM_CALIB,
-        )
+        # See note above. Only one option at moment
+        modes = dict(illum=sigproc_v2_common.SIGPROC_V2_ILLUM_CALIB,)
         mode = modes.get(self.mode)
         assert mode is not None
 
