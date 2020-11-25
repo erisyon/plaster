@@ -100,9 +100,12 @@ import cv2
 import numpy as np
 import pandas as pd
 from munch import Munch
+
+import plaster.run.sigproc_v2.reg_psf
 from plaster.run.sigproc_v2 import bg, fg, psf
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
+from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import Gauss2FitParams
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
@@ -182,7 +185,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     dst_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
     dst_chcy_ims_with_bg = np.zeros((n_channels, n_cycles, *dim))
     chcy_bg_std = np.zeros((n_channels, n_cycles))
-    kernel = psf.approximate_kernel()
+    kernel = plaster.run.sigproc_v2.reg_psf.approximate_psf()
 
     # Per-frame background estimation and removal
     n_channels, n_cycles = chcy_ims.shape[0:2]
@@ -286,7 +289,7 @@ def _analyze_step_3_align(cy_ims):
         max_score: list of max_score
     """
 
-    kernel = psf.approximate_kernel()
+    kernel = plaster.run.sigproc_v2.reg_psf.approximate_psf()
 
     fiducial_ims = []
     for im in cy_ims:
@@ -409,7 +412,7 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     return radmat
 
 
-def _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params):
+def _analyze_step_6b_fitter(chcy_ims, locs, reg_psf: psf.RegPSF):
     """
     Fit Gaussian.
 
@@ -438,9 +441,7 @@ def _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params):
         for cy_i in range(n_cycles):
             im = chcy_ims[ch_i, cy_i]
 
-            params = fg.radiometry_one_channel_one_cycle_fit_method(
-                im, psf_params, locs
-            )
+            params = fg.radiometry_one_channel_one_cycle_fit_method(im, reg_psf, locs)
 
             fitmat[:, ch_i, cy_i, :] = params
 
@@ -520,7 +521,9 @@ def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
 """
 
 
-def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
+def _sigproc_analyze_field(
+    chcy_ims, sigproc_v2_params, calib, reg_psf: psf.RegPSF = None
+):
     """
     Analyze one field --
         * Regional and channel balance
@@ -568,7 +571,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     # The goal of previous channel equalization and regional balancing is that
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
-    kernel = psf.approximate_kernel()
+    kernel = plaster.run.sigproc_v2.reg_psf.approximate_psf()
     locs = _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds)
 
     # Step 6: Radiometry over each channel, cycle
@@ -577,8 +580,7 @@ def _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params=None):
     fitmat = None
     sftmat = None
     if sigproc_v2_params.run_analysis_gauss2_fitter:
-        fitmat = _analyze_step_6b_fitter(chcy_ims, locs, calib, psf_params)
-        # fitmat = _analyze_step_6b_fitter(chcy_ims_with_bg, locs, calib, psf_params)
+        fitmat = _analyze_step_6b_fitter(chcy_ims, locs, reg_psf)
 
     difmat = None
     picmat = None

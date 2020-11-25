@@ -1,6 +1,12 @@
 import numpy as np
-from plaster.run.sigproc_v2 import bg, psf
+
+from plaster.run.sigproc_v2 import bg
+from plaster.run.sigproc_v2.reg_psf import RegPSF
 from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
+from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import (
+    AugmentedGauss2Params,
+    Gauss2Params,
+)
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.schema import check
@@ -139,7 +145,7 @@ def _radiometry_one_peak(
     return signal, noise, aspect_ratio
 
 
-def radiometry_one_channel_one_cycle(im, reg_psf: psf.RegPSF, locs):
+def radiometry_one_channel_one_cycle(im, reg_psf: RegPSF, locs):
     """
     TODO: Convert this to C
 
@@ -155,7 +161,7 @@ def radiometry_one_channel_one_cycle(im, reg_psf: psf.RegPSF, locs):
         signal, noise, aspect_ratio
     """
     check.array_t(im, ndim=2)
-    check.t(reg_psf, psf.RegPSF)
+    check.t(reg_psf, RegPSF)
     check.array_t(locs, ndim=2, shape=(None, 2))
 
     n_locs = len(locs)
@@ -189,7 +195,7 @@ def radiometry_one_channel_one_cycle(im, reg_psf: psf.RegPSF, locs):
     return signal, noise, aspect_ratio
 
 
-def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
+def radiometry_one_channel_one_cycle_fit_method(im, reg_psf: RegPSF, locs):
     """
     Like radiometry_one_channel_one_cycle() but using a gaussian fit
 
@@ -197,51 +203,8 @@ def radiometry_one_channel_one_cycle_fit_method(im, psf_params, locs):
         11 typle:
             signal, noise, aspect_ratio, fit parameters
     """
-    n_z_slices, n_divs, _, _ = psf_params.shape
-
     check.array_t(locs, ndim=2, shape=(None, 2))
-
-    check.array_t(psf_params, ndim=4)
-    assert psf_params.shape[1] == n_divs
-    assert psf_params.shape[2] == n_divs
-    assert psf_params.shape[3] == 8
-    psf_mea = int(psf_params[0, 0, 0, 7])
-
-    # These params have to be initialized based on the regional psf_params
-    """
-    most_in_focus_i = psf_params.shape[0] // 2
-
-    # Convert from each loc's position to the div that it falls it
-    # This is a little bit off because im.shape[0] is the RAW MEA
-    # of the image by the aligned image will typically be a little bit
-    # smaller than the original size. That said, it is typically a small
-    # amount and the differences in the regions are not THAT big
-    # so it is probably ok.
-
-    psf_lookup = np.clip(
-        np.floor(n_divs * locs / im.shape[0]).astype(int), a_min=0, a_max=n_divs - 1
-    )
-
-    n_locs = len(locs)
-
-    guess_params = np.zeros((n_locs, Gauss2FitParams.N_FULL_PARAMS))
-    guess_params[:, 0 : Gauss2FitParams.N_FIT_PARAMS] = psf_params[
-        most_in_focus_i,
-        psf_lookup[:, 0],
-        psf_lookup[:, 1],
-        0 : Gauss2FitParams.N_FIT_PARAMS,
-    ]
-
-    # Pass zero to amp and offset to force the fitter to make its own guess
-    guess_params[:, Gauss2FitParams.AMP] = 0.0
-    guess_params[:, Gauss2FitParams.OFFSET] = 0.0
-
-    ret_params, _ = fit_image(im, locs, guess_params, psf_mea)
-    """
-    # TODO: Pass reg_psf
-
-    ret_params, _ = gauss2_fitter.fit_image_with_reg_psf(im, locs, reg_psf)
-
+    ret_params, _ = fit_image_with_reg_psf(im, locs, reg_psf)
     return ret_params
 
 
@@ -265,12 +228,12 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
         Make a regional summary
     """
 
-    kernel = psf.approximate_kernel()
+    kernel = plaster.run.sigproc_v2.reg_psf.approximate_psf()
     n_fields = fl_ims.shape[0]
     dim = fl_ims.shape[-2:]
 
     # SANITY CHECK that z_reg_psfs
-    assert psf.psf_validate(z_reg_psfs)
+    # assert psf.psf_validate(z_reg_psfs)
 
     # ALLOCATE two accumulators: one for the signals and one for the counts
     fg = np.zeros(dim)
@@ -321,3 +284,31 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
     # RETURN the balance adjustment. That is, multiply by this matrix
     # to balance an image. In other words, the brightest region will == 1.0
     return np.nanmax(bal) / bal, mean_im
+
+
+def fit_image_with_reg_psf(im, locs, reg_psf: RegPSF):
+    assert isinstance(reg_psf, RegPSF)
+
+    reg_yx = np.clip(
+        np.floor(reg_psf.n_divs * locs / im.shape[0]).astype(int),
+        a_min=0,
+        a_max=reg_psf.n_divs - 1,
+    )
+
+    n_locs = len(locs)
+    guess_params = np.zeros((n_locs, AugmentedGauss2Params.N_FULL_PARAMS))
+
+    # COPY over parameters by region for each peak
+    guess_params[:, 0 : Gauss2Params.N_PARAMS] = reg_psf.params[
+        reg_yx[:, 0], reg_yx[:, 1], 0 : Gauss2Params.N_PARAMS,
+    ]
+
+    # CENTER
+    guess_params[:, Gauss2Params.CENTER_X] = reg_psf.peak_mea / 2
+    guess_params[:, Gauss2Params.CENTER_Y] = reg_psf.peak_mea / 2
+
+    # Pass zero to amp and offset to force the fitter to make its own guess
+    guess_params[:, Gauss2Params.AMP] = 0.0
+    guess_params[:, Gauss2Params.OFFSET] = 0.0
+
+    return gauss2_fitter.fit_image(im, locs, guess_params, reg_psf.peak_mea)
