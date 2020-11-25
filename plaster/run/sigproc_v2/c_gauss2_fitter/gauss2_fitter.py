@@ -6,14 +6,14 @@ from plaster.tools.schema import check
 from plaster.run.sigproc_v2.c_gauss2_fitter.build import build
 from plaster.tools.c_common.c_common_tools import CException
 from plaster.tools.image import imops, coord
-from plaster.tools.calibration.psf import Gauss2Params, RegPSF
+from plaster.run.sigproc_v2 import psf
 from plaster.tools.log.log import debug
 
 
 _lib = None
 
 
-class AugmentedGauss2Params(Gauss2Params):
+class AugmentedGauss2Params(psf.Gauss2Params):
     # These must match in gauss2_fitter.h
     MEA = 7
     NOISE = 8
@@ -195,8 +195,8 @@ def fit_image(im, locs, guess_params, peak_mea):
     return fit_params, std_params
 
 
-def fit_image_with_reg_psf(im, locs, reg_psf: RegPSF):
-    assert isinstance(reg_psf, RegPSF)
+def fit_image_with_reg_psf(im, locs, reg_psf: psf.RegPSF):
+    assert isinstance(reg_psf, psf.RegPSF)
 
     reg_yx = np.clip(
         np.floor(reg_psf.n_divs * locs / im.shape[0]).astype(int),
@@ -208,16 +208,16 @@ def fit_image_with_reg_psf(im, locs, reg_psf: RegPSF):
     guess_params = np.zeros((n_locs, AugmentedGauss2Params.N_FULL_PARAMS))
 
     # COPY over parameters by region for each peak
-    guess_params[:, 0 : Gauss2Params.N_PARAMS] = reg_psf.params[
-        reg_yx[:, 0], reg_yx[:, 1], 0 : Gauss2Params.N_PARAMS,
+    guess_params[:, 0 : psf.Gauss2Params.N_PARAMS] = reg_psf.params[
+        reg_yx[:, 0], reg_yx[:, 1], 0 : psf.Gauss2Params.N_PARAMS,
     ]
 
     # CENTER
-    guess_params[:, Gauss2Params.CENTER_X] = reg_psf.peak_mea / 2
-    guess_params[:, Gauss2Params.CENTER_Y] = reg_psf.peak_mea / 2
+    guess_params[:, psf.Gauss2Params.CENTER_X] = reg_psf.peak_mea / 2
+    guess_params[:, psf.Gauss2Params.CENTER_Y] = reg_psf.peak_mea / 2
 
     # Pass zero to amp and offset to force the fitter to make its own guess
-    guess_params[:, Gauss2Params.AMP] = 0.0
-    guess_params[:, Gauss2Params.OFFSET] = 0.0
+    guess_params[:, psf.Gauss2Params.AMP] = 0.0
+    guess_params[:, psf.Gauss2Params.OFFSET] = 0.0
 
     return fit_image(im, locs, guess_params, reg_psf.peak_mea)

@@ -13,7 +13,7 @@ from plaster.tools.utils import utils
 from plaster.tools.zap import zap
 
 
-class Gauss2Params(IntEnum):
+class Gauss2Params:
     AMP = 0
     SIGMA_X = 1
     SIGMA_Y = 2

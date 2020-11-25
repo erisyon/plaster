@@ -1,12 +1,10 @@
 import numpy as np
 from plaster.run.sigproc_v2 import bg, psf
 from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
-from plaster.tools.calibration.psf import Gauss2Params, RegPSF
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
-from enum import Enum
+from plaster.tools.log.log import debug, important, prof
 
 
 def peak_find(im, kernel, bg_std):
@@ -20,7 +18,7 @@ def peak_find(im, kernel, bg_std):
         im: the image to peak find
         kernel: An estimated kernel
         bg_std:
-            The stnadard devaiotn of the background,
+            The standard deviation of the background,
             this is scaled by 1.25 to pick a threshold
 
     Returns:
@@ -141,7 +139,7 @@ def _radiometry_one_peak(
     return signal, noise, aspect_ratio
 
 
-def radiometry_one_channel_one_cycle(im, reg_psf: RegPSF, locs):
+def radiometry_one_channel_one_cycle(im, reg_psf: psf.RegPSF, locs):
     """
     TODO: Convert this to C
 
@@ -150,14 +148,14 @@ def radiometry_one_channel_one_cycle(im, reg_psf: RegPSF, locs):
 
     Arguments:
         im: One image (one channel, cycle)
-        z_reg_psfs: (n_z_slices, divs, divs, peak_mea, peak_mea)
+        reg_psf: (n_z_slices, divs, divs, peak_mea, peak_mea)
         locs: (n_peaks, 2). The second dimension is in (y, x) order
 
     Returns:
         signal, noise, aspect_ratio
     """
     check.array_t(im, ndim=2)
-    check.t(reg_psf, RegPSF)
+    check.t(reg_psf, psf.RegPSF)
     check.array_t(locs, ndim=2, shape=(None, 2))
 
     n_locs = len(locs)
