@@ -1,7 +1,7 @@
 import numpy as np
 
 from plaster.run.sigproc_v2 import bg
-from plaster.run.sigproc_v2.reg_psf import RegPSF
+from plaster.run.sigproc_v2.reg_psf import RegPSF, approximate_psf
 from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
 from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import (
     AugmentedGauss2Params,
@@ -50,34 +50,6 @@ def peak_find(im, kernel, bg_std):
         return peak_local_max(cim, min_distance=2, threshold_abs=thresh)
     else:
         return np.zeros((0, 2))
-
-
-def _fit_focus(z_reg_psfs, locs, im):
-    """
-    Each image may have a slightly different focus due to drift of the z-axis on
-    the instrument.
-
-    During calibration we generated a regional-PSF as a function of z.
-    This is called the "z_reg_psf" and has shape like:
-    (13, 5, 5, 11, 11) where:
-        (13) is the 13 z-slices where slice 6 is the most-in-focus.
-        (5, 5) is the regionals divs
-        (11, 11) are the pixels of the PSF peaks
-
-    Here we sub-sample peaks locs on im to decide which
-    PSF z-slice best describes this images.
-
-    Note, if the instrument was perfect at maintaining the z-focus
-    then this function would ALWAYS return 6.
-    """
-
-    # TODO: randomly sample a sub-set of locs and pick the correct
-    # regional PSF and fit every z-stack to the sample.
-    # For each randomly sanpled loc we will have a best
-    # z-index. Then we take the plurality vote of that.
-
-    # Until then:
-    return z_reg_psfs.shape[0] // 2
 
 
 def _radiometry_one_peak(
@@ -172,7 +144,6 @@ def radiometry_one_channel_one_cycle(im, reg_psf: RegPSF, locs):
     aspect_ratio = np.full((n_locs,), np.nan)
 
     psf_ims = reg_psf.render()
-    ss = psf_ims[0, 0].sum()
     psf_dim = HW(reg_psf.peak_mea, reg_psf.peak_mea)
 
     for loc_i, (loc, div_loc) in enumerate(zip(locs, div_locs)):
@@ -208,7 +179,7 @@ def radiometry_one_channel_one_cycle_fit_method(im, reg_psf: RegPSF, locs):
     return ret_params
 
 
-def fg_estimate(fl_ims, z_reg_psfs, progress=None):
+def fg_estimate(fl_ims, reg_psf: RegPSF, progress=None):
     """
     Estimate the foreground illumination averaged over every field for
     one channel on the first cycle.
@@ -228,7 +199,7 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
         Make a regional summary
     """
 
-    kernel = plaster.run.sigproc_v2.reg_psf.approximate_psf()
+    approx_psf = approximate_psf()
     n_fields = fl_ims.shape[0]
     dim = fl_ims.shape[-2:]
 
@@ -247,13 +218,13 @@ def fg_estimate(fl_ims, z_reg_psfs, progress=None):
         if progress:
             progress(fl_i, n_fields, False)
 
-        im_no_bg, bg_std = bg.bg_estimate_and_remove(fl_ims[fl_i], kernel)
+        im_no_bg, bg_std = bg.bg_estimate_and_remove(fl_ims[fl_i], approx_psf)
 
         # FIND PEAKS
-        locs = peak_find(im_no_bg, kernel, bg_std)
+        locs = peak_find(im_no_bg, approx_psf, bg_std)
 
         # RADIOMETRY
-        signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, z_reg_psfs, locs)
+        signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, reg_psf, locs)
 
         # FIND outliers
         if not np.all(np.isnan(signals)):

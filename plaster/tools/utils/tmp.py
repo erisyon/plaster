@@ -43,11 +43,11 @@ from contextlib import contextmanager
 _current_tmp_folder = None
 
 
-def _erisyon_tmp():
-    erisyon_tmp = local.env.get("ERISYON_TMP")
-    if erisyon_tmp is None:
+def erisyon_tmp():
+    _erisyon_tmp = local.env.get("ERISYON_TMP")
+    if _erisyon_tmp is None:
         raise FileNotFoundError("The ERISYON_TMP variable is not set")
-    p = local.path(erisyon_tmp)
+    p = local.path(_erisyon_tmp)
     p.mkdir()
     return p
 
@@ -59,8 +59,7 @@ def tmp_folder(remove=True, prefix=None, chdir=False):
     """
     global _current_tmp_folder
     old_current_tmp_folder = _current_tmp_folder
-    erisyon_tmp = _erisyon_tmp()
-    tmp_path = local.path(tempfile.mkdtemp(dir=str(erisyon_tmp), prefix=prefix))
+    tmp_path = local.path(tempfile.mkdtemp(dir=str(erisyon_tmp()), prefix=prefix))
     orig_cwd = local.cwd
     try:
         _current_tmp_folder = tmp_path
@@ -83,7 +82,7 @@ def tmp_file(remove=True, prefix=None):
     See examples above.
     """
     if _current_tmp_folder is None:
-        folder = _erisyon_tmp()
+        folder = erisyon_tmp()
     else:
         folder = _current_tmp_folder
 
@@ -99,7 +98,7 @@ def tmp_file(remove=True, prefix=None):
 
 def cache_folder():
     """Get the default cache folder, do not create a hash of the arguments like cache_path"""
-    dst_path = _erisyon_tmp() / "cache"
+    dst_path = erisyon_tmp() / "cache"
     dst_path.mkdir()
     return dst_path
 

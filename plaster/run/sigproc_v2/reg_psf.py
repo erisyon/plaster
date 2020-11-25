@@ -79,6 +79,20 @@ class RegPSF:
 
         return reg_psf
 
+    @classmethod
+    def from_array(cls, arr):
+        check.array_t(arr, ndim=3)
+        divs_y, divs_x, n_gauss_params = arr.shape
+        assert n_gauss_params == cls.N_PARAMS
+
+        hard_coded_peak_mea = 11
+        # This is a HACK until I rebuild the calibration classes
+
+        reg_psf = RegPSF(peak_mea=hard_coded_peak_mea, n_divs=divs_y)
+        reg_psf.params = arr
+
+        return reg_psf
+
 
 def approximate_psf():
     """
