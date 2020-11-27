@@ -91,8 +91,7 @@ def load_lib():
 
     lib.radiometry_field_stack_one_peak.argtypes = [
         c.POINTER(RadiometryContext),  # RadiometryContext context
-        c_common_tools.typedef_to_ctype("Index"),  # Index peak_start_i,
-        c_common_tools.typedef_to_ctype("Index"),  # Index n_peaks,
+        c_common_tools.typedef_to_ctype("Index"),  # Index peak_i,
     ]
     lib.radiometry_field_stack_one_peak.restype = c.c_char_p
 
@@ -134,7 +133,7 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
         peak_mea=peak_mea,
         height=height,
         width=width,
-        out_radiometry=out_radiometry,
+        out_radiometry=F64Arr.from_ndarray(out_radiometry),
         _out_radiometry=out_radiometry,
     )
 
@@ -169,7 +168,7 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
         n_peaks = locs.shape[0]
         zap.arrays(
             _do_radiometry_field_stack_one_peak,
-            dict(cy_i=np.arange(n_peaks)),
+            dict(peak_i=np.arange(n_peaks)),
             _process_mode=False,
             _trap_exceptions=False,
             ctx=ctx,

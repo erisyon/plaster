@@ -72,7 +72,7 @@ class RegPSF:
         divs_y, divs_x, peak_mea_h, peak_mea_w = psf_ims.shape
         assert divs_y == divs_x
         assert peak_mea_h == peak_mea_w
-        reg_psf = RegPSF(peak_mea=peak_mea_h, n_divs=divs_y)
+        reg_psf = cls(peak_mea=peak_mea_h, n_divs=divs_y)
         for y in range(divs_y):
             for x in range(divs_x):
                 reg_psf._fit(psf_ims[y, x], y, x)
@@ -88,9 +88,17 @@ class RegPSF:
         hard_coded_peak_mea = 11
         # This is a HACK until I rebuild the calibration classes
 
-        reg_psf = RegPSF(peak_mea=hard_coded_peak_mea, n_divs=divs_y)
+        reg_psf = cls(peak_mea=hard_coded_peak_mea, n_divs=divs_y)
         reg_psf.params = arr
 
+        return reg_psf
+
+    @classmethod
+    def fixture(cls, peak_mea=11, n_divs=5, sig_x=1.8, sig_y=1.8, rho=1.0):
+        reg_psf = cls(peak_mea=peak_mea, n_divs=n_divs)
+        reg_psf.params[:, :, 0] = sig_x
+        reg_psf.params[:, :, 1] = sig_y
+        reg_psf.params[:, :, 2] = rho
         return reg_psf
 
 
