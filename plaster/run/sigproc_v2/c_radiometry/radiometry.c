@@ -29,6 +29,9 @@ void psf_im(
     Float64 sigma_x, Float64 sigma_y,
     Float64 rho, Float64 *pixels, Size mea
 ) {
+    center_x -= 0.5;
+    center_y -= 0.5;
+
     Float64 sgxs = sigma_x * sigma_x;
     Float64 sgys = sigma_y * sigma_y;
     Float64 rs = rho * rho;
@@ -38,16 +41,13 @@ void psf_im(
     Float64 numer_const = -2.0 * rho * sigma_x * sigma_y;
     Float64 linear_term = tem_a * sqrt(omrs);
 
-//    trace("%f %f %f %f %f %f %f %f\n",
-//        sgxs,
-//        sgys,
-//        rs,
-//        omrs,
-//        tem_a,
-//        denom,
-//        numer_const,
-//        linear_term
-//    );
+    trace("%f %f %f %f %f\n",
+        center_x,
+        center_y,
+        sigma_x,
+        sigma_y,
+        rho
+    );
 
     Float64 *dst = pixels;
     for (int i=0; i<mea; i++) {
@@ -103,12 +103,11 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 half_mea = (Float64)mea / 2.0;
     Float64 loc_x = loc_p[1];
     Float64 loc_y = loc_p[0];
-    Float64 center_x = half_mea + loc_p[1] - floor(loc_p[1]);
-    Float64 center_y = half_mea + loc_p[0] - floor(loc_p[0]);
-    Index loc_lft = (Index)floor(loc_x - half_mea);
 
-//    trace("%ld %ld %ld\n", n_cycles, mea, mea_sq);
-//    trace("%f %f %f %f %f\n", half_mea, loc_x, loc_y, center_x, center_y);
+    Float64 center_x = loc_x - floor(loc_x - half_mea);
+    Float64 center_y = loc_y - floor(loc_y - half_mea);
+
+    Index loc_lft = (Index)floor(loc_x - half_mea);
 
     ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
     ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width, "loc_x out of bounds");

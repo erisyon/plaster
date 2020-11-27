@@ -120,7 +120,7 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
 
     check.array_t(focus_adjustment, ndim=1, dtype=np.float64)
 
-    out_radiometry = np.zeros((n_peaks, 4), dtype=np.float64)
+    out_radiometry = np.zeros((n_peaks, n_channels, n_cycles, 4), dtype=np.float64)
     ctx = RadiometryContext(
         chcy_ims=F64Arr.from_ndarray(chcy_ims),
         locs=F64Arr.from_ndarray(locs),
