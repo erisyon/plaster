@@ -402,6 +402,11 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
         for cy_i in range(n_cycles):
             im = chcy_ims[ch_i, cy_i]
 
+            # TODO: Now that cycles are sub-pixel aligned
+            #  I should convert this to make the COM calculation
+            #  once (cache from previous step?) and then build the
+            #  peak kernel once and re-use it through all cycles
+
             signal, noise, aspect_ratio = fg.radiometry_one_channel_one_cycle(
                 im, reg_psf, locs
             )

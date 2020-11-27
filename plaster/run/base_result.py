@@ -9,6 +9,7 @@ from plaster.tools.log.log import debug
 
 _disable_disk_memoize = False
 
+
 @contextmanager
 def disable_disk_memoize():
     global _disable_disk_memoize

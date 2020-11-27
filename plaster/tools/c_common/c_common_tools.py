@@ -230,8 +230,8 @@ class F64Arr(c.Structure):
         # Pitch is the cumulative size of the blocks less than each dimension
         # (ie how much has to be added to advance one index in eah dimension)
         arr.pitch3 = 1 if ndarr.ndim >= 4 else 1
-        arr.pitch2 = max(1,arr.shape3) * arr.pitch3 if ndarr.ndim >= 3 else 1
-        arr.pitch1 = max(1,arr.shape2) * arr.pitch2 if ndarr.ndim >= 2 else 1
-        arr.pitch0 = max(1,arr.shape1) * arr.pitch1 if ndarr.ndim >= 1 else 1
+        arr.pitch2 = max(1, arr.shape3) * arr.pitch3 if ndarr.ndim >= 3 else 1
+        arr.pitch1 = max(1, arr.shape2) * arr.pitch2 if ndarr.ndim >= 2 else 1
+        arr.pitch0 = max(1, arr.shape1) * arr.pitch1 if ndarr.ndim >= 1 else 1
 
         return arr

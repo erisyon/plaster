@@ -42,15 +42,18 @@ def zest_sub_pixel_align():
 
                 center = YX(21 / 2, 21 / 2)
 
-                true_aln = np.array([
-                    [0, 0],
-                    [y_off, x_off],
-                ])
+                true_aln = np.array([[0, 0], [y_off, x_off],])
 
                 for i in range(2):
                     cy_ims[i] = imops.gauss2_rho_form(
-                        1000.0, 2.0, 2.0, pos_y=center.y + true_aln[i, 0], pos_x=center.x + true_aln[i, 1], rho=0.0,
-                        const=0.0, mea=21
+                        1000.0,
+                        2.0,
+                        2.0,
+                        pos_y=center.y + true_aln[i, 0],
+                        pos_x=center.x + true_aln[i, 1],
+                        rho=0.0,
+                        const=0.0,
+                        mea=21,
                     )
 
                 pred_aln = sub_pixel_align_cy_ims(cy_ims, slice_h=5)
