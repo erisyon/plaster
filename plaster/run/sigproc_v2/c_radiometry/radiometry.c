@@ -9,9 +9,20 @@
 #include "math.h"
 #include "c_common.h"
 #include "_radiometry.h"
-
-
 #define PI2 (2.0 * M_PI)
+
+
+void _dump_vec(Float64 *vec, int width, int height, char *msg) {
+    trace("VEC %s [\n", msg);
+    for(int y=0; y<height; y++) {
+        for(int x=0; x<width; x++) {
+            fprintf(_log, "%4.4f, ", vec[y*width + x]);
+        }
+        fprintf(_log, "\n");
+    }
+    fprintf(_log, "]\n");
+}
+
 
 void psf_im(
     Float64 center_x, Float64 center_y,
@@ -26,6 +37,17 @@ void psf_im(
     Float64 denom = 2.0 * (rho - 1.0) * (rho + 1.0) * sgxs * sgys;
     Float64 numer_const = -2.0 * rho * sigma_x * sigma_y;
     Float64 linear_term = tem_a * sqrt(omrs);
+
+//    trace("%f %f %f %f %f %f %f %f\n",
+//        sgxs,
+//        sgys,
+//        rs,
+//        omrs,
+//        tem_a,
+//        denom,
+//        numer_const,
+//        linear_term
+//    );
 
     Float64 *dst = pixels;
     for (int i=0; i<mea; i++) {
@@ -69,6 +91,9 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
           peak/channel/cycle/
     */
 
+    Float64 *im = f64arr_ptr2(&ctx->chcy_ims, 0, 0);
+//    _dump_vec(im, ctx->chcy_ims.shape[2], ctx->chcy_ims.shape[3], "im");
+
     // Position
     ensure(ctx->n_channels == 1, "Only 1 channel supported until I have a chance to implement it");
     Size n_cycles = ctx->n_cycles;
@@ -82,6 +107,13 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 center_y = half_mea + loc_p[0] - floor(loc_p[0]);
     Index loc_lft = (Index)floor(loc_x - half_mea);
 
+//    trace("%ld %ld %ld\n", n_cycles, mea, mea_sq);
+//    trace("%f %f %f %f %f\n", half_mea, loc_x, loc_y, center_x, center_y);
+
+    ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
+    ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width, "loc_x out of bounds");
+    ensure_only_in_debug(0 <= loc_lft && loc_lft < ctx->width, "loc_lft out of bounds");
+
     // Shape
     Index n_divs_minus_one = ctx->n_divs - 1;
     Index reg_y = min(n_divs_minus_one, max(0, ctx->n_divs * loc_y / ctx->raw_height));
@@ -94,8 +126,16 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 *psf_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
     Float64 *dat_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
 
+    Index ch_i = 0;
     for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
+
+//        trace("loc_lft %ld   cen %f %f  foc %f  adj_sig %f %f  rho %f\n",
+//            loc_lft,
+//            center_x, center_y, focus,
+//            sigma_x * focus, sigma_y * focus,
+//            rho
+//        );
 
         psf_im(
             center_x, center_y,
@@ -106,11 +146,14 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         // COPY the data into a contiguous buffer
         Float64 *dst_p = dat_pixels;
         for(Index y=0; y<mea; y++) {
-            Float64 *dat_p = f64arr_ptr2(&ctx->chcy_ims, y, loc_lft);
+            Float64 *dat_p = f64arr_ptr4(&ctx->chcy_ims, ch_i, cy_i, y, loc_lft);
             for(Index x=0; x<mea; x++) {
                 *dst_p++ = *dat_p++;
             }
         }
+
+        _dump_vec(psf_pixels, mea, mea, "psf_pixels");
+        _dump_vec(dat_pixels, mea, mea, "dat_pixels");
 
         // SIGNAL
         Float64 psf_sum_square = 0.0;

@@ -94,7 +94,7 @@ class RegPSF:
         return reg_psf
 
     @classmethod
-    def fixture(cls, peak_mea=11, n_divs=5, sig_x=1.8, sig_y=1.8, rho=1.0):
+    def fixture(cls, peak_mea=11, n_divs=5, sig_x=1.8, sig_y=1.8, rho=0.0):
         reg_psf = cls(peak_mea=peak_mea, n_divs=n_divs)
         reg_psf.params[:, :, 0] = sig_x
         reg_psf.params[:, :, 1] = sig_y
