@@ -134,6 +134,20 @@ def _radiometry_one_peak(
     # COMPUTE aspect ratio
     aspect_ratio = imops.distribution_aspect_ratio(peak_im)
 
+    def distribution_eigen(im):
+        ys, xs = np.indices(im.shape)
+        pos = np.array((ys, xs)).T.reshape(-1, 2).astype(float)
+        mas = im.T.reshape(-1)
+        com_y = (pos[:, 0] * mas).sum() / im.sum()
+        com_x = (pos[:, 1] * mas).sum() / im.sum()
+        com = np.array([com_y, com_x])
+        centered = pos - com
+        dy = centered[:, 0] * mas
+        dx = centered[:, 1] * mas
+        cov = np.cov(np.array([dy, dx]))
+        eig_vals, eig_vecs = LA.eig(cov)
+        return eig_vals, eig_vecs, cov
+
     return signal, noise, aspect_ratio
 
 

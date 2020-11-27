@@ -21,21 +21,23 @@ class RadiometryContext(c_common_tools.FixupStructure):
     # fmt: off
     _fixup_fields = [
         ("chcy_ims", F64Arr),  # Sub-pixel aligned  (n_channels, n_cycles, height, width)
-        ("locs", F64Arr),  # Sub-pixel centered  (n_peaks, (y, x))
-        ("reg_psf_params", F64Arr),  # Reg_psf array (n_divs, n_divs, mea, mea)
+        ("locs", F64Arr),  # Sub-pixel centered  (n_peaks, 2), where 2 is: (y, x)
+        ("reg_psf_params", F64Arr),  # Reg_psf array (n_divs, n_divs, 3)
         ("focus_adjustment", F64Arr),  # focus adjustment per cycle (n_cycles)
 
         # Parameters
         ("n_channels", "Size"),
         ("n_cycles", "Size"),
         ("n_peaks", "Size"),
-        ("n_divs", "Size"),
+        ("n_divs", "Float64"),
         ("peak_mea", "Size"),
-        ("height", "Size"),
-        ("width", "Size"),
+        ("height", "Float64"),
+        ("width", "Float64"),
+        ("raw_height", "Float64"),
+        ("raw_width", "Float64"),
 
         # Outputs
-        ("out_radiometry", F64Arr),  # signal, noise, snr, aspect_ratio
+        ("out_radiometry", F64Arr),  # (n_peaks, n_channels, n_cycles, 4), where 4 is: (signal, noise, snr, aspect_ratio)
     ]
     # fmt: on
 
@@ -103,17 +105,6 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
     """
     with radiometry.context(...) as ctx:
         zap.work_orders(do_radiometry, ...)
-
-        ("n_channels", "Size"),
-        ("n_cycles", "Size"),
-        ("n_peaks", "Size"),
-        ("n_divs", "Size"),
-        ("peak_mea", "Size"),
-
-        # Outputs
-        ("out_radiometry", F64Arr),  # signal, noise, snr, aspect_ratio
-
-
     """
     lib = load_lib()
 
