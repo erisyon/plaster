@@ -41,13 +41,13 @@ void psf_im(
     Float64 numer_const = -2.0 * rho * sigma_x * sigma_y;
     Float64 linear_term = tem_a * sqrt(omrs);
 
-    trace("%f %f %f %f %f\n",
-        center_x,
-        center_y,
-        sigma_x,
-        sigma_y,
-        rho
-    );
+//    trace("%f %f %f %f %f\n",
+//        center_x,
+//        center_y,
+//        sigma_x,
+//        sigma_y,
+//        rho
+//    );
 
     Float64 *dst = pixels;
     for (int i=0; i<mea; i++) {
@@ -99,19 +99,30 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Size n_cycles = ctx->n_cycles;
     Size mea = ctx->peak_mea;
     Size mea_sq = mea * mea;
-    Float64 *loc_p = f64arr_ptr1(&ctx->locs, peak_i);
     Float64 half_mea = (Float64)mea / 2.0;
+
+    // loc is the location in image coordinates
+    Float64 *loc_p = f64arr_ptr1(&ctx->locs, peak_i);
     Float64 loc_x = loc_p[1];
     Float64 loc_y = loc_p[0];
-
-    Float64 center_x = loc_x - floor(loc_x - half_mea);
-    Float64 center_y = loc_y - floor(loc_y - half_mea);
-
-    Index loc_lft = (Index)floor(loc_x - half_mea);
-
-    ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
+    trace("loc(x,y) %f %f\n", loc_x, loc_y);
     ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width, "loc_x out of bounds");
-    ensure_only_in_debug(0 <= loc_lft && loc_lft < ctx->width, "loc_lft out of bounds");
+    ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
+
+    // corner is the lower left pixel coorinate in image coordinates
+    // where the (mea, mea) sub-image will be extracted
+    Index corner_x = floor(loc_x - half_mea);
+    Index corner_y = floor(loc_y - half_mea);
+    trace("corner(x,y) %ld %ld\n", corner_x, corner_y);
+    ensure_only_in_debug(0 <= corner_x && corner_x < ctx->width, "corner_x out of bounds");
+    ensure_only_in_debug(0 <= corner_y && corner_y < ctx->height, "corner_y out of bounds");
+
+    // center is the location relative to the the corner
+    Float64 center_x = loc_x - corner_x;
+    Float64 center_y = loc_y - corner_y;
+    trace("center(x,y) %f %f\n", center_x, center_y);
+    ensure_only_in_debug(0 <= center_x && center_x < mea, "center out of bounds");
+    ensure_only_in_debug(0 <= center_y && center_y < mea, "center out of bounds");
 
     // Shape
     Index n_divs_minus_one = ctx->n_divs - 1;
@@ -145,7 +156,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         // COPY the data into a contiguous buffer
         Float64 *dst_p = dat_pixels;
         for(Index y=0; y<mea; y++) {
-            Float64 *dat_p = f64arr_ptr4(&ctx->chcy_ims, ch_i, cy_i, y, loc_lft);
+            Float64 *dat_p = f64arr_ptr4(&ctx->chcy_ims, ch_i, cy_i, corner_y+y, corner_x);
             for(Index x=0; x<mea; x++) {
                 *dst_p++ = *dat_p++;
             }
@@ -165,6 +176,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             psf_p ++;
             dat_p ++;
         }
+//        trace("sig %f  psf_sum_square %f\n", signal, psf_sum_square);
         signal /= psf_sum_square;
 
         // RESIDUALS mean
@@ -177,6 +189,8 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             psf_p ++;
             dat_p ++;
         }
+        residual_mean /= (Float64)mea_sq;
+//        trace("res_mean %f\n", residual_mean);
 
         // RESIDUALS variance
         Float64 residual_var = 0.0;
@@ -189,9 +203,12 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             psf_p ++;
             dat_p ++;
         }
+        residual_var /= (Float64)mea_sq;
+//        trace("res_var %f\n", residual_var);
 
         // NOISE
         Float64 noise = sqrt(residual_var / psf_sum_square);
+//        trace("noise %f\n", noise);
 
         // SNR
         Float64 snr = signal / noise;
