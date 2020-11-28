@@ -3,6 +3,7 @@ import numpy as np
 import pickle
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.sigproc_v2 import synth
+from plaster.run.sigproc_v2.reg_psf import RegPSF
 from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Params
 from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.image import imops
@@ -14,6 +15,44 @@ from plaster.tools.schema.check import CheckAffirmError
 from plaster.tools.utils import utils
 from plaster.tools.utils.tmp import tmp_folder, tmp_file
 from zest import zest
+
+
+def zest_sigproc_v2_worker():
+    """
+    Test the whole sigproc_v2 stack from top to bottom
+    """
+
+    def it_returns_nearly_perfect_from_no_noise():
+
+        with synth.Synth(n_channels=1, n_cycles=3, overwrite=True, dim=(512, 512)) as s:
+            # Change the PSF in the corner to ensure that it is picking up the PSF
+            reg_psf = RegPSF.fixture()
+            reg_psf.params[0, 0, 2] = 0.5
+
+            bg_mean = 150
+            bg_std = 0
+            peaks = (
+                synth.PeaksModelPSF(reg_psf, n_peaks=500)
+                .locs_randomize()
+                .dyt_amp_constant(5000)
+                .dyt_random_choice([[1, 1, 1], [1, 1, 0], [1, 0, 0]], [1/3, 1/3, 1/3])
+            )
+            synth.CameraModel(bias=bg_mean, std=bg_std)
+            # synth.HaloModel(std=20, scale=2)
+            chcy_ims = s.render_chcy()
+            # np.save("_test.npy", chcy_ims)
+
+            sigproc_v2_params = Munch(divs=5, peak_mea=11)
+            calib = Calibration()
+            calib[f"regional_psf.instrument_channel[0]"] = reg_psf
+
+            ims_import_result = ?
+            NEED TO MAKE FIXUTRE FOR synth to ims_import
+
+            worker.sigproc_analyze(sigproc_v2_params, ims_import_result, progress=None, calib=calib)
+
+
+    zest()
 
 
 '''

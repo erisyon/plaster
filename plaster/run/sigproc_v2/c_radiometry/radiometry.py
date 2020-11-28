@@ -133,6 +133,8 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
         peak_mea=peak_mea,
         height=height,
         width=width,
+        raw_height=reg_psf.raw_dim[0],
+        raw_width=reg_psf.raw_dim[1],
         out_radiometry=F64Arr.from_ndarray(out_radiometry),
         _out_radiometry=out_radiometry,
     )
@@ -171,6 +173,7 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
             dict(peak_i=np.arange(n_peaks)),
             _process_mode=False,
             _trap_exceptions=False,
+            _debug_mode=True,  # TODO HACK REMOVE ME!
             ctx=ctx,
         )
 

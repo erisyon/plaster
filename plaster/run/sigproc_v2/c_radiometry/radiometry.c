@@ -126,12 +126,18 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
 
     // Shape
     Index n_divs_minus_one = ctx->n_divs - 1;
-    Index reg_y = min(n_divs_minus_one, max(0, ctx->n_divs * loc_y / ctx->raw_height));
     Index reg_x = min(n_divs_minus_one, max(0, ctx->n_divs * loc_x / ctx->raw_width));
+    Index reg_y = min(n_divs_minus_one, max(0, ctx->n_divs * loc_y / ctx->raw_height));
+    ensure_only_in_debug(0 <= reg_x && reg_x < ctx->n_divs, "reg out of bounds");
+    ensure_only_in_debug(0 <= reg_y && reg_y < ctx->n_divs, "reg out of bounds");
+
+    trace("n_divs %f   raw(w,h) %f %f\n", ctx->n_divs, ctx->raw_width, ctx->raw_height);
+    trace("reg (xy) %ld %ld\n", reg_x, reg_y);
     Float64 *reg_psf_params_p = f64arr_ptr2(&ctx->reg_psf_params, reg_y, reg_x);
     Float64 sigma_x = reg_psf_params_p[0];
     Float64 sigma_y = reg_psf_params_p[1];
     Float64 rho = reg_psf_params_p[2];
+    trace("sig (xy) %f %f   rho %f\n", sigma_x, sigma_y, rho);
 
     Float64 *psf_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
     Float64 *dat_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
@@ -140,12 +146,12 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
 
-//        trace("loc_lft %ld   cen %f %f  foc %f  adj_sig %f %f  rho %f\n",
-//            loc_lft,
-//            center_x, center_y, focus,
-//            sigma_x * focus, sigma_y * focus,
-//            rho
-//        );
+        trace("cen(x,y) %f %f  foc %f  adj_sig(x,y) %f %f  rho %f\n",
+            center_x, center_y,
+            focus,
+            sigma_x * focus, sigma_y * focus,
+            rho
+        );
 
         psf_im(
             center_x, center_y,

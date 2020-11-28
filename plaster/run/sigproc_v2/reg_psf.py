@@ -21,7 +21,11 @@ class RegPSF:
     RHO = 2
     N_PARAMS = 3
 
-    def __init__(self, peak_mea, n_divs=5):
+    def __init__(self, raw_dim, peak_mea, n_divs):
+        """
+        raw_dim: tuple (height, width) of the raw images (before alignement)
+        """
+        self.raw_dim = raw_dim
         self.peak_mea = peak_mea
         self.n_divs = n_divs
         self.params = np.zeros((n_divs, n_divs, RegPSF.N_PARAMS))
@@ -64,7 +68,7 @@ class RegPSF:
             self.params[y, x, :] = 0
 
     @classmethod
-    def from_psf_ims(cls, psf_ims):
+    def from_psf_ims(cls, raw_dim, psf_ims):
         """
         Fit to a Gaussian, remove bias, and resample
         """
@@ -72,7 +76,7 @@ class RegPSF:
         divs_y, divs_x, peak_mea_h, peak_mea_w = psf_ims.shape
         assert divs_y == divs_x
         assert peak_mea_h == peak_mea_w
-        reg_psf = cls(peak_mea=peak_mea_h, n_divs=divs_y)
+        reg_psf = cls(raw_dim=raw_dim, peak_mea=peak_mea_h, n_divs=divs_y)
         for y in range(divs_y):
             for x in range(divs_x):
                 reg_psf._fit(psf_ims[y, x], y, x)
@@ -80,22 +84,20 @@ class RegPSF:
         return reg_psf
 
     @classmethod
-    def from_array(cls, arr):
+    def from_array(cls, raw_dim, peak_mea, arr):
         check.array_t(arr, ndim=3)
         divs_y, divs_x, n_gauss_params = arr.shape
+        assert divs_y == divs_x
         assert n_gauss_params == cls.N_PARAMS
 
-        hard_coded_peak_mea = 11
-        # This is a HACK until I rebuild the calibration classes
-
-        reg_psf = cls(peak_mea=hard_coded_peak_mea, n_divs=divs_y)
+        reg_psf = cls(raw_dim=raw_dim, peak_mea=peak_mea, n_divs=divs_y)
         reg_psf.params = arr
 
         return reg_psf
 
     @classmethod
-    def fixture(cls, peak_mea=11, n_divs=5, sig_x=1.8, sig_y=1.8, rho=0.0):
-        reg_psf = cls(peak_mea=peak_mea, n_divs=n_divs)
+    def fixture(cls, raw_dim=(512, 512), peak_mea=11, n_divs=5, sig_x=1.8, sig_y=1.8, rho=0.0):
+        reg_psf = cls(raw_dim=raw_dim, peak_mea=peak_mea, n_divs=n_divs)
         reg_psf.params[:, :, 0] = sig_x
         reg_psf.params[:, :, 1] = sig_y
         reg_psf.params[:, :, 2] = rho

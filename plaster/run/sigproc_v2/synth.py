@@ -3,8 +3,7 @@ import cv2
 import random
 import copy
 import math
-from typing import List
-from plaster.run.sigproc_v2 import psf
+from plaster.run.sigproc_v2.reg_psf import RegPSF
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
@@ -209,27 +208,26 @@ class PeaksModel(BaseSynthModel):
 
 
 class PeaksModelPSF(PeaksModel):
-    """Sample from a psf.RegPSF"""
+    """Sample from a RegPSF"""
 
-    def __init__(self, psfs_per_cycle: List[psf.RegPSF], **kws):
-        assert all([isinstance(psf, psf.RegPSF) for psf in psfs_per_cycle])
-        self.psfs_per_cycle = psfs_per_cycle
+    def __init__(self, reg_psf: RegPSF, **kws):
+        check.t(reg_psf, RegPSF)
+        self.reg_psf = reg_psf
         super().__init__(**kws)
 
     def render(self, im, fl_i, ch_i, cy_i):
         super().render(im, fl_i, ch_i, cy_i)
 
-        n_divs = self.psfs_per_cycle[cy_i].n_divs
-        div_size = im.shape[0] / n_divs
+        n_divs = self.reg_psf.n_divs
 
         for loc, amp in zip(self.locs, self.amps):
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
 
-            div_y, div_x = np.floor(loc / div_size).astype(int)
+            div_y, div_x = np.floor(self.reg_psf.n_divs * loc / self.reg_psf.raw_dim).astype(int)
             frac_y = np.modf(loc[0])[0]
             frac_x = np.modf(loc[1])[0]
-            psf_im = self.psfs_per_cycle[cy_i].render_one_reg(
+            psf_im = self.reg_psf.render_one_reg(
                 div_y, div_x, amp=amp, frac_y=frac_y, frac_x=frac_x, const=0.0
             )
             imops.accum_inplace(im, psf_im, loc=YX(*np.floor(loc)), center=True)
@@ -292,7 +290,6 @@ class PeaksModelGaussian(PeaksModel):
             )
 
             imops.accum_inplace(im, peak_im, loc=YX(*np.floor(loc)), center=True)
-
 
 class PeaksModelGaussianCircular(PeaksModelGaussian):
     def __init__(self, **kws):
