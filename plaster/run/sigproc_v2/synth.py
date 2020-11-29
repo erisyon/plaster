@@ -3,11 +3,15 @@ import cv2
 import random
 import copy
 import math
+from plaster.run.ims_import.ims_import_worker import OUTPUT_NP_TYPE
+from plaster.run.ims_import.ims_import_params import ImsImportParams
+from plaster.run.ims_import.ims_import_result import ImsImportResult
 from plaster.run.sigproc_v2.reg_psf import RegPSF
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important
 from plaster.tools.utils import utils
+from plaster.tools.utils.tmp import tmp_folder
 from plaster.tools.schema import check
 from plumbum import local
 
@@ -411,3 +415,36 @@ class HaloModel(BaseSynthModel):
         bg_mean = np.median(im) - 1
         blur = cv2.GaussianBlur(im, (size, size), self.std) - bg_mean - 1
         imops.accum_inplace(im, self.scale * blur, XY(0, 0), center=False)
+
+
+def synth_to_ims_import_result(synth:Synth):
+    chcy_ims = synth.render_chcy()
+
+    ims_import_params = ImsImportParams()
+    ims_import_result = ImsImportResult(
+        params=ims_import_params,
+        tsv_data=None,
+        n_fields=synth.n_fields,
+        n_channels=synth.n_channels,
+        n_cycles=synth.n_cycles,
+        dim=synth.dim[0],
+        dtype=np.dtype(OUTPUT_NP_TYPE).name,
+        src_dir="",
+    )
+
+    with tmp_folder(remove=False):
+        for fl_i in range(synth.n_fields):
+            field_chcy_arr = ims_import_result.allocate_field(
+                fl_i, (synth.n_channels, synth.n_cycles, synth.dim[0], synth.dim[1]), OUTPUT_NP_TYPE
+            )
+            field_chcy_ims = field_chcy_arr.arr()
+
+            field_chcy_ims[:, :, :, :] = chcy_ims
+
+            ims_import_result.save_field(
+                fl_i, field_chcy_arr, None, None
+            )
+
+        ims_import_result.save()
+
+    return ims_import_result

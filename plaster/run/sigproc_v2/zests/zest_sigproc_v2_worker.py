@@ -42,15 +42,14 @@ def zest_sigproc_v2_worker():
             chcy_ims = s.render_chcy()
             # np.save("_test.npy", chcy_ims)
 
-            sigproc_v2_params = Munch(divs=5, peak_mea=11)
+            sigproc_v2_params = SigprocV2Params(divs=5, peak_mea=11, calibration_file="", mode="analyze")
             calib = Calibration()
             calib[f"regional_psf.instrument_channel[0]"] = reg_psf
+            calib[f"regional_illumination_balance.instrument_channel[0]"] = np.ones((5, 5))
 
-            ims_import_result = ?
-            NEED TO MAKE FIXUTRE FOR synth to ims_import
-
-            worker.sigproc_analyze(sigproc_v2_params, ims_import_result, progress=None, calib=calib)
-
+            ims_import_result = synth.synth_to_ims_import_result(s)
+            sigproc_v2_result = worker.sigproc_analyze(sigproc_v2_params, ims_import_result, progress=None, calib=calib)
+            import pudb; pudb.set_trace()
 
     zest()
 
