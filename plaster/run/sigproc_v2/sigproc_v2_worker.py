@@ -116,6 +116,7 @@ from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
+from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
 from plumbum import local
 
 # Calibration
@@ -368,8 +369,8 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
     # Use more than one cycle to improve the quality of the sub-pixel estimate
     # But then discard peaks that are off after cycle 1??
 
-    ch_mean_of_cy0_im = np.mean(chcy_ims[:, :, :, :], axis=0)
-    bg_std = np.mean(chcy_bg_stds[:, :], axis=0)
+    ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
+    bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
     locs = fg.sub_pixel_peak_find(ch_mean_of_cy0_im, kernel, bg_std)
     return locs
 
@@ -390,30 +391,37 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib):
     check.array_t(chcy_ims, ndim=4)
     check.array_t(locs, ndim=2, shape=(None, 2))
 
-    n_locs = len(locs)
     n_channels, n_cycles = chcy_ims.shape[0:2]
+    assert (
+        n_channels == 1
+    ), "Until further notice, only passing in one reg_psf for one channel"
+    reg_psf = calib.psfs(0)
+    focus_adjustment = np.ones((n_cycles,))  # TODO: Sample the focuses
+    radmat = radiometry_field_stack(
+        chcy_ims, locs=locs, reg_psf=reg_psf, focus_adjustment=focus_adjustment
+    )
 
-    radmat = np.full((n_locs, n_channels, n_cycles, 3), np.nan)
-
-    for ch_i in range(n_channels):
-        reg_psf = calib.psfs(ch_i)
-        check.t(reg_psf, RegPSF)
-
-        for cy_i in range(n_cycles):
-            im = chcy_ims[ch_i, cy_i]
-
-            # TODO: Now that cycles are sub-pixel aligned
-            #  I should convert this to make the COM calculation
-            #  once (cache from previous step?) and then build the
-            #  peak kernel once and re-use it through all cycles
-
-            signal, noise, aspect_ratio = fg.radiometry_one_channel_one_cycle(
-                im, reg_psf, locs
-            )
-
-            radmat[:, ch_i, cy_i, 0] = signal
-            radmat[:, ch_i, cy_i, 1] = noise
-            radmat[:, ch_i, cy_i, 2] = aspect_ratio
+    # radmat = np.full((n_locs, n_channels, n_cycles, 3), np.nan)
+    #
+    # for ch_i in range(n_channels):
+    #     reg_psf = calib.psfs(ch_i)
+    #     check.t(reg_psf, RegPSF)
+    #
+    #     for cy_i in range(n_cycles):
+    #         im = chcy_ims[ch_i, cy_i]
+    #
+    #         # TODO: Now that cycles are sub-pixel aligned
+    #         #  I should convert this to make the COM calculation
+    #         #  once (cache from previous step?) and then build the
+    #         #  peak kernel once and re-use it through all cycles
+    #
+    #         signal, noise, aspect_ratio = fg.radiometry_one_channel_one_cycle(
+    #             im, reg_psf, locs
+    #         )
+    #
+    #         radmat[:, ch_i, cy_i, 0] = signal
+    #         radmat[:, ch_i, cy_i, 1] = noise
+    #         radmat[:, ch_i, cy_i, 2] = aspect_ratio
 
     return radmat
 
@@ -548,7 +556,7 @@ def _sigproc_analyze_field(
 
     # Step 1: Load the images in output channel order, balance, equalize
     chcy_ims, chcy_bg_stds, chcy_ims_with_bg = _analyze_step_1_import_balanced_images(
-        chcy_ims, sigproc_v2_params, calib
+        chcy_ims.astype(np.float64), sigproc_v2_params, calib
     )
     # At this point, chcy_ims has its background subtracted and is
     # regionally and channel balanced. It may contain negative values.
@@ -595,7 +603,6 @@ def _sigproc_analyze_field(
         difmat, picmat, sftmat = _analyze_step_6c_peak_differencing(
             chcy_ims, locs, sigproc_v2_params.peak_mea
         )
-    prof()
 
     # Temporaily removed until a better metric can be found
     # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
@@ -664,8 +671,6 @@ def _do_sigproc_analyze_and_save_field(
 
     assert len(radmat) == len(peak_df)
 
-    debug(field_df)
-
     sigproc_v2_result.save_field(
         field_i,
         peak_df=peak_df,
@@ -677,8 +682,6 @@ def _do_sigproc_analyze_and_save_field(
         sftmat=sftmat,
         _aln_chcy_ims=chcy_ims,
     )
-
-    debug()
 
 
 # Entrypoints

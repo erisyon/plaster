@@ -53,14 +53,36 @@ def peak_find(im, approx_psf, bg_std):
 
 
 def _sub_pixel_peak_find(im, peak_dim, locs):
+    """
+    This is a subtle calculation.
+
+    locs is given as an *integer* position (only has pixel accuracy).
+    We then extract out a sub-image using an *integer* half width.
+    Peak_dim is typically odd. Suppose it is (11, 11)
+    That makes half_peak_mea_i be 11 // 2 = 5
+
+    Suppose that a peak is at (17.5, 17.5).
+
+    Suppose that peak was found a (integer) location (17, 17)
+    which is within 1 pixel of its center as expected.
+
+    We extract the sub-image at (17 - 5, 17 - 5) = (12:23, 12:23)
+
+    The Center-of-mass calculation should return (5.5, 5.5) because that is
+    relative to the sub-image which was extracted
+
+    We wish to return (17.5, 17.5). So that's the lower left
+    (17 - 5) of the peak plus the COM found.
+    """
     check.array_t(locs, dtype=int)
     assert peak_dim[0] == peak_dim[1]
-    half_peak_mea = peak_dim[0] // 2
+    half_peak_mea_i = peak_dim[0] // 2
+    lower_left_locs = locs - half_peak_mea_i
     com_per_loc = np.zeros(locs.shape)
-    for loc_i, loc in enumerate(locs):
-        peak_im = imops.crop(im, off=YX(loc[0], loc[1]), dim=peak_dim, center=True)
-        com_per_loc[loc_i] = imops.com(peak_im ** 2) - half_peak_mea
-    return locs + com_per_loc
+    for loc_i, loc in enumerate(lower_left_locs):
+        peak_im = imops.crop(im, off=YX(loc), dim=peak_dim, center=False)
+        com_per_loc[loc_i] = imops.com(peak_im ** 2)
+    return lower_left_locs + com_per_loc
 
 
 def sub_pixel_peak_find(im, approx_psf, bg_std):
@@ -71,6 +93,9 @@ def sub_pixel_peak_find(im, approx_psf, bg_std):
     locs = peak_find(im, approx_psf, bg_std).astype(int)
     return _sub_pixel_peak_find(im, HW(approx_psf.shape), locs)
 
+
+'''
+DEPRECATE by C radiometry
 
 def _radiometry_one_peak(
     peak_im, psf_kernel, allow_non_unity_psf_kernel=False, allow_subpixel_shift=True,
@@ -198,6 +223,7 @@ def radiometry_one_channel_one_cycle(im, reg_psf: RegPSF, locs):
         aspect_ratio[loc_i] = _aspect_ratio
 
     return signal, noise, aspect_ratio
+'''
 
 
 def radiometry_one_channel_one_cycle_fit_method(im, reg_psf: RegPSF, locs):

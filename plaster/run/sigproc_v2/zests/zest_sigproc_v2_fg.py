@@ -2,11 +2,50 @@ import numpy as np
 from plaster.run.sigproc_v2 import synth, bg, fg, psf
 from plaster.run.sigproc_v2.reg_psf import approximate_psf
 from plaster.tools.image.coord import HW
+from plaster.tools.image import imops
 from plaster.tools.log.log import debug
 from zest import zest
 
 
 def zest_peak_find():
+    def it_finds_one_peak_sub_pixel_exactly_under_ideal_conditions():
+        true_locs = np.array([[17.5, 17.5]])
+        peak_im = imops.gauss2_rho_form(
+            amp=1000.0,
+            std_x=1.8,
+            std_y=1.8,
+            pos_x=true_locs[0, 1],
+            pos_y=true_locs[0, 0],
+            rho=0.0,
+            const=0.0,
+            mea=35,
+        )
+
+        pred_locs = fg._sub_pixel_peak_find(peak_im, HW(11, 11), true_locs.astype(int))
+        dists = np.linalg.norm(true_locs - pred_locs, axis=1)
+        assert np.all(dists < 0.001)
+
+    def it_finds_one_peak_sub_pixel_exactly_under_ideal_conditions_many_offsets():
+        for trials in range(50):
+            true_locs = np.random.uniform(-5, 5, size=(1, 2))
+            true_locs += 35 / 2
+            peak_im = imops.gauss2_rho_form(
+                amp=1000.0,
+                std_x=1.8,
+                std_y=1.8,
+                pos_x=true_locs[0, 1],
+                pos_y=true_locs[0, 0],
+                rho=0.0,
+                const=0.0,
+                mea=35,
+            )
+
+            pred_locs = fg._sub_pixel_peak_find(
+                peak_im, HW(11, 11), true_locs.astype(int)
+            )
+            dists = np.linalg.norm(true_locs - pred_locs, axis=1)
+            assert np.all(dists < 0.001)
+
     def it_find_pixel_accurate():
         bg_std = 10
         with synth.Synth(overwrite=True, dim=(512, 512), n_cycles=3) as s:
@@ -43,6 +82,7 @@ def zest_peak_find():
                 .amps_constant(1000)
                 .widths_uniform(1.5)
                 .locs_grid()
+                .locs_add_random_subpixel()
             )
             s.zero_aln_offsets()
             chcy_ims = s.render_chcy()

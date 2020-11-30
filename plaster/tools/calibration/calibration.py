@@ -301,9 +301,10 @@ class Calibration(Munch):
         self.add(new_propsubs)
 
     def psfs(self, ch_i):
-        return RegPSF.from_array(
-            np.array(self[f"regional_psf.instrument_channel[{ch_i}]"])
-        )
+        return self[f"regional_psf.instrument_channel[{ch_i}]"]
+        # return RegPSF.from_array(
+        #     np.array(self[f"regional_psf.instrument_channel[{ch_i}]"])
+        # )
 
     def __init__(self, propsubs=None):
         super().__init__()

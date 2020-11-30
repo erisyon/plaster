@@ -65,7 +65,7 @@ def zest_sub_pixel_align():
         pred_aln = sub_pixel_align_cy_ims(cy_ims, slice_h=50)
         diff = pred_aln - true_aln
 
-        # debug(true_aln, pred_aln, diff)
+        debug(true_aln, pred_aln, diff)
         assert np.all(np.abs(diff) <= 0.05)
 
     zest()

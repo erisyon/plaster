@@ -149,16 +149,19 @@ class PeaksModel(BaseSynthModel):
         )
         return self
 
-    def locs_grid(self):
-        pad = 10
+    def locs_grid(self, pad=10):
         steps = math.floor(math.sqrt(self.n_peaks))
         self.locs = np.array(
             [
                 (y, x)
-                for y in utils.ispace(pad, self.dim[0] - 2 * pad, steps)
-                for x in utils.ispace(pad, self.dim[0] - 2 * pad, steps)
+                for y in np.linspace(pad, self.dim[0] - 2 * pad, steps)
+                for x in np.linspace(pad, self.dim[0] - 2 * pad, steps)
             ]
         )
+        return self
+
+    def locs_add_random_subpixel(self):
+        self.locs += np.random.uniform(-1, 1, self.locs.shape)
         return self
 
     def amps_constant(self, val):
@@ -228,7 +231,7 @@ class PeaksModelPSF(PeaksModel):
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
 
-            div_y, div_x = np.floor(self.reg_psf.n_divs * loc / self.reg_psf.raw_dim).astype(int)
+            div_y, div_x = np.floor(n_divs * loc / self.reg_psf.raw_dim).astype(int)
             frac_y = np.modf(loc[0])[0]
             frac_x = np.modf(loc[1])[0]
             psf_im = self.reg_psf.render_one_reg(
@@ -294,6 +297,7 @@ class PeaksModelGaussian(PeaksModel):
             )
 
             imops.accum_inplace(im, peak_im, loc=YX(*np.floor(loc)), center=True)
+
 
 class PeaksModelGaussianCircular(PeaksModelGaussian):
     def __init__(self, **kws):
@@ -417,7 +421,7 @@ class HaloModel(BaseSynthModel):
         imops.accum_inplace(im, self.scale * blur, XY(0, 0), center=False)
 
 
-def synth_to_ims_import_result(synth:Synth):
+def synth_to_ims_import_result(synth: Synth):
     chcy_ims = synth.render_chcy()
 
     ims_import_params = ImsImportParams()
@@ -435,15 +439,15 @@ def synth_to_ims_import_result(synth:Synth):
     with tmp_folder(remove=False):
         for fl_i in range(synth.n_fields):
             field_chcy_arr = ims_import_result.allocate_field(
-                fl_i, (synth.n_channels, synth.n_cycles, synth.dim[0], synth.dim[1]), OUTPUT_NP_TYPE
+                fl_i,
+                (synth.n_channels, synth.n_cycles, synth.dim[0], synth.dim[1]),
+                OUTPUT_NP_TYPE,
             )
             field_chcy_ims = field_chcy_arr.arr()
 
             field_chcy_ims[:, :, :, :] = chcy_ims
 
-            ims_import_result.save_field(
-                fl_i, field_chcy_arr, None, None
-            )
+            ims_import_result.save_field(fl_i, field_chcy_arr, None, None)
 
         ims_import_result.save()
 

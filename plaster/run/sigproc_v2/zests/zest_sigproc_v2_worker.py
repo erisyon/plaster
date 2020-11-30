@@ -22,36 +22,105 @@ def zest_sigproc_v2_worker():
     Test the whole sigproc_v2 stack from top to bottom
     """
 
-    def it_returns_nearly_perfect_from_no_noise():
+    def it_returns_nearly_perfect_loc_from_no_noise_one_cycle_small_image():
+        from scipy.spatial.distance import cdist  # Defer slow import
+
         with tmp_folder(chdir=True):
-            with synth.Synth(n_channels=1, n_cycles=3, overwrite=True, dim=(512, 512)) as s:
+            with synth.Synth(
+                n_channels=1, n_cycles=1, overwrite=True, dim=(512, 512)
+            ) as s:
                 # Change the PSF in the corner to ensure that it is picking up the PSF
                 reg_psf = RegPSF.fixture()
-                reg_psf.params[0, 0, 2] = 0.5
 
-                bg_mean = 150
+                peaks = (
+                    synth.PeaksModelPSF(reg_psf, n_peaks=50)
+                    .locs_grid(pad=50)
+                    .locs_add_random_subpixel()
+                    .dyt_amp_constant(5000)
+                    .dyt_random_choice(
+                        [[1, 1, 1], [1, 1, 0], [1, 0, 0]], [1 / 3, 1 / 3, 1 / 3]
+                    )
+                )
+                peaks.locs = np.array([[100.3, 72.9]])
+
+                sigproc_v2_params = SigprocV2Params(
+                    divs=5, peak_mea=11, calibration_file="", mode="analyze"
+                )
+                calib = Calibration()
+                calib[f"regional_psf.instrument_channel[0]"] = reg_psf
+                calib[f"regional_illumination_balance.instrument_channel[0]"] = np.ones(
+                    (5, 5)
+                )
+
+                ims_import_result = synth.synth_to_ims_import_result(s)
+                sigproc_v2_result = worker.sigproc_analyze(
+                    sigproc_v2_params, ims_import_result, progress=None, calib=calib
+                )
+                sigproc_v2_result.save()
+
+                dists = cdist(peaks.locs, sigproc_v2_result.locs(), "euclidean")
+                closest_iz = np.argmin(dists, axis=0)
+                dists = dists[closest_iz, np.arange(dists.shape[0])]
+                assert np.all(dists < 0.05)
+
+    def it_returns_nearly_perfect_from_no_noise():
+        from scipy.spatial.distance import cdist  # Defer slow import
+
+        with tmp_folder(chdir=True):
+            with synth.Synth(
+                n_channels=1, n_cycles=3, overwrite=True, dim=(512, 512)
+            ) as s:
+                # Change the PSF in the corner to ensure that it is picking up the PSF
+                reg_psf = RegPSF.fixture()
+                # reg_psf.params[0, 0, 2] = 0.5
+
+                bg_mean = 0
                 bg_std = 0
                 peaks = (
-                    synth.PeaksModelPSF(reg_psf, n_peaks=500)
-                    .locs_randomize()
+                    synth.PeaksModelPSF(reg_psf, n_peaks=50)
+                    # .locs_randomize()
+                    .locs_grid(pad=50)
+                    .locs_add_random_subpixel()
                     .dyt_amp_constant(5000)
-                    .dyt_random_choice([[1, 1, 1], [1, 1, 0], [1, 0, 0]], [1/3, 1/3, 1/3])
+                    .dyt_random_choice(
+                        [[1, 1, 1], [1, 1, 0], [1, 0, 0]], [1 / 3, 1 / 3, 1 / 3]
+                    )
                 )
+                s.zero_aln_offsets()
                 synth.CameraModel(bias=bg_mean, std=bg_std)
                 # synth.HaloModel(std=20, scale=2)
                 chcy_ims = s.render_chcy()
-                # np.save("_test.npy", chcy_ims)
 
-                sigproc_v2_params = SigprocV2Params(divs=5, peak_mea=11, calibration_file="", mode="analyze")
+                sigproc_v2_params = SigprocV2Params(
+                    divs=5, peak_mea=11, calibration_file="", mode="analyze"
+                )
                 calib = Calibration()
                 calib[f"regional_psf.instrument_channel[0]"] = reg_psf
-                calib[f"regional_illumination_balance.instrument_channel[0]"] = np.ones((5, 5))
+                calib[f"regional_illumination_balance.instrument_channel[0]"] = np.ones(
+                    (5, 5)
+                )
 
                 ims_import_result = synth.synth_to_ims_import_result(s)
-                sigproc_v2_result = worker.sigproc_analyze(sigproc_v2_params, ims_import_result, progress=None, calib=calib)
+                import pudb
+
+                pudb.set_trace()
+                sigproc_v2_result = worker.sigproc_analyze(
+                    sigproc_v2_params, ims_import_result, progress=None, calib=calib
+                )
                 sigproc_v2_result.save()
-                sigproc_v2_result.sig()
-                pass
+
+                dists = cdist(peaks.locs, sigproc_v2_result.locs(), "euclidean")
+                closest_iz = np.argmin(dists, axis=0)
+                dists = dists[closest_iz, np.arange(dists.shape[0])]
+                assert np.all(dists < 0.05)
+
+                sig = sigproc_v2_result.sig()
+                # assert np.all( np.abs(sig[:, 0, 0] - 5000) < 1.0 )
+                aln_ims = sigproc_v2_result.aln_ims[:, 0, :]
+
+        np.save("_test_chcy_ims.npy", chcy_ims)
+        np.save("_test_aln_chcy_ims.npy", aln_ims)
+        np.save("_test_sig.npy", sig)
 
     zest()
 

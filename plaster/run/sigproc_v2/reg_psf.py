@@ -39,8 +39,10 @@ class RegPSF:
             amp=1.0,
             std_x=self.params[div_y, div_x, self.SIGMA_X],
             std_y=self.params[div_y, div_x, self.SIGMA_Y],
-            pos_x=self.peak_mea / 2 + frac_x,
-            pos_y=self.peak_mea / 2 + frac_y,
+            # Note that the following must be integer divides because the
+            # fractional component is relative to the lower-left corner (origin)
+            pos_x=self.peak_mea // 2 + frac_x,
+            pos_y=self.peak_mea // 2 + frac_y,
             rho=self.params[div_y, div_x, self.RHO],
             const=const,
             mea=self.peak_mea,
@@ -96,7 +98,9 @@ class RegPSF:
         return reg_psf
 
     @classmethod
-    def fixture(cls, raw_dim=(512, 512), peak_mea=11, n_divs=5, sig_x=1.8, sig_y=1.8, rho=0.0):
+    def fixture(
+        cls, raw_dim=(512, 512), peak_mea=11, n_divs=5, sig_x=1.8, sig_y=1.8, rho=0.0
+    ):
         reg_psf = cls(raw_dim=raw_dim, peak_mea=peak_mea, n_divs=n_divs)
         reg_psf.params[:, :, 0] = sig_x
         reg_psf.params[:, :, 1] = sig_y

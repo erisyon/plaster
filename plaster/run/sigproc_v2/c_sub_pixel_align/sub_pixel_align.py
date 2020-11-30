@@ -197,6 +197,9 @@ def sub_pixel_align_cy_ims(cy_ims, slice_h):
         # Example: Cy0 there's a peak at 10 and at cy1 the peak is now
         # at 15. Therefore cy1 must be shifted left 5 (ie -5) to align with cy0
 
+        if n_cycles <= 1:
+            return np.zeros((1,))
+
         with context(cy_ims, slice_h) as ctx:
             zap.arrays(
                 _do_sub_pixel_align_cycle,
