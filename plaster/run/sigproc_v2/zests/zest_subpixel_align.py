@@ -25,7 +25,7 @@ def zest_sub_pixel_align():
                 .widths_uniform(width=1.8)
                 .locs_randomize()
             )
-            synth.CameraModel(bias=bg_mean, std=bg_std)
+            synth.CameraModel(bg_mean=bg_mean, bg_std=bg_std)
 
             # s.zero_aln_offsets()
             s.aln_offsets[1] = (0.200, -2.900)

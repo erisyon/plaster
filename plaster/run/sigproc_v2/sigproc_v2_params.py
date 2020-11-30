@@ -28,6 +28,8 @@ class SigprocV2Params(Params):
         run_analysis_gauss2_fitter=False,
         skip_regional_background=False,
         save_full_signal_radmat_npy=False,
+        bg_inflection=0.03,
+        bg_sharpness=100.0,
     )
 
     schema = s(
@@ -45,6 +47,8 @@ class SigprocV2Params(Params):
             save_full_signal_radmat_npy=s.is_bool(),
             run_analysis_gauss2_fitter=s.is_bool(),
             skip_regional_background=s.is_bool(),
+            falloff=s.is_float(),
+            radius=s.is_float(),
         )
     )
 

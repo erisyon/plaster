@@ -77,22 +77,26 @@ def zest_sigproc_v2_worker():
                 bg_mean = 0
                 bg_std = 0
                 peaks = (
-                    synth.PeaksModelPSF(reg_psf, n_peaks=50)
+                    synth.PeaksModelPSF(reg_psf, n_peaks=100)
                     # .locs_randomize()
                     .locs_grid(pad=50)
-                    .locs_add_random_subpixel()
-                    .dyt_amp_constant(5000)
-                    .dyt_random_choice(
+                    # .locs_add_random_subpixel()
+                    .dyt_amp_constant(5000).dyt_random_choice(
                         [[1, 1, 1], [1, 1, 0], [1, 0, 0]], [1 / 3, 1 / 3, 1 / 3]
                     )
                 )
                 s.zero_aln_offsets()
-                synth.CameraModel(bias=bg_mean, std=bg_std)
+                synth.CameraModel(bg_mean=bg_mean, bg_std=bg_std)
                 # synth.HaloModel(std=20, scale=2)
                 chcy_ims = s.render_chcy()
 
                 sigproc_v2_params = SigprocV2Params(
-                    divs=5, peak_mea=11, calibration_file="", mode="analyze"
+                    divs=5,
+                    peak_mea=reg_psf.peak_mea,
+                    calibration_file="",
+                    mode="analyze",
+                    falloff=0.0,
+                    radius=1.0,
                 )
                 calib = Calibration()
                 calib[f"regional_psf.instrument_channel[0]"] = reg_psf
@@ -101,9 +105,6 @@ def zest_sigproc_v2_worker():
                 )
 
                 ims_import_result = synth.synth_to_ims_import_result(s)
-                import pudb
-
-                pudb.set_trace()
                 sigproc_v2_result = worker.sigproc_analyze(
                     sigproc_v2_params, ims_import_result, progress=None, calib=calib
                 )
@@ -114,13 +115,9 @@ def zest_sigproc_v2_worker():
                 dists = dists[closest_iz, np.arange(dists.shape[0])]
                 assert np.all(dists < 0.05)
 
-                sig = sigproc_v2_result.sig()
-                # assert np.all( np.abs(sig[:, 0, 0] - 5000) < 1.0 )
-                aln_ims = sigproc_v2_result.aln_ims[:, 0, :]
-
-        np.save("_test_chcy_ims.npy", chcy_ims)
-        np.save("_test_aln_chcy_ims.npy", aln_ims)
-        np.save("_test_sig.npy", sig)
+                sig = sigproc_v2_result.sig()[:, 0, 0]
+                debug(sig)
+                assert np.all(np.abs(sig - 5000) < 1.0)
 
     zest()
 

@@ -38,7 +38,7 @@ FILE *_log = (FILE *)NULL;
 void _trace(char *file, int line, const char *fmt, ...) {
     // Replacement for printf that also flushes
     if(!_log) {
-        _log = fopen("_c_common.log", "wt");
+        _log = fopen("/erisyon/internal/_c_common.log", "wt");
     }
 
     va_list args;

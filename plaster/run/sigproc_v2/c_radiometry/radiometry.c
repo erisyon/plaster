@@ -21,6 +21,7 @@ void _dump_vec(Float64 *vec, int width, int height, char *msg) {
         fprintf(_log, "\n");
     }
     fprintf(_log, "]\n");
+    fflush(_log);
 }
 
 

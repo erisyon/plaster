@@ -395,14 +395,14 @@ class IlluminationQuadraticFalloffModel(BaseSynthModel):
 
 
 class CameraModel(BaseSynthModel):
-    def __init__(self, bias=100, std=10):
+    def __init__(self, bg_mean=100, bg_std=10):
         super().__init__()
-        self.bias = bias
-        self.std = std
+        self.bg_mean = bg_mean
+        self.bg_std = bg_std
 
     def render(self, im, fl_i, ch_i, cy_i):
         super().render(im, fl_i, ch_i, cy_i)
-        bg = np.random.normal(loc=self.bias, scale=self.std, size=self.dim)
+        bg = np.random.normal(loc=self.bg_mean, scale=self.bg_std, size=self.dim)
         imops.accum_inplace(im, bg, XY(0, 0), center=False)
 
 

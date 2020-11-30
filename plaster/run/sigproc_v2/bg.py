@@ -11,7 +11,7 @@ from plaster.tools.utils import data
 from plaster.tools.log.log import debug
 
 
-def bg_remove(im, approx_psf):
+def bg_remove(im, approx_psf, inflection, sharpness):
     """
     Use a low-cut filter to subtract out background and "bloom" which is
     the light that scatters from foreground to background.
@@ -21,11 +21,9 @@ def bg_remove(im, approx_psf):
 
     # These number were hand-tuned to Abbe (512x512) and might be wrong for other
     # sizes/instruments and will need to be derived and/or calibrated.
-    falloff = 0.06
-    radius = 0.080
     check.array_t(im, ndim=2, is_square=True, dtype=np.float64)
-    mask = 1 - imops.generate_center_weighted_tanh(
-        im.shape[0], falloff=falloff, radius=radius
+    mask = imops.generate_center_weighted_tanh(
+        im.shape[0], inflection=inflection, sharpness=sharpness
     )
     low_cut_im = imops.fft_filter_with_mask(im, mask=mask)
 
@@ -57,7 +55,7 @@ def bg_remove(im, approx_psf):
     bg_im = np.where(fg_mask | nan_mask, np.nan, low_cut_im)
 
     # COMPUTE stats
-    return low_cut_im, np.nanmean(bg_im), np.nanstd(bg_im)
+    return low_cut_im, np.nanmean(bg_im), np.nanstd(bg_im), mask
 
 
 '''

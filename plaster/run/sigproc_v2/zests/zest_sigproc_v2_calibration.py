@@ -75,7 +75,7 @@ def result_from_z_stack(n_fields=1, n_channels=1, n_cycles=1, uniformity="unifor
         .locs_randomize()
         .amps_constant(val=10000)
     )
-    synth.CameraModel(bias=100, std=10)
+    synth.CameraModel(bg_mean=100, bg_std=10)
 
     psf_std = 0.5
     peaks.widths_uniform(psf_std)
@@ -136,7 +136,7 @@ def zest_sigproc_v2_calibration():
                     .locs_randomize()
                     .amps_constant(val=10000)
                 )
-                synth.CameraModel(bias=true_bg_mean, std=_true_bg_std)
+                synth.CameraModel(bg_mean=true_bg_mean, bg_std=_true_bg_std)
                 if howmanydims == 3:
                     ims = s.render_flchcy()
                 elif howmanydims == 2:
@@ -276,7 +276,7 @@ def zest_sigproc_v2_calibration():
 
             def it_handles_all_noise():
                 with synth.Synth(overwrite=True) as s:
-                    synth.CameraModel(bias=true_bg_mean, std=true_bg_std)
+                    synth.CameraModel(bg_mean=true_bg_mean, bg_std=true_bg_std)
                     im = s.render_chcy()
                 est_bg_mean, est_bg_std = worker._background_stats_ims(im, divs)
                 allow_err = true_bg_mean / 10
@@ -343,7 +343,7 @@ def zest_sigproc_v2_calibration():
                     .locs_randomize()
                     .amps_constant(val=10000)
                 )
-                synth.CameraModel(bias=true_bg_mean, std=_true_bg_std)
+                synth.CameraModel(bg_mean=true_bg_mean, bg_std=_true_bg_std)
                 peaks.widths_uniform(_true_psf_std)
                 if howmanydims == 3:
                     ims = s.render_flchcy()
@@ -489,7 +489,7 @@ def zest_sigproc_v2_calibration():
             .locs_randomize()
             .amps_constant(val=10000)
         )
-        synth.CameraModel(bias=bg_mean, std=bg_std)
+        synth.CameraModel(bg_mean=bg_mean, bg_std=bg_std)
         # GENERATE a z-stack of images with the same peaks, different psf stds
         templist = []
         center_z = ceil((n_z_slices - 1) / 2)

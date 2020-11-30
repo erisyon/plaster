@@ -99,7 +99,7 @@ class RegPSF:
 
     @classmethod
     def fixture(
-        cls, raw_dim=(512, 512), peak_mea=11, n_divs=5, sig_x=1.8, sig_y=1.8, rho=0.0
+        cls, raw_dim=(512, 512), peak_mea=15, n_divs=5, sig_x=1.8, sig_y=1.8, rho=0.0
     ):
         reg_psf = cls(raw_dim=raw_dim, peak_mea=peak_mea, n_divs=n_divs)
         reg_psf.params[:, :, 0] = sig_x

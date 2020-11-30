@@ -122,15 +122,20 @@ def generate_square_mask(rad, filled=False):
     return im
 
 
-def generate_center_weighted_tanh(mea, falloff=0.5, radius=1.2):
+def generate_center_weighted_tanh(mea, inflection, sharpness):
     """
     Generates a weighting kernel that has most of the weight at the center
-    using tanh to create a sort of a circular table/shelf.
+    using tanh to create a circular shelf with a gradient edge.
+
+    Arguments:
+        mea: The width / height of the image to be generated
+        inflection: float(0-1). Where along the radius the transition from low to high
+        sharpness: float. >> 1 means a sharp transition from low to high
     """
-    space = np.linspace(-(mea - 1) / 2.0, (mea - 1) / 2.0, mea)
+    space = np.linspace(-1, 1, mea)
     x, y = np.meshgrid(space, space)
-    r = (x) ** 2 + (y) ** 2
-    return 1 - 0.5 * (np.tanh((r - mea * radius) * falloff) + 1)
+    r = np.sqrt(x ** 2 + y ** 2)
+    return 0.5 * np.tanh((r - inflection) * sharpness) + 0.5
 
 
 def extract_with_mask(im, mask, loc, center=False):

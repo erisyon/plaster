@@ -208,7 +208,12 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             if not sigproc_params.skip_regional_balance:
                 im *= bal_im
 
-            filtered_im, _, bg_std = bg.bg_remove(im, approx_psf)
+            filtered_im, _, bg_std = bg.bg_remove(
+                im,
+                approx_psf,
+                inflection=sigproc_params.bg_inflection,
+                sharpness=sigproc_params.bg_sharpness,
+            )
 
             dst_chcy_ims_with_bg[ch_i, cy_i, :, :] = im
             dst_chcy_ims[ch_i, cy_i, :, :] = filtered_im
