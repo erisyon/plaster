@@ -726,20 +726,19 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
 
     assert not calib.is_empty()
 
-    sigproc_v2_result = SigprocV2Result(
-        params=sigproc_v2_params,
-        n_channels=ims_import_result.n_channels,
-        n_cycles=ims_import_result.n_cycles,
-        calib=calib,
-        focus_per_field_per_channel=None,
-    )
-
     n_fields = ims_import_result.n_fields
     n_fields_limit = sigproc_v2_params.n_fields_limit
     if n_fields_limit is not None and n_fields_limit < n_fields:
         n_fields = n_fields_limit
 
-    debug(n_fields)
+    sigproc_v2_result = SigprocV2Result(
+        params=sigproc_v2_params,
+        n_fields=n_fields,
+        n_channels=ims_import_result.n_channels,
+        n_cycles=ims_import_result.n_cycles,
+        calib=calib,
+        focus_per_field_per_channel=None,
+    )
 
     zap.work_orders(
         [
