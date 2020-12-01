@@ -1,6 +1,7 @@
 apt-utils
 curl
 docker.io
+ffmpeg  # For newer version of cv2
 git
 jq
 libffi-dev
@@ -17,3 +18,7 @@ python3-dev
 python3-pip
 sudo
 unzip
+libblas-dev  # For zbs.lmfits
+liblapack-dev  # For zbs.lmfits
+f2c  # For zbs.lmfits
+libgfortran5   # For zbs.lmfits
