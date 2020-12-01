@@ -28,8 +28,9 @@ class SigprocV2Params(Params):
         run_analysis_gauss2_fitter=False,
         skip_regional_background=False,
         save_full_signal_radmat_npy=False,
-        bg_inflection=0.03,
+        bg_inflection=0.05,
         bg_sharpness=100.0,
+        use_fft_bg_subtract=True,
     )
 
     schema = s(

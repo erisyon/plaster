@@ -11,7 +11,7 @@ from plaster.tools.utils import data
 from plaster.tools.log.log import debug
 
 
-def bg_remove(im, approx_psf, inflection, sharpness):
+def bg_remove_by_fft(im, approx_psf, inflection, sharpness):
     """
     Use a low-cut filter to subtract out background and "bloom" which is
     the light that scatters from foreground to background.
@@ -60,7 +60,6 @@ def bg_remove(im, approx_psf, inflection, sharpness):
     return low_cut_im, np.nanmean(bg_im), np.nanstd(bg_im), mask
 
 
-'''
 def background_extract(im, kernel):
     """
     Using an approximate peak kernel, separate FG and BG regionally
@@ -174,4 +173,4 @@ def bg_estimate_and_remove(im, kernel):
     """
     reg_bg, reg_std = background_regional_estimate_im(im, kernel)
     return bg_remove(im, reg_bg), np.nanmean(reg_std)
-'''
+
