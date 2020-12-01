@@ -106,7 +106,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 *loc_p = f64arr_ptr1(&ctx->locs, peak_i);
     Float64 loc_x = loc_p[1];
     Float64 loc_y = loc_p[0];
-    trace("loc(x,y) %f %f\n", loc_x, loc_y);
+    if(peak_i == 0) trace("loc(x,y) %f %f\n", loc_x, loc_y);
     ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width, "loc_x out of bounds");
     ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
 
@@ -115,14 +115,14 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     // Add 0.5 to round up as opposed to floor to keep the spots more centered
     Index corner_x = floor(loc_x - half_mea + 0.5);
     Index corner_y = floor(loc_y - half_mea + 0.5);
-    trace("corner(x,y) %ld %ld\n", corner_x, corner_y);
+    if(peak_i == 0) trace("corner(x,y) %ld %ld\n", corner_x, corner_y);
     ensure_only_in_debug(0 <= corner_x && corner_x < ctx->width, "corner_x out of bounds");
     ensure_only_in_debug(0 <= corner_y && corner_y < ctx->height, "corner_y out of bounds");
 
     // center is the location relative to the the corner
     Float64 center_x = loc_x - corner_x;
     Float64 center_y = loc_y - corner_y;
-    trace("center(x,y) %f %f\n", center_x, center_y);
+    if(peak_i == 0) trace("center(x,y) %f %f\n", center_x, center_y);
     ensure_only_in_debug(0 <= center_x && center_x < mea, "center out of bounds");
     ensure_only_in_debug(0 <= center_y && center_y < mea, "center out of bounds");
 
@@ -133,13 +133,13 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     ensure_only_in_debug(0 <= reg_x && reg_x < ctx->n_divs, "reg out of bounds");
     ensure_only_in_debug(0 <= reg_y && reg_y < ctx->n_divs, "reg out of bounds");
 
-    trace("n_divs %f   raw(w,h) %f %f\n", ctx->n_divs, ctx->raw_width, ctx->raw_height);
-    trace("reg (xy) %ld %ld\n", reg_x, reg_y);
+    if(peak_i == 0) trace("n_divs %f   raw(w,h) %f %f\n", ctx->n_divs, ctx->raw_width, ctx->raw_height);
+    if(peak_i == 0) trace("reg (xy) %ld %ld\n", reg_x, reg_y);
     Float64 *reg_psf_params_p = f64arr_ptr2(&ctx->reg_psf_params, reg_y, reg_x);
     Float64 sigma_x = reg_psf_params_p[0];
     Float64 sigma_y = reg_psf_params_p[1];
     Float64 rho = reg_psf_params_p[2];
-    trace("sig (xy) %f %f   rho %f\n", sigma_x, sigma_y, rho);
+    if(peak_i == 0) trace("sig (xy) %f %f   rho %f\n", sigma_x, sigma_y, rho);
 
     Float64 *psf_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
     Float64 *dat_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
@@ -148,7 +148,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
 
-        trace("cen(x,y) %f %f  foc %f  adj_sig(x,y) %f %f  rho %f\n",
+        if(peak_i == 0) trace("cen(x,y) %f %f  foc %f  adj_sig(x,y) %f %f  rho %f\n",
             center_x, center_y,
             focus,
             sigma_x * focus, sigma_y * focus,
@@ -170,8 +170,11 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             }
         }
 
-        _dump_vec(psf_pixels, mea, mea, "psf_pixels");
-        _dump_vec(dat_pixels, mea, mea, "dat_pixels");
+        if(peak_i == 0) {
+            trace("cy_i %ld\n", cy_i);
+            _dump_vec(psf_pixels, mea, mea, "psf_pixels");
+            _dump_vec(dat_pixels, mea, mea, "dat_pixels");
+        }
 
         // SIGNAL
         Float64 psf_sum_square = 0.0;
@@ -184,8 +187,8 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             psf_p ++;
             dat_p ++;
         }
-//        trace("sig %f  psf_sum_square %f\n", signal, psf_sum_square);
         signal /= psf_sum_square;
+        if(peak_i == 0) trace("sig %f  psf_sum_square %f\n", signal, psf_sum_square);
 
         // RESIDUALS mean
         Float64 residual_mean = 0.0;

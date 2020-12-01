@@ -97,9 +97,8 @@ class Synth:
             for cy_i in np.arange(self.n_cycles):
                 im = ims[ch_i, cy_i]
                 for model in self.models:
-                    model.render(im, fl_i, ch_i, cy_i)
-
-                ims[ch_i, cy_i] = imops.sub_pixel_shift(im, self.aln_offsets[cy_i])
+                    model.render(im, fl_i, ch_i, cy_i, self.aln_offsets[cy_i])
+                ims[ch_i, cy_i] = im
 
         return ims
 
@@ -124,7 +123,7 @@ class BaseSynthModel:
         self.dim = Synth.synth.dim
         Synth.synth.add_model(self)
 
-    def render(self, im, fl_i, ch_i, cy_i):
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         pass
 
 
@@ -222,12 +221,13 @@ class PeaksModelPSF(PeaksModel):
         self.reg_psf = reg_psf
         super().__init__(**kws)
 
-    def render(self, im, fl_i, ch_i, cy_i):
-        super().render(im, fl_i, ch_i, cy_i)
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
         n_divs = self.reg_psf.n_divs
 
         for loc, amp in zip(self.locs, self.amps):
+            loc = loc + aln_offset
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
 
@@ -260,7 +260,7 @@ class PeaksModelGaussian(PeaksModel):
         self.std_y = [height for _ in self.locs]
         return self
 
-    def render(self, im, fl_i, ch_i, cy_i):
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         if self.std_x is None:
             self.std_x = [self.std]
         if self.std_y is None:
@@ -272,7 +272,7 @@ class PeaksModelGaussian(PeaksModel):
         if len(self.std_y) != n_locs:
             self.std_y = np.repeat(self.std_y, (n_locs,))
 
-        super().render(im, fl_i, ch_i, cy_i)
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
         z_scale = 1.0
         if self.z_scale is not None:
@@ -280,6 +280,8 @@ class PeaksModelGaussian(PeaksModel):
             z_scale = 1.0 + self.z_scale * (cy_i - self.z_center) ** 2
 
         for loc, amp, std_x, std_y in zip(self.locs, self.amps, self.std_x, self.std_y):
+            loc = loc + aln_offset
+
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
 
@@ -314,9 +316,9 @@ class PeaksModelGaussianCircular(PeaksModelGaussian):
         self.std_y = copy.copy(self.std_x)
         return self
 
-    def render(self, im, fl_i, ch_i, cy_i):
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         # self.covs = np.array([(std ** 2) * np.eye(2) for std in self.stds])
-        super().render(im, fl_i, ch_i, cy_i)
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
 
 class PeaksModelGaussianAstigmatism(PeaksModelGaussian):
@@ -326,8 +328,9 @@ class PeaksModelGaussianAstigmatism(PeaksModelGaussian):
         self.strength = strength
         center = np.array(self.dim) / 2
         d = self.dim[0]
-        for loc_i, pos in enumerate(self.locs):
-            delta = center - pos
+        for loc_i, loc in enumerate(self.locs):
+            loc = loc + aln_offset
+            delta = center - loc
             a = np.sqrt(np.sum(delta ** 2))
             r = 1 + strength * a / d
             pc0 = delta / np.sqrt(delta.dot(delta))
@@ -340,52 +343,14 @@ class PeaksModelGaussianAstigmatism(PeaksModelGaussian):
             self.covs[loc_i, :, :] = cov
 
 
-# Commenting this out to avoid an issue with the PSF package interacting with numpy
-# it should be brought back when that issue is better understood. To duplicate the issue
-# do:
-#  - docker run --rm -it -v $(pwd):/erisyon/plaster jupyter/scipy-notebook:latest bash
-#  - cd /erisyon/plaster && python setup.py install
-#
-# class PeaksModelPSF(PeaksModel):
-#     def __init__(self, n_z_slices=8, depth_in_microns=0.4, r_in_microns=28.0, **kws):
-#         """
-#         Generates a set of psf images for each z slice called self.z_to_psf
-#         The self.z_iz keeps track of which z slice each peak is assigned to.
-#         """
-#         super().__init__(**kws)
-#         self.n_z_slices = n_z_slices
-#         self.z_iz = np.zeros((self.n_peaks,), dtype=int)
-#         self.z_to_psf = psf_sample(
-#             n_z_slices=64, depth_in_microns=depth_in_microns, r_in_microns=r_in_microns
-#         )
-
-#     def z_randomize(self):
-#         # Unrealisitically pull from any PSF z depth
-#         self.z_iz = np.random.randint(0, self.n_z_slices, self.n_peaks)
-#         return self
-
-#     def z_set_all(self, z_i):
-#         self.z_iz = (z_i * np.ones((self.n_peaks,))).astype(int)
-#         return self
-
-#     def render(self, im, cy_i):
-#         super().render(im, cy_i)
-#         for loc, amp, z_i in zip(self.locs, self.amps, self.z_iz):
-#             frac_part, int_part = np.modf(loc)
-#             shifted_peak_im = imops.sub_pixel_shift(self.z_to_psf[z_i], frac_part)
-#             imops.accum_inplace(
-#                 im, amp * shifted_peak_im, loc=YX(*int_part), center=True
-#             )
-
-
 class IlluminationQuadraticFalloffModel(BaseSynthModel):
     def __init__(self, center=(0.5, 0.5), width=1.2):
         super().__init__()
         self.center = center
         self.width = width
 
-    def render(self, im, fl_i, ch_i, cy_i):
-        super().render(im, fl_i, ch_i, cy_i)
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
         yy, xx = np.meshgrid(
             (np.linspace(0, 1, im.shape[0]) - self.center[0]) / self.width,
             (np.linspace(0, 1, im.shape[1]) - self.center[1]) / self.width,
@@ -400,8 +365,8 @@ class CameraModel(BaseSynthModel):
         self.bg_mean = bg_mean
         self.bg_std = bg_std
 
-    def render(self, im, fl_i, ch_i, cy_i):
-        super().render(im, fl_i, ch_i, cy_i)
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
         bg = np.random.normal(loc=self.bg_mean, scale=self.bg_std, size=self.dim)
         imops.accum_inplace(im, bg, XY(0, 0), center=False)
 
@@ -412,8 +377,8 @@ class HaloModel(BaseSynthModel):
         self.std = std
         self.scale = scale
 
-    def render(self, im, fl_i, ch_i, cy_i):
-        super().render(im, fl_i, ch_i, cy_i)
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
         size = int(self.std * 2.5)
         size += 1 if size % 2 == 0 else 0
         bg_mean = np.median(im) - 1

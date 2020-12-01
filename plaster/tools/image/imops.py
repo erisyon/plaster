@@ -758,14 +758,26 @@ def com(im):
     return utils.np_safe_divide(np.array([y, x]), mass)
 
 
+def scale_im(im, scale):
+    """Scale an image up or down"""
+    check.array_t(im, ndim=2, dtype=float)
+    rows, cols = im.shape
+    M = np.array([[scale, 0.0, 0.0], [0.0, scale, 0.0]])
+    return cv2.warpAffine(
+        im, M, dsize=(int(scale * cols), int(scale * rows)), flags=cv2.INTER_CUBIC
+    )
+
+
 def sub_pixel_shift(im, offset):
     """
     Shift with offset in y, x array form.
     A positive x will shift right. A positive y will shift up.
     """
     check.array_t(im, ndim=2, dtype=float)
+    rows, cols = im.shape
     M = np.array([[1.0, 0.0, offset[1]], [0.0, 1.0, offset[0]]])
-    return cv2.warpAffine(im, M, dsize=im.shape, flags=cv2.INTER_CUBIC)
+    # Note the reversal of the dimensions
+    return cv2.warpAffine(im, M, dsize=(cols, rows), flags=cv2.INTER_CUBIC)
 
 
 def sub_pixel_center(peak_im):

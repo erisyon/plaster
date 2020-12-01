@@ -139,7 +139,6 @@ def background_regional_estimate_im_with_bg_im(bg_im, divs=64, inpaint=True):
     return reg_bg_mean, reg_bg_std
 
 
-
 def background_regional_estimate_im(im, kernel, divs=64, inpaint=True):
     """
     Using an approximate peak kernel, separate FG and BG regionally
@@ -173,4 +172,3 @@ def bg_estimate_and_remove(im, kernel):
     """
     reg_bg, reg_std = background_regional_estimate_im(im, kernel)
     return bg_remove(im, reg_bg), np.nanmean(reg_std)
-
