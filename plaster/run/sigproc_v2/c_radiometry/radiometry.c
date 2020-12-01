@@ -112,8 +112,9 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
 
     // corner is the lower left pixel coorinate in image coordinates
     // where the (mea, mea) sub-image will be extracted
-    Index corner_x = floor(loc_x - half_mea);
-    Index corner_y = floor(loc_y - half_mea);
+    // Add 0.5 to round up as opposed to floor to keep the spots more centered
+    Index corner_x = floor(loc_x - half_mea + 0.5);
+    Index corner_y = floor(loc_y - half_mea + 0.5);
     trace("corner(x,y) %ld %ld\n", corner_x, corner_y);
     ensure_only_in_debug(0 <= corner_x && corner_x < ctx->width, "corner_x out of bounds");
     ensure_only_in_debug(0 <= corner_y && corner_y < ctx->height, "corner_y out of bounds");

@@ -208,7 +208,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             if not sigproc_params.skip_regional_balance:
                 im *= bal_im
 
-            filtered_im, _, bg_std = bg.bg_remove(
+            filtered_im, _, bg_std, _ = bg.bg_remove(
                 im,
                 approx_psf,
                 inflection=sigproc_params.bg_inflection,

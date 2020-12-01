@@ -47,8 +47,8 @@ class SigprocV2Params(Params):
             save_full_signal_radmat_npy=s.is_bool(),
             run_analysis_gauss2_fitter=s.is_bool(),
             skip_regional_background=s.is_bool(),
-            falloff=s.is_float(),
-            radius=s.is_float(),
+            bg_inflection=s.is_float(),
+            bg_sharpness=s.is_float(),
         )
     )
 

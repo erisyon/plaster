@@ -27,6 +27,8 @@ def bg_remove(im, approx_psf, inflection, sharpness):
     )
     low_cut_im = imops.fft_filter_with_mask(im, mask=mask)
 
+    # MASK out the foreground to gather statistics about the background
+
     # mask_radius in pixels of extra space added around FG candidates
     mask_radius = 2  # Empirical
     circle = imops.generate_circle_mask(mask_radius).astype(np.uint8)
@@ -54,7 +56,7 @@ def bg_remove(im, approx_psf, inflection, sharpness):
     fg_mask = cv2.dilate(fg_mask.astype(np.uint8), circle, iterations=1)
     bg_im = np.where(fg_mask | nan_mask, np.nan, low_cut_im)
 
-    # COMPUTE stats
+    # COMPUTE background stats and return the image and stats
     return low_cut_im, np.nanmean(bg_im), np.nanstd(bg_im), mask
 
 

@@ -57,9 +57,6 @@ def zest_bg():
             chcy_ims = s.render_chcy()
 
         kernel = psf.approximate_psf()
-        import pudb
-
-        pudb.set_trace()
         im, mean, std = bg.bg_remove(
             chcy_ims[0, 0], kernel, inflection=0.03, sharpness=100.0
         )

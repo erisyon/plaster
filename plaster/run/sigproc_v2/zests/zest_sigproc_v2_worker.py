@@ -6,14 +6,8 @@ from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.reg_psf import RegPSF
 from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Params
 from plaster.tools.calibration.calibration import Calibration
-from plaster.tools.image import imops
-from plaster.tools.image.coord import ROI
-
-# from plaster.run.sigproc_v2.psf_sample import psf_sample
 from plaster.tools.log.log import debug
-from plaster.tools.schema.check import CheckAffirmError
-from plaster.tools.utils import utils
-from plaster.tools.utils.tmp import tmp_folder, tmp_file
+from plaster.tools.utils.tmp import tmp_folder
 from zest import zest
 
 
@@ -22,7 +16,25 @@ def zest_sigproc_v2_worker():
     Test the whole sigproc_v2 stack from top to bottom
     """
 
-    def it_returns_nearly_perfect_loc_from_no_noise_one_cycle_small_image():
+    def _run(reg_psf, s, extra_params=None):
+        if extra_params is None:
+            extra_params = {}
+
+        sigproc_v2_params = SigprocV2Params(
+            divs=5, peak_mea=11, calibration_file="", mode="analyze", **extra_params
+        )
+        calib = Calibration()
+        calib[f"regional_psf.instrument_channel[0]"] = reg_psf
+        calib[f"regional_illumination_balance.instrument_channel[0]"] = np.ones((5, 5))
+
+        ims_import_result = synth.synth_to_ims_import_result(s)
+        sigproc_v2_result = worker.sigproc_analyze(
+            sigproc_v2_params, ims_import_result, progress=None, calib=calib
+        )
+        sigproc_v2_result.save()
+        return sigproc_v2_result
+
+    def it_returns_exact_distance_no_noise_one_cycle_one_peak():
         from scipy.spatial.distance import cdist  # Defer slow import
 
         with tmp_folder(chdir=True):
@@ -32,36 +44,60 @@ def zest_sigproc_v2_worker():
                 # Change the PSF in the corner to ensure that it is picking up the PSF
                 reg_psf = RegPSF.fixture()
 
-                peaks = (
-                    synth.PeaksModelPSF(reg_psf, n_peaks=50)
-                    .locs_grid(pad=50)
-                    .locs_add_random_subpixel()
-                    .dyt_amp_constant(5000)
-                    .dyt_random_choice(
-                        [[1, 1, 1], [1, 1, 0], [1, 0, 0]], [1 / 3, 1 / 3, 1 / 3]
-                    )
-                )
+                peaks = synth.PeaksModelPSF(reg_psf, n_peaks=1).dyt_amp_constant(5000)
                 peaks.locs = np.array([[100.3, 72.9]])
 
-                sigproc_v2_params = SigprocV2Params(
-                    divs=5, peak_mea=11, calibration_file="", mode="analyze"
-                )
-                calib = Calibration()
-                calib[f"regional_psf.instrument_channel[0]"] = reg_psf
-                calib[f"regional_illumination_balance.instrument_channel[0]"] = np.ones(
-                    (5, 5)
-                )
-
-                ims_import_result = synth.synth_to_ims_import_result(s)
-                sigproc_v2_result = worker.sigproc_analyze(
-                    sigproc_v2_params, ims_import_result, progress=None, calib=calib
-                )
-                sigproc_v2_result.save()
+                sigproc_v2_result = _run(reg_psf, s)
 
                 dists = cdist(peaks.locs, sigproc_v2_result.locs(), "euclidean")
                 closest_iz = np.argmin(dists, axis=0)
                 dists = dists[closest_iz, np.arange(dists.shape[0])]
                 assert np.all(dists < 0.05)
+
+    def it_returns_exact_sig_from_no_noise_no_collisions_no_bg_subtract():
+        with tmp_folder(chdir=True):
+            with synth.Synth(
+                n_channels=1, n_cycles=1, overwrite=True, dim=(512, 512)
+            ) as s:
+                reg_psf = RegPSF.fixture()
+
+                (
+                    synth.PeaksModelPSF(reg_psf, n_peaks=100)
+                    .locs_grid(pad=50)
+                    .dyt_amp_constant(5000)
+                    .dyt_random_choice(
+                        [[1, 1, 1], [1, 1, 0], [1, 0, 0]], [1 / 3, 1 / 3, 1 / 3]
+                    )
+                )
+
+                sigproc_v2_result = _run(reg_psf, s, dict(bg_inflection=-1.0))
+
+                sig = sigproc_v2_result.sig()[:, 0, 0]
+                assert np.all(np.abs(sig - 5000) < 0.75)
+
+    def it_returns_exact_sig_from_no_noise_no_collisions_with_bg_subtract():
+        # TODO: This is the current mystery. Why is this reducing so much?
+
+        with tmp_folder(chdir=True):
+            with synth.Synth(
+                n_channels=1, n_cycles=1, overwrite=True, dim=(512, 512)
+            ) as s:
+                reg_psf = RegPSF.fixture()
+
+                (
+                    synth.PeaksModelPSF(reg_psf, n_peaks=100)
+                    .locs_grid(pad=50)
+                    .dyt_amp_constant(5000)
+                    .dyt_random_choice(
+                        [[1, 1, 1], [1, 1, 0], [1, 0, 0]], [1 / 3, 1 / 3, 1 / 3]
+                    )
+                )
+
+                sigproc_v2_result = _run(reg_psf, s)
+
+                sig = sigproc_v2_result.sig()[:, 0, 0]
+                debug(sig)
+                assert np.all(np.abs(sig - 5000) < 0.75)
 
     def it_returns_nearly_perfect_from_no_noise():
         from scipy.spatial.distance import cdist  # Defer slow import
@@ -116,8 +152,7 @@ def zest_sigproc_v2_worker():
                 assert np.all(dists < 0.05)
 
                 sig = sigproc_v2_result.sig()[:, 0, 0]
-                debug(sig)
-                assert np.all(np.abs(sig - 5000) < 1.0)
+                assert np.all(np.abs(sig - 5000) < 0.75)
 
     zest()
 
