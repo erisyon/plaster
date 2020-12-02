@@ -446,7 +446,7 @@ def _analyze_step_6a_fitter(chcy_ims, locs, reg_psf: psf.RegPSF, mask):
     return fitmat
 
 
-def _analyze_step_6b_radiometry(chcy_ims, locs, calib, scale):
+def _analyze_step_6b_radiometry(chcy_ims, locs, calib, focus_adjustment, scale):
     """
     Extract radiometry (signal and noise) from the field chcy stack.
 
@@ -471,7 +471,6 @@ def _analyze_step_6b_radiometry(chcy_ims, locs, calib, scale):
     # TODO
     # reg_psf.scale(scale)
 
-    focus_adjustment = np.ones((n_cycles,))  # TODO: Sample the focuses
     radmat = radiometry_field_stack(
         chcy_ims, locs=locs, reg_psf=reg_psf, focus_adjustment=focus_adjustment
     )
@@ -543,22 +542,23 @@ def _sigproc_analyze_field(
     # Step 6: Radiometry over each channel, cycle
 
     # Sample all or a sub-set of peaks for focus purposes (and also for debugging)
-    fitmat = None
     if sigproc_v2_params.run_analysis_gauss2_fitter:
-        mask = np.ones((?), dtype=bool)
+        mask = np.ones((n_locs,), dtype=bool)
+
     else:
-        # Subsample
-        count = ?
-        iz = np.random.choice(n_locs, count, replace=False)
-        mask = np.zeros((?), dtype=bool)
+        # Subsample peaks for fitting
+        mask = np.zeros((n_locs,), dtype=bool)
+        count = 100  # DO not know if this is enough
+        iz = np.random.choice(n_locs, count)  # Allow replace in case count > n_locs
         mask[iz] = 1
 
     fitmat = _analyze_step_6a_fitter(chcy_ims, locs, reg_psf, mask)
 
-    TODO: Analyze the fitmat for focus adjustments
+    focus_adjustments = fg.focus_from_fitmat(fitmat, reg_psf)
 
-    radmat = _analyze_step_6b_radiometry(scaled_chcy_ims, locs, calib, scale)
-
+    radmat = _analyze_step_6b_radiometry(
+        scaled_chcy_ims, locs, calib, focus_adjustments, scale
+    )
 
     return (
         chcy_ims,
@@ -566,9 +566,6 @@ def _sigproc_analyze_field(
         radmat,
         aln_offsets,
         fitmat,
-        difmat,
-        picmat,
-        sftmat,
     )
 
 
@@ -582,15 +579,12 @@ def _do_sigproc_analyze_and_save_field(
     chcy_ims = ims_import_result.ims[field_i]
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
-    psf_params = None
+    assert n_channels == 1
+    reg_psf = calib.psfs(0)  # TODO: Multichannel
 
-    (
-        chcy_ims,
-        locs,
-        radmat,
-        aln_offsets,
-        fitmat,
-    ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params)
+    (chcy_ims, locs, radmat, aln_offsets, fitmat,) = _sigproc_analyze_field(
+        chcy_ims, sigproc_v2_params, calib, reg_psf
+    )
 
     mea = np.array([chcy_ims.shape[-1:]])
     if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):

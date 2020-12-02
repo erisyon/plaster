@@ -387,6 +387,21 @@ class HaloModel(BaseSynthModel):
         imops.accum_inplace(im, self.scale * blur, XY(0, 0), center=False)
 
 
+class BlobModel(BaseSynthModel):
+    def __init__(self, size=15, amp=1000):
+        super().__init__()
+        self.size = (size & ~1) + 1
+        self.amp = amp
+
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
+
+        blob = imops.generate_circle_mask(self.size, size=self.size * 3)
+        imops.accum_inplace(
+            im, self.amp * blob, XY(0.25 * im.shape[0], 0.25 * im.shape[0]), center=True
+        )
+
+
 def synth_to_ims_import_result(synth: Synth):
     chcy_ims = synth.render_chcy()
 

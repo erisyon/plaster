@@ -330,8 +330,14 @@ def fit_image_with_reg_psf(im, locs, reg_psf: RegPSF):
     guess_params = np.zeros((n_locs, AugmentedGauss2Params.N_FULL_PARAMS))
 
     # COPY over parameters by region for each peak
-    guess_params[:, 0 : Gauss2Params.N_PARAMS] = reg_psf.params[
-        reg_yx[:, 0], reg_yx[:, 1], 0 : Gauss2Params.N_PARAMS,
+    guess_params[:, Gauss2Params.SIGMA_X] = reg_psf.params[
+        reg_yx[:, 0], reg_yx[:, 1], RegPSF.SIGMA_X,
+    ]
+    guess_params[:, Gauss2Params.SIGMA_Y] = reg_psf.params[
+        reg_yx[:, 0], reg_yx[:, 1], RegPSF.SIGMA_Y,
+    ]
+    guess_params[:, Gauss2Params.RHO] = reg_psf.params[
+        reg_yx[:, 0], reg_yx[:, 1], RegPSF.RHO,
     ]
 
     # CENTER
@@ -343,3 +349,24 @@ def fit_image_with_reg_psf(im, locs, reg_psf: RegPSF):
     guess_params[:, Gauss2Params.OFFSET] = 0.0
 
     return gauss2_fitter.fit_image(im, locs, guess_params, reg_psf.peak_mea)
+
+
+def focus_from_fitmat(fitmat, reg_psf: RegPSF):
+    """
+    fitmat: (n_peaks, n_channels, n_cycles, AugmentedGauss2Params.N_FULL_PARAMS)
+    """
+    n_peaks, n_channels, n_cycles, n_params = fitmat.shape
+    assert n_channels == 1  # TODO: Multichannel
+    fit_sig_x = np.nanmean(fitmat[:, 0, :, Gauss2Params.SIGMA_X], axis=0)
+    fit_sig_y = np.nanmean(fitmat[:, 0, :, Gauss2Params.SIGMA_Y], axis=0)
+
+    psf_sig_x = np.mean(reg_psf.params[:, :, RegPSF.SIGMA_X])
+    psf_sig_y = np.mean(reg_psf.params[:, :, RegPSF.SIGMA_Y])
+
+    # I'm just combining the sig x & y under the theory that they vary
+    # together under focus changes.
+
+    sig = 0.5 * (fit_sig_x + fit_sig_y)
+    psf = 0.5 * (psf_sig_x + psf_sig_y)
+
+    return sig / psf

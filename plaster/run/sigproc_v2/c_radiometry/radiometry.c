@@ -8,7 +8,9 @@
 #include "unistd.h"
 #include "math.h"
 #include "c_common.h"
+#include "spline.h"
 #include "_radiometry.h"
+
 #define PI2 (2.0 * M_PI)
 
 
@@ -22,6 +24,33 @@ void _dump_vec(Float64 *vec, int width, int height, char *msg) {
     }
     fprintf(_log, "]\n");
     fflush(_log);
+}
+
+
+void _interpolate_reg_psf(
+    F64Arr *reg_psf_params,
+    Float64 x, Float64 y,
+    Float64 im_width, Float64 im_height,
+    Float64 *out_sigma_x, Float64 *out_sigma_y, Float64 *out_rho
+) {
+    // Given the 2D array of psf params interpolate coordinate (x,y)
+    // TODO: Implement this with a cubic spline or a 2D LERP; for now use closest neighbor
+
+    ensure_only_in_debug(reg_psf_params->shape[0] == reg_psf_params->shape[1], "reg_psf must be square");
+
+    Index n_divs = reg_psf_params->shape[0];
+    Index n_divs_minus_one = n_divs - 1;
+    Float64 n_divs_f = (Float64)n_divs;
+
+    Index reg_x = min( n_divs_minus_one, max(0, (Index)floor(0.5 + n_divs_f * x / im_width)) );
+    Index reg_y = min( n_divs_minus_one, max(0, (Index)floor(0.5 + n_divs_f * y / im_height)) );
+    ensure_only_in_debug(0 <= reg_x && reg_x < n_divs, "reg out of bounds");
+    ensure_only_in_debug(0 <= reg_y && reg_y < n_divs, "reg out of bounds");
+
+    Float64 *reg_psf_params_p = f64arr_ptr2(reg_psf_params, reg_y, reg_x);
+    *out_sigma_x = reg_psf_params_p[0];
+    *out_sigma_y = reg_psf_params_p[1];
+    *out_rho = reg_psf_params_p[2];
 }
 
 
@@ -71,7 +100,7 @@ void psf_im(
 }
 
 
-char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i, F64Arr *psf_im) {
+char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     /*
     Each cycle is sub-pixel aligned, but each peak can be at
     an arbitrary fractional offset (which has already been determine
@@ -128,43 +157,38 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i, F64A
 
     // Shape
     Index n_divs_minus_one = ctx->n_divs - 1;
-    Index reg_x = min(n_divs_minus_one, max(0, ctx->n_divs * loc_x / ctx->raw_width));
-    Index reg_y = min(n_divs_minus_one, max(0, ctx->n_divs * loc_y / ctx->raw_height));
-    ensure_only_in_debug(0 <= reg_x && reg_x < ctx->n_divs, "reg out of bounds");
-    ensure_only_in_debug(0 <= reg_y && reg_y < ctx->n_divs, "reg out of bounds");
 
-    /*
     if(peak_i == 0) trace("n_divs %f   raw(w,h) %f %f\n", ctx->n_divs, ctx->raw_width, ctx->raw_height);
-    if(peak_i == 0) trace("reg (xy) %ld %ld\n", reg_x, reg_y);
-    Float64 *reg_psf_params_p = f64arr_ptr2(&ctx->reg_psf_params, reg_y, reg_x);
-    Float64 sigma_x = reg_psf_params_p[0];
-    Float64 sigma_y = reg_psf_params_p[1];
-    Float64 rho = reg_psf_params_p[2];
-    if(peak_i == 0) trace("sig (xy) %f %f   rho %f\n", sigma_x, sigma_y, rho);
-    Float64 *psf_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
-    */
-    Float64 *psf_pixels = f64arr_ptr1(psf_im, 0);
 
+    Float64 *psf_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
     Float64 *dat_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
 
     Index ch_i = 0;
     for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
 
-//        if(peak_i == 0) trace("cen(x,y) %f %f  foc %f  adj_sig(x,y) %f %f  rho %f\n",
-//            center_x, center_y,
-//            focus,
-//            sigma_x * focus, sigma_y * focus,
-//            rho
-//        );
-// TODO: This is pulling in the from python reg_psf but eventually I want
-// to re-implement the cubic interpolation of the PSF parameters in C to
-// avoid the low python call.
-//        psf_im(
-//            center_x, center_y,
-//            sigma_x * focus, sigma_y * focus,
-//            rho, psf_pixels, ctx->peak_mea
-//        );
+        Float64 sigma_x, sigma_y, rho;
+        _interpolate_reg_psf(
+            &ctx->reg_psf_params,
+            loc_x, loc_y,
+            ctx->width, ctx->height,
+            &sigma_x, &sigma_y, &rho
+        );
+
+        sigma_x *= focus;
+        sigma_y *= focus;
+
+        if(peak_i == 0) trace("cen(x,y) %f %f  foc %f  adj_sig(x,y) %f %f  rho %f\n",
+            center_x, center_y,
+            focus,
+            sigma_x, sigma_y, rho
+        );
+
+        psf_im(
+            center_x, center_y,
+            sigma_x, sigma_y,
+            rho, psf_pixels, ctx->peak_mea
+        );
 
         // COPY the data into a contiguous buffer
         Float64 *dst_p = dat_pixels;

@@ -282,3 +282,5 @@ def psf_all_fields_one_channel(cy_ims, sigproc_v2_params) -> RegPSF:
     # sigma_x, sigma_y, and rho.
 
     return RegPSF.from_psf_ims(psf_ims)
+
+    focus_adjustments = _focus_from_fitmat(fitmat)
