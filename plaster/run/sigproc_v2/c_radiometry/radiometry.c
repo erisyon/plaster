@@ -71,7 +71,7 @@ void psf_im(
 }
 
 
-char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
+char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i, F64Arr *psf_im) {
     /*
     Each cycle is sub-pixel aligned, but each peak can be at
     an arbitrary fractional offset (which has already been determine
@@ -133,6 +133,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     ensure_only_in_debug(0 <= reg_x && reg_x < ctx->n_divs, "reg out of bounds");
     ensure_only_in_debug(0 <= reg_y && reg_y < ctx->n_divs, "reg out of bounds");
 
+    /*
     if(peak_i == 0) trace("n_divs %f   raw(w,h) %f %f\n", ctx->n_divs, ctx->raw_width, ctx->raw_height);
     if(peak_i == 0) trace("reg (xy) %ld %ld\n", reg_x, reg_y);
     Float64 *reg_psf_params_p = f64arr_ptr2(&ctx->reg_psf_params, reg_y, reg_x);
@@ -140,26 +141,30 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 sigma_y = reg_psf_params_p[1];
     Float64 rho = reg_psf_params_p[2];
     if(peak_i == 0) trace("sig (xy) %f %f   rho %f\n", sigma_x, sigma_y, rho);
-
     Float64 *psf_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
+    */
+    Float64 *psf_pixels = f64arr_ptr1(psf_im, 0);
+
     Float64 *dat_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
 
     Index ch_i = 0;
     for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
 
-        if(peak_i == 0) trace("cen(x,y) %f %f  foc %f  adj_sig(x,y) %f %f  rho %f\n",
-            center_x, center_y,
-            focus,
-            sigma_x * focus, sigma_y * focus,
-            rho
-        );
-
-        psf_im(
-            center_x, center_y,
-            sigma_x * focus, sigma_y * focus,
-            rho, psf_pixels, ctx->peak_mea
-        );
+//        if(peak_i == 0) trace("cen(x,y) %f %f  foc %f  adj_sig(x,y) %f %f  rho %f\n",
+//            center_x, center_y,
+//            focus,
+//            sigma_x * focus, sigma_y * focus,
+//            rho
+//        );
+// TODO: This is pulling in the from python reg_psf but eventually I want
+// to re-implement the cubic interpolation of the PSF parameters in C to
+// avoid the low python call.
+//        psf_im(
+//            center_x, center_y,
+//            sigma_x * focus, sigma_y * focus,
+//            rho, psf_pixels, ctx->peak_mea
+//        );
 
         // COPY the data into a contiguous buffer
         Float64 *dst_p = dat_pixels;

@@ -306,8 +306,8 @@ class Calibration(Munch):
         if old_key in self:
             old_psf = np.array(self[old_key])
             in_focus_ims = old_psf[old_psf.shape[0] // 2]
-            raw_dim = (512, 512)  # Hard coded for now
-            return RegPSF.from_psf_ims(raw_dim, in_focus_ims)
+            im_mea = 512  # Hard coded for now
+            return RegPSF.from_psf_ims(im_mea, in_focus_ims)
 
         return self[f"regional_psf.instrument_channel[{ch_i}]"]
         # return RegPSF.from_array(

@@ -224,19 +224,13 @@ class PeaksModelPSF(PeaksModel):
     def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
-        n_divs = self.reg_psf.n_divs
-
         for loc, amp in zip(self.locs, self.amps):
             loc = loc + aln_offset
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
 
-            div_y, div_x = np.floor(n_divs * loc / self.reg_psf.raw_dim).astype(int)
-            frac_y = np.modf(loc[0])[0]
-            frac_x = np.modf(loc[1])[0]
-            psf_im = self.reg_psf.render_at_loc(loc, amp=amp, frac_y=frac_y, frac_x=frac_x, const=0.0
-            )
-            imops.accum_inplace(im, psf_im, loc=YX(*np.floor(loc)), center=True)
+            psf_im, accum_to_loc = self.reg_psf.render_at_loc(loc, amp=amp, const=0.0)
+            imops.accum_inplace(im, psf_im, loc=YX(accum_to_loc), center=False)
 
 
 class PeaksModelGaussian(PeaksModel):

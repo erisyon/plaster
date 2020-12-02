@@ -92,6 +92,7 @@ def load_lib():
     lib.radiometry_field_stack_one_peak.argtypes = [
         c.POINTER(RadiometryContext),  # RadiometryContext context
         c_common_tools.typedef_to_ctype("Index"),  # Index peak_i,
+        c.POINTER(F64Arr),  # F64Arr psf_im
     ]
     lib.radiometry_field_stack_one_peak.restype = c.c_char_p
 
@@ -124,6 +125,7 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
     ctx = RadiometryContext(
         chcy_ims=F64Arr.from_ndarray(chcy_ims),
         locs=F64Arr.from_ndarray(locs),
+        _locs=locs,
         reg_psf_params=F64Arr.from_ndarray(reg_psf.params),
         focus_adjustment=F64Arr.from_ndarray(focus_adjustment),
         n_channels=n_channels,
@@ -133,8 +135,8 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
         peak_mea=peak_mea,
         height=height,
         width=width,
-        raw_height=reg_psf.raw_dim[0],
-        raw_width=reg_psf.raw_dim[1],
+        raw_height=reg_psf.im_mea,
+        raw_width=reg_psf.im_mea,
         out_radiometry=F64Arr.from_ndarray(out_radiometry),
         _out_radiometry=out_radiometry,
     )
@@ -149,17 +151,31 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
         lib.context_free(ctx)
 
 
-def _do_radiometry_field_stack_one_peak(ctx: RadiometryContext, peak_i: int):
+def _do_radiometry_field_stack_one_peak(
+    ctx: RadiometryContext, peak_i: int, reg_psf: RegPSF
+):
     """
     Worker for radiometry_field_stack() zap
     """
     lib = load_lib()
-    error = lib.radiometry_field_stack_one_peak(ctx, peak_i)
+
+    # TODO: The following call to Python interpolation is likely the slowest
+    #       part of this. Should be re-implemented in C
+    loc = ctx._locs[peak_i]
+    psf_im, _ = reg_psf.render_at_loc(loc)
+    psf_im_as_f64arr = F64Arr.from_ndarray(psf_im)
+    error = lib.radiometry_field_stack_one_peak(ctx, peak_i, psf_im_as_f64arr)
     if error is not None:
         raise CException(error)
 
 
 def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
+    # import pudb; pudb.set_trace()
+    # reg_psf.params[0, 0, 2] = 0.0
+    reg_psf.interp_sig_x_fn = None
+    reg_psf.interp_sig_y_fn = None
+    reg_psf.interp_rho_fn = None
+
     with context(
         chcy_ims=chcy_ims,
         locs=locs,
@@ -175,6 +191,7 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
             _trap_exceptions=False,
             _debug_mode=True,  # TODO HACK REMOVE ME!
             ctx=ctx,
+            reg_psf=reg_psf,
         )
 
     return ctx._out_radiometry

@@ -424,7 +424,10 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib, scale):
         n_channels == 1
     ), "Until further notice, only passing in one reg_psf for one channel"
     reg_psf = calib.psfs(0)
-    reg_psf.scale(scale)
+
+    # TODO
+    # reg_psf.scale(scale)
+
     focus_adjustment = np.ones((n_cycles,))  # TODO: Sample the focuses
     radmat = radiometry_field_stack(
         chcy_ims, locs=locs, reg_psf=reg_psf, focus_adjustment=focus_adjustment
@@ -467,6 +470,7 @@ def _analyze_step_6b_fitter(chcy_ims, locs, reg_psf: psf.RegPSF):
             fitmat[:, ch_i, cy_i, :] = params
 
     return fitmat
+
 
 '''
 def _analyze_step_6c_peak_differencing(chcy_ims, locs, peak_mea):
@@ -583,7 +587,8 @@ def _sigproc_analyze_field(
     )
 
     # experiment: super sample. If this works move to params
-    scale = 4
+    # TODO!
+    scale = 1
 
     # Step 4: Composite with alignment
     chcy_ims, scaled_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(

@@ -139,20 +139,14 @@ def zest_sigproc_v2_worker_analyze():
                     .locs_add_random_subpixel()
                 )
 
-                # bg_inflection=-10.0 effectively disables the background subtract
                 sigproc_v2_result = _run(reg_psf, s, dict(bg_inflection=-10.0))
-                np.save(
-                    "/erisyon/internal/_test_aln.npy", sigproc_v2_result.aln_ims[0, 0]
-                )
 
                 sig = sigproc_v2_result.sig()[:, 0, :]
-                # Background subtraction is expected to bring down the mean a little bit
-                # In default settings it brings it to 4631
                 debug(sig)
                 debug(s.aln_offsets)
                 debug(sigproc_v2_result.fields())
 
-                # assert np.all(np.abs(sig - 5000) < 1)
+                assert np.all(np.abs(sig - 4631) < 1)
 
     def it_interpolates_regional_PSF_changes():
         """
@@ -171,24 +165,27 @@ def zest_sigproc_v2_worker_analyze():
                     cy = y - 2
                     for x in range(5):
                         cx = x - 2
-                        reg_psf.params[y, x, RegPSF.SIGMA_X] = 1.5 + 0.05 * np.abs(cx * cy)
-                        reg_psf.params[y, x, RegPSF.SIGMA_Y] = 1.5 + 0.10 * np.abs(cx * cy)
+                        reg_psf.params[y, x, RegPSF.SIGMA_X] = 1.5 + 0.05 * np.abs(
+                            cx * cy
+                        )
+                        reg_psf.params[y, x, RegPSF.SIGMA_Y] = 1.5 + 0.10 * np.abs(
+                            cx * cy
+                        )
                         reg_psf.params[y, x, RegPSF.RHO] = 0.02 * cx * cy
 
-                peaks = (
+                (
                     synth.PeaksModelPSF(reg_psf, n_peaks=500)
                     .amps_constant(5000)
                     .locs_grid()
                     .locs_add_random_subpixel()
                 )
 
-                sigproc_v2_result = _run(reg_psf, s)
+                im = s.render_chcy()
 
-                dists = cdist(peaks.locs, sigproc_v2_result.locs(), "euclidean")
-                closest_iz = np.argmin(dists, axis=1)
-                dists = dists[np.arange(dists.shape[0]), closest_iz]
-                debug(dists)
-                assert np.all(dists < 0.05)
+                sigproc_v2_result = _run(reg_psf, s, dict(bg_inflection=-10.0))
+
+                sig = sigproc_v2_result.sig()[:, 0, :]
+                assert np.all(np.abs(sig - 5000) < 1)
 
     def it_corrects_for_cycle_focal_changes_with_uniform_PSF():
         """Prove that fit sampling of the Gaussians adjusts the focus"""
@@ -234,7 +231,6 @@ def zest_sigproc_v2_worker_calibrate():
     zest()
 
 
-
 @zest.skip(reason="un-skip once we have multi-channel working")
 def zest_channel_weights():
     def it_returns_balanced_channels():
@@ -263,7 +259,6 @@ def zest_channel_weights():
             assert np.all(balance == [2.0, 1.0])
 
     zest()
-
 
 
 @zest.skip(reason="Need a massive overhaul since refactor")
@@ -303,5 +298,3 @@ def zest_mask_anomalies_im():
         assert frac_nan < 0.01
 
     zest()
-
-

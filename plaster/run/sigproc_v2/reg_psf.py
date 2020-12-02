@@ -3,6 +3,8 @@ from itertools import product
 from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import Gauss2Params
 from plaster.tools.image import imops
 from plaster.tools.schema import check
+from plaster.tools.log.log import debug
+from scipy import interpolate
 
 
 class RegPSF:
@@ -21,14 +23,35 @@ class RegPSF:
     RHO = 2
     N_PARAMS = 3
 
-    def __init__(self, raw_dim, peak_mea, n_divs):
+    def _init_interpolation(self):
+        if self.interp_sig_x_fn is None:
+            center = self.im_mea / self.n_divs / 2.0
+            coords = np.linspace(center, self.im_mea - center, self.n_divs)
+            xx, yy = np.meshgrid(coords, coords)
+            self.interp_sig_x_fn = interpolate.interp2d(
+                xx, yy, self.params[:, :, RegPSF.SIGMA_X], kind="cubic"
+            )
+            self.interp_sig_y_fn = interpolate.interp2d(
+                xx, yy, self.params[:, :, RegPSF.SIGMA_Y], kind="cubic"
+            )
+            self.interp_rho_fn = interpolate.interp2d(
+                xx, yy, self.params[:, :, RegPSF.RHO], kind="cubic"
+            )
+
+    def __init__(self, im_mea, peak_mea, n_divs):
         """
-        raw_dim: tuple (height, width) of the raw images (before alignement)
+        Arguments:
+            im_mea: tuple (height / width) of the raw images before alignment
+            peak_mea: number of pixel (height/ width) representing the peak
+            n_divs: number of spatial divisions (height / width)
         """
-        self.raw_dim = raw_dim
+        self.im_mea = im_mea
         self.peak_mea = peak_mea
         self.n_divs = n_divs
         self.params = np.zeros((n_divs, n_divs, RegPSF.N_PARAMS))
+        self.interp_sig_x_fn = None
+        self.interp_sig_y_fn = None
+        self.interp_rho_fn = None
 
     def render_one_reg(self, div_y, div_x, amp=1.0, frac_y=0.0, frac_x=0.0, const=0.0):
         assert 0 <= div_y < self.n_divs
@@ -51,6 +74,33 @@ class RegPSF:
         # Normalize to get an AUC exactly equal to amp
         return amp * im / np.sum(im)
 
+    def render_at_loc(self, loc, amp=1.0, const=0.0):
+        self._init_interpolation()
+        loc_x = loc[1]
+        loc_y = loc[0]
+        sig_x = self.interp_sig_x_fn(loc_x, loc_y)[0]
+        sig_y = self.interp_sig_y_fn(loc_x, loc_y)[0]
+        rho = self.interp_rho_fn(loc_x, loc_y)[0]
+
+        half_mea = self.peak_mea / 2.0
+
+        corner_x = np.floor(loc_x - half_mea + 0.5)
+        corner_y = np.floor(loc_y - half_mea + 0.5)
+        center_x = loc_x - corner_x
+        center_y = loc_y - corner_y
+        im = imops.gauss2_rho_form(
+            amp=amp,
+            std_x=sig_x,
+            std_y=sig_y,
+            pos_x=center_x,
+            pos_y=center_y,
+            rho=rho,
+            const=const,
+            mea=self.peak_mea,
+        )
+
+        return im, (corner_y, corner_x)
+
     def render(self):
         psf_ims = np.zeros((self.n_divs, self.n_divs, self.peak_mea, self.peak_mea))
         for y, x in product(range(self.n_divs), range(self.n_divs)):
@@ -70,7 +120,7 @@ class RegPSF:
             self.params[y, x, :] = 0
 
     @classmethod
-    def from_psf_ims(cls, raw_dim, psf_ims):
+    def from_psf_ims(cls, im_mea, psf_ims):
         """
         Fit to a Gaussian, remove bias, and resample
         """
@@ -78,7 +128,7 @@ class RegPSF:
         divs_y, divs_x, peak_mea_h, peak_mea_w = psf_ims.shape
         assert divs_y == divs_x
         assert peak_mea_h == peak_mea_w
-        reg_psf = cls(raw_dim=raw_dim, peak_mea=peak_mea_h, n_divs=divs_y)
+        reg_psf = cls(im_mea=im_mea, peak_mea=peak_mea_h, n_divs=divs_y)
         for y in range(divs_y):
             for x in range(divs_x):
                 reg_psf._fit(psf_ims[y, x], y, x)
@@ -86,22 +136,20 @@ class RegPSF:
         return reg_psf
 
     @classmethod
-    def from_array(cls, raw_dim, peak_mea, arr):
+    def from_array(cls, im_mea, peak_mea, arr):
         check.array_t(arr, ndim=3)
         divs_y, divs_x, n_gauss_params = arr.shape
         assert divs_y == divs_x
         assert n_gauss_params == cls.N_PARAMS
 
-        reg_psf = cls(raw_dim=raw_dim, peak_mea=peak_mea, n_divs=divs_y)
+        reg_psf = cls(im_mea=im_mea, peak_mea=peak_mea, n_divs=divs_y)
         reg_psf.params = arr
 
         return reg_psf
 
     @classmethod
-    def fixture(
-        cls, raw_dim=(512, 512), peak_mea=15, n_divs=5, sig_x=1.8, sig_y=1.8, rho=0.0
-    ):
-        reg_psf = cls(raw_dim=raw_dim, peak_mea=peak_mea, n_divs=n_divs)
+    def fixture(cls, im_mea=512, peak_mea=15, n_divs=5, sig_x=1.8, sig_y=1.8, rho=0.0):
+        reg_psf = cls(im_mea=im_mea, peak_mea=peak_mea, n_divs=n_divs)
         reg_psf.params[:, :, 0] = sig_x
         reg_psf.params[:, :, 1] = sig_y
         reg_psf.params[:, :, 2] = rho
