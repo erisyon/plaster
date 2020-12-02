@@ -468,7 +468,7 @@ def _analyze_step_6b_fitter(chcy_ims, locs, reg_psf: psf.RegPSF):
 
     return fitmat
 
-
+'''
 def _analyze_step_6c_peak_differencing(chcy_ims, locs, peak_mea):
     """
     This is an experiment based on JHD's idea of analyzing the
@@ -518,7 +518,7 @@ def _analyze_step_6c_peak_differencing(chcy_ims, locs, peak_mea):
                 peak_shifts[loc_i, ch_i, :, :] = cy_peak_shifts
 
     return peak_cy_diffs, peak_cys, peak_shifts
-
+'''
 
 """
 Temporaily removed until a better metric can be established
@@ -611,10 +611,10 @@ def _sigproc_analyze_field(
 
     difmat = None
     picmat = None
-    if sigproc_v2_params.run_peak_differencing:
-        difmat, picmat, sftmat = _analyze_step_6c_peak_differencing(
-            chcy_ims, locs, sigproc_v2_params.peak_mea
-        )
+    # if sigproc_v2_params.run_peak_differencing:
+    #     difmat, picmat, sftmat = _analyze_step_6c_peak_differencing(
+    #         chcy_ims, locs, sigproc_v2_params.peak_mea
+    #     )
 
     # Temporaily removed until a better metric can be found
     # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)

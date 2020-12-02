@@ -153,8 +153,8 @@ class PeaksModel(BaseSynthModel):
         self.locs = np.array(
             [
                 (y, x)
-                for y in np.linspace(pad, self.dim[0] - 2 * pad, steps)
-                for x in np.linspace(pad, self.dim[0] - 2 * pad, steps)
+                for y in np.linspace(pad, self.dim[0] - pad, steps)
+                for x in np.linspace(pad, self.dim[1] - pad, steps)
             ]
         )
         return self
@@ -234,8 +234,7 @@ class PeaksModelPSF(PeaksModel):
             div_y, div_x = np.floor(n_divs * loc / self.reg_psf.raw_dim).astype(int)
             frac_y = np.modf(loc[0])[0]
             frac_x = np.modf(loc[1])[0]
-            psf_im = self.reg_psf.render_one_reg(
-                div_y, div_x, amp=amp, frac_y=frac_y, frac_x=frac_x, const=0.0
+            psf_im = self.reg_psf.render_at_loc(loc, amp=amp, frac_y=frac_y, frac_x=frac_x, const=0.0
             )
             imops.accum_inplace(im, psf_im, loc=YX(*np.floor(loc)), center=True)
 
