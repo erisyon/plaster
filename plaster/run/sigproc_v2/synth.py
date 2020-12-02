@@ -216,20 +216,28 @@ class PeaksModel(BaseSynthModel):
 class PeaksModelPSF(PeaksModel):
     """Sample from a RegPSF"""
 
-    def __init__(self, reg_psf: RegPSF, **kws):
+    def __init__(self, reg_psf: RegPSF, focus_per_cycle=None, **kws):
         check.t(reg_psf, RegPSF)
         self.reg_psf = reg_psf
+        self._focus_per_cycle = focus_per_cycle
         super().__init__(**kws)
 
     def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         super().render(im, fl_i, ch_i, cy_i, aln_offset)
+
+        if self._focus_per_cycle is None:
+            focus = 1.0
+        else:
+            focus = self._focus_per_cycle[cy_i]
 
         for loc, amp in zip(self.locs, self.amps):
             loc = loc + aln_offset
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
 
-            psf_im, accum_to_loc = self.reg_psf.render_at_loc(loc, amp=amp, const=0.0)
+            psf_im, accum_to_loc = self.reg_psf.render_at_loc(
+                loc, amp=amp, const=0.0, focus=focus
+            )
             imops.accum_inplace(im, psf_im, loc=YX(accum_to_loc), center=False)
 
 

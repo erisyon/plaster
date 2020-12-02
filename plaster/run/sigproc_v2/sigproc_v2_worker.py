@@ -403,7 +403,50 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
     return locs
 
 
-def _analyze_step_6_radiometry(chcy_ims, locs, calib, scale):
+def _analyze_step_6a_fitter(chcy_ims, locs, reg_psf: psf.RegPSF, mask):
+    """
+    Fit Gaussian.
+
+    Arguments:
+        chcy_ims: (n_channels, n_cycles, width, height)
+        locs: (n_peaks, 2). The second dimension is in (y, x) order
+        calib: Calibration (needed for psf)
+        psf_params: The Gaussian (rho form) params for the entire PSF stack
+        mask: Used to subsample the locs (where true)
+
+    Returns:
+        fitmat: ndarray(n_locs, n_channels, n_cycles, 3 + 8)
+            Where the last dim is (sig, noi, asr) + (params of gaussian in rho form)
+
+    """
+    check.array_t(chcy_ims, ndim=4)
+    check.array_t(locs, ndim=2, shape=(None, 2))
+    check.array_t(mask, shape=(locs.shape[0],), dtype=bool)
+
+    n_locs = len(locs)
+    n_channels, n_cycles = chcy_ims.shape[0:2]
+
+    fitmat = np.full(
+        (n_locs, n_channels, n_cycles, Gauss2FitParams.N_FULL_PARAMS), np.nan
+    )
+
+    # The radiometry_one_channel_one_cycle_fit_method is build to skip any loc that
+    # is NaN so that is how we limit with the mask.
+    locs = locs.copy()
+    locs[~mask, :] = np.nan
+
+    for ch_i in range(n_channels):
+        for cy_i in range(n_cycles):
+            im = chcy_ims[ch_i, cy_i]
+
+            params = fg.radiometry_one_channel_one_cycle_fit_method(im, reg_psf, locs)
+
+            fitmat[:, ch_i, cy_i, :] = params
+
+    return fitmat
+
+
+def _analyze_step_6b_radiometry(chcy_ims, locs, calib, scale):
     """
     Extract radiometry (signal and noise) from the field chcy stack.
 
@@ -434,116 +477,6 @@ def _analyze_step_6_radiometry(chcy_ims, locs, calib, scale):
     )
 
     return radmat
-
-
-def _analyze_step_6b_fitter(chcy_ims, locs, reg_psf: psf.RegPSF):
-    """
-    Fit Gaussian.
-
-    Arguments:
-        chcy_ims: (n_channels, n_cycles, width, height)
-        locs: (n_peaks, 2). The second dimension is in (y, x) order
-        calib: Calibration (needed for psf)
-        psf_params: The Gaussian (rho form) params for the entire PSF stack
-
-    Returns:
-        fitmat: ndarray(n_locs, n_channels, n_cycles, 3 + 8)
-            Where the last dim is (sig, noi, asr) + (params of gaussian in rho form)
-
-    """
-    check.array_t(chcy_ims, ndim=4)
-    check.array_t(locs, ndim=2, shape=(None, 2))
-
-    n_locs = len(locs)
-    n_channels, n_cycles = chcy_ims.shape[0:2]
-
-    fitmat = np.full(
-        (n_locs, n_channels, n_cycles, Gauss2FitParams.N_FULL_PARAMS), np.nan
-    )
-
-    for ch_i in range(n_channels):
-        for cy_i in range(n_cycles):
-            im = chcy_ims[ch_i, cy_i]
-
-            params = fg.radiometry_one_channel_one_cycle_fit_method(im, reg_psf, locs)
-
-            fitmat[:, ch_i, cy_i, :] = params
-
-    return fitmat
-
-
-'''
-def _analyze_step_6c_peak_differencing(chcy_ims, locs, peak_mea):
-    """
-    This is an experiment based on JHD's idea of analyzing the
-    distribution of differences across all pixels on a peak.
-    """
-    check.array_t(chcy_ims, ndim=4)
-    check.array_t(locs, ndim=2, shape=(None, 2))
-
-    n_locs = len(locs)
-    n_channels, n_cycles = chcy_ims.shape[0:2]
-
-    peak_dim = (peak_mea, peak_mea)
-    peak_cy_diffs = np.full((n_locs, n_channels, n_cycles, *peak_dim), np.nan)
-    peak_cys = np.full((n_locs, n_channels, n_cycles, *peak_dim), np.nan)
-    peak_shifts = np.full((n_locs, n_channels, n_cycles, 2), np.nan)
-
-    for ch_i in range(n_channels):
-        for loc_i, loc in enumerate(locs):
-            # Subpixel align every cycle for this peak and then difference
-            cy_peak_ims = np.zeros((n_cycles, *peak_dim))
-            cy_peak_shifts = np.zeros((n_cycles, 2))
-            for cy_i in range(n_cycles):
-                im = chcy_ims[ch_i, cy_i]
-
-                peak_im = imops.crop(im, off=YX(loc), dim=HW(peak_dim), center=True)
-                if peak_im.shape != peak_dim:
-                    # Skip near edges
-                    break
-
-                if np.any(np.isnan(peak_im)):
-                    # Skip nan collisions
-                    break
-
-                com_before = imops.com(peak_im ** 2)
-                center_pixel = np.array(peak_im.shape) / 2
-                cy_peak_ims[cy_i] = imops.sub_pixel_shift(
-                    peak_im, center_pixel - com_before
-                )
-                cy_peak_shifts[cy_i] = center_pixel - com_before
-
-            else:
-                # DIFFERENCE only if we didn't break out (all peaks were good)
-                peak_cy_diffs[loc_i, ch_i, :, :, :] = np.diff(
-                    cy_peak_ims, axis=0, prepend=0
-                )
-                peak_cys[loc_i, ch_i, :, :, :] = cy_peak_ims
-                peak_shifts[loc_i, ch_i, :, :] = cy_peak_shifts
-
-    return peak_cy_diffs, peak_cys, peak_shifts
-'''
-
-"""
-Temporaily removed until a better metric can be established
-
-def _analyze_step_7_filter(radmat, sigproc_v2_params, calib):
-    keep_mask = np.ones((radmat.shape[0],), dtype=bool)
-
-    n_channels, n_cycles, _ = radmat.shape
-    for ch_i in range(n_channels):
-        bg_std = np.min(calib[f"regional_bg_std.instrument_channel[{ch_i}]"])
-        keep_mask = keep_mask | np.any(
-            radmat[:, out_ch_i, :, 0] > sigproc_v2_params.sig_limit * bg_std, axis=1
-        )
-
-    if sigproc_v2_params.snr_thresh is not None:
-        snr = radmat[:, :, :, 0] / radmat[:, :, :, 1]
-        # Note: comparison (other than !=) in numpy of nan is always False
-        keep_mask = keep_mask & np.any(snr > sigproc_v2_params.snr_thresh, axis=(1, 2))
-
-    return keep_mask
-"""
 
 
 def _sigproc_analyze_field(
@@ -605,24 +538,27 @@ def _sigproc_analyze_field(
     # a single values for fg_thresh and bg_thresh.
     approx_psf = psf.approximate_psf()
     locs = _analyze_step_5_find_peaks(chcy_ims, approx_psf, chcy_bg_stds)
+    n_locs = len(locs)
 
     # Step 6: Radiometry over each channel, cycle
-    radmat = _analyze_step_6_radiometry(scaled_chcy_ims, locs, calib, scale)
 
+    # Sample all or a sub-set of peaks for focus purposes (and also for debugging)
     fitmat = None
-    sftmat = None
     if sigproc_v2_params.run_analysis_gauss2_fitter:
-        fitmat = _analyze_step_6b_fitter(chcy_ims, locs, reg_psf)
+        mask = np.ones((?), dtype=bool)
+    else:
+        # Subsample
+        count = ?
+        iz = np.random.choice(n_locs, count, replace=False)
+        mask = np.zeros((?), dtype=bool)
+        mask[iz] = 1
 
-    difmat = None
-    picmat = None
-    # if sigproc_v2_params.run_peak_differencing:
-    #     difmat, picmat, sftmat = _analyze_step_6c_peak_differencing(
-    #         chcy_ims, locs, sigproc_v2_params.peak_mea
-    #     )
+    fitmat = _analyze_step_6a_fitter(chcy_ims, locs, reg_psf, mask)
 
-    # Temporaily removed until a better metric can be found
-    # keep_mask = _analyze_step_7_filter(radmat, sigproc_v2_params, calib)
+    TODO: Analyze the fitmat for focus adjustments
+
+    radmat = _analyze_step_6b_radiometry(scaled_chcy_ims, locs, calib, scale)
+
 
     return (
         chcy_ims,
@@ -654,9 +590,6 @@ def _do_sigproc_analyze_and_save_field(
         radmat,
         aln_offsets,
         fitmat,
-        difmat,
-        picmat,
-        sftmat,
     ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, psf_params)
 
     mea = np.array([chcy_ims.shape[-1:]])
@@ -694,9 +627,6 @@ def _do_sigproc_analyze_and_save_field(
         field_df=field_df,
         radmat=radmat,
         fitmat=fitmat,
-        difmat=difmat,
-        picmat=picmat,
-        sftmat=sftmat,
         _aln_chcy_ims=chcy_ims,
     )
 

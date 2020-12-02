@@ -74,7 +74,7 @@ class RegPSF:
         # Normalize to get an AUC exactly equal to amp
         return amp * im / np.sum(im)
 
-    def render_at_loc(self, loc, amp=1.0, const=0.0):
+    def render_at_loc(self, loc, amp=1.0, const=0.0, focus=1.0):
         self._init_interpolation()
         loc_x = loc[1]
         loc_y = loc[0]
@@ -90,8 +90,8 @@ class RegPSF:
         center_y = loc_y - corner_y
         im = imops.gauss2_rho_form(
             amp=amp,
-            std_x=sig_x,
-            std_y=sig_y,
+            std_x=sig_x * focus,
+            std_y=sig_y * focus,
             pos_x=center_x,
             pos_y=center_y,
             rho=rho,

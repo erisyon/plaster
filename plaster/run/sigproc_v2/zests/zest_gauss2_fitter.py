@@ -87,6 +87,16 @@ def zest_gauss2_fitter():
             )
             assert _params_close(true_params, pred_params, rel_tol=0.20)
 
+    def it_skips_nan_locs():
+        true_params = (1000, 1.8, 1.8, 5.0, 5.0, 0.0, 0.0)
+        im = imops.gauss2_rho_form(*true_params, mea=11)
+        locs = np.array([[5.0, 5.0], [np.nan, np.nan], [5.0, 5.0]])
+        start_params = np.repeat(_full_params(true_params)[None, :], (3,), axis=0)
+        pred_params, std_params = gauss2_fitter.fit_image(im, locs, start_params, 11)
+        assert np.all(~np.isnan(pred_params[0, :]))
+        assert np.all(np.isnan(pred_params[1, :]))
+        assert np.all(~np.isnan(pred_params[2, :]))
+
     def fits_without_amplitude():
         # fmt: off
 

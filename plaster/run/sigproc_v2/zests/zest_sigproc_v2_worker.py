@@ -180,16 +180,57 @@ def zest_sigproc_v2_worker_analyze():
                     .locs_add_random_subpixel()
                 )
 
-                im = s.render_chcy()
-
                 sigproc_v2_result = _run(reg_psf, s, dict(bg_inflection=-10.0))
 
                 sig = sigproc_v2_result.sig()[:, 0, :]
                 assert np.all(np.abs(sig - 5000) < 1)
 
-    def it_corrects_for_cycle_focal_changes_with_uniform_PSF():
-        """Prove that fit sampling of the Gaussians adjusts the focus"""
-        raise NotImplementedError
+    def it_corrects_for_cycle_focal_changes_with_uniform_PSF_no_alignment():
+        """
+        Prove that fit sampling of the Gaussians adjusts the focus and returns
+        a perfect signal without considering alignment
+        """
+        with tmp_folder(chdir=True):
+            with synth.Synth(
+                n_channels=1, n_cycles=3, overwrite=True, dim=(512, 512)
+            ) as s:
+                reg_psf = RegPSF(512, 13, 5)
+                for y in range(5):
+                    cy = y - 2
+                    for x in range(5):
+                        cx = x - 2
+                        reg_psf.params[y, x, RegPSF.SIGMA_X] = 1.5 + 0.05 * np.abs(
+                            cx * cy
+                        )
+                        reg_psf.params[y, x, RegPSF.SIGMA_Y] = 1.5 + 0.10 * np.abs(
+                            cx * cy
+                        )
+                        reg_psf.params[y, x, RegPSF.RHO] = 0.02 * cx * cy
+
+                (
+                    synth.PeaksModelPSF(
+                        reg_psf, n_peaks=500, focus_per_cycle=[1.0, 0.95, 1.05]
+                    )
+                    .amps_constant(5000)
+                    .locs_grid(pad=20)
+                    .locs_add_random_subpixel()
+                )
+                s.zero_aln_offsets()
+
+                sigproc_v2_result = _run(reg_psf, s, dict(bg_inflection=-10.0))
+
+                sig = sigproc_v2_result.sig()[:, 0, :]
+
+                sig_cy_0 = sig[:, 0]
+                assert np.all(np.abs(sig_cy_0 - 5000) < 1)
+
+                sig_cy_1 = sig[:, 1]
+                assert np.all(np.abs(sig_cy_1 - 5000) < 1)
+
+                sig_cy_2 = sig[:, 2]
+                assert np.all(np.abs(sig_cy_2 - 5000) < 1)
+
+                assert np.all(np.abs(sig - 5000) < 1)
 
     def it_corrects_for_cycle_focal_changes_with_non_uniform_PSF():
         """Prove that fit sampling of the Gaussians adjusts the focus correctly even when the PSF is not uniform"""
