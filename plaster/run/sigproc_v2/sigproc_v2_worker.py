@@ -116,6 +116,7 @@ from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
+from plaster.tools.utils import data
 from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
 from plumbum import local
 
@@ -208,13 +209,22 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             if not sigproc_params.skip_regional_balance:
                 im *= bal_im
 
-            if sigproc_params.use_fft_bg_subtract:
-                filtered_im, _, bg_std, _ = bg.bg_remove_by_fft(
+            if sigproc_params.use_bandpass_filter:
+                filtered_im = bg.bandpass_filter(
                     im,
-                    approx_psf,
-                    inflection=sigproc_params.bg_inflection,
-                    sharpness=sigproc_params.bg_sharpness,
+                    low_inflection=sigproc_params.low_inflection,
+                    low_sharpness=sigproc_params.low_sharpness,
+                    high_inflection=sigproc_params.high_inflection,
+                    high_sharpness=sigproc_params.high_sharpness,
                 )
+
+                # The bg_std is used later for tuning the peak finder.
+                # Once I convert full to band-pass filter then this can just be eliminated
+                # because I think it will be a constant. For now, I'm keeping
+                # backward compatibility with bg_estimate_and_remove and setting
+                # the constant here.
+                bg_std = data.symmetric_nanstd(filtered_im.flatten(), mean=0.0, negative_side=True)
+
             else:
                 filtered_im, bg_std = bg.bg_estimate_and_remove(im, approx_psf,)
 
@@ -288,6 +298,9 @@ def _analyze_step_3_align(cy_ims, peak_mea):
     Align a stack of cy_ims by generating simplified fiducials for each cycle
     (assumes camera does not move between channels)
 
+    TODO: Convert this to a gradient descent using fft_shifting which
+          will allow deprecation of the c_sub_pixel_align module.
+
     Returns:
         aln_offsets: ndarray(n_cycles, 2); where 2 is (y, x)
     """
@@ -330,7 +343,7 @@ def _analyze_step_3_align(cy_ims, peak_mea):
     return aln_offsets
 
 
-def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets, scale):
+def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     """
     Given the alignment_offsets, create a new image stack that
     has the dimensions of the intersection ROI (ie the overlapping
@@ -357,29 +370,25 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets, scale):
         roi[1].stop - roi[1].start,
     )
 
-    scaled_roi = ROI(
-        loc=YX(roi[0].start, roi[1].start) * scale,
-        dim=HW(roi[0].stop - roi[0].start, roi[1].stop - roi[1].start) * scale,
-    )
-    scaled_roi_dim = (
-        scaled_roi[0].stop - scaled_roi[0].start,
-        scaled_roi[1].stop - scaled_roi[1].start,
-    )
-
-    scaled_aligned_chcy_ims = np.zeros((n_channels, n_cycles, *scaled_roi_dim))
     aligned_chcy_ims = np.zeros((n_channels, n_cycles, *roi_dim))
+
     for ch_i in range(n_channels):
         for cy_i, offset in zip(range(n_cycles), aln_offsets):
-            scaled_im = imops.scale_im(chcy_ims[ch_i, cy_i], scale)
-            shifted_im = imops.sub_pixel_shift(scaled_im, -scale * offset)
-            scaled_aligned_chcy_ims[
-                ch_i, cy_i, 0 : scaled_roi_dim[0], 0 : scaled_roi_dim[1]
-            ] = shifted_im[scaled_roi[0], scaled_roi[1]]
-            aligned_chcy_ims[ch_i, cy_i] = imops.scale_im(
-                scaled_aligned_chcy_ims[ch_i, cy_i], 1.0 / scale
-            )
 
-    return aligned_chcy_ims, scaled_aligned_chcy_ims
+            # Sub-pixel shift the square raw images using phase shifting
+            # (This must be done with square images)
+            im = chcy_ims[ch_i, cy_i]
+            # np.save(f"/erisyon/internal/_test_im_{cy_i}.npy", im)
+            shifted_im = imops.fft_sub_pixel_shift(im, -offset)
+            # np.save(f"/erisyon/internal/_test_sft_{cy_i}.npy", shifted_im)
+
+            # Now that it is shifted we pluck out the ROI into the destination
+            aligned_chcy_ims[
+                ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]
+            ] = shifted_im[roi[0], roi[1]]
+
+    np.save("/erisyon/internal/_test_aln.npy", aligned_chcy_ims)
+    return aligned_chcy_ims
 
 
 def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
@@ -396,6 +405,8 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
 
     # Use more than one cycle to improve the quality of the sub-pixel estimate
     # But then discard peaks that are off after cycle 1??
+
+    # TODO: Remove bg_std and derive it now that I have cleaner bg subtraction with band pass
 
     ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
     bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
@@ -438,15 +449,13 @@ def _analyze_step_6a_fitter(chcy_ims, locs, reg_psf: psf.RegPSF, mask):
     for ch_i in range(n_channels):
         for cy_i in range(n_cycles):
             im = chcy_ims[ch_i, cy_i]
-
             params = fg.radiometry_one_channel_one_cycle_fit_method(im, reg_psf, locs)
-
             fitmat[:, ch_i, cy_i, :] = params
 
     return fitmat
 
 
-def _analyze_step_6b_radiometry(chcy_ims, locs, calib, focus_adjustment, scale):
+def _analyze_step_6b_radiometry(chcy_ims, locs, calib, focus_adjustment):
     """
     Extract radiometry (signal and noise) from the field chcy stack.
 
@@ -467,9 +476,6 @@ def _analyze_step_6b_radiometry(chcy_ims, locs, calib, focus_adjustment, scale):
         n_channels == 1
     ), "Until further notice, only passing in one reg_psf for one channel"
     reg_psf = calib.psfs(0)
-
-    # TODO
-    # reg_psf.scale(scale)
 
     radmat = radiometry_field_stack(
         chcy_ims, locs=locs, reg_psf=reg_psf, focus_adjustment=focus_adjustment
@@ -518,15 +524,11 @@ def _sigproc_analyze_field(
         np.mean(chcy_ims, axis=0), sigproc_v2_params.peak_mea
     )
 
-    # experiment: super sample. If this works move to params
-    # TODO!
-    scale = 1
-
     # Step 4: Composite with alignment
-    chcy_ims, scaled_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
-        chcy_ims, aln_offsets, scale
+    aln_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
+        chcy_ims, aln_offsets
     )
-    # chcy_ims is now only the shape of only intersection region so is likely
+    # aln_chcy_ims is now only the shape of only intersection region so is likely
     # to be smaller than the original and not necessarily a power of 2.
 
     aln_offsets = np.array(aln_offsets)
@@ -536,7 +538,7 @@ def _sigproc_analyze_field(
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
     approx_psf = psf.approximate_psf()
-    locs = _analyze_step_5_find_peaks(chcy_ims, approx_psf, chcy_bg_stds)
+    locs = _analyze_step_5_find_peaks(aln_chcy_ims, approx_psf, chcy_bg_stds)
     n_locs = len(locs)
 
     # Step 6: Radiometry over each channel, cycle
@@ -548,16 +550,16 @@ def _sigproc_analyze_field(
     else:
         # Subsample peaks for fitting
         mask = np.zeros((n_locs,), dtype=bool)
-        count = 100  # DO not know if this is enough
+        count = 300  # DO not know if this is enough
         iz = np.random.choice(n_locs, count)  # Allow replace in case count > n_locs
         mask[iz] = 1
 
-    fitmat = _analyze_step_6a_fitter(chcy_ims, locs, reg_psf, mask)
+    fitmat = _analyze_step_6a_fitter(aln_chcy_ims, locs, reg_psf, mask)
 
     focus_adjustments = fg.focus_from_fitmat(fitmat, reg_psf)
 
     radmat = _analyze_step_6b_radiometry(
-        scaled_chcy_ims, locs, calib, focus_adjustments, scale
+        aln_chcy_ims, locs, calib, focus_adjustments
     )
 
     return (

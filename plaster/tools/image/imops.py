@@ -780,6 +780,26 @@ def sub_pixel_shift(im, offset):
     return cv2.warpAffine(im, M, dsize=(cols, rows), flags=cv2.INTER_CUBIC)
 
 
+def fft_sub_pixel_shift(im, offset):
+    """
+    Like sub_pixel_shift but uses a more accurate FFT phase shifting
+    technique -- but it only works when then image is square
+
+    Arguments:
+        im: square float ndarray
+        offset: float tuple is in (y, x) order
+    """
+    check.array_t(im, ndim=2, dtype=float, is_square=True)
+    mea = im.shape[0]
+    rng = np.arange(-(mea - 1) // 2, (mea + 1) // 2, 1)
+    i, j = np.meshgrid(rng, rng)
+
+    phasor = np.exp(-2.0 * complex(0.0, 1.0) * np.pi * (i * offset[1] + j * offset[0]) / mea)
+    freq_dom = np.fft.fftshift(np.fft.fft2(im))
+    freq_dom = freq_dom * phasor
+    return np.real(np.fft.ifft2(np.fft.ifftshift(freq_dom)))
+
+
 def sub_pixel_center(peak_im):
     com_before = com(peak_im ** 2)
     center_pixel = np.array(peak_im.shape) / 2

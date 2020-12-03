@@ -28,9 +28,12 @@ class SigprocV2Params(Params):
         run_analysis_gauss2_fitter=False,
         skip_regional_background=False,
         save_full_signal_radmat_npy=False,
-        bg_inflection=0.05,
-        bg_sharpness=100.0,
-        use_fft_bg_subtract=True,
+        use_bandpass_filter=True,
+        # TODO: Derive the follow during calibration by spectral analysis (ie, 2 std of the power spectrum)
+        low_inflection=0.03,
+        low_sharpness=50.0,
+        high_inflection=0.50,
+        high_sharpness=50.0,
     )
 
     schema = s(
@@ -47,9 +50,11 @@ class SigprocV2Params(Params):
             run_peak_differencing=s.is_bool(),
             save_full_signal_radmat_npy=s.is_bool(),
             run_analysis_gauss2_fitter=s.is_bool(),
-            skip_regional_background=s.is_bool(),
-            bg_inflection=s.is_float(),
-            bg_sharpness=s.is_float(),
+            use_bandpass_filter=s.is_bool(),
+            low_inflection=s.is_float(),
+            low_sharpness=s.is_float(),
+            high_inflection=s.is_float(),
+            high_sharpness=s.is_float(),
         )
     )
 
