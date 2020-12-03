@@ -202,12 +202,21 @@ def zest_sigproc_v2_worker_analyze():
         """
         Prove that fit sampling of the Gaussians adjusts the focus and returns
         a perfect signal without considering alignment
+
+        TODO:
+        SOMETHIGN doesn't seem right here. When I use a uniform PSF
+        I get perfect radiomerty back but when I use fixture_variable()
+        then I get a lot more spread than I expect.
+        I need to sanity check that the PSF used on any given point in
+        the synth and in the radiometry are the same.
+
         """
         with tmp_folder(chdir=True):
             with synth.Synth(
                 n_channels=1, n_cycles=3, overwrite=True, dim=(512, 512)
             ) as s:
-                reg_psf = RegPSF.fixture_variable()
+                # reg_psf = RegPSF.fixture_variable()
+                reg_psf = RegPSF.fixture_radical()
 
                 (
                     synth.PeaksModelPSF(
@@ -221,11 +230,27 @@ def zest_sigproc_v2_worker_analyze():
                 sigproc_v2_result = _run(reg_psf, s, dict(low_inflection=-10.0))
 
                 sig = sigproc_v2_result.sig()[:, 0, :]
+                np.save("/erisyon/internal/_sig.npy", sig)
+                locs = sigproc_v2_result.locs()
+                np.save("/erisyon/internal/_locs.npy", locs)
 
-                # TODO: Need interpolation in C for this to work well
-                for cy_i in range(s.n_cycles):
-                    assert 4950 < np.mean(sig[:, cy_i]) < 5100
-                    assert np.std(sig[:, cy_i]) < 1.0
+                # import pudb; pudb.set_trace()
+                # for cy_i in range(s.n_cycles):
+                #     assert 4950 < np.mean(sig[:, cy_i]) < 5100
+                #     assert np.std(sig[:, cy_i]) < 1.0
+
+                # HACK test
+                # HERHE: I'm trying to look at what the log says to see if they agree
+                # it is hard to tell because all values are so close.
+                # YEAH, that don't match using the absurd _radical form
+                # So maybe there's an x/y transpose bug or something?
+                import pudb
+
+                pudb.set_trace()
+                reg_psf._init_interpolation()
+                sig_x = self.interp_sig_x_fn(loc_x, loc_y)[0]
+                sig_y = self.interp_sig_y_fn(loc_x, loc_y)[0]
+                rho = self.interp_rho_fn(loc_x, loc_y)[0]
 
     def it_operates_sanely_with_noise_uniform_psf():
         """A realistic total test that will need to be forgiving of noise, collisions, etc."""
@@ -249,10 +274,11 @@ def zest_sigproc_v2_worker_analyze():
                 sigproc_v2_result = _run(reg_psf, s)
 
                 sig = sigproc_v2_result.sig()[:, 0, :]
-                # np.save("/erisyon/internal/_sig.npy", sig)
-                # locs = sigproc_v2_result.locs()
-                # np.save("/erisyon/internal/_locs.npy", locs)
                 assert np.percentile(sig, 20) > 4900.0
+
+    def it_applies_regional_balance():
+        """It corrects for non-uniform illumination"""
+        raise NotImplementedError
 
     def it_operates_sanely_with_noise_variable_psf():
         """"""
@@ -270,17 +296,12 @@ def zest_sigproc_v2_worker_analyze():
         """"""
         raise NotImplementedError
 
-
     def it_measures_aspect_ratio():
         """It returns high aspect ratio for collisions under a controlled two-peak system as the peaks approach each other"""
         raise NotImplementedError
 
     def it_runs_fitter_if_requested():
         """It will run the fitter over every peak"""
-        raise NotImplementedError
-
-    def it_applies_regional_balance():
-        """It corrects for non-uniform illumination"""
         raise NotImplementedError
 
     def it_finds_peaks_as_density_increases():

@@ -8,8 +8,8 @@
 #include "unistd.h"
 #include "math.h"
 #include "c_common.h"
-#include "spline.h"
 #include "_radiometry.h"
+#include "csa.h"
 
 #define PI2 (2.0 * M_PI)
 
@@ -27,30 +27,33 @@ void _dump_vec(Float64 *vec, int width, int height, char *msg) {
 }
 
 
-void _interpolate_reg_psf(
-    F64Arr *reg_psf_params,
-    Float64 x, Float64 y,
-    Float64 im_width, Float64 im_height,
-    Float64 *out_sigma_x, Float64 *out_sigma_y, Float64 *out_rho
+csa *_init_interpolate(
+    Size n_samples,
+    Float64 *x,
+    Float64 *y,
+    Float64 *val
 ) {
-    // Given the 2D array of psf params interpolate coordinate (x,y)
-    // TODO: Implement this with a cubic spline or a 2D LERP; for now use closest neighbor
+    point *points = (point *)alloca(sizeof(point) * n_samples);
+    for(Index i=0; i<n_samples; i++) {
+        point *p = &points[i];
+        p->x = x[i];
+        p->y = y[i];
+        p->z = val[i];
+    }
 
-    ensure_only_in_debug(reg_psf_params->shape[0] == reg_psf_params->shape[1], "reg_psf must be square");
+    csa *spline = csa_create();
+    csa_addpoints(spline, n_samples, points);
+    csa_calculatespline(spline);
+    return spline;
+}
 
-    Index n_divs = reg_psf_params->shape[0];
-    Index n_divs_minus_one = n_divs - 1;
-    Float64 n_divs_f = (Float64)n_divs;
-
-    Index reg_x = min( n_divs_minus_one, max(0, (Index)floor(0.5 + n_divs_f * x / im_width)) );
-    Index reg_y = min( n_divs_minus_one, max(0, (Index)floor(0.5 + n_divs_f * y / im_height)) );
-    ensure_only_in_debug(0 <= reg_x && reg_x < n_divs, "reg out of bounds");
-    ensure_only_in_debug(0 <= reg_y && reg_y < n_divs, "reg out of bounds");
-
-    Float64 *reg_psf_params_p = f64arr_ptr2(reg_psf_params, reg_y, reg_x);
-    *out_sigma_x = reg_psf_params_p[0];
-    *out_sigma_y = reg_psf_params_p[1];
-    *out_rho = reg_psf_params_p[2];
+Float64 _interpolate(csa *spline, Float64 x, Float64 y) {
+    point p;
+    p.x = x;
+    p.y = y;
+    p.z = 0.0;
+    csa_approximatepoints(spline, 1, &p);
+    return p.z;
 }
 
 
@@ -122,7 +125,6 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     */
 
     Float64 *im = f64arr_ptr2(&ctx->chcy_ims, 0, 0);
-//    _dump_vec(im, ctx->chcy_ims.shape[2], ctx->chcy_ims.shape[3], "im");
 
     // Position
     ensure(ctx->n_channels == 1, "Only 1 channel supported until I have a chance to implement it");
@@ -167,18 +169,15 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
 
-        Float64 sigma_x, sigma_y, rho;
-        _interpolate_reg_psf(
-            &ctx->reg_psf_params,
-            loc_x, loc_y,
-            ctx->width, ctx->height,
-            &sigma_x, &sigma_y, &rho
-        );
+        Float64 sigma_x = _interpolate(ctx->_interp_sigma_x, loc_x, loc_y);
+        Float64 sigma_y = _interpolate(ctx->_interp_sigma_y, loc_x, loc_y);
+        Float64 rho = _interpolate(ctx->_interp_rho, loc_x, loc_y);
 
         sigma_x *= focus;
         sigma_y *= focus;
 
-        if(peak_i == 0) trace("cen(x,y) %f %f  foc %f  adj_sig(x,y) %f %f  rho %f\n",
+        if(peak_i == 0) trace("loc(x,y) %f %f  cen(x,y) %f %f  foc %f  adj_sig(x,y) %f %f  rho %f\n",
+            loc_x, loc_y,
             center_x, center_y,
             focus,
             sigma_x, sigma_y, rho
@@ -199,11 +198,11 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             }
         }
 
-        if(peak_i == 0) {
-            trace("cy_i %ld\n", cy_i);
-            _dump_vec(psf_pixels, mea, mea, "psf_pixels");
-            _dump_vec(dat_pixels, mea, mea, "dat_pixels");
-        }
+//        if(peak_i == 0) {
+//            trace("cy_i %ld\n", cy_i);
+//            _dump_vec(psf_pixels, mea, mea, "psf_pixels");
+//            _dump_vec(dat_pixels, mea, mea, "dat_pixels");
+//        }
 
         // SIGNAL
         Float64 psf_sum_square = 0.0;
@@ -217,7 +216,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             dat_p ++;
         }
         signal /= psf_sum_square;
-        if(peak_i == 0) trace("sig %f  psf_sum_square %f\n", signal, psf_sum_square);
+//        if(peak_i == 0) trace("sig %f  psf_sum_square %f\n", signal, psf_sum_square);
 
         // RESIDUALS mean
         Float64 residual_mean = 0.0;
@@ -270,10 +269,42 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
 
 
 char *context_init(RadiometryContext *ctx) {
+    int n_samples = ctx->n_reg_psf_samples;
+    int n_divs = 6;
+//    trace("n_samples=%ld\n", n_samples);
+//    _dump_vec(f64arr_ptr1(&ctx->reg_psf_x, 0), n_divs, n_divs, "x");
+//    _dump_vec(f64arr_ptr1(&ctx->reg_psf_y, 0), n_divs, n_divs, "y");
+//    _dump_vec(f64arr_ptr1(&ctx->reg_psf_sigma_x, 0), n_divs, n_divs, "reg_psf_sigma_x");
+//    _dump_vec(f64arr_ptr1(&ctx->reg_psf_sigma_y, 0), n_divs, n_divs, "reg_psf_sigma_y");
+//    _dump_vec(f64arr_ptr1(&ctx->reg_psf_rho, 0), n_divs, n_divs, "reg_psf_rho");
+
+    ctx->_interp_sigma_x = _init_interpolate(
+        ctx->n_reg_psf_samples,
+        f64arr_ptr1(&ctx->reg_psf_x, 0),
+        f64arr_ptr1(&ctx->reg_psf_y, 0),
+        f64arr_ptr1(&ctx->reg_psf_sigma_x, 0)
+    );
+
+    ctx->_interp_sigma_y = _init_interpolate(
+        ctx->n_reg_psf_samples,
+        f64arr_ptr1(&ctx->reg_psf_x, 0),
+        f64arr_ptr1(&ctx->reg_psf_y, 0),
+        f64arr_ptr1(&ctx->reg_psf_sigma_y, 0)
+    );
+
+    ctx->_interp_rho = _init_interpolate(
+        ctx->n_reg_psf_samples,
+        f64arr_ptr1(&ctx->reg_psf_x, 0),
+        f64arr_ptr1(&ctx->reg_psf_y, 0),
+        f64arr_ptr1(&ctx->reg_psf_rho, 0)
+    );
     return NULL;
 }
 
 
 char *context_free(RadiometryContext *ctx) {
+    csa_destroy(ctx->_interp_sigma_x);
+    csa_destroy(ctx->_interp_sigma_y);
+    csa_destroy(ctx->_interp_rho);
     return NULL;
 }

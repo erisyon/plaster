@@ -107,6 +107,21 @@ class RegPSF:
             psf_ims[y, x] = self.render_one_reg(y, x)
         return psf_ims
 
+    def sample_params(self):
+        self._init_interpolation()
+        space = np.linspace(0, self.im_mea, 6)
+        n_samples = len(space) ** 2
+        samples = np.zeros((n_samples, 5))
+        i = 0
+        for y in space:
+            for x in space:
+                sig_x = self.interp_sig_x_fn(x, y)
+                sig_y = self.interp_sig_y_fn(x, y)
+                rho = self.interp_rho_fn(x, y)
+                samples[i, :] = (x, y, sig_x, sig_y, rho)
+                i += 1
+        return samples
+
     def _fit(self, im, y, x):
         check.array_t(im, ndim=2, is_square=True)
         if np.sum(im) > 0:
@@ -162,13 +177,21 @@ class RegPSF:
             cy = y - n_divs // 2
             for x in range(n_divs):
                 cx = x - n_divs // 2
-                reg_psf.params[y, x, RegPSF.SIGMA_X] = 1.5 + 0.05 * np.abs(
-                    cx * cy
-                )
-                reg_psf.params[y, x, RegPSF.SIGMA_Y] = 1.5 + 0.10 * np.abs(
-                    cx * cy
-                )
+                reg_psf.params[y, x, RegPSF.SIGMA_X] = 1.5 + 0.05 * np.abs(cx * cy)
+                reg_psf.params[y, x, RegPSF.SIGMA_Y] = 1.5 + 0.10 * np.abs(cx * cy)
                 reg_psf.params[y, x, RegPSF.RHO] = 0.02 * cx * cy
+        return reg_psf
+
+    @classmethod
+    def fixture_radical(cls, im_mea=512, peak_mea=15, n_divs=5):
+        reg_psf = cls(im_mea=im_mea, peak_mea=peak_mea, n_divs=n_divs)
+        for y in range(n_divs):
+            cy = y - n_divs // 2
+            for x in range(n_divs):
+                cx = x - n_divs // 2
+                reg_psf.params[y, x, RegPSF.SIGMA_X] = 6 + 0.1 * np.abs(cx * cy)
+                reg_psf.params[y, x, RegPSF.SIGMA_Y] = 2 + 0.2 * np.abs(cx * cy)
+                reg_psf.params[y, x, RegPSF.RHO] = 0.10 * cx * cy
         return reg_psf
 
 

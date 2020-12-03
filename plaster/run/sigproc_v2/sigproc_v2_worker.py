@@ -223,7 +223,9 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
                 # because I think it will be a constant. For now, I'm keeping
                 # backward compatibility with bg_estimate_and_remove and setting
                 # the constant here.
-                bg_std = data.symmetric_nanstd(filtered_im.flatten(), mean=0.0, negative_side=True)
+                bg_std = data.symmetric_nanstd(
+                    filtered_im.flatten(), mean=0.0, negative_side=True
+                )
 
             else:
                 filtered_im, bg_std = bg.bg_estimate_and_remove(im, approx_psf,)
@@ -383,9 +385,9 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
             # np.save(f"/erisyon/internal/_test_sft_{cy_i}.npy", shifted_im)
 
             # Now that it is shifted we pluck out the ROI into the destination
-            aligned_chcy_ims[
-                ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]
-            ] = shifted_im[roi[0], roi[1]]
+            aligned_chcy_ims[ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
+                roi[0], roi[1]
+            ]
 
     np.save("/erisyon/internal/_test_aln.npy", aligned_chcy_ims)
     return aligned_chcy_ims
@@ -525,9 +527,7 @@ def _sigproc_analyze_field(
     )
 
     # Step 4: Composite with alignment
-    aln_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
-        chcy_ims, aln_offsets
-    )
+    aln_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets)
     # aln_chcy_ims is now only the shape of only intersection region so is likely
     # to be smaller than the original and not necessarily a power of 2.
 
@@ -558,9 +558,7 @@ def _sigproc_analyze_field(
 
     focus_adjustments = fg.focus_from_fitmat(fitmat, reg_psf)
 
-    radmat = _analyze_step_6b_radiometry(
-        aln_chcy_ims, locs, calib, focus_adjustments
-    )
+    radmat = _analyze_step_6b_radiometry(aln_chcy_ims, locs, calib, focus_adjustments)
 
     return (
         chcy_ims,

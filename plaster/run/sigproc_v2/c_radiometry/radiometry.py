@@ -22,8 +22,13 @@ class RadiometryContext(c_common_tools.FixupStructure):
     _fixup_fields = [
         ("chcy_ims", F64Arr),  # Sub-pixel aligned  (n_channels, n_cycles, height, width)
         ("locs", F64Arr),  # Sub-pixel centered  (n_peaks, 2), where 2 is: (y, x)
-        ("reg_psf_params", F64Arr),  # Reg_psf array (n_divs, n_divs, 3)
         ("focus_adjustment", F64Arr),  # focus adjustment per cycle (n_cycles)
+        ("n_reg_psf_samples", "Size"),
+        ("reg_psf_x", F64Arr),  # Reg_psf x coords array (n_reg_psf_samples)
+        ("reg_psf_y", F64Arr),  # Reg_psf y coords array (n_reg_psf_samples)
+        ("reg_psf_sigma_x", F64Arr),  # Reg_psf sigma_x array (n_reg_psf_samples)
+        ("reg_psf_sigma_y", F64Arr),  # Reg_psf sigma_x array (n_reg_psf_samples)
+        ("reg_psf_rho", F64Arr),  # Reg_psf sigma_x array (n_reg_psf_samples)
 
         # Parameters
         ("n_channels", "Size"),
@@ -35,6 +40,11 @@ class RadiometryContext(c_common_tools.FixupStructure):
         ("width", "Float64"),
         ("raw_height", "Float64"),
         ("raw_width", "Float64"),
+
+        # Internal
+        ("_interp_sigma_x", "void *"),
+        ("_interp_sigma_y", "void *"),
+        ("_interp_rho", "void *"),
 
         # Outputs
         ("out_radiometry", F64Arr),  # (n_peaks, n_channels, n_cycles, 4), where 4 is: (signal, noise, snr, aspect_ratio)
@@ -120,12 +130,20 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
 
     check.array_t(focus_adjustment, ndim=1, dtype=np.float64)
 
+    samples = reg_psf.sample_params()
+
     out_radiometry = np.zeros((n_peaks, n_channels, n_cycles, 4), dtype=np.float64)
+
+    reg_psf_x = np.ascontiguousarray(samples[:, 0])
+    reg_psf_y = np.ascontiguousarray(samples[:, 1])
+    reg_psf_sigma_x = np.ascontiguousarray(samples[:, 2])
+    reg_psf_sigma_y = np.ascontiguousarray(samples[:, 3])
+    reg_psf_rho = np.ascontiguousarray(samples[:, 4])
+
     ctx = RadiometryContext(
         chcy_ims=F64Arr.from_ndarray(chcy_ims),
         locs=F64Arr.from_ndarray(locs),
         _locs=locs,
-        reg_psf_params=F64Arr.from_ndarray(reg_psf.params),
         focus_adjustment=F64Arr.from_ndarray(focus_adjustment),
         n_channels=n_channels,
         n_cycles=n_cycles,
@@ -136,6 +154,12 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
         width=width,
         raw_height=reg_psf.im_mea,
         raw_width=reg_psf.im_mea,
+        n_reg_psf_samples=len(samples),
+        reg_psf_x=F64Arr.from_ndarray(reg_psf_x),
+        reg_psf_y=F64Arr.from_ndarray(reg_psf_y),
+        reg_psf_sigma_x=F64Arr.from_ndarray(reg_psf_sigma_x),
+        reg_psf_sigma_y=F64Arr.from_ndarray(reg_psf_sigma_y),
+        reg_psf_rho=F64Arr.from_ndarray(reg_psf_rho),
         out_radiometry=F64Arr.from_ndarray(out_radiometry),
         _out_radiometry=out_radiometry,
     )
@@ -150,15 +174,11 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
         lib.context_free(ctx)
 
 
-def _do_radiometry_field_stack_one_peak(
-    ctx: RadiometryContext, peak_i: int, reg_psf: RegPSF
-):
+def _do_radiometry_field_stack_one_peak(ctx: RadiometryContext, peak_i: int):
     """
     Worker for radiometry_field_stack() zap
     """
     lib = load_lib()
-
-    loc = ctx._locs[peak_i]
 
     error = lib.radiometry_field_stack_one_peak(ctx, peak_i)
     if error is not None:
@@ -181,7 +201,6 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
             _trap_exceptions=False,
             _debug_mode=True,  # TODO HACK REMOVE ME!
             ctx=ctx,
-            reg_psf=reg_psf,
         )
 
     return ctx._out_radiometry

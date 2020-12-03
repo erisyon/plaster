@@ -794,7 +794,9 @@ def fft_sub_pixel_shift(im, offset):
     rng = np.arange(-(mea - 1) // 2, (mea + 1) // 2, 1)
     i, j = np.meshgrid(rng, rng)
 
-    phasor = np.exp(-2.0 * complex(0.0, 1.0) * np.pi * (i * offset[1] + j * offset[0]) / mea)
+    phasor = np.exp(
+        -2.0 * complex(0.0, 1.0) * np.pi * (i * offset[1] + j * offset[0]) / mea
+    )
     freq_dom = np.fft.fftshift(np.fft.fft2(im))
     freq_dom = freq_dom * phasor
     return np.real(np.fft.ifft2(np.fft.ifftshift(freq_dom)))
