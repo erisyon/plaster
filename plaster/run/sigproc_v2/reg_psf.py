@@ -155,6 +155,22 @@ class RegPSF:
         reg_psf.params[:, :, 2] = rho
         return reg_psf
 
+    @classmethod
+    def fixture_variable(cls, im_mea=512, peak_mea=15, n_divs=5):
+        reg_psf = cls(im_mea=im_mea, peak_mea=peak_mea, n_divs=n_divs)
+        for y in range(n_divs):
+            cy = y - n_divs // 2
+            for x in range(n_divs):
+                cx = x - n_divs // 2
+                reg_psf.params[y, x, RegPSF.SIGMA_X] = 1.5 + 0.05 * np.abs(
+                    cx * cy
+                )
+                reg_psf.params[y, x, RegPSF.SIGMA_Y] = 1.5 + 0.10 * np.abs(
+                    cx * cy
+                )
+                reg_psf.params[y, x, RegPSF.RHO] = 0.02 * cx * cy
+        return reg_psf
+
 
 def approximate_psf():
     """
