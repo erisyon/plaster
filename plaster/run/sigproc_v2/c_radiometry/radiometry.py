@@ -192,7 +192,6 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
             dict(peak_i=np.arange(n_peaks)),
             _process_mode=False,
             _trap_exceptions=False,
-            _debug_mode=True,  # TODO HACK REMOVE ME!
             ctx=ctx,
         )
 
