@@ -10,6 +10,7 @@ from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import (
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.schema import check
+from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
 from plaster.tools.log.log import debug, important, prof
 
 
@@ -284,7 +285,11 @@ def fg_estimate(fl_ims, reg_psf: RegPSF, progress=None):
         locs = peak_find(im_no_bg, approx_psf, bg_std)
 
         # RADIOMETRY
-        signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, reg_psf, locs)
+        # signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, reg_psf, locs)
+        radmat = radiometry_field_stack(
+            im_no_bg, locs=locs, reg_psf=reg_psf, focus_adjustment=np.ones((1,))
+        )
+        signals = radmat[:, 0]
 
         # FIND outliers
         if not np.all(np.isnan(signals)):
