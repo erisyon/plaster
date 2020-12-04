@@ -562,8 +562,6 @@ def _sigproc_analyze_field(
     else:
         focus_adjustments = np.ones((n_cycles,))
 
-    debug(focus_adjustments)
-
     radmat = _analyze_step_6b_radiometry(aln_chcy_ims, locs, calib, focus_adjustments)
 
     return (

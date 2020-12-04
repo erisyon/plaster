@@ -196,6 +196,11 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
             ctx=ctx,
         )
 
+    # Sanity check
+    # This is occsaionlly failing and I don't know why -- it looks
+    # like some sort of NaN handling issue. Will need to investigate further
+    assert np.all((0.0 <= ctx._out_radiometry) & (ctx._out_radiometry < 1e6))
+
     return ctx._out_radiometry
 
 
