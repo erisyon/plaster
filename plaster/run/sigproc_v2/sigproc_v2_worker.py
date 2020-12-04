@@ -210,21 +210,12 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
                 im *= bal_im
 
             if sigproc_params.run_bandpass_filter:
-                filtered_im = bg.bandpass_filter(
+                filtered_im, bg_std = bg.bandpass_filter(
                     im,
                     low_inflection=sigproc_params.low_inflection,
                     low_sharpness=sigproc_params.low_sharpness,
                     high_inflection=sigproc_params.high_inflection,
                     high_sharpness=sigproc_params.high_sharpness,
-                )
-
-                # The bg_std is used later for tuning the peak finder.
-                # Once I convert full to band-pass filter then this can just be eliminated
-                # because I think it will be a constant. For now, I'm keeping
-                # backward compatibility with bg_estimate_and_remove and setting
-                # the constant here.
-                bg_std = data.symmetric_nanstd(
-                    filtered_im.flatten(), mean=0.0, negative_side=True
                 )
 
             else:

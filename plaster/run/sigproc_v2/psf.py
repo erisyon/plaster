@@ -10,6 +10,7 @@ from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
 from plaster.run.sigproc_v2.reg_psf import RegPSF, approximate_psf
+from plaster.tools.utils import data
 
 
 class PSFEstimateMaskFields(IntEnum):
@@ -194,7 +195,7 @@ def _psf_one_z_slice(im, locs, divs=5, keep_dist=8, peak_mea=11):
     return locs[accepted > 0], psf_ims
 
 
-def _do_psf_one_field_one_channel(cy_ims, peak_mea, divs):
+def _do_psf_one_field_one_channel(cy_ims, peak_mea, divs, bandpass_kwargs):
     """
     The worker for _psf_stats_one_channel()
 
@@ -210,8 +211,9 @@ def _do_psf_one_field_one_channel(cy_ims, peak_mea, divs):
     approx_psf = approximate_psf()
 
     # FIND peaks on the best in focus and re-use those locs
-    im, bg_std = bg.bg_remove(cy_ims[0], approx_psf)
-    locs = fg.peak_find(im, approx_psf, bg_std)
+    filtered_im, bg_std = bg.bandpass_filter(cy_ims[0], **bandpass_kwargs,)
+
+    locs = fg.peak_find(filtered_im, approx_psf, bg_std)
 
     for cy_im in cy_ims:
         _, reg_psfs = _psf_one_z_slice(
@@ -269,6 +271,12 @@ def psf_all_fields_one_channel(cy_ims, sigproc_v2_params) -> RegPSF:
         _stack=True,
         peak_mea=sigproc_v2_params.peak_mea,
         divs=sigproc_v2_params.divs,
+        bandpass_kwargs=dict(
+            low_inflection=sigproc_v2_params.low_inflection,
+            low_sharpness=sigproc_v2_params.low_sharpness,
+            high_inflection=sigproc_v2_params.high_inflection,
+            high_sharpness=sigproc_v2_params.high_sharpness,
+        ),
     )
 
     # SUM over fields

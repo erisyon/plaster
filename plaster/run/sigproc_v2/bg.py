@@ -34,7 +34,18 @@ def bandpass_filter(im, low_inflection, low_sharpness, high_inflection, high_sha
     high_cut = 1 - imops.generate_center_weighted_tanh(
         im.shape[0], inflection=high_inflection, sharpness=high_sharpness
     )
-    return imops.fft_filter_with_mask(im, mask=low_cut * high_cut)
+    filtered_im = imops.fft_filter_with_mask(im, mask=low_cut * high_cut)
+
+    # The bg_std is used later for tuning the peak finder.
+    # Once I convert full to band-pass filter then this can just be eliminated
+    # because I think it will be a constant. For now, I'm keeping
+    # backward compatibility with bg_estimate_and_remove and setting
+    # the constant here.
+    bg_std = 3.0 * data.symmetric_nanstd(
+        filtered_im.flatten(), mean=0.0, negative_side=True
+    )
+
+    return filtered_im, bg_std
 
 
 def background_extract(im, kernel):
