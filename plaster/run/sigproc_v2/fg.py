@@ -287,7 +287,10 @@ def fg_estimate(fl_ims, reg_psf: RegPSF, progress=None):
         # RADIOMETRY
         # signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, reg_psf, locs)
         radmat = radiometry_field_stack(
-            im_no_bg, locs=locs, reg_psf=reg_psf, focus_adjustment=np.ones((1,))
+            im_no_bg[None, None, :, :],
+            locs=locs,
+            reg_psf=reg_psf,
+            focus_adjustment=np.ones((1,)),
         )
         signals = radmat[:, 0]
 
