@@ -74,6 +74,7 @@ class SigprocV2Result(BaseResult):
         cycle_i=int,
         aln_y=float,
         aln_x=float,
+        focus_adjustment=float,
         # n_mask_rects=int,
         # mask_area=int,
         # quality=float,

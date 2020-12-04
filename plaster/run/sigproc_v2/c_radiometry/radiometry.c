@@ -9,10 +9,46 @@
 #include "math.h"
 #include "c_common.h"
 #include "_radiometry.h"
-#include "csa.h"
 
 #define PI2 (2.0 * M_PI)
 
+
+/*
+    SPLINE INTERPOLATION NOTES
+
+    At some point it would be nice to get this spline interpolator working
+    but after a few hours I gave up and switched to a higher-res sampling
+    of the PSF form the python spline
+
+    //csa *_init_interpolate(
+    //    Size n_samples,
+    //    Float64 *x,
+    //    Float64 *y,
+    //    Float64 *val
+    //) {
+    //    point *points = (point *)alloca(sizeof(point) * n_samples);
+    //    for(Index i=0; i<n_samples; i++) {
+    //        point *p = &points[i];
+    //        p->x = x[i];
+    //        p->y = y[i];
+    //        p->z = val[i];
+    //    }
+    //
+    //    csa *spline = csa_create();
+    //    csa_addpoints(spline, n_samples, points);
+    //    csa_calculatespline(spline);
+    //    return spline;
+    //}
+    //
+    //Float64 _interpolate(csa *spline, Float64 x, Float64 y) {
+    //    point p;
+    //    p.x = x;
+    //    p.y = y;
+    //    p.z = 0.0;
+    //    csa_approximatepoints(spline, 1, &p);
+    //    return p.z;
+    //}
+*/
 
 void _dump_vec(Float64 *vec, int width, int height, char *msg) {
     trace("VEC %s [\n", msg);
@@ -25,37 +61,6 @@ void _dump_vec(Float64 *vec, int width, int height, char *msg) {
     fprintf(_log, "]\n");
     fflush(_log);
 }
-
-
-csa *_init_interpolate(
-    Size n_samples,
-    Float64 *x,
-    Float64 *y,
-    Float64 *val
-) {
-    point *points = (point *)alloca(sizeof(point) * n_samples);
-    for(Index i=0; i<n_samples; i++) {
-        point *p = &points[i];
-        p->x = x[i];
-        p->y = y[i];
-        p->z = val[i];
-    }
-
-    csa *spline = csa_create();
-    csa_addpoints(spline, n_samples, points);
-    csa_calculatespline(spline);
-    return spline;
-}
-
-Float64 _interpolate(csa *spline, Float64 x, Float64 y) {
-    point p;
-    p.x = x;
-    p.y = y;
-    p.z = 0.0;
-    csa_approximatepoints(spline, 1, &p);
-    return p.z;
-}
-
 
 void psf_im(
     Float64 center_x, Float64 center_y,
@@ -73,14 +78,6 @@ void psf_im(
     Float64 denom = 2.0 * (rho - 1.0) * (rho + 1.0) * sgxs * sgys;
     Float64 numer_const = -2.0 * rho * sigma_x * sigma_y;
     Float64 linear_term = tem_a * sqrt(omrs);
-
-//    trace("%f %f %f %f %f\n",
-//        center_x,
-//        center_y,
-//        sigma_x,
-//        sigma_y,
-//        rho
-//    );
 
     Float64 *dst = pixels;
     for (int i=0; i<mea; i++) {
@@ -100,6 +97,15 @@ void psf_im(
             );
         }
     }
+}
+
+
+Float64 *_get_psf_at_loc(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y) {
+    Index x_i = floor(ctx->n_divs * loc_x / ctx->width);
+    Index y_i = floor(ctx->n_divs * loc_y / ctx->height);
+    ensure_only_in_debug(0 <= x_i && x_i < ctx->width, "loc x out of bounds");
+    ensure_only_in_debug(0 <= y_i && y_i < ctx->height, "loc x out of bounds");
+    return f64arr_ptr2(&ctx->reg_psf_samples, y_i, x_i);
 }
 
 
@@ -137,7 +143,6 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 *loc_p = f64arr_ptr1(&ctx->locs, peak_i);
     Float64 loc_x = loc_p[1];
     Float64 loc_y = loc_p[0];
-    if(peak_i == 0) trace("loc(x,y) %f %f\n", loc_x, loc_y);
     ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width, "loc_x out of bounds");
     ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
 
@@ -146,21 +151,17 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     // Add 0.5 to round up as opposed to floor to keep the spots more centered
     Index corner_x = floor(loc_x - half_mea + 0.5);
     Index corner_y = floor(loc_y - half_mea + 0.5);
-    if(peak_i == 0) trace("corner(x,y) %ld %ld\n", corner_x, corner_y);
     ensure_only_in_debug(0 <= corner_x && corner_x < ctx->width, "corner_x out of bounds");
     ensure_only_in_debug(0 <= corner_y && corner_y < ctx->height, "corner_y out of bounds");
 
     // center is the location relative to the the corner
     Float64 center_x = loc_x - corner_x;
     Float64 center_y = loc_y - corner_y;
-    if(peak_i == 0) trace("center(x,y) %f %f\n", center_x, center_y);
     ensure_only_in_debug(0 <= center_x && center_x < mea, "center out of bounds");
     ensure_only_in_debug(0 <= center_y && center_y < mea, "center out of bounds");
 
     // Shape
     Index n_divs_minus_one = ctx->n_divs - 1;
-
-    if(peak_i == 0) trace("n_divs %f   raw(w,h) %f %f\n", ctx->n_divs, ctx->raw_width, ctx->raw_height);
 
     Float64 *psf_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
     Float64 *dat_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
@@ -169,19 +170,13 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
 
-        Float64 sigma_x = _interpolate(ctx->_interp_sigma_x, loc_x, loc_y);
-        Float64 sigma_y = _interpolate(ctx->_interp_sigma_y, loc_x, loc_y);
-        Float64 rho = _interpolate(ctx->_interp_rho, loc_x, loc_y);
+        Float64 *psf_params = _get_psf_at_loc(ctx, loc_x, loc_y);
+        Float64 sigma_x = psf_params[0];
+        Float64 sigma_y = psf_params[1];
+        Float64 rho = psf_params[2];
 
         sigma_x *= focus;
         sigma_y *= focus;
-
-        if(peak_i == 0) trace("loc(x,y) %f %f  cen(x,y) %f %f  foc %f  adj_sig(x,y) %f %f  rho %f\n",
-            loc_x, loc_y,
-            center_x, center_y,
-            focus,
-            sigma_x, sigma_y, rho
-        );
 
         psf_im(
             center_x, center_y,
@@ -198,12 +193,6 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             }
         }
 
-//        if(peak_i == 0) {
-//            trace("cy_i %ld\n", cy_i);
-//            _dump_vec(psf_pixels, mea, mea, "psf_pixels");
-//            _dump_vec(dat_pixels, mea, mea, "dat_pixels");
-//        }
-
         // SIGNAL
         Float64 psf_sum_square = 0.0;
         Float64 signal = 0.0;
@@ -216,7 +205,6 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             dat_p ++;
         }
         signal /= psf_sum_square;
-//        if(peak_i == 0) trace("sig %f  psf_sum_square %f\n", signal, psf_sum_square);
 
         // RESIDUALS mean
         Float64 residual_mean = 0.0;
@@ -229,7 +217,6 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             dat_p ++;
         }
         residual_mean /= (Float64)mea_sq;
-//        trace("res_mean %f\n", residual_mean);
 
         // RESIDUALS variance
         Float64 residual_var = 0.0;
@@ -243,11 +230,9 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
             dat_p ++;
         }
         residual_var /= (Float64)mea_sq;
-//        trace("res_var %f\n", residual_var);
 
         // NOISE
         Float64 noise = sqrt(residual_var / psf_sum_square);
-//        trace("noise %f\n", noise);
 
         // SNR
         Float64 snr = signal / noise;
@@ -268,15 +253,30 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
 }
 
 
+char *test_interp(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y, Float64 *out_vals) {
+    Float64 *psf_params = _get_psf_at_loc(ctx, loc_x, loc_y);
+    trace("%f %f %f\n", loc_x, loc_y, psf_params[0]);
+    Float64 sigma_x = psf_params[0];
+    Float64 sigma_y = psf_params[1];
+    Float64 rho = psf_params[2];
+    out_vals[0] = sigma_x;
+    out_vals[1] = sigma_y;
+    out_vals[2] = rho;
+    return NULL;
+}
+
 char *context_init(RadiometryContext *ctx) {
+    /*
+    See SPLINE INTERPOLATION NOTES
+
     int n_samples = ctx->n_reg_psf_samples;
-    int n_divs = 6;
-//    trace("n_samples=%ld\n", n_samples);
-//    _dump_vec(f64arr_ptr1(&ctx->reg_psf_x, 0), n_divs, n_divs, "x");
-//    _dump_vec(f64arr_ptr1(&ctx->reg_psf_y, 0), n_divs, n_divs, "y");
-//    _dump_vec(f64arr_ptr1(&ctx->reg_psf_sigma_x, 0), n_divs, n_divs, "reg_psf_sigma_x");
-//    _dump_vec(f64arr_ptr1(&ctx->reg_psf_sigma_y, 0), n_divs, n_divs, "reg_psf_sigma_y");
-//    _dump_vec(f64arr_ptr1(&ctx->reg_psf_rho, 0), n_divs, n_divs, "reg_psf_rho");
+    int n_divs = ctx->n_divs;
+    trace("n_samples=%ld\n", n_samples);
+    _dump_vec(f64arr_ptr1(&ctx->reg_psf_x, 0), n_divs, n_divs, "x");
+    _dump_vec(f64arr_ptr1(&ctx->reg_psf_y, 0), n_divs, n_divs, "y");
+    _dump_vec(f64arr_ptr1(&ctx->reg_psf_sigma_x, 0), n_divs, n_divs, "reg_psf_sigma_x");
+    _dump_vec(f64arr_ptr1(&ctx->reg_psf_sigma_y, 0), n_divs, n_divs, "reg_psf_sigma_y");
+    _dump_vec(f64arr_ptr1(&ctx->reg_psf_rho, 0), n_divs, n_divs, "reg_psf_rho");
 
     ctx->_interp_sigma_x = _init_interpolate(
         ctx->n_reg_psf_samples,
@@ -298,13 +298,19 @@ char *context_init(RadiometryContext *ctx) {
         f64arr_ptr1(&ctx->reg_psf_y, 0),
         f64arr_ptr1(&ctx->reg_psf_rho, 0)
     );
+    */
+
     return NULL;
 }
 
 
 char *context_free(RadiometryContext *ctx) {
+    /*
+    See SPLINE INTERPOLATION NOTES
+
     csa_destroy(ctx->_interp_sigma_x);
     csa_destroy(ctx->_interp_sigma_y);
     csa_destroy(ctx->_interp_rho);
+    */
     return NULL;
 }

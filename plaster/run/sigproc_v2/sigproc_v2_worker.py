@@ -206,10 +206,10 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
 
         for cy_i in range(n_cycles):
             im = np.copy(chcy_ims[ch_i, cy_i])
-            if not sigproc_params.skip_regional_balance:
+            if sigproc_params.run_regional_balance:
                 im *= bal_im
 
-            if sigproc_params.use_bandpass_filter:
+            if sigproc_params.run_bandpass_filter:
                 filtered_im = bg.bandpass_filter(
                     im,
                     low_inflection=sigproc_params.low_inflection,
@@ -515,7 +515,7 @@ def _sigproc_analyze_field(
     """
     Removed temporarily see _analyze_step_2_mask_anomalies_im for explanation
     # Step 2: Remove anomalies (at least for alignment)
-    if not sigproc_v2_params.skip_anomaly_detection:
+    if sigproc_v2_params.run_anomaly_detection:
         for ch_i, cy_ims in enumerate(chcy_ims):
             chcy_ims[ch_i] = imops.stack_map(cy_ims, _analyze_step_2_mask_anomalies_im)
     """
@@ -556,7 +556,13 @@ def _sigproc_analyze_field(
 
     fitmat = _analyze_step_6a_fitter(aln_chcy_ims, locs, reg_psf, mask)
 
-    focus_adjustments = fg.focus_from_fitmat(fitmat, reg_psf)
+    n_cycles = fitmat.shape[2]
+    if sigproc_v2_params.run_focal_adjustments:
+        focus_adjustments = fg.focus_from_fitmat(fitmat, reg_psf)
+    else:
+        focus_adjustments = np.ones((n_cycles,))
+
+    debug(focus_adjustments)
 
     radmat = _analyze_step_6b_radiometry(aln_chcy_ims, locs, calib, focus_adjustments)
 
@@ -566,6 +572,7 @@ def _sigproc_analyze_field(
         radmat,
         aln_offsets,
         fitmat,
+        focus_adjustments,
     )
 
 
@@ -582,9 +589,14 @@ def _do_sigproc_analyze_and_save_field(
     assert n_channels == 1
     reg_psf = calib.psfs(0)  # TODO: Multichannel
 
-    (chcy_ims, locs, radmat, aln_offsets, fitmat,) = _sigproc_analyze_field(
-        chcy_ims, sigproc_v2_params, calib, reg_psf
-    )
+    (
+        chcy_ims,
+        locs,
+        radmat,
+        aln_offsets,
+        fitmat,
+        focus_adjustments,
+    ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, reg_psf)
 
     mea = np.array([chcy_ims.shape[-1:]])
     if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
@@ -606,6 +618,7 @@ def _do_sigproc_analyze_and_save_field(
                 cycle_i,
                 aln_offsets[cycle_i, 0],
                 aln_offsets[cycle_i, 1],
+                focus_adjustments[cycle_i],
             )
             for channel_i in range(n_channels)
             for cycle_i in range(n_cycles)

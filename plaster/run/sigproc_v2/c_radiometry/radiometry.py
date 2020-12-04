@@ -23,12 +23,7 @@ class RadiometryContext(c_common_tools.FixupStructure):
         ("chcy_ims", F64Arr),  # Sub-pixel aligned  (n_channels, n_cycles, height, width)
         ("locs", F64Arr),  # Sub-pixel centered  (n_peaks, 2), where 2 is: (y, x)
         ("focus_adjustment", F64Arr),  # focus adjustment per cycle (n_cycles)
-        ("n_reg_psf_samples", "Size"),
-        ("reg_psf_x", F64Arr),  # Reg_psf x coords array (n_reg_psf_samples)
-        ("reg_psf_y", F64Arr),  # Reg_psf y coords array (n_reg_psf_samples)
-        ("reg_psf_sigma_x", F64Arr),  # Reg_psf sigma_x array (n_reg_psf_samples)
-        ("reg_psf_sigma_y", F64Arr),  # Reg_psf sigma_x array (n_reg_psf_samples)
-        ("reg_psf_rho", F64Arr),  # Reg_psf sigma_x array (n_reg_psf_samples)
+        ("reg_psf_samples", F64Arr),  # Reg_psf samples (n_divs, n_divs, 3) (y, x, (sig_x, sig_y, rho))
 
         # Parameters
         ("n_channels", "Size"),
@@ -40,11 +35,6 @@ class RadiometryContext(c_common_tools.FixupStructure):
         ("width", "Float64"),
         ("raw_height", "Float64"),
         ("raw_width", "Float64"),
-
-        # Internal
-        ("_interp_sigma_x", "void *"),
-        ("_interp_sigma_y", "void *"),
-        ("_interp_rho", "void *"),
 
         # Outputs
         ("out_radiometry", F64Arr),  # (n_peaks, n_channels, n_cycles, 4), where 4 is: (signal, noise, snr, aspect_ratio)
@@ -105,6 +95,14 @@ def load_lib():
     ]
     lib.radiometry_field_stack_one_peak.restype = c.c_char_p
 
+    lib.test_interp.argtypes = [
+        c.POINTER(RadiometryContext),  # RadiometryContext context
+        c_common_tools.typedef_to_ctype("Float64"),  # Float64 loc_x
+        c_common_tools.typedef_to_ctype("Float64"),  # Float64 loc_y
+        c.c_void_p,  # Float64 *out_vals
+    ]
+    lib.test_interp.restype = c.c_char_p
+
     _lib = lib
     return lib
 
@@ -126,19 +124,18 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
 
     check.t(reg_psf, RegPSF)
     peak_mea = reg_psf.peak_mea
-    n_divs = reg_psf.n_divs
 
     check.array_t(focus_adjustment, ndim=1, dtype=np.float64)
 
-    samples = reg_psf.sample_params()
+    # I previously attempted to use a spline interpolator inside the
+    # radiometry.c but had problems so I reverted (at least for now)
+    # to a high-res sampling of the reg_psf
+    n_divs = 64
+    samples = reg_psf.sample_params_grid(n_divs=n_divs)
 
     out_radiometry = np.zeros((n_peaks, n_channels, n_cycles, 4), dtype=np.float64)
 
-    reg_psf_x = np.ascontiguousarray(samples[:, 0])
-    reg_psf_y = np.ascontiguousarray(samples[:, 1])
-    reg_psf_sigma_x = np.ascontiguousarray(samples[:, 2])
-    reg_psf_sigma_y = np.ascontiguousarray(samples[:, 3])
-    reg_psf_rho = np.ascontiguousarray(samples[:, 4])
+    reg_psf_samples = np.ascontiguousarray(samples)
 
     ctx = RadiometryContext(
         chcy_ims=F64Arr.from_ndarray(chcy_ims),
@@ -155,11 +152,7 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
         raw_height=reg_psf.im_mea,
         raw_width=reg_psf.im_mea,
         n_reg_psf_samples=len(samples),
-        reg_psf_x=F64Arr.from_ndarray(reg_psf_x),
-        reg_psf_y=F64Arr.from_ndarray(reg_psf_y),
-        reg_psf_sigma_x=F64Arr.from_ndarray(reg_psf_sigma_x),
-        reg_psf_sigma_y=F64Arr.from_ndarray(reg_psf_sigma_y),
-        reg_psf_rho=F64Arr.from_ndarray(reg_psf_rho),
+        reg_psf_samples=F64Arr.from_ndarray(reg_psf_samples),
         out_radiometry=F64Arr.from_ndarray(out_radiometry),
         _out_radiometry=out_radiometry,
     )
@@ -202,5 +195,48 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
             _debug_mode=True,  # TODO HACK REMOVE ME!
             ctx=ctx,
         )
+
+    return ctx._out_radiometry
+
+
+def test_interp():
+    reg_psf = RegPSF.fixture_variable()
+    with context(
+        chcy_ims=np.ones((1, 1, 512, 512)),
+        locs=np.zeros((1, 2)),
+        reg_psf=reg_psf,
+        focus_adjustment=np.ones((1,)),
+    ) as ctx:
+        lib = load_lib()
+
+        diffs = []
+
+        for y in np.linspace(0, 511, 17):
+            for x in np.linspace(0, 511, 17):
+                result = np.zeros((3,))
+                error = lib.test_interp(ctx, x, y, result.ctypes.data_as(c.c_void_p))
+                if error is not None:
+                    raise CException(error)
+
+                sig_x = reg_psf.interp_sig_x_fn(x, y)
+                sig_y = reg_psf.interp_sig_y_fn(x, y)
+                rho = reg_psf.interp_rho_fn(x, y)
+
+                diffs += [
+                    (
+                        x,
+                        y,
+                        sig_x[0],
+                        sig_y[0],
+                        rho[0],
+                        sig_x[0] - result[0],
+                        sig_y[0] - result[1],
+                        rho[0] - result[2],
+                    )
+                ]
+
+        diffs = np.array(diffs)
+        diffs = np.abs(diffs[:, 5:])
+        return np.all(diffs < 0.03)
 
     return ctx._out_radiometry

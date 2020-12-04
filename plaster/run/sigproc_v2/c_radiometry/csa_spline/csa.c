@@ -41,7 +41,7 @@
 #include "svd.h"
 #include "csa.h"
 
-int csa_verbose = 0;
+int csa_verbose = 1;
 
 #define NPASTART_S 10           /* Number of Points Allocated at Start for a
                                  * square */

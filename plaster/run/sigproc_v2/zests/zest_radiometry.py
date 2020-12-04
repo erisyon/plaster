@@ -3,7 +3,10 @@ from plaster.tools.image import imops
 from plaster.tools.image.coord import XY, YX
 from plaster.run.sigproc_v2.reg_psf import RegPSF
 from plaster.run.sigproc_v2 import synth
-from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
+from plaster.run.sigproc_v2.c_radiometry.radiometry import (
+    radiometry_field_stack,
+    test_interp,
+)
 import numpy as np
 from plaster.tools.log.log import debug
 
@@ -13,6 +16,9 @@ def zest_radiometry():
 
     def _peak(x, y, mea, amp=1000):
         return imops.gauss2_rho_form(amp, 1.8, 1.8, x, y, 0.0, 0.0, mea)
+
+    def it_interpolates_correctly():
+        assert test_interp()
 
     def it_finds_one_peak_centered():
         n_cycles = 1
