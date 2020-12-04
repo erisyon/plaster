@@ -239,6 +239,41 @@ def radiometry_one_channel_one_cycle_fit_method(im, reg_psf: RegPSF, locs):
     ret_params, _ = fit_image_with_reg_psf(im, locs, reg_psf)
     return ret_params
 
+'''
+This is the beginning of a zap but the hangup is that
+I'm accuulating to fg and cnt and would need to change
+that to write out and then do the accum
+
+def _do_?(im, approx_psf, reg_psf, ):
+    im_no_bg, bg_std = bg.bg_estimate_and_remove(fl_ims[fl_i], approx_psf)
+
+    # FIND PEAKS
+    locs = peak_find(im_no_bg, approx_psf, bg_std)
+
+    # RADIOMETRY
+    # signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, reg_psf, locs)
+    radmat = radiometry_field_stack(
+        im_no_bg[None, None, :, :],
+        locs=locs.astype(float),
+        reg_psf=reg_psf,
+        focus_adjustment=np.ones((1,), dtype=float),
+    )
+    # radmat is: (n_peaks, n_channels, n_cycles, 4)
+    assert radmat.shape[1] == 1  # TODO: Multichannel
+    signals = radmat[:, 0, 0, 0]
+
+    # FIND outliers
+    if not np.all(np.isnan(signals)):
+        low, high = np.nanpercentile(signals, (10, 90))
+
+        # SPLAT circles of the intensity of the signal into an accumulator
+        for loc, sig in zip(locs, signals):
+            if low <= sig <= high:
+                # TODO: The CENTER=FALSE here smells wrong
+                imops.accum_inplace(fg, sig * circle, loc, center=False)
+                imops.accum_inplace(cnt, circle, loc, center=False)
+'''
+
 
 def fg_estimate(fl_ims, reg_psf: RegPSF, progress=None):
     """
@@ -274,6 +309,7 @@ def fg_estimate(fl_ims, reg_psf: RegPSF, progress=None):
     # ALLOCATE a circle mask to use to splat in the values
     circle = imops.generate_circle_mask(7).astype(float)
 
+    # TODO: Replace with a zap over fields (see notes in commented out above)
     for fl_i in range(n_fields):
         # REMOVE BG
         if progress:
@@ -288,11 +324,13 @@ def fg_estimate(fl_ims, reg_psf: RegPSF, progress=None):
         # signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, reg_psf, locs)
         radmat = radiometry_field_stack(
             im_no_bg[None, None, :, :],
-            locs=locs,
+            locs=locs.astype(float),
             reg_psf=reg_psf,
-            focus_adjustment=np.ones((1,)),
+            focus_adjustment=np.ones((1,), dtype=float),
         )
-        signals = radmat[:, 0]
+        # radmat is: (n_peaks, n_channels, n_cycles, 4)
+        assert radmat.shape[1] == 1  # TODO: Multichannel
+        signals = radmat[:, 0, 0, 0]
 
         # FIND outliers
         if not np.all(np.isnan(signals)):

@@ -255,7 +255,7 @@ def psf_normalize(psf_ims):
     return normalized_psf_ims
 
 
-def psf_all_fields_one_channel(cy_ims, sigproc_v2_params) -> RegPSF:
+def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params) -> RegPSF:
     """
     Build up a regional PSF for one channel on the RAW images
     These images are not yet background subtracted.
@@ -265,9 +265,12 @@ def psf_all_fields_one_channel(cy_ims, sigproc_v2_params) -> RegPSF:
 
     TODO: Attach progress
     """
+    check.array_t(flcy_ims, ndim=4)
+    assert flcy_ims.shape[-1] == flcy_ims.shape[-2]
+
     region_to_psf_per_field = zap.arrays(
         _do_psf_one_field_one_channel,
-        dict(cy_ims=cy_ims),
+        dict(cy_ims=flcy_ims),
         _stack=True,
         peak_mea=sigproc_v2_params.peak_mea,
         divs=sigproc_v2_params.divs,
@@ -288,7 +291,6 @@ def psf_all_fields_one_channel(cy_ims, sigproc_v2_params) -> RegPSF:
     # Now we convert it to Gaussian Parameters by fitting so we don't have
     # to store the pixels anymore: just the 3 critical shape parameters:
     # sigma_x, sigma_y, and rho.
-
-    return RegPSF.from_psf_ims(psf_ims)
+    return RegPSF.from_psf_ims(flcy_ims.shape[0], psf_ims)
 
     focus_adjustments = _focus_from_fitmat(fitmat)

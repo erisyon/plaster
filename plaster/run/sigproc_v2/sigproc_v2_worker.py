@@ -143,11 +143,16 @@ def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
     focus_per_field_per_channel = []
     _, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
     for ch_i in range(0, n_channels):
-        cy_ims = ims_import_result.ims[:, ch_i, :]
-        reg_psf = psf.psf_all_fields_one_channel(cy_ims, sigproc_v2_params)
+        flcy_ims = ims_import_result.ims[:, ch_i, :].astype(np.float64)
+        q = ims_import_result.qualities()
+        med_q = np.median(q.quality)
+        good_field_iz = q[q.quality > med_q].field_i.unique()
+        flcy_ims = flcy_ims[good_field_iz]
+
+        reg_psf = psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params)
 
         prop = f"regional_psf.instrument_channel[{ch_i}]"
-        calib.add({prop: reg_psf.params.tolist()})
+        calib.add({prop: reg_psf})
 
     # Extract a per-channel regional balance by using the foreground peaks as estimators
     # using ONLY cycle zero data because cycle 0 has the most peaks.
