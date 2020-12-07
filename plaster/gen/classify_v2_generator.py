@@ -7,7 +7,7 @@ from plaster.tools.utils import utils
 from plumbum import cli
 
 
-class ClassifyGenerator(BaseGenerator):
+class ClassifyV2Generator(BaseGenerator):
     """
     General-purpose generator for classifying peptides/proteins.
     May be used to search for one or more "needle" peptides.

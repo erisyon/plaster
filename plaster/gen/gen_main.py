@@ -8,7 +8,8 @@ import uuid
 
 from munch import Munch
 from plaster.gen import helpers
-from plaster.gen.classify_generator import ClassifyGenerator
+from plaster.gen.classify_v1_generator import ClassifyV1Generator
+from plaster.gen.classify_v2_generator import ClassifyV2Generator
 from plaster.gen.errors import ValidationError
 from plaster.gen.ptm_generator import PTMGenerator
 from plaster.gen.sigproc_v1_generator import SigprocV1Generator
@@ -88,7 +89,7 @@ def help_template(generators):
 
         Example Usage:
         --------------
-            gen classify \\
+            gen classify_v2 \\
                 --protein_uniprot=P01308 \\
                 --n_edmans=10 \\
                 --label_set='DE,C' \\
@@ -482,7 +483,8 @@ class GenApp(cli.Application, GenFuncs):
     )
 
     generator_klass_by_name = Munch(
-        classify=ClassifyGenerator,
+        classify_v1=ClassifyV1Generator,
+        classify_v2=ClassifyV2Generator,
         ptm=PTMGenerator,
         sigproc_v1=SigprocV1Generator,
         sigproc_v2=SigprocV2Generator,
