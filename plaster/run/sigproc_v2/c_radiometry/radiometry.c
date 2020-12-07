@@ -103,8 +103,11 @@ void psf_im(
 Float64 *_get_psf_at_loc(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y) {
     Index x_i = floor(ctx->n_divs * loc_x / ctx->width);
     Index y_i = floor(ctx->n_divs * loc_y / ctx->height);
-    ensure_only_in_debug(0 <= x_i && x_i < ctx->width, "loc x out of bounds");
-    ensure_only_in_debug(0 <= y_i && y_i < ctx->height, "loc x out of bounds");
+    trace("x_i %ld y_i %ld  %f %f %f\n", x_i, y_i, ctx->n_divs, ctx->width, loc_x);
+    ensure_only_in_debug(0.0 <= loc_x && loc_x < ctx->width, "loc x out of bounds");
+    ensure_only_in_debug(0.0 <= loc_y && loc_y < ctx->height, "loc x out of bounds");
+    ensure_only_in_debug(0 <= x_i && x_i < ctx->n_divs, "x_i out of bounds");
+    ensure_only_in_debug(0 <= y_i && y_i < ctx->n_divs, "y_i out of bounds");
     return f64arr_ptr2(&ctx->reg_psf_samples, y_i, x_i);
 }
 
