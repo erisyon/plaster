@@ -1,12 +1,13 @@
 import random
-from munch import Munch
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+from munch import Munch
 from plaster.run.base_result import BaseResult
 from plaster.run.prep.prep_params import PrepParams
 from plaster.tools.aaseq.aaseq import aa_random
-from plaster.tools.utils import utils
 from plaster.tools.log.log import debug
+from plaster.tools.utils import utils
 
 
 class PrepResult(BaseResult):
