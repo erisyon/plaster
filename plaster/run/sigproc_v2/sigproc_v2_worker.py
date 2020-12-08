@@ -578,6 +578,7 @@ def _sigproc_analyze_field(
 
     n_cycles = fitmat.shape[2]
     if sigproc_v2_params.run_focal_adjustments:
+        debug()
         focus_adjustments = fg.focus_from_fitmat(fitmat, reg_psf)
     else:
         focus_adjustments = np.ones((n_cycles,))
@@ -633,6 +634,7 @@ def _do_sigproc_analyze_and_save_field(
         columns=list(SigprocV2Result.peak_df_schema.keys()),
     )
 
+    debug(field_i)
     field_df = pd.DataFrame(
         [
             (

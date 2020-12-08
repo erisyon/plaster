@@ -1,5 +1,5 @@
 import numpy as np
-
+import time
 from plaster.run.sigproc_v2 import bg
 from plaster.run.sigproc_v2.reg_psf import RegPSF, approximate_psf
 from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
@@ -398,6 +398,8 @@ def focus_from_fitmat(fitmat, reg_psf: RegPSF):
     """
     fitmat: (n_peaks, n_channels, n_cycles, AugmentedGauss2Params.N_FULL_PARAMS)
     """
+    focus_const = 1.0
+    debug(focus_const)
     n_peaks, n_channels, n_cycles, n_params = fitmat.shape
     assert n_channels == 1  # TODO: Multichannel
     focus_per_cycle = []
@@ -407,12 +409,14 @@ def focus_from_fitmat(fitmat, reg_psf: RegPSF):
         fit_sig_x = ch_fitmat[:, Gauss2Params.SIGMA_X]
         fit_sig_y = ch_fitmat[:, Gauss2Params.SIGMA_Y]
 
-        # KEEP anything peak between 0.85 and 1.5 otherwise it is a bad fit
-        keep_mask = (0.85 < fit_sig_x) & (fit_sig_x < 1.5) & (0.85 < fit_sig_y) & (fit_sig_y < 1.5)
+        keep_mask = (1.0 < fit_sig_x) & (fit_sig_x < 1.5) & (1.0 < fit_sig_y) & (fit_sig_y < 1.5)
         
         fit_sigma = np.nanmean(np.concatenate((fit_sig_x[keep_mask], fit_sig_y[keep_mask])))
         psf_sigma = np.mean(np.concatenate((reg_psf.params[:, :, RegPSF.SIGMA_X], reg_psf.params[:, :, RegPSF.SIGMA_Y])))
-        
-        focus_per_cycle += [fit_sigma / psf_sigma]
+        # np.save(f"/erisyon/internal/_fit_sigma_{cy_i}", fit_sigma)
+        # np.save(f"/erisyon/internal/_psf_sigma_{cy_i}", psf_sigma)
+        #debug(cy_i, psf_sigma, fit_sigma, psf_sigma / fit_sigma)
+        #focus_per_cycle += [focus_const * psf_sigma / fit_sigma]
+        focus_per_cycle += [focus_const * fit_sigma / psf_sigma]
     return np.array(focus_per_cycle)
 
