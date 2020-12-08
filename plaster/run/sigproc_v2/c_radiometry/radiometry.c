@@ -103,7 +103,6 @@ void psf_im(
 Float64 *_get_psf_at_loc(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y) {
     Index x_i = floor(ctx->n_divs * loc_x / ctx->width);
     Index y_i = floor(ctx->n_divs * loc_y / ctx->height);
-    trace("x_i %ld y_i %ld  %f %f %f\n", x_i, y_i, ctx->n_divs, ctx->width, loc_x);
     ensure_only_in_debug(0.0 <= loc_x && loc_x < ctx->width, "loc x out of bounds");
     ensure_only_in_debug(0.0 <= loc_y && loc_y < ctx->height, "loc x out of bounds");
     ensure_only_in_debug(0 <= x_i && x_i < ctx->n_divs, "x_i out of bounds");
@@ -146,14 +145,16 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 *loc_p = f64arr_ptr1(&ctx->locs, peak_i);
     Float64 loc_x = loc_p[1];
     Float64 loc_y = loc_p[0];
+    trace("locyx %f %f \n", loc_y, loc_x, ctx->width, ctx->height);
     ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width, "loc_x out of bounds");
     ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
 
-    // corner is the lower left pixel coorinate in image coordinates
+    // corner is the lower left pixel coordinate in image coordinates
     // where the (mea, mea) sub-image will be extracted
     // Add 0.5 to round up as opposed to floor to keep the spots more centered
     Index corner_x = floor(loc_x - half_mea + 0.5);
     Index corner_y = floor(loc_y - half_mea + 0.5);
+    trace("coryx %ld %ld   %f %f  halfmea %f  %ld\n", corner_y, corner_x, ctx->width, ctx->height, half_mea, mea);
     ensure_only_in_debug(0 <= corner_x && corner_x < ctx->width, "corner_x out of bounds");
     ensure_only_in_debug(0 <= corner_y && corner_y < ctx->height, "corner_y out of bounds");
 
@@ -171,6 +172,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
 
     Index ch_i = 0;
     for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
+        trace("%ld\n", cy_i);
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
 
         Float64 *psf_params = _get_psf_at_loc(ctx, loc_x, loc_y);
@@ -195,6 +197,8 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
                 *dst_p++ = *dat_p++;
             }
         }
+//        _dump_vec(psf_pixels, mea, mea, "psf");
+//        _dump_vec(dat_pixels, mea, mea, "data");
 
         // SIGNAL
         Float64 psf_sum_square = 0.0;
@@ -250,6 +254,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         out[1] = noise;
         out[2] = snr;
         out[3] = aspect_ratio;
+        trace("sig %f %f %f %f\n", signal, noise, snr, aspect_ratio);
     }
 
     return NULL;

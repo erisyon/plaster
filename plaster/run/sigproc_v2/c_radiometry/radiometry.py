@@ -11,7 +11,7 @@ from plaster.tools.c_common.c_common_tools import CException
 from plaster.tools.utils import utils
 from plaster.tools.c_common import c_common_tools
 from plaster.tools.c_common.c_common_tools import F64Arr
-from plaster.tools.log.log import debug, important
+from plaster.tools.log.log import debug, important, prof
 
 
 class RadiometryContext(c_common_tools.FixupStructure):
@@ -196,12 +196,10 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
         )
 
     # Sanity check
-    # This is occaionally failing and I don't know why -- it looks
-    # like some sort of NaN handling issue. Will need to investigate further
-    bad_rads = ctx._out_radiometry > 1e6
-    if np.any(bad_rads):
+    bad_signals = ctx._out_radiometry[:, :, :, 0] > 1e6
+    if np.any(bad_signals):
         important("there were bad radiometries. Converting to nan")
-        ctx._out_radiometry = np.where(bad_rads, np.nan, ctx._out_radiometry)
+        ctx._out_radiometry[bad_signals, :] = np.nan
 
     return ctx._out_radiometry
 

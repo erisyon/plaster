@@ -25,6 +25,7 @@ class RegPSF:
 
     def _init_interpolation(self):
         if self.interp_sig_x_fn is None:
+            self.params.flags.writeable = False  # Prevent changes thus enabling caching
             center = self.im_mea / self.n_divs / 2.0
             coords = np.linspace(center, self.im_mea - center, self.n_divs)
             xx, yy = np.meshgrid(coords, coords)
@@ -41,10 +42,13 @@ class RegPSF:
     def __init__(self, im_mea, peak_mea, n_divs):
         """
         Arguments:
-            im_mea: tuple (height / width) of the raw images before alignment
-            peak_mea: number of pixel (height/ width) representing the peak
-            n_divs: number of spatial divisions (height / width)
+            im_mea: tuple (height or width) of the raw images before alignment
+            peak_mea: number of pixel (height or width) representing the peak
+            n_divs: number of spatial divisions (height or width)
         """
+        check.t(im_mea, int)
+        check.t(peak_mea, int)
+        check.t(n_divs, int)
         self.im_mea = im_mea
         self.peak_mea = peak_mea
         self.n_divs = n_divs
@@ -52,6 +56,8 @@ class RegPSF:
         self.interp_sig_x_fn = None
         self.interp_sig_y_fn = None
         self.interp_rho_fn = None
+        self._grid_cache = None
+        self._grid_hash = None
 
     def render_one_reg(self, div_y, div_x, amp=1.0, frac_y=0.0, frac_x=0.0, const=0.0):
         assert 0 <= div_y < self.n_divs
@@ -123,6 +129,10 @@ class RegPSF:
         return samples
 
     def sample_params_grid(self, n_divs=6):
+        self_hash = hash((self, n_divs))
+        if self_hash == self._grid_hash:
+            return self._grid_cache
+
         self._init_interpolation()
         space = np.linspace(0, self.im_mea, n_divs)
         samples = np.zeros((n_divs, n_divs, 3))
@@ -132,6 +142,10 @@ class RegPSF:
                 sig_y = self.interp_sig_y_fn(x, y)
                 rho = self.interp_rho_fn(x, y)
                 samples[yi, xi, :] = (sig_x, sig_y, rho)
+
+        self._grid_cache = samples
+        self._grid_hash = self_hash
+
         return samples
 
     def _fit(self, im, y, x):
