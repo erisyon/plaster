@@ -126,48 +126,72 @@ from plumbum import local
 
 def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
     """
-    Extract a PSF and extract illumination balance
+    Extract a PSF and extract illumination balance from (assumed) 1-count data.
 
     Arguments:
         calib:
             Where to add the calibration
-        ims_import_result:
-            Expects this is from a movie-based ims_import where the
-            "frames" are "zstacks"
+        TODO
 
     Returns:
         calib, with new records added
         fg_means:
     """
 
-    focus_per_field_per_channel = []
-    _, n_channels, n_zslices = ims_import_result.n_fields_channel_frames()
-    for ch_i in range(0, n_channels):
-        flcy_ims = ims_import_result.ims[:, ch_i, :].astype(np.float64)
-        q = ims_import_result.qualities()
-        med_q = np.median(q.quality)
-        good_field_iz = q[q.quality > med_q].field_i.unique()
-        flcy_ims = flcy_ims[good_field_iz]
+    debug(sigproc_v2_params.n_fields_limit)
 
-        reg_psf = psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params)
+
+    if sigproc_v2_params.n_fields_limit is None:
+        # Use quality metrics
+        q = ims_import_result.qualities()
+        q_by_field = q.groupby("field_i").quality.mean()
+        med_field_q = np.median(q_by_field.values)
+        debug(len(q.field_i.unique()))
+        good_field_iz = q_by_field[q_by_field > med_field_q].index.values
+        debug(len(good_field_iz))
+        flchcy_ims = ims_import_result.ims[:, :, :].astype(np.float64)
+        flchcy_ims = flchcy_ims[good_field_iz]
+    else:
+        field_slice = slice(0, sigproc_v2_params.n_fields_limit, 1)
+        flchcy_ims = ims_import_result.ims[field_slice, :, :].astype(np.float64)
+
+    debug(flchcy_ims.shape)
+
+    debug("STARTING on psf")
+    n_channels = ims_import_result.n_channels
+    for ch_i in range(0, n_channels):
+        flcy_ims = flchcy_ims[:, ch_i, :]
+        debug(flcy_ims.shape)
+
+        reg_psf = psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress)
+        np.save("/erisyon/internal/_calib_reg_psf.npy", reg_psf)
 
         prop = f"regional_psf.instrument_channel[{ch_i}]"
         calib.add({prop: reg_psf})
 
-    # Extract a per-channel regional balance by using the foreground peaks as estimators
-    # using ONLY cycle zero data because cycle 0 has the most peaks.
-    n_fields, n_channels, n_cycles = ims_import_result.n_fields_channel_cycles()
+    debug("STARTING on illum")
+
+    bandpass_kwargs=dict(
+        low_inflection=sigproc_v2_params.low_inflection,
+        low_sharpness=sigproc_v2_params.low_sharpness,
+        high_inflection=sigproc_v2_params.high_inflection,
+        high_sharpness=sigproc_v2_params.high_sharpness,
+    )
+    
     fg_means = np.zeros((n_channels, ims_import_result.dim, ims_import_result.dim))
     for ch_i in range(0, n_channels):
-        fl_ims = ims_import_result.ims[
-            :, ch_i, 0
-        ]  # Cycle 0 because it has the most peaks
-        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i), progress)
+        # TODO: Eventually I'd like to change this so that it uses all cycles
+        # But that means some refactoring on fg_estimate(); see the notes about
+        # the zap and accumulation buffers. Until then this runs only on cycle 0
+        cy_i = 0
+        fl_ims = flchcy_ims[:, ch_i, cy_i]
+        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i), bandpass_kwargs)
         fg_means[ch_i] = fg_mean
         assert np.all(~np.isnan(reg_bal))
 
         prop = f"regional_illumination_balance.instrument_channel[{ch_i}]"
         calib.add({prop: reg_bal.tolist()})
+        np.save("/erisyon/internal/_reg_bal.npy", reg_bal)
 
     return calib, fg_means
 
@@ -546,7 +570,7 @@ def _sigproc_analyze_field(
     else:
         # Subsample peaks for fitting
         mask = np.zeros((n_locs,), dtype=bool)
-        count = 300  # DO not know if this is enough
+        count = 300  # Don't know if this is enough
         iz = np.random.choice(n_locs, count)  # Allow replace in case count > n_locs
         mask[iz] = 1
 
@@ -557,6 +581,11 @@ def _sigproc_analyze_field(
         focus_adjustments = fg.focus_from_fitmat(fitmat, reg_psf)
     else:
         focus_adjustments = np.ones((n_cycles,))
+
+    # EXPERIMENTAL HACK
+    # focus_adjustments *= 2.0    
+    # WTF? WHy isn't focus helping?
+    # Need to move into a zest to think
 
     radmat = _analyze_step_6b_radiometry(aln_chcy_ims, locs, calib, focus_adjustments)
 

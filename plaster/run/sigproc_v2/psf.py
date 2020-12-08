@@ -11,6 +11,7 @@ from plaster.tools.utils import utils
 from plaster.tools.zap import zap
 from plaster.run.sigproc_v2.reg_psf import RegPSF, approximate_psf
 from plaster.tools.utils import data
+from plaster.tools.log.log import debug
 
 
 class PSFEstimateMaskFields(IntEnum):
@@ -24,6 +25,37 @@ class PSFEstimateMaskFields(IntEnum):
     skipped_too_dark = 5
     skipped_too_oval = 6
     accepted = 7
+
+
+def psf_normalize(psf_ims):
+    """
+    The PSF tends to have some bias and needs to have a unit area-under-curve
+    The bias is removed by fitting to a Gaussian including the offset
+    and then removing the offset.
+    """
+
+    normalized_psf_ims = np.zeros_like(psf_ims)
+
+    divs = psf_ims.shape[0]
+    for y in range(divs):
+        for x in range(divs):
+
+            psf_im = psf_ims[y, x]
+
+            if np.sum(psf_im) > 0:
+
+                # FIT to Gaussian to get the offset
+                fit_params, _ = imops.fit_gauss2(psf_im)
+                bias = fit_params[6]
+
+                psf_im = (psf_im - bias).clip(min=0)
+
+                # NORMALIZE so that all PSF estimates have unit area-under-curve
+                # The z_and_region_to_psf can have all-zero elements thus we use np_safe_divide below
+                denominator = psf_im.sum()
+                normalized_psf_ims[y, x] = utils.np_safe_divide(psf_im, denominator)
+
+    return normalized_psf_ims
 
 
 def _psf_accumulate(
@@ -117,7 +149,7 @@ def _psf_accumulate(
     n_accepted = np.sum(reason_masks[:, PSFEstimateMaskFields.accepted])
     if n_accepted > 0:
         psf /= np.sum(psf)
-        assert np.min(psf) >= 0.0
+        # assert np.min(psf) >= 0.0
 
     if return_reasons:
         return psf, reason_masks
@@ -125,15 +157,12 @@ def _psf_accumulate(
     return psf
 
 
-def _psf_one_z_slice(im, locs, divs=5, keep_dist=8, peak_mea=11):
+def _psf_from_im(im, locs, divs=5, keep_dist=8, peak_mea=11):
     """
-    Run PSF calibration for one image.
+    Run PSF for one image.
 
-    These are typically combined from many fields and for each channel
+    These are typically combined from many fields and cycles and for each channel
     to get a complete calibration.
-
-    This returns the accepted locs so that a z-stack can be estimated
-    by using the most in-focus frame for the locations
 
     Arguments:
         im: One image, already background subtracted
@@ -143,18 +172,16 @@ def _psf_one_z_slice(im, locs, divs=5, keep_dist=8, peak_mea=11):
         peak_mea: n pixel width and height to hold the peak image
 
     Returns:
-        locs (location of accepted peaks)
         regional_psf
+        mask_for_locs (true if a loc was accepted for use)
     """
     check.array_t(im, ndim=2)
 
     n_locs = locs.shape[0]
     accepted = np.zeros((n_locs,))
 
-    # In each region gather a PSF estimate and a list of
-    # locations that were accepted. These locs can be
-    # re-used when analyzing other z slices
-    psf_ims = np.zeros((divs, divs, peak_mea, peak_mea))
+    # In each region gather a PSF estimate and a list of locations that were accepted.
+    reg_psf_ims = np.zeros((divs, divs, peak_mea, peak_mea))
     for win_im, y, x, coord in imops.region_enumerate(im, divs):
         mea = win_im.shape[0]
         assert win_im.shape[1] == mea
@@ -167,7 +194,7 @@ def _psf_one_z_slice(im, locs, divs=5, keep_dist=8, peak_mea=11):
         psfs, reasons = _psf_accumulate(
             win_im, local_locs, peak_mea, keep_dist=keep_dist, return_reasons=True
         )
-        psf_ims[y, x] = psfs
+        reg_psf_ims[y, x] = psfs
 
         # DUMP reasons why the peaks were kept or rejected
         # for reason in (
@@ -182,7 +209,7 @@ def _psf_one_z_slice(im, locs, divs=5, keep_dist=8, peak_mea=11):
         #     n_local_rejected = (reasons[:, reason] > 0).sum()
         #     print(f"y,x={y},{x} {str(reason)}:, {n_local_rejected}")
 
-        # Go backwards from local to global space.
+        # Go backwards from local to global indexing space.
         local_accepted_iz = np.argwhere(
             reasons[:, PSFEstimateMaskFields.accepted] == 1
         ).flatten()
@@ -192,12 +219,12 @@ def _psf_one_z_slice(im, locs, divs=5, keep_dist=8, peak_mea=11):
         global_accepted_iz = local_loc_i_to_global_loc_i[local_accepted_iz]
         accepted[global_accepted_iz] = 1
 
-    return locs[accepted > 0], psf_ims
+    return reg_psf_ims, accepted > 0
 
 
 def _do_psf_one_field_one_channel(cy_ims, peak_mea, divs, bandpass_kwargs):
     """
-    The worker for _psf_stats_one_channel()
+    The worker for psf_all_fields_one_channel()
 
     Arguments:
         cy_ims: one field, one channel. It is not yet background subtracted.
@@ -206,59 +233,30 @@ def _do_psf_one_field_one_channel(cy_ims, peak_mea, divs, bandpass_kwargs):
     """
     peak_dim = (peak_mea, peak_mea)
 
-    psf_ims = np.zeros((divs, divs, *peak_dim))
+    reg_psf_ims = np.zeros((divs, divs, *peak_dim))
 
     approx_psf = approximate_psf()
 
-    # FIND peaks on the best in focus and re-use those locs
-    filtered_im, bg_std = bg.bandpass_filter(cy_ims[0], **bandpass_kwargs,)
+    for cy_i, cy_im in enumerate(cy_ims):
+        # Filter and find peaks on EVERY cycle because we do not know
+        # which cycle a given peak turns off so we treat each cycle
+        # as it own min-experiment
+        filtered_im, bg_std = bg.bandpass_filter(cy_im, **bandpass_kwargs,)
+        locs = fg.peak_find(filtered_im, approx_psf, bg_std)
 
-    locs = fg.peak_find(filtered_im, approx_psf, bg_std)
-
-    for cy_im in cy_ims:
-        _, reg_psfs = _psf_one_z_slice(
-            cy_im, divs=divs, peak_mea=peak_dim[0], locs=locs
+        _reg_psf_ims, _ = _psf_from_im(
+            filtered_im, divs=divs, peak_mea=peak_dim[0], locs=locs
         )
-        psf_ims += reg_psfs
 
-    return psf_ims
+        # ACCUMUATE the evidence for this cycle into the psf_ims
+        reg_psf_ims = reg_psf_ims + _reg_psf_ims
+
+    return reg_psf_ims
 
 
-def psf_normalize(psf_ims):
+def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress=None) -> RegPSF:
     """
-    The PSF tends to have some bias and needs to have a unit area-under-curve
-    The bias is removed by fitting to a Gaussian including the offset
-    and then removing the offset.
-    """
-
-    normalized_psf_ims = np.zeros_like(psf_ims)
-
-    divs = psf_ims.shape[0]
-    for y in range(divs):
-        for x in range(divs):
-
-            psf_im = psf_ims[y, x]
-
-            if np.sum(psf_im) > 0:
-
-                # FIT to Gaussian to get the offset
-                fit_params, _ = imops.fit_gauss2(psf_im)
-                bias = fit_params[6]
-
-                psf_im = (psf_im - bias).clip(min=0)
-
-                # NORMALIZE so that all PSF estimates have unit area-under-curve
-                # The z_and_region_to_psf can have all-zero elements thus we use np_safe_divide below
-                denominator = psf_im.sum()
-                normalized_psf_ims[y, x] = utils.np_safe_divide(psf_im, denominator)
-
-    return normalized_psf_ims
-
-
-def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params) -> RegPSF:
-    """
-    Build up a regional PSF for one channel on the RAW images
-    These images are not yet background subtracted.
+    Build up a regional PSF for one channel on the RAW images.
 
     Implemented in a parallel zap over every field and then combine the
     fields into a single RegPSF which stores: (divs, divs, peak_mea, peak_mea)
@@ -268,10 +266,13 @@ def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params) -> RegPSF:
     check.array_t(flcy_ims, ndim=4)
     assert flcy_ims.shape[-1] == flcy_ims.shape[-2]
 
+    debug(flcy_ims.shape)
+
     region_to_psf_per_field = zap.arrays(
         _do_psf_one_field_one_channel,
         dict(cy_ims=flcy_ims),
         _stack=True,
+        _progress=progress,
         peak_mea=sigproc_v2_params.peak_mea,
         divs=sigproc_v2_params.divs,
         bandpass_kwargs=dict(
@@ -283,14 +284,16 @@ def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params) -> RegPSF:
     )
 
     # SUM over fields
+    np.save("/erisyon/internal/_region_to_psf_per_field.npy", region_to_psf_per_field)
     psf_ims = np.sum(region_to_psf_per_field, axis=0)
     psf_ims = psf_normalize(psf_ims)
+    np.save("/erisyon/internal/_psf_ims_normalized.npy", region_to_psf_per_field)
 
     # At this point psf_ims is a pixel image of the PSF at each reg div.
     # ie, 4 dimensional: (divs_y, divs_x, n_pixels_y, n_pixels_w)
     # Now we convert it to Gaussian Parameters by fitting so we don't have
     # to store the pixels anymore: just the 3 critical shape parameters:
     # sigma_x, sigma_y, and rho.
-    return RegPSF.from_psf_ims(flcy_ims.shape[0], psf_ims)
-
-    focus_adjustments = _focus_from_fitmat(fitmat)
+    reg_psf = RegPSF.from_psf_ims(flcy_ims.shape[0], psf_ims)
+    debug(reg_psf.params)
+    return reg_psf

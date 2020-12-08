@@ -286,7 +286,7 @@ class Calibration(Munch):
 
     @classmethod
     def load(cls, path):
-        debug(path)
+        #debug(path)
         return utils.pickle_load(path)
 
     def is_empty(self):

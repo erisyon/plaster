@@ -36,6 +36,10 @@ def bandpass_filter(im, low_inflection, low_sharpness, high_inflection, high_sha
     )
     filtered_im = imops.fft_filter_with_mask(im, mask=low_cut * high_cut)
 
+    # The filters do not necessarily create a zero-centered background so
+    # not remove the median to pull the background to zero.
+    filtered_im -= np.median(filtered_im)
+
     # The bg_std is used later for tuning the peak finder.
     # Once I convert full to band-pass filter then this can just be eliminated
     # because I think it will be a constant. For now, I'm keeping

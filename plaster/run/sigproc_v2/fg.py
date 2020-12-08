@@ -275,7 +275,7 @@ def _do_?(im, approx_psf, reg_psf, ):
 '''
 
 
-def fg_estimate(fl_ims, reg_psf: RegPSF, progress=None):
+def fg_estimate(fl_ims, reg_psf: RegPSF, bandpass_kwargs):
     """
     Estimate the foreground illumination averaged over every field for
     one channel on the first cycle.
@@ -311,19 +311,16 @@ def fg_estimate(fl_ims, reg_psf: RegPSF, progress=None):
 
     # TODO: Replace with a zap over fields (see notes in commented out above)
     for fl_i in range(n_fields):
-        # REMOVE BG
-        if progress:
-            progress(fl_i, n_fields, False)
-
-        im_no_bg, bg_std = bg.bg_estimate_and_remove(fl_ims[fl_i], approx_psf)
-
-        # FIND PEAKS
-        locs = peak_find(im_no_bg, approx_psf, bg_std)
+        debug(fl_i)
+        
+        filtered_im, bg_std = bg.bandpass_filter(fl_ims[fl_i], **bandpass_kwargs,)
+        locs = peak_find(filtered_im, approx_psf, bg_std)
 
         # RADIOMETRY
         # signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, reg_psf, locs)
+        im = np.ascontiguousarray(filtered_im[None, None, :, :])
         radmat = radiometry_field_stack(
-            im_no_bg[None, None, :, :],
+            im,
             locs=locs.astype(float),
             reg_psf=reg_psf,
             focus_adjustment=np.ones((1,), dtype=float),
@@ -403,16 +400,19 @@ def focus_from_fitmat(fitmat, reg_psf: RegPSF):
     """
     n_peaks, n_channels, n_cycles, n_params = fitmat.shape
     assert n_channels == 1  # TODO: Multichannel
-    fit_sig_x = np.nanmean(fitmat[:, 0, :, Gauss2Params.SIGMA_X], axis=0)
-    fit_sig_y = np.nanmean(fitmat[:, 0, :, Gauss2Params.SIGMA_Y], axis=0)
+    focus_per_cycle = []
+    for cy_i in range(n_cycles):
+        ch_fitmat = fitmat[:, 0, cy_i, :]
+        
+        fit_sig_x = ch_fitmat[:, Gauss2Params.SIGMA_X]
+        fit_sig_y = ch_fitmat[:, Gauss2Params.SIGMA_Y]
 
-    psf_sig_x = np.mean(reg_psf.params[:, :, RegPSF.SIGMA_X])
-    psf_sig_y = np.mean(reg_psf.params[:, :, RegPSF.SIGMA_Y])
+        # KEEP anything peak between 0.85 and 1.5 otherwise it is a bad fit
+        keep_mask = (0.85 < fit_sig_x) & (fit_sig_x < 1.5) & (0.85 < fit_sig_y) & (fit_sig_y < 1.5)
+        
+        fit_sigma = np.nanmean(np.concatenate((fit_sig_x[keep_mask], fit_sig_y[keep_mask])))
+        psf_sigma = np.mean(np.concatenate((reg_psf.params[:, :, RegPSF.SIGMA_X], reg_psf.params[:, :, RegPSF.SIGMA_Y])))
+        
+        focus_per_cycle += [fit_sigma / psf_sigma]
+    return np.array(focus_per_cycle)
 
-    # I'm just combining the sig x & y under the theory that they vary
-    # together under focus changes.
-
-    sig = 0.5 * (fit_sig_x + fit_sig_y)
-    psf = 0.5 * (psf_sig_x + psf_sig_y)
-
-    return sig / psf
