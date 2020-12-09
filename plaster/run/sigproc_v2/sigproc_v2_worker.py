@@ -400,9 +400,9 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
             # Sub-pixel shift the square raw images using phase shifting
             # (This must be done with square images)
             im = chcy_ims[ch_i, cy_i]
-            # np.save(f"/erisyon/internal/_test_im_{cy_i}.npy", im)
+            np.save(f"/erisyon/internal/_test_im_{cy_i}.npy", im)
             shifted_im = imops.fft_sub_pixel_shift(im, -offset)
-            # np.save(f"/erisyon/internal/_test_sft_{cy_i}.npy", shifted_im)
+            np.save(f"/erisyon/internal/_test_sft_{cy_i}.npy", shifted_im)
 
             # Now that it is shifted we pluck out the ROI into the destination
             aligned_chcy_ims[ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
