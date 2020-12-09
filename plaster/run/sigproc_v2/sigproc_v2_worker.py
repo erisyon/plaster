@@ -217,8 +217,8 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     """
     n_channels, n_cycles = chcy_ims.shape[0:2]
     dim = chcy_ims.shape[-2:]
-    dst_filtered_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
-    dst_unfiltered_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
+    dst_filt_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
+    dst_unfilt_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
     dst_chcy_bg_std = np.zeros((n_channels, n_cycles))
     approx_psf = plaster.run.sigproc_v2.reg_psf.approximate_psf()
 
@@ -249,11 +249,11 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
             else:
                 filtered_im, bg_std = bg.bg_estimate_and_remove(im, approx_psf,)
 
-            dst_unfiltered_chcy_ims[ch_i, cy_i, :, :] = im
-            dst_filtered_chcy_ims[ch_i, cy_i, :, :] = filtered_im
+            dst_unfilt_chcy_ims[ch_i, cy_i, :, :] = im
+            dst_filt_chcy_ims[ch_i, cy_i, :, :] = filtered_im
             dst_chcy_bg_std[ch_i, cy_i] = bg_std
 
-    return dst_filtered_chcy_ims, dst_chcy_bg_std, dst_unfiltered_chcy_ims
+    return dst_filt_chcy_ims, dst_unfilt_chcy_ims, dst_chcy_bg_std
 
 
 '''
@@ -399,9 +399,9 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
             # Sub-pixel shift the square raw images using phase shifting
             # (This must be done with square images)
             im = chcy_ims[ch_i, cy_i]
-            # np.save(f"/erisyon/internal/_test_im_{cy_i}.npy", im)
+            np.save(f"/erisyon/internal/_test_im_{cy_i}.npy", im)
             shifted_im = imops.fft_sub_pixel_shift(im, -offset)
-            # np.save(f"/erisyon/internal/_test_sft_{cy_i}.npy", shifted_im)
+            np.save(f"/erisyon/internal/_test_sft_{cy_i}.npy", shifted_im)
 
             # Now that it is shifted we pluck out the ROI into the destination
             aligned_chcy_ims[ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
@@ -506,7 +506,7 @@ def _analyze_step_6b_radiometry(chcy_ims, locs, calib, focus_adjustment):
 
 
 def _sigproc_analyze_field(
-    filtered_chcy_ims, sigproc_v2_params, calib, reg_psf: psf.RegPSF = None
+    filt_chcy_ims, sigproc_v2_params, calib, reg_psf: psf.RegPSF = None
 ):
     """
     Analyze one field --
@@ -519,21 +519,19 @@ def _sigproc_analyze_field(
         * Filtering (temporarily removed)
 
     Arguments:
-        filtered_chcy_ims: from ims_import_result
+        filt_chcy_ims: from ims_import_result
         sigproc_v2_params: The SigprocParams
         calib: calibration
     """
 
     # Step 1: Load the images in output channel order, balance, equalize
     (
-        filtered_chcy_ims,
+        filt_chcy_ims,
+        unfilt_chcy_ims,
         chcy_bg_stds,
-        unfiltered_chcy_ims,
     ) = _analyze_step_1_import_balanced_images(
-        filtered_chcy_ims.astype(np.float64), sigproc_v2_params, calib
+        filt_chcy_ims.astype(np.float64), sigproc_v2_params, calib
     )
-    # At this point, the chcy_ims has its background subtracted and is
-    # regionally and channel balanced. It may contain negative values.
 
     """
     Removed temporarily see _analyze_step_2_mask_anomalies_im for explanation
@@ -546,18 +544,18 @@ def _sigproc_analyze_field(
     # Step 3: Find alignment offsets by using the mean of all channels
     # Note that this requires that the channel balancing has equalized the channel weights
     aln_offsets = _analyze_step_3_align(
-        np.mean(filtered_chcy_ims, axis=0), sigproc_v2_params.peak_mea
+        np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea
     )
 
     # Step 4: Composite with alignment
-    aln_filtered_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
-        filtered_chcy_ims, aln_offsets
+    aln_filt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
+        filt_chcy_ims, aln_offsets
     )
-    aln_unfiltered_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
-        unfiltered_chcy_ims, aln_offsets
+    aln_unfilt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
+        unfilt_chcy_ims, aln_offsets
     )
 
-    # aln_*_chcy_ims is now only the shape of only intersection region so is likely
+    # aln_*filt_chcy_ims is now only the shape of only intersection region so is likely
     # to be smaller than the original and not necessarily a power of 2.
 
     aln_offsets = np.array(aln_offsets)
@@ -567,7 +565,7 @@ def _sigproc_analyze_field(
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
     approx_psf = psf.approximate_psf()
-    locs = _analyze_step_5_find_peaks(aln_filtered_chcy_ims, approx_psf, chcy_bg_stds)
+    locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, chcy_bg_stds)
     n_locs = len(locs)
 
     # Step 6: Radiometry over each channel, cycle
@@ -583,7 +581,8 @@ def _sigproc_analyze_field(
         iz = np.random.choice(n_locs, count)  # Allow replace in case count > n_locs
         mask[iz] = 1
 
-    fitmat = _analyze_step_6a_fitter(aln_unfiltered_chcy_ims, locs, reg_psf, mask)
+    # Note: Gaussian fit on UNFILTERED
+    fitmat = _analyze_step_6a_fitter(aln_unfilt_chcy_ims, locs, reg_psf, mask)
 
     n_cycles = fitmat.shape[2]
     if sigproc_v2_params.run_focal_adjustments:
@@ -592,17 +591,13 @@ def _sigproc_analyze_field(
     else:
         focus_adjustments = np.ones((n_cycles,))
 
-    # EXPERIMENTAL HACK
-    # focus_adjustments *= 2.0
-    # WTF? WHy isn't focus helping?
-    # Need to move into a zest to think
-
+    # Note: radiometry is on FILTERED
     radmat = _analyze_step_6b_radiometry(
-        aln_filtered_chcy_ims, locs, calib, focus_adjustments
+        aln_filt_chcy_ims, locs, calib, focus_adjustments
     )
 
     return (
-        filtered_chcy_ims,
+        filt_chcy_ims,
         locs,
         radmat,
         aln_offsets,
