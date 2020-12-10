@@ -138,36 +138,26 @@ def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
         fg_means:
     """
 
-    debug(sigproc_v2_params.n_fields_limit)
-
     if sigproc_v2_params.n_fields_limit is None:
         # Use quality metrics
         q = ims_import_result.qualities()
         q_by_field = q.groupby("field_i").quality.mean()
         med_field_q = np.median(q_by_field.values)
-        debug(len(q.field_i.unique()))
         good_field_iz = q_by_field[q_by_field > med_field_q].index.values
-        debug(len(good_field_iz))
         flchcy_ims = ims_import_result.ims[:, :, :].astype(np.float64)
         flchcy_ims = flchcy_ims[good_field_iz]
     else:
         field_slice = slice(0, sigproc_v2_params.n_fields_limit, 1)
         flchcy_ims = ims_import_result.ims[field_slice, :, :].astype(np.float64)
 
-    debug(flchcy_ims.shape)
-
-    debug("STARTING on psf")
     n_channels = ims_import_result.n_channels
     for ch_i in range(0, n_channels):
         flcy_ims = flchcy_ims[:, ch_i, :]
-        debug(flcy_ims.shape)
 
         reg_psf = psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress)
 
         prop = f"regional_psf.instrument_channel[{ch_i}]"
         calib.add({prop: reg_psf})
-
-    debug("STARTING on illum")
 
     bandpass_kwargs = dict(
         low_inflection=sigproc_v2_params.low_inflection,

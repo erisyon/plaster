@@ -4,13 +4,13 @@ from plumbum import local, FG
 from plaster.tools.utils.utils import any_out_of_date
 
 
-# gcc -c -fpic -O3 -DDEBUG spline_test.c -o spline_test.o
-# gcc -c -fpic -O3 -DDEBUG csa.c -o csa.o
-# gcc -c -fpic -O3 -DDEBUG svd.c -o svd.o
-# gcc -o spline_test csa.o svd.o spline_test.o -lm
-
-
 def build(dst_folder, c_common_folder):
+
+    # The CSA spline code is not working well yet and is not being used.
+    # It's role is currently filled by sampling the RegPSF at high
+    # resolution. We can either fix it or deprecate and remove it
+    # and rely on the RegPSF to fill the role in the long term.
+
     c_opts = [
         "-c",
         "-fpic",

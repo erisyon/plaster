@@ -145,7 +145,6 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 *loc_p = f64arr_ptr1(&ctx->locs, peak_i);
     Float64 loc_x = loc_p[1];
     Float64 loc_y = loc_p[0];
-    trace("locyx %f %f \n", loc_y, loc_x, ctx->width, ctx->height);
     ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width, "loc_x out of bounds");
     ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
 
@@ -154,7 +153,6 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     // Add 0.5 to round up as opposed to floor to keep the spots more centered
     Index corner_x = floor(loc_x - half_mea + 0.5);
     Index corner_y = floor(loc_y - half_mea + 0.5);
-    trace("coryx %ld %ld   %f %f  halfmea %f  %ld\n", corner_y, corner_x, ctx->width, ctx->height, half_mea, mea);
     ensure_only_in_debug(0 <= corner_x && corner_x < ctx->width, "corner_x out of bounds");
     ensure_only_in_debug(0 <= corner_y && corner_y < ctx->height, "corner_y out of bounds");
 
@@ -172,7 +170,6 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
 
     Index ch_i = 0;
     for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
-        trace("%ld\n", cy_i);
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
 
         Float64 *psf_params = _get_psf_at_loc(ctx, loc_x, loc_y);
@@ -254,7 +251,6 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         out[1] = noise;
         out[2] = snr;
         out[3] = aspect_ratio;
-        trace("sig %f %f %f %f\n", signal, noise, snr, aspect_ratio);
     }
 
     return NULL;
@@ -263,7 +259,6 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
 
 char *test_interp(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y, Float64 *out_vals) {
     Float64 *psf_params = _get_psf_at_loc(ctx, loc_x, loc_y);
-    trace("%f %f %f\n", loc_x, loc_y, psf_params[0]);
     Float64 sigma_x = psf_params[0];
     Float64 sigma_y = psf_params[1];
     Float64 rho = psf_params[2];

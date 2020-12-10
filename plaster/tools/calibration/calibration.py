@@ -286,7 +286,6 @@ class Calibration(Munch):
 
     @classmethod
     def load(cls, path):
-        # debug(path)
         return utils.pickle_load(path)
 
     def is_empty(self):
@@ -313,9 +312,6 @@ class Calibration(Munch):
 
         reg_psf = self[f"regional_psf.instrument_channel[{ch_i}]"]
         return reg_psf
-        # return RegPSF.from_array(
-        #     np.array(self[f"regional_psf.instrument_channel[{ch_i}]"])
-        # )
 
     def __init__(self, propsubs=None):
         super().__init__()

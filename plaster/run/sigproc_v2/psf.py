@@ -149,7 +149,6 @@ def _psf_accumulate(
     n_accepted = np.sum(reason_masks[:, PSFEstimateMaskFields.accepted])
     if n_accepted > 0:
         psf /= np.sum(psf)
-        # assert np.min(psf) >= 0.0
 
     if return_reasons:
         return psf, reason_masks
@@ -266,8 +265,6 @@ def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress=None) -> Re
     check.array_t(flcy_ims, ndim=4)
     assert flcy_ims.shape[-1] == flcy_ims.shape[-2]
 
-    debug(flcy_ims.shape)
-
     region_to_psf_per_field = zap.arrays(
         _do_psf_one_field_one_channel,
         dict(cy_ims=flcy_ims),
@@ -284,10 +281,8 @@ def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress=None) -> Re
     )
 
     # SUM over fields
-    np.save("/erisyon/internal/_region_to_psf_per_field.npy", region_to_psf_per_field)
     psf_ims = np.sum(region_to_psf_per_field, axis=0)
     psf_ims = psf_normalize(psf_ims)
-    np.save("/erisyon/internal/_psf_ims_normalized.npy", region_to_psf_per_field)
 
     # At this point psf_ims is a pixel image of the PSF at each reg div.
     # ie, 4 dimensional: (divs_y, divs_x, n_pixels_y, n_pixels_w)
@@ -295,5 +290,4 @@ def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress=None) -> Re
     # to store the pixels anymore: just the 3 critical shape parameters:
     # sigma_x, sigma_y, and rho.
     reg_psf = RegPSF.from_psf_ims(flcy_ims.shape[0], psf_ims)
-    debug(reg_psf.params)
     return reg_psf

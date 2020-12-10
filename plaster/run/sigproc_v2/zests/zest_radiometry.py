@@ -90,7 +90,6 @@ def zest_radiometry():
                     reg_psf=reg_psf,
                     focus_adjustment=np.ones((n_cycles)),
                 )
-                # print(f"{y:8.2f} {x:8.2f} {radrow[0,0,0,0]:8.2f} {radrow[0,0,0,1]:8.2f}")
                 assert np.abs(radrow[0, 0, 0, 0] - 1000.0) < 0.01
                 assert np.abs(radrow[0, 0, 0, 1]) < 0.001
 
@@ -111,7 +110,6 @@ def zest_radiometry():
             chcy_ims, locs=locs, reg_psf=reg_psf, focus_adjustment=np.ones((n_cycles))
         )
 
-        # print(f"{y:8.2f} {x:8.2f} {radrow[0,0,0,0]:8.2f} {radrow[0,0,0,1]:8.2f}")
         assert np.all(np.abs(radmat[:, :, :, 0] - 1000.0) < 0.01)
         assert np.all(np.abs(radmat[:, :, :, 1]) < 0.2)
 
@@ -147,9 +145,6 @@ def zest_radiometry():
             reg_psf=reg_psf,
             focus_adjustment=np.ones((n_cycles)),
         )
-        # print(f"{y:8.2f} {x:8.2f} {radrow[0, 0, 0, 0]:8.2f} {radrow[0, 0, 0, 1]:8.2f}")
-        # print(f"{y:8.2f} {x:8.2f} {radrow[0, 0, 1, 0]:8.2f} {radrow[0, 0, 1, 1]:8.2f}")
-        # print(f"{y:8.2f} {x:8.2f} {radrow[0, 0, 2, 0]:8.2f} {radrow[0, 0, 2, 1]:8.2f}")
 
         assert np.abs(radrow[0, 0, 0, 0] - 1000.0) < 0.01
         assert np.abs(radrow[0, 0, 0, 1]) < 0.001
@@ -194,7 +189,6 @@ def zest_radiometry():
         )
 
         assert np.all(np.abs(radmat[:, :, :, 0] - 1000.0) < 20.0)
-        # assert np.all(np.abs(radmat[:, :, :, 1]) < 0.001)
 
     # def it_returns_asr():
     #     raise NotImplementedError
