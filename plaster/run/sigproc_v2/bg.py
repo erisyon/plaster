@@ -45,7 +45,7 @@ def bandpass_filter(im, low_inflection, low_sharpness, high_inflection, high_sha
     # because I think it will be a constant. For now, I'm keeping
     # backward compatibility with bg_estimate_and_remove and setting
     # the constant here.
-    bg_std = 3.0 * data.symmetric_nanstd(
+    bg_std = 3.0 * data.one_sided_nanstd(
         filtered_im.flatten(), mean=0.0, negative_side=True
     )
 

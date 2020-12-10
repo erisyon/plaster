@@ -79,7 +79,7 @@ def arg_subsample(data, count):
             return all_iz
 
 
-def symmetric_nanstd(arr, mean=0.0, negative_side=True):
+def one_sided_nanstd(arr, mean=0.0, negative_side=True):
     """
     Sometimes one side of a distribution is the metric of interest
     so this returns the std of an array that discards elements
@@ -93,10 +93,10 @@ def symmetric_nanstd(arr, mean=0.0, negative_side=True):
     check.array_t(arr, ndim=1)
     arr = arr - mean
     if negative_side:
-        arr = arr[arr < 0]
+        arr = arr[arr <= 0]
         return np.nanstd(np.concatenate((arr, -arr)))
     else:
-        arr = arr[arr > 0]
+        arr = arr[arr >= 0]
         return np.nanstd(np.concatenate((arr, -arr)))
 
 
