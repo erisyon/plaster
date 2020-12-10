@@ -79,6 +79,10 @@ def arg_subsample(data, count):
             return all_iz
 
 
+def gaussian(x, mu, sigma):
+    return np.exp(-np.power((x - mu) / sigma, 2.0) / 2.0)
+
+
 def one_sided_nanstd(arr, mean=0.0, negative_side=True):
     """
     Sometimes one side of a distribution is the metric of interest
