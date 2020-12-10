@@ -21,7 +21,10 @@ def zest_bg():
 
         im, std = bg.bandpass_filter(
             chcy_ims[0, 0],
-            low_inflection=0.03, low_sharpness=50.0, high_inflection=0.5, high_sharpness=50.0
+            low_inflection=0.03,
+            low_sharpness=50.0,
+            high_inflection=0.5,
+            high_sharpness=50.0,
         )
 
         # CHECK that it removed the bg
@@ -56,7 +59,10 @@ def zest_bg():
 
         im, std = bg.bandpass_filter(
             chcy_ims[0, 0],
-            low_inflection=0.03, low_sharpness=50.0, high_inflection=0.5, high_sharpness=50.0
+            low_inflection=0.03,
+            low_sharpness=50.0,
+            high_inflection=0.5,
+            high_sharpness=50.0,
         )
         median, high = np.percentile(im, (50, 99.9))
         assert np.abs(median) < 1.0

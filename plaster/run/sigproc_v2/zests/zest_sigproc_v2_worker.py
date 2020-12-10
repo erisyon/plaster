@@ -308,6 +308,7 @@ def zest_sigproc_v2_worker_analyze():
 
     zest()
 
+
 @zest.skip(reason="TODO")
 def zest_sigproc_v2_worker_calibrate():
     def it_extracts_regional_illumination_balance():

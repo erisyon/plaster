@@ -42,8 +42,7 @@ from plaster.run.test_rf.test_rf_result import TestRFResult
 from plaster.run.test_rf.test_rf_task import TestRFTask
 from plaster.run.train_rf.train_rf_result import TrainRFResult
 from plaster.run.train_rf.train_rf_task import TrainRFTask
-from plaster.tools.log.log import (colorful_exception, debug, important, info,
-                                   prof)
+from plaster.tools.log.log import colorful_exception, debug, important, info, prof
 from plaster.tools.pipeline.pipeline import Pipeline
 from plaster.tools.schema import check
 from plaster.tools.utils import tmp, utils

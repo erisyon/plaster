@@ -239,7 +239,8 @@ def radiometry_one_channel_one_cycle_fit_method(im, reg_psf: RegPSF, locs):
     ret_params, _ = fit_image_with_reg_psf(im, locs, reg_psf)
     return ret_params
 
-'''
+
+"""
 This is the beginning of a zap but the hangup is that
 I'm accuulating to fg and cnt and would need to change
 that to write out and then do the accum
@@ -272,7 +273,7 @@ def _do_?(im, approx_psf, reg_psf, ):
                 # TODO: The CENTER=FALSE here smells wrong
                 imops.accum_inplace(fg, sig * circle, loc, center=False)
                 imops.accum_inplace(cnt, circle, loc, center=False)
-'''
+"""
 
 
 def fg_estimate(fl_ims, reg_psf: RegPSF, bandpass_kwargs):
@@ -312,7 +313,7 @@ def fg_estimate(fl_ims, reg_psf: RegPSF, bandpass_kwargs):
     # TODO: Replace with a zap over fields (see notes in commented out above)
     for fl_i in range(n_fields):
         debug(fl_i)
-        
+
         filtered_im, bg_std = bg.bandpass_filter(fl_ims[fl_i], **bandpass_kwargs,)
         locs = peak_find(filtered_im, approx_psf, bg_std)
 
@@ -405,18 +406,31 @@ def focus_from_fitmat(fitmat, reg_psf: RegPSF):
     focus_per_cycle = []
     for cy_i in range(n_cycles):
         ch_fitmat = fitmat[:, 0, cy_i, :]
-        
+
         fit_sig_x = ch_fitmat[:, Gauss2Params.SIGMA_X]
         fit_sig_y = ch_fitmat[:, Gauss2Params.SIGMA_Y]
 
-        keep_mask = (1.0 < fit_sig_x) & (fit_sig_x < 1.5) & (1.0 < fit_sig_y) & (fit_sig_y < 1.5)
-        
-        fit_sigma = np.nanmean(np.concatenate((fit_sig_x[keep_mask], fit_sig_y[keep_mask])))
-        psf_sigma = np.mean(np.concatenate((reg_psf.params[:, :, RegPSF.SIGMA_X], reg_psf.params[:, :, RegPSF.SIGMA_Y])))
+        keep_mask = (
+            (1.0 < fit_sig_x)
+            & (fit_sig_x < 1.5)
+            & (1.0 < fit_sig_y)
+            & (fit_sig_y < 1.5)
+        )
+
+        fit_sigma = np.nanmean(
+            np.concatenate((fit_sig_x[keep_mask], fit_sig_y[keep_mask]))
+        )
+        psf_sigma = np.mean(
+            np.concatenate(
+                (
+                    reg_psf.params[:, :, RegPSF.SIGMA_X],
+                    reg_psf.params[:, :, RegPSF.SIGMA_Y],
+                )
+            )
+        )
         # np.save(f"/erisyon/internal/_fit_sigma_{cy_i}", fit_sigma)
         # np.save(f"/erisyon/internal/_psf_sigma_{cy_i}", psf_sigma)
-        #debug(cy_i, psf_sigma, fit_sigma, psf_sigma / fit_sigma)
-        #focus_per_cycle += [focus_const * psf_sigma / fit_sigma]
+        # debug(cy_i, psf_sigma, fit_sigma, psf_sigma / fit_sigma)
+        # focus_per_cycle += [focus_const * psf_sigma / fit_sigma]
         focus_per_cycle += [focus_const * fit_sigma / psf_sigma]
     return np.array(focus_per_cycle)
-
