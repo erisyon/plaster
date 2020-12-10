@@ -60,8 +60,8 @@ def zest_peak_find():
             synth.CameraModel(0, bg_std)
             chcy_ims = s.render_chcy()
 
+        im, bg_std = bg.bandpass_filter(chcy_ims[0, 0], low_inflection=0.03, low_sharpness=50.0, high_inflection=0.5, high_sharpness=50.0)
         kernel = psf.approximate_psf()
-        im, _, bg_std = bg.bg_remove(chcy_ims[0, 0], kernel)
         locs = fg.peak_find(chcy_ims[0, 0], kernel, np.mean(bg_std))
         n_peaks, n_dims = locs.shape
         assert n_dims == 2

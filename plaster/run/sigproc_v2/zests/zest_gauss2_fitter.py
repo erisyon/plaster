@@ -48,7 +48,6 @@ def zest_gauss2_fitter():
             start_params = true_params
         if noise is not None:
             im = im + np.random.normal(0, noise, size=im.shape)
-        # np.save("_test.npy", im)
         start_params = _full_params(start_params)
         pred_params, std_params = gauss2_fitter.fit_image(
             im, locs, np.array([start_params]), 11

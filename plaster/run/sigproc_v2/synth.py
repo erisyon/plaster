@@ -9,11 +9,11 @@ from plaster.run.ims_import.ims_import_result import ImsImportResult
 from plaster.run.sigproc_v2.reg_psf import RegPSF
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug, important
 from plaster.tools.utils import utils
 from plaster.tools.utils.tmp import tmp_folder
 from plaster.tools.schema import check
 from plumbum import local
+from plaster.tools.log.log import debug, important, prof
 
 # see comment below, above "PeaksModelPSF" regarding why this is commented out
 # from plaster.run.sigproc_v2.psf_sample import psf_sample
