@@ -160,7 +160,7 @@ class SigprocV2Result(BaseResult):
 
     def __init__(self, folder=None, is_loaded_result=False, **kwargs):
         super().__init__(folder, is_loaded_result=is_loaded_result, **kwargs)
-        self._cache_aln_chcy_ims = {}
+        self._cache_ims = {}
 
     def __repr__(self):
         try:
@@ -181,6 +181,10 @@ class SigprocV2Result(BaseResult):
 
     @property
     def n_fields(self):
+        # TODO! Do not use the field list, rather save the n_fields
+        # as a prop because if I re-run )(esp. during debugging)
+        # and change the n_fields_limit then it still picks up the
+        # old number of fields!
         return utils.safe_len(self.field_files)
 
     @property
@@ -316,24 +320,38 @@ class SigprocV2Result(BaseResult):
             )
         )
 
-    def aln_chcy_ims(self, field_i):
-        if field_i not in self._cache_aln_chcy_ims:
+    def _aln_chcy_ims(self, field_i, key):
+        cache_key = (field_i, key)
+        if cache_key not in self._cache_ims:
             filename = self._field_filename(field_i, is_debug=True)
-            self._cache_aln_chcy_ims[field_i] = utils.indexed_pickler_load(
-                filename, prop_list="_aln_chcy_ims"
+            self._cache_ims[cache_key] = utils.indexed_pickler_load(
+                filename, prop_list=key
             )
-        return self._cache_aln_chcy_ims[field_i]
+        return self._cache_ims[cache_key]
+
+    def aln_filt_chcy_ims(self, field_i):
+        return self._aln_chcy_ims(field_i, "_aln_filt_chcy_ims")
+
+    def aln_unfilt_chcy_ims(self, field_i):
+        return self._aln_chcy_ims(field_i, "_aln_unfilt_chcy_ims")
 
     def raw_chcy_ims(self, field_i):
         # Only for compatibility with wizard_raw_images
-        # this can be deprecated once sigproc_v2 is deprecated
-        return self.aln_chcy_ims(field_i)
+        # this can be deprecated once sigproc_v1 is deprecated
+        return self.aln_filt_chcy_ims(field_i)
 
     @property
     def aln_ims(self):
         return FancyIndexer(
             (self.n_fields, self.n_channels, self.n_cycles),
-            lookup_fn=lambda fl, ch, cy: self.aln_chcy_ims(fl)[ch, cy],
+            lookup_fn=lambda fl, ch, cy: self.aln_filt_chcy_ims(fl)[ch, cy],
+        )
+
+    @property
+    def aln_unfilt_ims(self):
+        return FancyIndexer(
+            (self.n_fields, self.n_channels, self.n_cycles),
+            lookup_fn=lambda fl, ch, cy: self.aln_unfilt_chcy_ims(fl)[ch, cy],
         )
 
     def fitmat(self, fields=None, **kwargs):

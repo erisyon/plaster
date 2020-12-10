@@ -140,7 +140,6 @@ def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
 
     debug(sigproc_v2_params.n_fields_limit)
 
-
     if sigproc_v2_params.n_fields_limit is None:
         # Use quality metrics
         q = ims_import_result.qualities()
@@ -164,20 +163,19 @@ def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
         debug(flcy_ims.shape)
 
         reg_psf = psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress)
-        np.save("/erisyon/internal/_calib_reg_psf.npy", reg_psf)
 
         prop = f"regional_psf.instrument_channel[{ch_i}]"
         calib.add({prop: reg_psf})
 
     debug("STARTING on illum")
 
-    bandpass_kwargs=dict(
+    bandpass_kwargs = dict(
         low_inflection=sigproc_v2_params.low_inflection,
         low_sharpness=sigproc_v2_params.low_sharpness,
         high_inflection=sigproc_v2_params.high_inflection,
         high_sharpness=sigproc_v2_params.high_sharpness,
     )
-    
+
     fg_means = np.zeros((n_channels, ims_import_result.dim, ims_import_result.dim))
     for ch_i in range(0, n_channels):
         # TODO: Eventually I'd like to change this so that it uses all cycles
@@ -191,7 +189,6 @@ def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
 
         prop = f"regional_illumination_balance.instrument_channel[{ch_i}]"
         calib.add({prop: reg_bal.tolist()})
-        np.save("/erisyon/internal/_reg_bal.npy", reg_bal)
 
     return calib, fg_means
 
@@ -206,9 +203,9 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     (every input channel is not necessarily used).
 
     Returns:
-        Regionally balance and channel equalized images.
-        bg_std for each channel and cycle
-        Copy of the original images (before bg subtraction)
+        dst_filtered_chcy_ims: Balanced and band-pass filtered
+        dst_chcy_bg_std: Std on the
+        dst_unfiltered_chcy_ims: Balanced but not band-pass filtered
 
     Notes:
         * Because the background is subtracted, the returned images may contain negative values.
@@ -400,16 +397,13 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
             # Sub-pixel shift the square raw images using phase shifting
             # (This must be done with square images)
             im = chcy_ims[ch_i, cy_i]
-            # np.save(f"/erisyon/internal/_test_im_{cy_i}.npy", im)
             shifted_im = imops.fft_sub_pixel_shift(im, -offset)
-            # np.save(f"/erisyon/internal/_test_sft_{cy_i}.npy", shifted_im)
 
             # Now that it is shifted we pluck out the ROI into the destination
             aligned_chcy_ims[ch_i, cy_i, 0 : roi_dim[0], 0 : roi_dim[1]] = shifted_im[
                 roi[0], roi[1]
             ]
 
-    np.save("/erisyon/internal/_test_aln.npy", aligned_chcy_ims)
     return aligned_chcy_ims
 
 
@@ -526,9 +520,18 @@ def _sigproc_analyze_field(
     """
 
     # Step 1: Load the images in output channel order, balance, equalize
-    filt_chcy_ims, unfilt_chcy_ims, chcy_bg_stds = _analyze_step_1_import_balanced_images(
+    (
+        filt_chcy_ims,
+        unfilt_chcy_ims,
+        chcy_bg_stds,
+    ) = _analyze_step_1_import_balanced_images(
         filt_chcy_ims.astype(np.float64), sigproc_v2_params, calib
     )
+
+    # Totally different!
+    # np.save("/erisyon/internal/_filt_chcy_ims.npy", filt_chcy_ims)
+    # np.save("/erisyon/internal/_unfilt_chcy_ims.npy", unfilt_chcy_ims)
+
 
     """
     Removed temporarily see _analyze_step_2_mask_anomalies_im for explanation
@@ -545,8 +548,16 @@ def _sigproc_analyze_field(
     )
 
     # Step 4: Composite with alignment
-    aln_filt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(filt_chcy_ims, aln_offsets)
-    aln_unfilt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(unfilt_chcy_ims, aln_offsets)
+    aln_filt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
+        filt_chcy_ims, aln_offsets
+    )
+    aln_unfilt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
+        unfilt_chcy_ims, aln_offsets
+    )
+
+    # Different!
+    # np.save("/erisyon/internal/_aln_filt_chcy_ims.npy", aln_filt_chcy_ims)
+    # np.save("/erisyon/internal/_aln_unfilt_chcy_ims.npy", aln_unfilt_chcy_ims)
 
     # aln_*filt_chcy_ims is now only the shape of only intersection region so is likely
     # to be smaller than the original and not necessarily a power of 2.
@@ -574,7 +585,6 @@ def _sigproc_analyze_field(
         iz = np.random.choice(n_locs, count)  # Allow replace in case count > n_locs
         mask[iz] = 1
 
-    # Note: Gaussian fit on UNFILTERED
     fitmat = _analyze_step_6a_fitter(aln_unfilt_chcy_ims, locs, reg_psf, mask)
 
     n_cycles = fitmat.shape[2]
@@ -585,10 +595,13 @@ def _sigproc_analyze_field(
         focus_adjustments = np.ones((n_cycles,))
 
     # Note: radiometry is on FILTERED
-    radmat = _analyze_step_6b_radiometry(aln_filt_chcy_ims, locs, calib, focus_adjustments)
+    radmat = _analyze_step_6b_radiometry(
+        aln_filt_chcy_ims, locs, calib, focus_adjustments
+    )
 
     return (
-        filt_chcy_ims,
+        aln_filt_chcy_ims,
+        aln_unfilt_chcy_ims,
         locs,
         radmat,
         aln_offsets,
@@ -611,7 +624,8 @@ def _do_sigproc_analyze_and_save_field(
     reg_psf = calib.psfs(0)  # TODO: Multichannel
 
     (
-        chcy_ims,
+        aln_filt_chcy_ims,
+        aln_unfilt_chcy_ims,
         locs,
         radmat,
         aln_offsets,
@@ -650,13 +664,17 @@ def _do_sigproc_analyze_and_save_field(
 
     assert len(radmat) == len(peak_df)
 
+    np.save("/erisyon/internal/_1aln_filt_chcy_ims.npy", aln_filt_chcy_ims)
+    np.save("/erisyon/internal/_1aln_unfilt_chcy_ims.npy", aln_unfilt_chcy_ims)
+
     sigproc_v2_result.save_field(
         field_i,
         peak_df=peak_df,
         field_df=field_df,
         radmat=radmat,
         fitmat=fitmat,
-        _aln_chcy_ims=chcy_ims,
+        _aln_filt_chcy_ims=aln_filt_chcy_ims,
+        _aln_unfilt_chcy_ims=aln_unfilt_chcy_ims,
     )
 
 
