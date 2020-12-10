@@ -9,6 +9,7 @@ from plaster.tools.log.log import debug
 
 _disable_disk_memoize = False
 
+
 @contextmanager
 def disable_disk_memoize():
     global _disable_disk_memoize
@@ -232,14 +233,20 @@ class BaseResult(Munch):
             filename = object.__getattribute__(self, "filename")
 
             with local.cwd(_folder):
-                loaded = utils.indexed_pickler_load(
-                    filename, prop_list=[key], skip_missing_props=True,
-                )
+                try:
+                    loaded = utils.indexed_pickler_load(
+                        filename, prop_list=[key], skip_missing_props=True,
+                    )
 
-                if isinstance(loaded[key], ArrayResult):
-                    setattr(self, key, loaded[key].arr())
-                else:
-                    setattr(self, key, loaded[key])
+                    if isinstance(loaded[key], ArrayResult):
+                        setattr(self, key, loaded[key].arr())
+                    else:
+                        setattr(self, key, loaded[key])
+
+                except FileNotFoundError:
+                    # If the pickle has not yet been saved then return the
+                    # value if it is present
+                    pass
 
                 # Try again
                 try:

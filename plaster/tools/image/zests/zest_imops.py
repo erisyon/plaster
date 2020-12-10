@@ -338,9 +338,6 @@ def alignment():
 
     def it_returns_images():
         found_offsets, aligned_ims = imops.align(test_images, return_shifted_ims=True)
-        import pudb
-
-        pudb.set_trace()
         raise NotImplementedError
 
 

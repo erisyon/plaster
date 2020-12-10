@@ -21,13 +21,19 @@ class SigprocV2Params(Params):
         sig_limit=20.0,  # Keep peaks this many times brighter than the calibration background
         snr_thresh=2.0,  # Keep peaks with SNR greater than this
         n_fields_limit=None,
-        # TODO: Make these names consistent (skip v run)
-        skip_anomaly_detection=True,
-        skip_regional_balance=False,
-        run_peak_differencing=False,
+        run_anomaly_detection=False,
+        run_regional_balance=False,
         run_analysis_gauss2_fitter=False,
-        skip_regional_background=False,
-        save_full_signal_radmat_npy=False,
+        run_bandpass_filter=True,
+        run_focal_adjustments=True,
+        # TODO: Derive the follow during calibration by spectral analysis (ie, 2 std of the power spectrum)
+        # ALSO: This needs to be moved into the calibration because it can not allowed to be
+        # different from the calibration results because the calibration bakes in the PSF
+        # as a function of these parameters.
+        low_inflection=0.03,
+        low_sharpness=50.0,
+        high_inflection=0.50,
+        high_sharpness=50.0,
     )
 
     schema = s(
@@ -39,12 +45,15 @@ class SigprocV2Params(Params):
             sig_limit=s.is_float(),
             snr_thresh=s.is_float(),
             n_fields_limit=s.is_int(noneable=True),
-            skip_anomaly_detection=s.is_bool(),
-            skip_regional_balance=s.is_bool(),
-            run_peak_differencing=s.is_bool(),
-            save_full_signal_radmat_npy=s.is_bool(),
+            run_anomaly_detection=s.is_bool(),
+            run_regional_balance=s.is_bool(),
             run_analysis_gauss2_fitter=s.is_bool(),
-            skip_regional_background=s.is_bool(),
+            run_focal_adjustments=s.is_bool(),
+            run_bandpass_filter=s.is_bool(),
+            low_inflection=s.is_float(),
+            low_sharpness=s.is_float(),
+            high_inflection=s.is_float(),
+            high_sharpness=s.is_float(),
         )
     )
 

@@ -6,7 +6,50 @@ One entrypoint: bg_remove
 import cv2
 import numpy as np
 from plaster.tools.image import imops
+from plaster.tools.schema import check
+from plaster.tools.utils import data
 from plaster.tools.log.log import debug
+
+
+def bandpass_filter(im, low_inflection, low_sharpness, high_inflection, high_sharpness):
+    """
+    Use a band-pass filter to subtract out background and "bloom" which is
+    the light that scatters from foreground to background.
+
+    Note: A low_inflection of -10 effectively removes the low-pass filter
+    and a high_inflection of +10 effectively removes the high-pass filter
+
+    Values of sharpness = 50.0 are usually fine.
+
+    Returns the filtered image
+
+    """
+
+    # These number were hand-tuned to Abbe (512x512) and might be wrong for other
+    # sizes/instruments and will need to be derived and/or calibrated.
+    check.array_t(im, ndim=2, is_square=True, dtype=np.float64)
+    low_cut = imops.generate_center_weighted_tanh(
+        im.shape[0], inflection=low_inflection, sharpness=low_sharpness
+    )
+    high_cut = 1 - imops.generate_center_weighted_tanh(
+        im.shape[0], inflection=high_inflection, sharpness=high_sharpness
+    )
+    filtered_im = imops.fft_filter_with_mask(im, mask=low_cut * high_cut)
+
+    # The filters do not necessarily create a zero-centered background so
+    # not remove the median to pull the background to zero.
+    filtered_im -= np.median(filtered_im)
+
+    # The bg_std is used later for tuning the peak finder.
+    # Once I convert full to band-pass filter then this can just be eliminated
+    # because I think it will be a constant. For now, I'm keeping
+    # backward compatibility with bg_estimate_and_remove and setting
+    # the constant here.
+    bg_std = 3.0 * data.symmetric_nanstd(
+        filtered_im.flatten(), mean=0.0, negative_side=True
+    )
+
+    return filtered_im, bg_std
 
 
 def background_extract(im, kernel):

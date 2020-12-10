@@ -522,34 +522,44 @@ char *fit_array_of_gauss_2d_on_float_image(
         np_float64 *p = &params[peak_i * PARAM_N_FULL_PARAMS];
         np_float64 noise = 0.0;
 
-        // trace("PEAK_I=%ld\n", peak_i);
-        int res = fit_gauss_2d_on_float_image(
-            im,
-            im_w,
-            im_h,
-            center_x[peak_i],
-            center_y[peak_i],
-            mea,
-            p,
-            info,
-            &covar[0][0],
-            &noise
-        );
+        if(center_x[peak_i] >= 0 && center_y[peak_i] >= 0) {
+            // SKIP negative which is a sentinel for "DO NOT FIT"
 
-        params[peak_i * PARAM_N_FULL_PARAMS + PARAM_NOISE] = noise;
+            // trace("PEAK_I=%ld\n", peak_i);
+            int res = fit_gauss_2d_on_float_image(
+                im,
+                im_w,
+                im_h,
+                center_x[peak_i],
+                center_y[peak_i],
+                mea,
+                p,
+                info,
+                &covar[0][0],
+                &noise
+            );
 
-        // COPY stdev of the covar. into the std_params (from its diagonal)
-        np_float64 *dst_std = &std_params[peak_i * PARAM_N_FULL_PARAMS];
+            params[peak_i * PARAM_N_FULL_PARAMS + PARAM_NOISE] = noise;
 
-        // Note that this is only traversing the fit_params...
-        for(int i=0; i<PARAM_N_FIT_PARAMS; i++) {
-            *dst_std++ = sqrt(covar[i][i]);
+            // COPY stdev of the covar. into the std_params (from its diagonal)
+            np_float64 *dst_std = &std_params[peak_i * PARAM_N_FULL_PARAMS];
+
+            // Note that this is only traversing the fit_params...
+            for(int i=0; i<PARAM_N_FIT_PARAMS; i++) {
+                *dst_std++ = sqrt(covar[i][i]);
+            }
+
+            int failed_to_converge = (int)info[6] == 3;
+            int failed = (res != 0 || failed_to_converge) ? 1 : 0;
+            n_fails += failed;
+            fails[peak_i] = failed;
         }
-
-        int failed_to_converge = (int)info[6] == 3;
-        int failed = (res != 0 || failed_to_converge) ? 1 : 0;
-        n_fails += failed;
-        fails[peak_i] = failed;
+        else {
+            // Skipped peaks are reported as "fails" so that they
+            // will be NaN'd out by the caller, but they are technically fails
+            // so we don't increment n_fails.
+            fails[peak_i] = 1;
+        }
     }
 
     return (char *)NULL;

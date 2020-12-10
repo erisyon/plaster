@@ -129,6 +129,8 @@ def fit_image(im, locs, guess_params, peak_mea):
 
     locs_y = np.ascontiguousarray(locs[:, 0], dtype=np.int64)
     locs_x = np.ascontiguousarray(locs[:, 1], dtype=np.int64)
+    locs_y[np.isnan(locs[:, 0])] = -1
+    locs_x[np.isnan(locs[:, 1])] = -1
 
     fit_fails = np.zeros((n_locs,), dtype=np.int64)
     check.array_t(fit_fails, dtype=np.int64, c_contiguous=True)

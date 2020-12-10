@@ -3,14 +3,17 @@ import cv2
 import random
 import copy
 import math
-from typing import List
-from plaster.run.sigproc_v2 import psf
+from plaster.run.ims_import.ims_import_worker import OUTPUT_NP_TYPE
+from plaster.run.ims_import.ims_import_params import ImsImportParams
+from plaster.run.ims_import.ims_import_result import ImsImportResult
+from plaster.run.sigproc_v2.reg_psf import RegPSF
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug, important
 from plaster.tools.utils import utils
+from plaster.tools.utils.tmp import tmp_folder
 from plaster.tools.schema import check
 from plumbum import local
+from plaster.tools.log.log import debug, important, prof
 
 # see comment below, above "PeaksModelPSF" regarding why this is commented out
 # from plaster.run.sigproc_v2.psf_sample import psf_sample
@@ -94,9 +97,8 @@ class Synth:
             for cy_i in np.arange(self.n_cycles):
                 im = ims[ch_i, cy_i]
                 for model in self.models:
-                    model.render(im, fl_i, ch_i, cy_i)
-
-                ims[ch_i, cy_i] = imops.sub_pixel_shift(im, self.aln_offsets[cy_i])
+                    model.render(im, fl_i, ch_i, cy_i, self.aln_offsets[cy_i])
+                ims[ch_i, cy_i] = im
 
         return ims
 
@@ -121,7 +123,7 @@ class BaseSynthModel:
         self.dim = Synth.synth.dim
         Synth.synth.add_model(self)
 
-    def render(self, im, fl_i, ch_i, cy_i):
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         pass
 
 
@@ -146,14 +148,19 @@ class PeaksModel(BaseSynthModel):
         )
         return self
 
-    def locs_grid(self):
-        pad = 10
+    def locs_grid(self, pad=10):
         steps = math.floor(math.sqrt(self.n_peaks))
-        self.locs = [
-            (y, x)
-            for y in utils.ispace(pad, self.dim[0] - 2 * pad, steps)
-            for x in utils.ispace(pad, self.dim[0] - 2 * pad, steps)
-        ]
+        self.locs = np.array(
+            [
+                (y, x)
+                for y in np.linspace(pad, self.dim[0] - pad, steps)
+                for x in np.linspace(pad, self.dim[1] - pad, steps)
+            ]
+        )
+        return self
+
+    def locs_add_random_subpixel(self):
+        self.locs += np.random.uniform(-1, 1, self.locs.shape)
         return self
 
     def amps_constant(self, val):
@@ -207,30 +214,31 @@ class PeaksModel(BaseSynthModel):
 
 
 class PeaksModelPSF(PeaksModel):
-    """Sample from a psf.RegPSF"""
+    """Sample from a RegPSF"""
 
-    def __init__(self, psfs_per_cycle: List[psf.RegPSF], **kws):
-        assert all([isinstance(psf, psf.RegPSF) for psf in psfs_per_cycle])
-        self.psfs_per_cycle = psfs_per_cycle
+    def __init__(self, reg_psf: RegPSF, focus_per_cycle=None, **kws):
+        check.t(reg_psf, RegPSF)
+        self.reg_psf = reg_psf
+        self._focus_per_cycle = focus_per_cycle
         super().__init__(**kws)
 
-    def render(self, im, fl_i, ch_i, cy_i):
-        super().render(im, fl_i, ch_i, cy_i)
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
-        n_divs = self.psfs_per_cycle[cy_i].n_divs
-        div_size = im.shape[0] / n_divs
+        if self._focus_per_cycle is None:
+            focus = 1.0
+        else:
+            focus = self._focus_per_cycle[cy_i]
 
         for loc, amp in zip(self.locs, self.amps):
+            loc = loc + aln_offset
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
 
-            div_y, div_x = np.floor(loc / div_size).astype(int)
-            frac_y = np.modf(loc[0])[0]
-            frac_x = np.modf(loc[1])[0]
-            psf_im = self.psfs_per_cycle[cy_i].render_one_reg(
-                div_y, div_x, amp=amp, frac_y=frac_y, frac_x=frac_x, const=0.0
+            psf_im, accum_to_loc = self.reg_psf.render_at_loc(
+                loc, amp=amp, const=0.0, focus=focus
             )
-            imops.accum_inplace(im, psf_im, loc=YX(*np.floor(loc)), center=True)
+            imops.accum_inplace(im, psf_im, loc=YX(accum_to_loc), center=False)
 
 
 class PeaksModelGaussian(PeaksModel):
@@ -253,7 +261,7 @@ class PeaksModelGaussian(PeaksModel):
         self.std_y = [height for _ in self.locs]
         return self
 
-    def render(self, im, fl_i, ch_i, cy_i):
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         if self.std_x is None:
             self.std_x = [self.std]
         if self.std_y is None:
@@ -265,7 +273,7 @@ class PeaksModelGaussian(PeaksModel):
         if len(self.std_y) != n_locs:
             self.std_y = np.repeat(self.std_y, (n_locs,))
 
-        super().render(im, fl_i, ch_i, cy_i)
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
         z_scale = 1.0
         if self.z_scale is not None:
@@ -273,6 +281,8 @@ class PeaksModelGaussian(PeaksModel):
             z_scale = 1.0 + self.z_scale * (cy_i - self.z_center) ** 2
 
         for loc, amp, std_x, std_y in zip(self.locs, self.amps, self.std_x, self.std_y):
+            loc = loc + aln_offset
+
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
 
@@ -307,9 +317,9 @@ class PeaksModelGaussianCircular(PeaksModelGaussian):
         self.std_y = copy.copy(self.std_x)
         return self
 
-    def render(self, im, fl_i, ch_i, cy_i):
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         # self.covs = np.array([(std ** 2) * np.eye(2) for std in self.stds])
-        super().render(im, fl_i, ch_i, cy_i)
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
 
 class PeaksModelGaussianAstigmatism(PeaksModelGaussian):
@@ -319,8 +329,9 @@ class PeaksModelGaussianAstigmatism(PeaksModelGaussian):
         self.strength = strength
         center = np.array(self.dim) / 2
         d = self.dim[0]
-        for loc_i, pos in enumerate(self.locs):
-            delta = center - pos
+        for loc_i, loc in enumerate(self.locs):
+            loc = loc + aln_offset
+            delta = center - loc
             a = np.sqrt(np.sum(delta ** 2))
             r = 1 + strength * a / d
             pc0 = delta / np.sqrt(delta.dot(delta))
@@ -333,52 +344,14 @@ class PeaksModelGaussianAstigmatism(PeaksModelGaussian):
             self.covs[loc_i, :, :] = cov
 
 
-# Commenting this out to avoid an issue with the PSF package interacting with numpy
-# it should be brought back when that issue is better understood. To duplicate the issue
-# do:
-#  - docker run --rm -it -v $(pwd):/erisyon/plaster jupyter/scipy-notebook:latest bash
-#  - cd /erisyon/plaster && python setup.py install
-#
-# class PeaksModelPSF(PeaksModel):
-#     def __init__(self, n_z_slices=8, depth_in_microns=0.4, r_in_microns=28.0, **kws):
-#         """
-#         Generates a set of psf images for each z slice called self.z_to_psf
-#         The self.z_iz keeps track of which z slice each peak is assigned to.
-#         """
-#         super().__init__(**kws)
-#         self.n_z_slices = n_z_slices
-#         self.z_iz = np.zeros((self.n_peaks,), dtype=int)
-#         self.z_to_psf = psf_sample(
-#             n_z_slices=64, depth_in_microns=depth_in_microns, r_in_microns=r_in_microns
-#         )
-
-#     def z_randomize(self):
-#         # Unrealisitically pull from any PSF z depth
-#         self.z_iz = np.random.randint(0, self.n_z_slices, self.n_peaks)
-#         return self
-
-#     def z_set_all(self, z_i):
-#         self.z_iz = (z_i * np.ones((self.n_peaks,))).astype(int)
-#         return self
-
-#     def render(self, im, cy_i):
-#         super().render(im, cy_i)
-#         for loc, amp, z_i in zip(self.locs, self.amps, self.z_iz):
-#             frac_part, int_part = np.modf(loc)
-#             shifted_peak_im = imops.sub_pixel_shift(self.z_to_psf[z_i], frac_part)
-#             imops.accum_inplace(
-#                 im, amp * shifted_peak_im, loc=YX(*int_part), center=True
-#             )
-
-
 class IlluminationQuadraticFalloffModel(BaseSynthModel):
     def __init__(self, center=(0.5, 0.5), width=1.2):
         super().__init__()
         self.center = center
         self.width = width
 
-    def render(self, im, fl_i, ch_i, cy_i):
-        super().render(im, fl_i, ch_i, cy_i)
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
         yy, xx = np.meshgrid(
             (np.linspace(0, 1, im.shape[0]) - self.center[0]) / self.width,
             (np.linspace(0, 1, im.shape[1]) - self.center[1]) / self.width,
@@ -388,14 +361,14 @@ class IlluminationQuadraticFalloffModel(BaseSynthModel):
 
 
 class CameraModel(BaseSynthModel):
-    def __init__(self, bias=100, std=10):
+    def __init__(self, bg_mean=100, bg_std=10):
         super().__init__()
-        self.bias = bias
-        self.std = std
+        self.bg_mean = bg_mean
+        self.bg_std = bg_std
 
-    def render(self, im, fl_i, ch_i, cy_i):
-        super().render(im, fl_i, ch_i, cy_i)
-        bg = np.random.normal(loc=self.bias, scale=self.std, size=self.dim)
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
+        bg = np.random.normal(loc=self.bg_mean, scale=self.bg_std, size=self.dim)
         imops.accum_inplace(im, bg, XY(0, 0), center=False)
 
 
@@ -405,10 +378,58 @@ class HaloModel(BaseSynthModel):
         self.std = std
         self.scale = scale
 
-    def render(self, im, fl_i, ch_i, cy_i):
-        super().render(im, fl_i, ch_i, cy_i)
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
         size = int(self.std * 2.5)
         size += 1 if size % 2 == 0 else 0
         bg_mean = np.median(im) - 1
         blur = cv2.GaussianBlur(im, (size, size), self.std) - bg_mean - 1
         imops.accum_inplace(im, self.scale * blur, XY(0, 0), center=False)
+
+
+class BlobModel(BaseSynthModel):
+    def __init__(self, size=15, amp=1000):
+        super().__init__()
+        self.size = (size & ~1) + 1
+        self.amp = amp
+
+    def render(self, im, fl_i, ch_i, cy_i, aln_offset):
+        super().render(im, fl_i, ch_i, cy_i, aln_offset)
+
+        blob = imops.generate_circle_mask(self.size, size=self.size * 3)
+        imops.accum_inplace(
+            im, self.amp * blob, XY(0.25 * im.shape[0], 0.25 * im.shape[0]), center=True
+        )
+
+
+def synth_to_ims_import_result(synth: Synth):
+    chcy_ims = synth.render_chcy()
+
+    ims_import_params = ImsImportParams()
+    ims_import_result = ImsImportResult(
+        params=ims_import_params,
+        tsv_data=None,
+        n_fields=synth.n_fields,
+        n_channels=synth.n_channels,
+        n_cycles=synth.n_cycles,
+        dim=synth.dim[0],
+        dtype=np.dtype(OUTPUT_NP_TYPE).name,
+        src_dir="",
+    )
+
+    with tmp_folder(remove=False):
+        for fl_i in range(synth.n_fields):
+            field_chcy_arr = ims_import_result.allocate_field(
+                fl_i,
+                (synth.n_channels, synth.n_cycles, synth.dim[0], synth.dim[1]),
+                OUTPUT_NP_TYPE,
+            )
+            field_chcy_ims = field_chcy_arr.arr()
+
+            field_chcy_ims[:, :, :, :] = chcy_ims
+
+            ims_import_result.save_field(fl_i, field_chcy_arr, None, None)
+
+        ims_import_result.save()
+
+    return ims_import_result

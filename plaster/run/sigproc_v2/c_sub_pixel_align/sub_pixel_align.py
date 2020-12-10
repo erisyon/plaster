@@ -22,15 +22,18 @@ So this code takes the following approach to avoid that memory explosion.
 1. Do a single pixel alignment as described.
 2. Slice the image horizontally into smallish strips (full width but only
    a few pixels tall)
-3. Upscale the 1D image by cubic spline interpolation by the scale factor (100)
-4. Sum those "large" strips vertically creating a 1-D function that is a slice of
-   the horizontal signal.
+3. Sum the strip vertically making this in to a 1D cross-section.
+4. Upscale the 1D cross-seciton by cubic spline interpolation by the scale factor (100)
 5. "Narrow convolve" the 1D signal of cycle 1+ with the equivalent slice
    of cycle 0.  But we know that the shift is within 1 pixel (100 units in the
    upscaled version) thus we don't need a full convolution across the
    entire "large" function -- only within 100 units on either side of zero
-   so this can eb implemented with a for-loop summing over product of
+   so this can be implemented with a for-loop summing over product of
    sum(cy[0], shifted(cy[i]))
+
+NOTE: This module should be deprecated and replaced with a gradient
+descent based FFT method once I have a chance to coordinate with JHD.
+
 """
 
 
@@ -178,19 +181,30 @@ def sub_pixel_align_cy_ims(cy_ims, slice_h):
     which is slightly less efficient but massively simplifies the
     C implementation as it eliminates all cross indexing terms
     ("Am I walking through this vertically or horizontally now?")
+
+    Returns:
+        offsets: ndarray(n_cycles, 2); where 2 is (y, x)
     """
 
     check.array_t(cy_ims, ndim=3, dtype=np.float64)
 
     n_cycles = cy_ims.shape[0]
 
-    def _run(pixel_aligned_cy_ims):
+    def _run(cy_ims):
+        """
+        cy_ims are single-pixel aligned.
+        This wraps the C function that runs ony on the horizontal
+        """
+
         # For reference, align returns the position. That is, you
         # must shift a cycle in the OPPOSITE direction to make it line up.
         # Example: Cy0 there's a peak at 10 and at cy1 the peak is now
         # at 15. Therefore cy1 must be shifted left 5 (ie -5) to align with cy0
 
-        with context(pixel_aligned_cy_ims, slice_h) as ctx:
+        if n_cycles <= 1:
+            return np.zeros((1,))
+
+        with context(cy_ims, slice_h) as ctx:
             zap.arrays(
                 _do_sub_pixel_align_cycle,
                 dict(cy_i=list(range(1, n_cycles))),
@@ -203,8 +217,6 @@ def sub_pixel_align_cy_ims(cy_ims, slice_h):
 
     pixel_offsets, pixel_aligned_cy_ims = imops.align(cy_ims, return_shifted_ims=True)
 
-    # Remember the _do_sub_pixel_align_cycle only aligns the x axis.
-    # So the pixel_offsets[:, 1] is the corresponding pixel-shift value.
     aln_x = _run(pixel_aligned_cy_ims)
 
     # Transpose and repeat
@@ -213,17 +225,14 @@ def sub_pixel_align_cy_ims(cy_ims, slice_h):
     )
     aln_y = _run(t_pixel_aligned_cy_ims)
 
-    ret = np.vstack((aln_y, aln_x)).T + pixel_offsets
-    return ret
+    return np.vstack((aln_y, aln_x)).T + pixel_offsets
 
 
-def sub_pixel_align_chcy_ims(chcy_ims):
+def sub_pixel_align_chcy_ims(chcy_ims, **kwargs):
     """
     At some point we may need to align the channels independently.
     For now, combine channels and pass to sub_pixel_align_cy_ims
     """
-
     check.array_t(chcy_ims, ndim=4, dtype=np.float64)
-
     cy_ims = np.sum(chcy_ims, axis=0)
-    return sub_pixel_align_cy_ims(cy_ims)
+    return sub_pixel_align_cy_ims(cy_ims, **kwargs)

@@ -318,15 +318,17 @@ def debug(*args):
                         values += [arg]
                         continue
 
-                if (
-                    isinstance(arg, np.ndarray)
-                    or isinstance(arg, pd.core.frame.DataFrame)
-                    or isinstance(arg, pd.core.series.Series)
+                if isinstance(arg, pd.core.frame.DataFrame):
+                    values += [f"\n{green}{caller}{reset}=\n{arg}\n"]
+
+                elif isinstance(arg, np.ndarray) or isinstance(
+                    arg, pd.core.series.Series
                 ):
                     values += [
                         f"\n{green}{caller}{reset}"
                         f"{yellow} {arg.dtype}{arg.shape}{reset}=\n{arg}\n"
                     ]
+
                 else:
                     values += [
                         f"{green}{caller}{reset}"

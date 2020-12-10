@@ -5,6 +5,7 @@ from munch import Munch
 from plaster.tools.utils import utils
 from plumbum import local
 from plaster.run.sigproc_v2.reg_psf import RegPSF
+from plaster.tools.log.log import debug
 
 
 """
@@ -167,7 +168,7 @@ class Calibration(Munch):
         regional_fg_threshold=list,
         regional_bg_mean=list,
         regional_bg_std=list,
-        regional_psf=list,
+        regional_psf=RegPSF,
         fg_mean=float,
         fg_std=float,
         zstack_depths=list,
@@ -301,9 +302,16 @@ class Calibration(Munch):
         self.add(new_propsubs)
 
     def psfs(self, ch_i):
-        return RegPSF.from_array(
-            np.array(self[f"regional_psf.instrument_channel[{ch_i}]"])
-        )
+        # Backward compatability. To be deprecated
+        old_key = f"regional_psf_zstack.instrument_channel[{ch_i}]"
+        if old_key in self:
+            old_psf = np.array(self[old_key])
+            in_focus_ims = old_psf[old_psf.shape[0] // 2]
+            im_mea = 512  # Hard coded for now
+            return RegPSF.from_psf_ims(im_mea, in_focus_ims)
+
+        reg_psf = self[f"regional_psf.instrument_channel[{ch_i}]"]
+        return reg_psf
 
     def __init__(self, propsubs=None):
         super().__init__()

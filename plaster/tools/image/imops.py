@@ -122,15 +122,20 @@ def generate_square_mask(rad, filled=False):
     return im
 
 
-def generate_center_weighted_tanh(mea, falloff=0.5, radius=1.2):
+def generate_center_weighted_tanh(mea, inflection, sharpness):
     """
     Generates a weighting kernel that has most of the weight at the center
-    using tanh to create a sort of a circular table/shelf.
+    using tanh to create a circular shelf with a gradient edge.
+
+    Arguments:
+        mea: The width / height of the image to be generated
+        inflection: float(0-1). Where along the radius the transition from low to high
+        sharpness: float. >> 1 means a sharp transition from low to high
     """
-    space = np.linspace(-(mea - 1) / 2.0, (mea - 1) / 2.0, mea)
+    space = np.linspace(-1, 1, mea)
     x, y = np.meshgrid(space, space)
-    r = (x) ** 2 + (y) ** 2
-    return 1 - 0.5 * (np.tanh((r - mea * radius) * falloff) + 1)
+    r = np.sqrt(x ** 2 + y ** 2)
+    return 0.5 * np.tanh((r - inflection) * sharpness) + 0.5
 
 
 def extract_with_mask(im, mask, loc, center=False):
@@ -753,14 +758,48 @@ def com(im):
     return utils.np_safe_divide(np.array([y, x]), mass)
 
 
+def scale_im(im, scale):
+    """Scale an image up or down"""
+    check.array_t(im, ndim=2, dtype=float)
+    rows, cols = im.shape
+    M = np.array([[scale, 0.0, 0.0], [0.0, scale, 0.0]])
+    return cv2.warpAffine(
+        im, M, dsize=(int(scale * cols), int(scale * rows)), flags=cv2.INTER_CUBIC
+    )
+
+
 def sub_pixel_shift(im, offset):
     """
     Shift with offset in y, x array form.
     A positive x will shift right. A positive y will shift up.
     """
     check.array_t(im, ndim=2, dtype=float)
+    rows, cols = im.shape
     M = np.array([[1.0, 0.0, offset[1]], [0.0, 1.0, offset[0]]])
-    return cv2.warpAffine(im, M, dsize=im.shape, flags=cv2.INTER_CUBIC)
+    # Note the reversal of the dimensions
+    return cv2.warpAffine(im, M, dsize=(cols, rows), flags=cv2.INTER_CUBIC)
+
+
+def fft_sub_pixel_shift(im, offset):
+    """
+    Like sub_pixel_shift but uses a more accurate FFT phase shifting
+    technique -- but it only works when then image is square
+
+    Arguments:
+        im: square float ndarray
+        offset: float tuple is in (y, x) order
+    """
+    check.array_t(im, ndim=2, dtype=float, is_square=True)
+    mea = im.shape[0]
+    rng = np.arange(-(mea - 1) // 2, (mea + 1) // 2, 1)
+    i, j = np.meshgrid(rng, rng)
+
+    phasor = np.exp(
+        -2.0 * complex(0.0, 1.0) * np.pi * (i * offset[1] + j * offset[0]) / mea
+    )
+    freq_dom = np.fft.fftshift(np.fft.fft2(im))
+    freq_dom = freq_dom * phasor
+    return np.real(np.fft.ifft2(np.fft.ifftshift(freq_dom)))
 
 
 def sub_pixel_center(peak_im):

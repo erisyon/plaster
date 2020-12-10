@@ -25,7 +25,7 @@ def zest_sub_pixel_align():
                 .widths_uniform(width=1.8)
                 .locs_randomize()
             )
-            synth.CameraModel(bias=bg_mean, std=bg_std)
+            synth.CameraModel(bg_mean=bg_mean, bg_std=bg_std)
 
             # s.zero_aln_offsets()
             s.aln_offsets[1] = (0.200, -2.900)
@@ -42,15 +42,18 @@ def zest_sub_pixel_align():
 
                 center = YX(21 / 2, 21 / 2)
 
-                true_aln = np.array([
-                    [0, 0],
-                    [y_off, x_off],
-                ])
+                true_aln = np.array([[0, 0], [y_off, x_off],])
 
                 for i in range(2):
                     cy_ims[i] = imops.gauss2_rho_form(
-                        1000.0, 2.0, 2.0, pos_y=center.y + true_aln[i, 0], pos_x=center.x + true_aln[i, 1], rho=0.0,
-                        const=0.0, mea=21
+                        1000.0,
+                        2.0,
+                        2.0,
+                        pos_y=center.y + true_aln[i, 0],
+                        pos_x=center.x + true_aln[i, 1],
+                        rho=0.0,
+                        const=0.0,
+                        mea=21,
                     )
 
                 pred_aln = sub_pixel_align_cy_ims(cy_ims, slice_h=5)
@@ -62,7 +65,6 @@ def zest_sub_pixel_align():
         pred_aln = sub_pixel_align_cy_ims(cy_ims, slice_h=50)
         diff = pred_aln - true_aln
 
-        # debug(true_aln, pred_aln, diff)
         assert np.all(np.abs(diff) <= 0.05)
 
     zest()
