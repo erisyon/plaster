@@ -25,7 +25,7 @@ class SigprocV2Params(Params):
         run_regional_balance=False,
         run_analysis_gauss2_fitter=False,
         run_bandpass_filter=True,
-        run_focal_adjustments=True,
+        run_focal_adjustments=False,
         # TODO: Derive the follow during calibration by spectral analysis (ie, 2 std of the power spectrum)
         # ALSO: This needs to be moved into the calibration because it can not allowed to be
         # different from the calibration results because the calibration bakes in the PSF
