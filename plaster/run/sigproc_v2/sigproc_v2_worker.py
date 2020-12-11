@@ -138,36 +138,26 @@ def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
         fg_means:
     """
 
-    debug(sigproc_v2_params.n_fields_limit)
-
     if sigproc_v2_params.n_fields_limit is None:
         # Use quality metrics
         q = ims_import_result.qualities()
         q_by_field = q.groupby("field_i").quality.mean()
         med_field_q = np.median(q_by_field.values)
-        debug(len(q.field_i.unique()))
         good_field_iz = q_by_field[q_by_field > med_field_q].index.values
-        debug(len(good_field_iz))
         flchcy_ims = ims_import_result.ims[:, :, :].astype(np.float64)
         flchcy_ims = flchcy_ims[good_field_iz]
     else:
         field_slice = slice(0, sigproc_v2_params.n_fields_limit, 1)
         flchcy_ims = ims_import_result.ims[field_slice, :, :].astype(np.float64)
 
-    debug(flchcy_ims.shape)
-
-    debug("STARTING on psf")
     n_channels = ims_import_result.n_channels
     for ch_i in range(0, n_channels):
         flcy_ims = flchcy_ims[:, ch_i, :]
-        debug(flcy_ims.shape)
 
         reg_psf = psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress)
 
         prop = f"regional_psf.instrument_channel[{ch_i}]"
         calib.add({prop: reg_psf})
-
-    debug("STARTING on illum")
 
     bandpass_kwargs = dict(
         low_inflection=sigproc_v2_params.low_inflection,
@@ -528,11 +518,6 @@ def _sigproc_analyze_field(
         filt_chcy_ims.astype(np.float64), sigproc_v2_params, calib
     )
 
-    # Totally different!
-    # np.save("/erisyon/internal/_filt_chcy_ims.npy", filt_chcy_ims)
-    # np.save("/erisyon/internal/_unfilt_chcy_ims.npy", unfilt_chcy_ims)
-
-
     """
     Removed temporarily see _analyze_step_2_mask_anomalies_im for explanation
     # Step 2: Remove anomalies (at least for alignment)
@@ -543,6 +528,7 @@ def _sigproc_analyze_field(
 
     # Step 3: Find alignment offsets by using the mean of all channels
     # Note that this requires that the channel balancing has equalized the channel weights
+    # This is taking about 1 sec, need to look at optimizing
     aln_offsets = _analyze_step_3_align(
         np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea
     )
@@ -554,10 +540,6 @@ def _sigproc_analyze_field(
     aln_unfilt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
         unfilt_chcy_ims, aln_offsets
     )
-
-    # Different!
-    # np.save("/erisyon/internal/_aln_filt_chcy_ims.npy", aln_filt_chcy_ims)
-    # np.save("/erisyon/internal/_aln_unfilt_chcy_ims.npy", aln_unfilt_chcy_ims)
 
     # aln_*filt_chcy_ims is now only the shape of only intersection region so is likely
     # to be smaller than the original and not necessarily a power of 2.
@@ -581,20 +563,28 @@ def _sigproc_analyze_field(
     else:
         # Subsample peaks for fitting
         mask = np.zeros((n_locs,), dtype=bool)
-        count = 300  # Don't know if this is enough
+        count = 100  # Don't know if this is enough
         iz = np.random.choice(n_locs, count)  # Allow replace in case count > n_locs
         mask[iz] = 1
 
     fitmat = _analyze_step_6a_fitter(aln_unfilt_chcy_ims, locs, reg_psf, mask)
 
     n_cycles = fitmat.shape[2]
-    if sigproc_v2_params.run_focal_adjustments:
-        debug()
-        focus_adjustments = fg.focus_from_fitmat(fitmat, reg_psf)
-    else:
-        focus_adjustments = np.ones((n_cycles,))
 
-    # Note: radiometry is on FILTERED
+    # At moment it appears that focus adjustment does nothing under the
+    # the filters and alignment -- because there is no correlation anymore
+    # between peak width and brightness, so for now I'm turning off the
+    # focus adjustment but leacing in the fitmat sampling for reporting purposes
+
+    # if sigproc_v2_params.run_focal_adjustments:
+    #     focus_adjustments = fg.focus_from_fitmat(fitmat, reg_psf)
+    # else:
+    #     focus_adjustments = np.ones((n_cycles,))
+
+    focus_adjustments = np.ones((n_cycles,))
+
+    # This is taking about 2.5 seconds (0.5 of which is the interpolation o the psf)
+    # Seems surprisingly slow
     radmat = _analyze_step_6b_radiometry(
         aln_filt_chcy_ims, locs, calib, focus_adjustments
     )
@@ -645,7 +635,6 @@ def _do_sigproc_analyze_and_save_field(
         columns=list(SigprocV2Result.peak_df_schema.keys()),
     )
 
-    debug(field_i)
     field_df = pd.DataFrame(
         [
             (
@@ -663,9 +652,6 @@ def _do_sigproc_analyze_and_save_field(
     )
 
     assert len(radmat) == len(peak_df)
-
-    np.save("/erisyon/internal/_1aln_filt_chcy_ims.npy", aln_filt_chcy_ims)
-    np.save("/erisyon/internal/_1aln_unfilt_chcy_ims.npy", aln_unfilt_chcy_ims)
 
     sigproc_v2_result.save_field(
         field_i,

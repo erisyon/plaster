@@ -95,138 +95,6 @@ def sub_pixel_peak_find(im, approx_psf, bg_std):
     return _sub_pixel_peak_find(im, HW(approx_psf.shape), locs)
 
 
-'''
-DEPRECATE by C radiometry
-
-def _radiometry_one_peak(
-    peak_im, psf_kernel, allow_non_unity_psf_kernel=False, allow_subpixel_shift=True,
-):
-    """
-    Helper for _analyze_step_6_radiometry() to compute
-    radiometry on a single peak.
-
-    Arguments:
-        peak_im: a small regional image of a peak roughly centered.
-                 This expected to be from a regionally balance and channel equalized
-                 source image with the regional background already subtracted
-
-        psf_kernel: The kernel appropriate for the region (from calibration)
-
-    Returns:
-        signal: The area under the kernel (always >= 0)
-        noise: The standard deviation of the residuals (always >= 0)
-
-    Notes:
-        I think that allow_non_unity_psf_kernel is no longer needed. It only
-        seems to be referenced in a (probably old) notebook.
-    """
-    check.array_t(peak_im, ndim=2, is_square=True)
-    check.array_t(psf_kernel, ndim=2, is_square=True)
-    assert peak_im.shape == psf_kernel.shape
-
-    if not allow_non_unity_psf_kernel:
-        try:
-            assert 1.0 - np.sum(psf_kernel) < 1e-6
-        except AssertionError:
-            debug("np.sum(psf_kernel)", np.sum(psf_kernel))
-            raise
-
-    # Weight the peak_im by the centering_kernel to eliminate
-    # noise from neighbors during COM calculations
-
-    # SHIFT peak_im to center with sub-pixel alignment
-    # Note, we scale peak_im by the centering_kernel so that
-    # the COM will not be polluted by neighbors
-
-    if allow_subpixel_shift:
-        com_before = imops.com(peak_im ** 2)
-        center_pixel = np.array(peak_im.shape) / 2
-        peak_im = imops.sub_pixel_shift(peak_im, center_pixel - com_before)
-
-    # WEIGH the data with the psf_kernel and then normalize
-    # by the psf_kernel_sum_squared to estimate signal
-    psf_kernel_sum_squared = np.sum(psf_kernel ** 2)
-    signal = 0.0
-    if psf_kernel_sum_squared > 0.0:
-        signal = np.sum(psf_kernel * peak_im) / psf_kernel_sum_squared
-
-    # COMPUTE the noise by examining the residuals
-    residuals = peak_im - signal * psf_kernel
-    var_residuals = np.var(residuals)
-    noise = 0.0
-    if psf_kernel_sum_squared > 0.0:
-        noise = np.sqrt(var_residuals / psf_kernel_sum_squared)
-
-    # COMPUTE aspect ratio
-    aspect_ratio = imops.distribution_aspect_ratio(peak_im)
-
-    def distribution_eigen(im):
-        ys, xs = np.indices(im.shape)
-        pos = np.array((ys, xs)).T.reshape(-1, 2).astype(float)
-        mas = im.T.reshape(-1)
-        com_y = (pos[:, 0] * mas).sum() / im.sum()
-        com_x = (pos[:, 1] * mas).sum() / im.sum()
-        com = np.array([com_y, com_x])
-        centered = pos - com
-        dy = centered[:, 0] * mas
-        dx = centered[:, 1] * mas
-        cov = np.cov(np.array([dy, dx]))
-        eig_vals, eig_vecs = LA.eig(cov)
-        return eig_vals, eig_vecs, cov
-
-    return signal, noise, aspect_ratio
-
-
-def radiometry_one_channel_one_cycle(im, reg_psf: RegPSF, locs):
-    """
-    TODO: Convert this to C
-
-    Use the PSFs to compute the Area-Under-Curve of the data in chcy_ims
-    for each peak location of locs.
-
-    Arguments:
-        im: One image (one channel, cycle)
-        reg_psf: (n_z_slices, divs, divs, peak_mea, peak_mea)
-        locs: (n_peaks, 2). The second dimension is in (y, x) order
-
-    Returns:
-        signal, noise, aspect_ratio
-    """
-    check.array_t(im, ndim=2)
-    check.t(reg_psf, RegPSF)
-    check.array_t(locs, ndim=2, shape=(None, 2))
-
-    n_locs = len(locs)
-    div_locs = imops.locs_to_region(locs, reg_psf.n_divs, im.shape)
-
-    signal = np.full((n_locs,), np.nan)
-    noise = np.full((n_locs,), np.nan)
-    aspect_ratio = np.full((n_locs,), np.nan)
-
-    psf_ims = reg_psf.render()
-    psf_dim = HW(reg_psf.peak_mea, reg_psf.peak_mea)
-
-    for loc_i, (loc, div_loc) in enumerate(zip(locs, div_locs)):
-        peak_im = imops.crop(im, off=YX(loc), dim=psf_dim, center=True)
-        if peak_im.shape != psf_dim:
-            # Skip near edges
-            continue
-
-        if np.any(np.isnan(peak_im)):
-            # Skip nan collisions
-            continue
-
-        psf_kernel = psf_ims[div_loc[0], div_loc[1]]
-        _signal, _noise, _aspect_ratio = _radiometry_one_peak(peak_im, psf_kernel)
-
-        signal[loc_i] = _signal
-        noise[loc_i] = _noise
-        aspect_ratio[loc_i] = _aspect_ratio
-
-    return signal, noise, aspect_ratio
-'''
-
-
 def radiometry_one_channel_one_cycle_fit_method(im, reg_psf: RegPSF, locs):
     """
     Like radiometry_one_channel_one_cycle() but using a gaussian fit
@@ -239,9 +107,10 @@ def radiometry_one_channel_one_cycle_fit_method(im, reg_psf: RegPSF, locs):
     ret_params, _ = fit_image_with_reg_psf(im, locs, reg_psf)
     return ret_params
 
-'''
+
+"""
 This is the beginning of a zap but the hangup is that
-I'm accuulating to fg and cnt and would need to change
+I'm accumlating to fg and cnt and would need to change
 that to write out and then do the accum
 
 def _do_?(im, approx_psf, reg_psf, ):
@@ -272,7 +141,7 @@ def _do_?(im, approx_psf, reg_psf, ):
                 # TODO: The CENTER=FALSE here smells wrong
                 imops.accum_inplace(fg, sig * circle, loc, center=False)
                 imops.accum_inplace(cnt, circle, loc, center=False)
-'''
+"""
 
 
 def fg_estimate(fl_ims, reg_psf: RegPSF, bandpass_kwargs):
@@ -311,8 +180,6 @@ def fg_estimate(fl_ims, reg_psf: RegPSF, bandpass_kwargs):
 
     # TODO: Replace with a zap over fields (see notes in commented out above)
     for fl_i in range(n_fields):
-        debug(fl_i)
-        
         filtered_im, bg_std = bg.bandpass_filter(fl_ims[fl_i], **bandpass_kwargs,)
         locs = peak_find(filtered_im, approx_psf, bg_std)
 
@@ -399,24 +266,33 @@ def focus_from_fitmat(fitmat, reg_psf: RegPSF):
     fitmat: (n_peaks, n_channels, n_cycles, AugmentedGauss2Params.N_FULL_PARAMS)
     """
     focus_const = 1.0
-    debug(focus_const)
     n_peaks, n_channels, n_cycles, n_params = fitmat.shape
     assert n_channels == 1  # TODO: Multichannel
     focus_per_cycle = []
     for cy_i in range(n_cycles):
         ch_fitmat = fitmat[:, 0, cy_i, :]
-        
+
         fit_sig_x = ch_fitmat[:, Gauss2Params.SIGMA_X]
         fit_sig_y = ch_fitmat[:, Gauss2Params.SIGMA_Y]
 
-        keep_mask = (1.0 < fit_sig_x) & (fit_sig_x < 1.5) & (1.0 < fit_sig_y) & (fit_sig_y < 1.5)
-        
-        fit_sigma = np.nanmean(np.concatenate((fit_sig_x[keep_mask], fit_sig_y[keep_mask])))
-        psf_sigma = np.mean(np.concatenate((reg_psf.params[:, :, RegPSF.SIGMA_X], reg_psf.params[:, :, RegPSF.SIGMA_Y])))
-        # np.save(f"/erisyon/internal/_fit_sigma_{cy_i}", fit_sigma)
-        # np.save(f"/erisyon/internal/_psf_sigma_{cy_i}", psf_sigma)
-        #debug(cy_i, psf_sigma, fit_sigma, psf_sigma / fit_sigma)
-        #focus_per_cycle += [focus_const * psf_sigma / fit_sigma]
+        keep_mask = (
+            (1.0 < fit_sig_x)
+            & (fit_sig_x < 1.5)
+            & (1.0 < fit_sig_y)
+            & (fit_sig_y < 1.5)
+        )
+
+        fit_sigma = np.nanmean(
+            np.concatenate((fit_sig_x[keep_mask], fit_sig_y[keep_mask]))
+        )
+        psf_sigma = np.mean(
+            np.concatenate(
+                (
+                    reg_psf.params[:, :, RegPSF.SIGMA_X],
+                    reg_psf.params[:, :, RegPSF.SIGMA_Y],
+                )
+            )
+        )
+
         focus_per_cycle += [focus_const * fit_sigma / psf_sigma]
     return np.array(focus_per_cycle)
-

@@ -3,8 +3,8 @@ from itertools import product
 from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import Gauss2Params
 from plaster.tools.image import imops
 from plaster.tools.schema import check
-from plaster.tools.log.log import debug
 from scipy import interpolate
+from plaster.tools.log.log import debug, prof
 
 
 class RegPSF:
@@ -129,6 +129,8 @@ class RegPSF:
         return samples
 
     def sample_params_grid(self, n_divs=6):
+        # This is taking almost 0.5 sec!
+        # TODO: Optimize to avoid the python double loop. Numpy
         self_hash = hash((self, n_divs))
         if self_hash == self._grid_hash:
             return self._grid_cache
@@ -145,7 +147,6 @@ class RegPSF:
 
         self._grid_cache = samples
         self._grid_hash = self_hash
-
         return samples
 
     def _fit(self, im, y, x):

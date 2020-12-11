@@ -27,6 +27,9 @@ class SigprocV2Params(Params):
         run_bandpass_filter=True,
         run_focal_adjustments=True,
         # TODO: Derive the follow during calibration by spectral analysis (ie, 2 std of the power spectrum)
+        # ALSO: This needs to be moved into the calibration because it can not allowed to be
+        # different from the calibration results because the calibration bakes in the PSF
+        # as a function of these parameters.
         low_inflection=0.03,
         low_sharpness=50.0,
         high_inflection=0.50,

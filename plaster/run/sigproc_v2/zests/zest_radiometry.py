@@ -63,7 +63,7 @@ def zest_radiometry():
         n_cycles = 1
         cen = 21 / 2
         y = -2.2 + cen
-        x = 5.7 + cen
+        x = 3.7 + cen
         chcy_ims = np.zeros((1, n_cycles, 21, 21))
         imops.accum_inplace(chcy_ims[0, 0], _peak(x, y, 21), loc=XY(0, 0), center=False)
         radrow = radiometry_field_stack(
@@ -73,7 +73,7 @@ def zest_radiometry():
             focus_adjustment=np.ones((n_cycles)),
         )
         assert np.abs(radrow[0, 0, 0, 0] - 1000.0) < 0.01
-        assert np.abs(radrow[0, 0, 0, 1]) < 0.001
+        assert np.abs(radrow[0, 0, 0, 1]) < 0.010
 
     def it_finds_fractional_loc():
         n_cycles = 1
@@ -90,7 +90,6 @@ def zest_radiometry():
                     reg_psf=reg_psf,
                     focus_adjustment=np.ones((n_cycles)),
                 )
-                # print(f"{y:8.2f} {x:8.2f} {radrow[0,0,0,0]:8.2f} {radrow[0,0,0,1]:8.2f}")
                 assert np.abs(radrow[0, 0, 0, 0] - 1000.0) < 0.01
                 assert np.abs(radrow[0, 0, 0, 1]) < 0.001
 
@@ -111,7 +110,6 @@ def zest_radiometry():
             chcy_ims, locs=locs, reg_psf=reg_psf, focus_adjustment=np.ones((n_cycles))
         )
 
-        # print(f"{y:8.2f} {x:8.2f} {radrow[0,0,0,0]:8.2f} {radrow[0,0,0,1]:8.2f}")
         assert np.all(np.abs(radmat[:, :, :, 0] - 1000.0) < 0.01)
         assert np.all(np.abs(radmat[:, :, :, 1]) < 0.2)
 
@@ -147,9 +145,6 @@ def zest_radiometry():
             reg_psf=reg_psf,
             focus_adjustment=np.ones((n_cycles)),
         )
-        # print(f"{y:8.2f} {x:8.2f} {radrow[0, 0, 0, 0]:8.2f} {radrow[0, 0, 0, 1]:8.2f}")
-        # print(f"{y:8.2f} {x:8.2f} {radrow[0, 0, 1, 0]:8.2f} {radrow[0, 0, 1, 1]:8.2f}")
-        # print(f"{y:8.2f} {x:8.2f} {radrow[0, 0, 2, 0]:8.2f} {radrow[0, 0, 2, 1]:8.2f}")
 
         assert np.abs(radrow[0, 0, 0, 0] - 1000.0) < 0.01
         assert np.abs(radrow[0, 0, 0, 1]) < 0.001
@@ -159,30 +154,6 @@ def zest_radiometry():
 
         assert np.abs(radrow[0, 0, 2, 0] - 100.0) < 0.01
         assert np.abs(radrow[0, 0, 2, 1]) < 0.001
-
-    def it_uses_appropriate_regional_psf():
-        peak_ws = [1.8, 1.8, 2.4]
-        peak_rhos = [0.0, 0.5, 0.1]
-
-        reg_psf = RegPSF(128, 11, 2)
-        reg_psf.params[0, 0] = (peak_ws[0], 1.8, peak_rhos[0])
-        reg_psf.params[1, 0] = (peak_ws[1], 1.8, peak_rhos[1])
-        reg_psf.params[1, 1] = (peak_ws[2], 1.8, peak_rhos[2])
-
-        n_cycles = 1
-        chcy_ims = np.zeros((1, n_cycles, 128, 128))
-        locs = np.array([(20.0, 20.0), (100.0, 20.0), (100.0, 100.0),])
-        for loc, peak_w, peak_rho in zip(locs, peak_ws, peak_rhos):
-            peak_im = imops.gauss2_rho_form(
-                1000.0, peak_w, 1.8, loc[1], loc[0], peak_rho, 0.0, 128
-            )
-            imops.accum_inplace(chcy_ims[0, 0], peak_im, loc=XY(0, 0), center=False)
-
-        radmat = radiometry_field_stack(
-            chcy_ims, locs=locs, reg_psf=reg_psf, focus_adjustment=np.ones((n_cycles))
-        )
-        assert np.all(np.abs(radmat[:, :, :, 0] - 1000.0) < 0.01)
-        assert np.all(np.abs(radmat[:, :, :, 1]) < 0.001)
 
     def it_adjusts_for_focus():
         reg_psf = RegPSF.fixture(im_mea=128, peak_mea=11)
@@ -218,7 +189,6 @@ def zest_radiometry():
         )
 
         assert np.all(np.abs(radmat[:, :, :, 0] - 1000.0) < 20.0)
-        # assert np.all(np.abs(radmat[:, :, :, 1]) < 0.001)
 
     def it_returns_asr():
         reg_psf = RegPSF.fixture(im_mea=128, peak_mea=11)

@@ -19,9 +19,12 @@ def zest_bg():
             synth.HaloModel()
             chcy_ims = s.render_chcy()
 
-        kernel = psf.approximate_psf()
-        im, mean, std, _ = bg.bg_remove(
-            chcy_ims[0, 0], kernel, inflection=0.03, sharpness=100.0
+        im, std = bg.bandpass_filter(
+            chcy_ims[0, 0],
+            low_inflection=0.03,
+            low_sharpness=50.0,
+            high_inflection=0.5,
+            high_sharpness=50.0,
         )
 
         # CHECK that it removed the bg
@@ -40,8 +43,6 @@ def zest_bg():
             focus_adjustment=np.ones((s.n_cycles)),
         )
 
-        debug(radmat[:, 0, 0, 0])
-
     def it_removes_bg_by_low_cut():
         with synth.Synth(overwrite=True, dim=(512, 512), n_cycles=3) as s:
             peaks = (
@@ -56,13 +57,15 @@ def zest_bg():
             )
             chcy_ims = s.render_chcy()
 
-        kernel = psf.approximate_psf()
-        im, mean, std = bg.bg_remove(
-            chcy_ims[0, 0], kernel, inflection=0.03, sharpness=100.0
+        im, std = bg.bandpass_filter(
+            chcy_ims[0, 0],
+            low_inflection=0.03,
+            low_sharpness=50.0,
+            high_inflection=0.5,
+            high_sharpness=50.0,
         )
         median, high = np.percentile(im, (50, 99.9))
-
         assert np.abs(median) < 1.0
-        assert np.abs(high) < 4.0
+        assert np.abs(high) < 400.0
 
     zest()
