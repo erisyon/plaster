@@ -110,6 +110,75 @@ Float64 *_get_psf_at_loc(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y) {
     return f64arr_ptr2(&ctx->reg_psf_samples, y_i, x_i);
 }
 
+Float64 aspect_ratio(Float64 *dat_pixels, Size w, Size h) {
+    // The aspect ratio is the ratio of the eigen value of the covariance matrix
+
+    Float64 com_x = 0.0;
+    Float64 com_y = 0.0;
+    Float64 total_sum = 0.0;
+    Float64 *src = dat_pixels;
+    for(Index y=0; y<h; y++) {
+        for(Index x=0; x<w; x++) {
+            Float64 pixel = *src++;
+            total_sum += pixel;
+            com_y += pixel * (Float64)y;
+            com_x += pixel * (Float64)x;
+        }
+    }
+    com_y /= total_sum;
+    com_x /= total_sum;
+
+    Float64 cov[2][2] = { 0, };
+    src = dat_pixels;
+    for(Index y=0; y<h; y++) {
+        for(Index x=0; x<w; x++) {
+            Float64 pixel = *src++;
+            Float64 dy = ((Float64)y - com_y) * pixel;
+            Float64 dx = ((Float64)x - com_x) * pixel;
+            Float64 dxdy = dx * dy;
+            cov[0][0] += dy * dy;
+            cov[0][1] += dxdy;
+            cov[1][0] += dxdy;
+            cov[1][1] += dx * dx;
+        }
+    }
+
+    Float64 normalizer = 1.0 / (Float64)(w * h);
+    cov[0][0] *= normalizer;
+    cov[0][1] *= normalizer;
+    cov[1][0] *= normalizer;
+    cov[1][1] *= normalizer;
+
+    Float64 cov_trace = cov[0][0] + cov[1][1];
+    Float64 cov_det = cov[0][0] * cov[1][1] - cov[0][1] * cov[1][0];
+
+    // Eigen values for a 2x2 are the solutions to:
+    //   lamdda^2 -cov_trace * lambda + cov_det = 0
+    // So:
+    //   a = 1.0
+    //   b = -cov_trace
+    //   c = cov_det
+    // And the quadratic equation is:
+    //   (-b +- sqrt(b^2 - 4*a*c)) / (2*a)
+
+    Float64 a = 1.0;
+    Float64 b = -cov_trace;
+    Float64 c = cov_det;
+
+    Float64 right = sqrt( b*b - 4.0 * a * c );
+    Float64 denom = 2.0 * a;
+    Float64 lambda0 = ( -b + right ) / denom;
+    Float64 lambda1 = ( -b - right ) / denom;
+
+    // The aspect ratio is the ratio of the eigen value of the covariance matrix
+    if(lambda0 > lambda1) {
+        return lambda0 / lambda1;
+    }
+    else {
+        return lambda1 / lambda0;
+    }
+}
+
 
 char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     /*
@@ -145,7 +214,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 *loc_p = f64arr_ptr1(&ctx->locs, peak_i);
     Float64 loc_x = loc_p[1];
     Float64 loc_y = loc_p[0];
-    trace("locyx %f %f \n", loc_y, loc_x, ctx->width, ctx->height);
+//    trace("locyx %f %f \n", loc_y, loc_x, ctx->width, ctx->height);
     ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width, "loc_x out of bounds");
     ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
 
@@ -154,7 +223,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     // Add 0.5 to round up as opposed to floor to keep the spots more centered
     Index corner_x = floor(loc_x - half_mea + 0.5);
     Index corner_y = floor(loc_y - half_mea + 0.5);
-    trace("coryx %ld %ld   %f %f  halfmea %f  %ld\n", corner_y, corner_x, ctx->width, ctx->height, half_mea, mea);
+//    trace("coryx %ld %ld   %f %f  halfmea %f  %ld\n", corner_y, corner_x, ctx->width, ctx->height, half_mea, mea);
     ensure_only_in_debug(0 <= corner_x && corner_x < ctx->width, "corner_x out of bounds");
     ensure_only_in_debug(0 <= corner_y && corner_y < ctx->height, "corner_y out of bounds");
 
@@ -172,7 +241,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
 
     Index ch_i = 0;
     for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
-        trace("%ld\n", cy_i);
+//        trace("%ld\n", cy_i);
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
 
         Float64 *psf_params = _get_psf_at_loc(ctx, loc_x, loc_y);
@@ -245,16 +314,15 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         Float64 snr = signal / noise;
 
         // ASPECT-RATIO
-        // TODO
-        Float64 aspect_ratio = 1.0;
+        Float64 asr = aspect_ratio(dat_pixels, mea, mea);
 
         Index ch_i = 0;
         Float64 *out = f64arr_ptr3(&ctx->out_radiometry, peak_i, ch_i, cy_i);
         out[0] = signal;
         out[1] = noise;
         out[2] = snr;
-        out[3] = aspect_ratio;
-        trace("sig %f %f %f %f\n", signal, noise, snr, aspect_ratio);
+        out[3] = asr;
+//        trace("sig %f %f %f %f\n", signal, noise, snr, asr);
     }
 
     return NULL;
@@ -263,7 +331,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
 
 char *test_interp(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y, Float64 *out_vals) {
     Float64 *psf_params = _get_psf_at_loc(ctx, loc_x, loc_y);
-    trace("%f %f %f\n", loc_x, loc_y, psf_params[0]);
+//    trace("%f %f %f\n", loc_x, loc_y, psf_params[0]);
     Float64 sigma_x = psf_params[0];
     Float64 sigma_y = psf_params[1];
     Float64 rho = psf_params[2];
