@@ -190,7 +190,18 @@ def zest_radiometry():
 
         assert np.all(np.abs(radmat[:, :, :, 0] - 1000.0) < 20.0)
 
-    # def it_returns_asr():
-    #     raise NotImplementedError
+    def it_returns_asr():
+        reg_psf = RegPSF.fixture(im_mea=128, peak_mea=11)
+
+        chcy_ims = np.zeros((1, 1, 128, 128))
+        peak_im = imops.gauss2_rho_form(1.0, 1.7, 2.3, 5.5, 4.5, 0.3, 0.0, 11)
+        imops.accum_inplace(chcy_ims[0, 0], peak_im, YX(30, 20), center=True)
+        locs = np.array([[30.0, 20.0]])
+
+        radmat = radiometry_field_stack(
+            chcy_ims, locs=locs, reg_psf=reg_psf, focus_adjustment=np.ones((1,))
+        )
+
+        assert 2.34 < radmat[0, 0, 0, 3] < 2.36
 
     zest()
