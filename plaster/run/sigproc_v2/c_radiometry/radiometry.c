@@ -110,6 +110,75 @@ Float64 *_get_psf_at_loc(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y) {
     return f64arr_ptr2(&ctx->reg_psf_samples, y_i, x_i);
 }
 
+Float64 aspect_ratio(Float64 *dat_pixels, Size w, Size h) {
+    // The aspect ratio is the ratio of the eigen value of the covariance matrix
+
+    Float64 com_x = 0.0;
+    Float64 com_y = 0.0;
+    Float64 total_sum = 0.0;
+    Float64 *src = dat_pixels;
+    for(Index y=0; y<h; y++) {
+        for(Index x=0; x<w; x++) {
+            Float64 pixel = *src++;
+            total_sum += pixel;
+            com_y += pixel * (Float64)y;
+            com_x += pixel * (Float64)x;
+        }
+    }
+    com_y /= total_sum;
+    com_x /= total_sum;
+
+    Float64 cov[2][2] = { 0, };
+    src = dat_pixels;
+    for(Index y=0; y<h; y++) {
+        for(Index x=0; x<w; x++) {
+            Float64 pixel = *src++;
+            Float64 dy = ((Float64)y - com_y) * pixel;
+            Float64 dx = ((Float64)x - com_x) * pixel;
+            Float64 dxdy = dx * dy;
+            cov[0][0] += dy * dy;
+            cov[0][1] += dxdy;
+            cov[1][0] += dxdy;
+            cov[1][1] += dx * dx;
+        }
+    }
+
+    Float64 normalizer = 1.0 / (Float64)(w * h);
+    cov[0][0] *= normalizer;
+    cov[0][1] *= normalizer;
+    cov[1][0] *= normalizer;
+    cov[1][1] *= normalizer;
+
+    Float64 cov_trace = cov[0][0] + cov[1][1];
+    Float64 cov_det = cov[0][0] * cov[1][1] - cov[0][1] * cov[1][0];
+
+    // Eigen values for a 2x2 are the solutions to:
+    //   lamdda^2 -cov_trace * lambda + cov_det = 0
+    // So:
+    //   a = 1.0
+    //   b = -cov_trace
+    //   c = cov_det
+    // And the quadratic equation is:
+    //   (-b +- sqrt(b^2 - 4*a*c)) / (2*a)
+
+    Float64 a = 1.0;
+    Float64 b = -cov_trace;
+    Float64 c = cov_det;
+
+    Float64 right = sqrt( b*b - 4.0 * a * c );
+    Float64 denom = 2.0 * a;
+    Float64 lambda0 = ( -b + right ) / denom;
+    Float64 lambda1 = ( -b - right ) / denom;
+
+    // The aspect ratio is the ratio of the eigen value of the covariance matrix
+    if(lambda0 > lambda1) {
+        return lambda0 / lambda1;
+    }
+    else {
+        return lambda1 / lambda0;
+    }
+}
+
 
 char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     /*
@@ -242,15 +311,14 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         Float64 snr = signal / noise;
 
         // ASPECT-RATIO
-        // TODO
-        Float64 aspect_ratio = 1.0;
+        Float64 asr = aspect_ratio(dat_pixels, mea, mea);
 
         Index ch_i = 0;
         Float64 *out = f64arr_ptr3(&ctx->out_radiometry, peak_i, ch_i, cy_i);
         out[0] = signal;
         out[1] = noise;
         out[2] = snr;
-        out[3] = aspect_ratio;
+        out[3] = asr;
     }
 
     return NULL;
