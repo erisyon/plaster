@@ -55,7 +55,8 @@ class SigprocV2CalibGenerator(BaseGenerator):
             utils.smart_wrap(
                 f"""
                 # Sigproc V2 Instrument Calibration
-                """
+                """,
+                width=None,
             )
         )
 

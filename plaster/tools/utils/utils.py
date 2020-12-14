@@ -106,6 +106,7 @@ def smart_wrap(text, width=80, assert_if_exceeds_width=False):
     Arguments:
         text: See above
         width: wrap width or "auto" or None
+            When width is None it performs the unindent but not the wrap
     """
 
     if width == "auto":

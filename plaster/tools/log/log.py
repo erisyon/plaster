@@ -274,6 +274,24 @@ def colorful_exception(
     return accum
 
 
+def current_file_and_line():
+    frame = inspect.currentframe()
+    try:
+        context = inspect.getframeinfo(frame.f_back)
+        return context.filename, context.lineno
+    finally:
+        del frame
+
+
+def current_file_and_line_str():
+    frame = inspect.currentframe()
+    try:
+        context = inspect.getframeinfo(frame.f_back)
+        return f"{context.filename}:{context.lineno}"
+    finally:
+        del frame
+
+
 def debug(*args):
     """
     Spew useful debug like...

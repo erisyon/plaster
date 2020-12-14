@@ -1022,6 +1022,14 @@ class ZPlots:
         self.im(im, f_title=f_title, **kws)
 
     @trap()
+    def im_sort(self, data, **kws):
+        ustack = self._u_stack()
+        _n_samples = ustack.get("_n_samples", 1000)
+        row_iz = arg_subsample(data, _n_samples)
+        row_iz = row_iz[np.argsort(np.nansum(data[row_iz], axis=1))]
+        self.im(data[row_iz])
+
+    @trap()
     def im_peaks(self, im, circle_im, index_im, sig_im, snr_im, **kws):
         """
         This is a custom plot for drawing information about sigproc data

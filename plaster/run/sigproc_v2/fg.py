@@ -296,3 +296,22 @@ def focus_from_fitmat(fitmat, reg_psf: RegPSF):
 
         focus_per_cycle += [focus_const * fit_sigma / psf_sigma]
     return np.array(focus_per_cycle)
+
+
+def cycle_balance_one_channel(sig, one_count_mean, one_count_std):
+    """
+    Compute a cycle balance based on the 1-count radiomerty
+
+    Usage
+        sig = run.sigproc_v2.sig()
+        correction_per_cycle = cycle_balance(sig, 5000.0, 1000.0)
+        corr_sig = sig * correction_per_cycle
+    """
+    check.array_t(sig, ndim=2)  # (n_peaks, n_cycles)
+    low = one_count_mean - one_count_std
+    high = one_count_mean + one_count_std
+    _sig = np.where((low < sig) & (sig < high), sig, np.nan)
+    per_cycle = np.nanmedian(_sig, axis=0)
+    correct_rad = np.mean(per_cycle)
+    correction_per_cycle = correct_rad / per_cycle
+    return correction_per_cycle

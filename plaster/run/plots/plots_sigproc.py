@@ -198,7 +198,17 @@ def circle_locs(
 
 
 def sigproc_v2_movie_from_df(
-    run, df=None, fl_i=None, ch_i=0, bg_only=False, fg_only=False, use_unfilt=False
+    run,
+    df=None,
+    fl_i=None,
+    ch_i=0,
+    bg_only=False,
+    fg_only=False,
+    use_unfilt=False,
+    outer_radius=5,
+    yx=None,
+    hw=None,
+    **kwargs,
 ):
     """
     Render a movie of cycles for the peaks that are in the df
@@ -227,28 +237,49 @@ def sigproc_v2_movie_from_df(
     if bg_only:
         zero_fg = np.ones((ims.shape[-2:]))
         zero_fg = circle_locs(
-            zero_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=6
+            zero_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=outer_radius
         )
         zero_fg[np.isnan(zero_fg)] = 0
         ims = ims * zero_fg
     elif fg_only:
         one_fg = np.zeros((ims.shape[-2:]))
         one_fg = circle_locs(
-            one_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=6
+            one_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=outer_radius
         )
         one_fg[np.isnan(one_fg)] = 1
         ims = ims * one_fg
+
+    # TODO: I'd like a version where I apply an approx PSF so I can mask out what isn't important
+    # elif psf_only:
+    #     one_fg = np.zeros((ims.shape[-2:]))
+    #     one_fg = circle_locs(
+    #         one_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=outer_radius
+    #     )
+    #     one_fg[np.isnan(one_fg)] = 1
+    #     ims = ims * one_fg
     else:
         overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
         overlay = 255 * circle_locs(
-            overlay, locs, fill_mode="one", inner_radius=4, outer_radius=5
+            overlay, locs, fill_mode="one", inner_radius=4, outer_radius=outer_radius
         ).astype(np.uint8)
+
+    kwargs["_duration"] = kwargs.get("_duration", 1)
+
+    if yx is None:
+        yx = (0, 0)
+    if hw is None:
+        hw = ims.shape[-2:]
+
+    ims = ims[:, yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1]]
+    if overlay is not None:
+        overlay = overlay[yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1]]
+
+    debug(ims.shape)
 
     displays.movie(
         ims,
         overlay,
-        _cper=(50, 99.9),
-        _duration=1,
+        **kwargs,
         _labels=[
             f"aligned & balanced fl_i:{fl_i} ch_i:{ch_i} cy_i: {cy_i}"
             for cy_i in range(ims.shape[0])

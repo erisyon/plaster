@@ -396,4 +396,19 @@ def zest_smart_wrap():
         )
         assert l == "\nABC\n\nDEF\n    GHI\nJKL\n"
 
+    def it_keeps_indents_but_not_wraps_when_width_is_none():
+        l = utils.smart_wrap(
+            """
+            ABC
+
+            This is a very very long line, much longer than the 80 chracters that are the default length of a line that woudl normally wrap but here it should not wrap.
+                GHI
+            JKL
+            """,
+            width=None,
+        )
+        assert l.startswith(
+            "\nABC\n\nThis is a very very long line, much longer than the 80 chracters that are the default length of a line that woudl normally wrap but here it should not wrap. \n    GHI\nJKL\n"
+        )
+
     zest()
