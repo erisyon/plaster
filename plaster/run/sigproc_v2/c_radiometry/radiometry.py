@@ -198,7 +198,9 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
     # Sanity check
     bad_signals = ctx._out_radiometry[:, :, :, 0] > 1e6
     if np.any(bad_signals):
-        important(f"there were {bad_signals.sum()} of {len(bad_signals)} bad radiometries. Converting to nan")
+        important(
+            f"there were {bad_signals.sum()} of {len(bad_signals)} bad radiometries. Converting to nan"
+        )
         ctx._out_radiometry[bad_signals, :] = np.nan
 
     return ctx._out_radiometry

@@ -198,7 +198,17 @@ def circle_locs(
 
 
 def sigproc_v2_movie_from_df(
-    run, df=None, fl_i=None, ch_i=0, bg_only=False, fg_only=False, use_unfilt=False, outer_radius=5, yx=None, hw=None, **kwargs
+    run,
+    df=None,
+    fl_i=None,
+    ch_i=0,
+    bg_only=False,
+    fg_only=False,
+    use_unfilt=False,
+    outer_radius=5,
+    yx=None,
+    hw=None,
+    **kwargs,
 ):
     """
     Render a movie of cycles for the peaks that are in the df
@@ -256,13 +266,13 @@ def sigproc_v2_movie_from_df(
     kwargs["_duration"] = kwargs.get("_duration", 1)
 
     if yx is None:
-        yx = (0,0)
+        yx = (0, 0)
     if hw is None:
-        hw = (ims.shape[-2:])
+        hw = ims.shape[-2:]
 
-    ims = ims[ :, yx[0]:yx[0]+hw[0], yx[1]:yx[1]+hw[1] ]
+    ims = ims[:, yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1]]
     if overlay is not None:
-        overlay = overlay[yx[0]:yx[0]+hw[0], yx[1]:yx[1]+hw[1]]
+        overlay = overlay[yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1]]
 
     debug(ims.shape)
 

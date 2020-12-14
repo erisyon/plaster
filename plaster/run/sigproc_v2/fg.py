@@ -309,9 +309,9 @@ def cycle_balance_one_channel(sig, one_count_mean, one_count_std):
     """
     check.array_t(sig, ndim=2)  # (n_peaks, n_cycles)
     low = one_count_mean - one_count_std
-    high  = one_count_mean + one_count_std
+    high = one_count_mean + one_count_std
     _sig = np.where((low < sig) & (sig < high), sig, np.nan)
-    per_cycle = np.nanmedian( _sig, axis=0 )
+    per_cycle = np.nanmedian(_sig, axis=0)
     correct_rad = np.mean(per_cycle)
     correction_per_cycle = correct_rad / per_cycle
     return correction_per_cycle
