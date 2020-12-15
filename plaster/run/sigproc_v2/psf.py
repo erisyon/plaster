@@ -9,7 +9,7 @@ from plaster.tools.image.imops import sub_pixel_center
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
-from plaster.run.sigproc_v2.reg_psf import RegPSF, approximate_psf
+from plaster.run.calib.calib import RegPSF
 from plaster.tools.utils import data
 from plaster.tools.log.log import debug
 
@@ -291,3 +291,22 @@ def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress=None) -> Re
     # sigma_x, sigma_y, and rho.
     reg_psf = RegPSF.from_psf_ims(flcy_ims.shape[0], psf_ims)
     return reg_psf
+
+
+def approximate_psf():
+    """
+    Return a zero-centered AUC=1.0 2D Gaussian for peak finding
+    """
+    std = 1.5  # This needs to be tuned and may be instrument dependent
+    mea = 11
+    kern = imops.gauss2_rho_form(
+        amp=1.0,
+        std_x=std,
+        std_y=std,
+        pos_x=mea // 2,
+        pos_y=mea // 2,
+        rho=0.0,
+        const=0.0,
+        mea=mea,
+    )
+    return kern - np.mean(kern)

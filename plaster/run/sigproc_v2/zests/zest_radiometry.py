@@ -1,7 +1,7 @@
 from zest import zest
 from plaster.tools.image import imops
 from plaster.tools.image.coord import XY, YX
-from plaster.run.sigproc_v2.reg_psf import RegPSF
+from plaster.run.calib.calib import RegPSF
 from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.c_radiometry.radiometry import (
     radiometry_field_stack,
@@ -157,9 +157,10 @@ def zest_radiometry():
 
     def it_adjusts_for_focus():
         reg_psf = RegPSF.fixture(im_mea=128, peak_mea=11)
-        sigma_x = reg_psf.params[0, 0, RegPSF.SIGMA_X]
-        sigma_y = reg_psf.params[0, 0, RegPSF.SIGMA_Y]
-        rho = reg_psf.params[0, 0, RegPSF.RHO]
+        ch_i = 0
+        sigma_x = reg_psf.params[ch_i, 0, 0, RegPSF.SIGMA_X]
+        sigma_y = reg_psf.params[ch_i, 0, 0, RegPSF.SIGMA_Y]
+        rho = reg_psf.params[ch_i, 0, 0, RegPSF.RHO]
 
         n_cycles = 3
         chcy_ims = np.zeros((1, n_cycles, 128, 128))

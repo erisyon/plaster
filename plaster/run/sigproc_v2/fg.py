@@ -1,7 +1,8 @@
 import numpy as np
 import time
 from plaster.run.sigproc_v2 import bg
-from plaster.run.sigproc_v2.reg_psf import RegPSF, approximate_psf
+from plaster.run.sigproc_v2.psf import approximate_psf
+from plaster.run.calib.calib import RegPSF
 from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
 from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import (
     AugmentedGauss2Params,

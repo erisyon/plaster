@@ -5,7 +5,6 @@ from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
 from plaster.gen.report_builder import ReportBuilder
 from plaster.tools.log.log import debug, current_file_and_line_str
-from plaster.tools.calibration.calibration import Calibration
 from plumbum import local
 
 

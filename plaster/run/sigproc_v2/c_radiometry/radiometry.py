@@ -6,7 +6,7 @@ from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
 from plaster.run.sigproc_v2.c_radiometry.build import build
-from plaster.run.sigproc_v2.reg_psf import RegPSF
+from plaster.run.calib.calib import RegPSF
 from plaster.tools.c_common.c_common_tools import CException
 from plaster.tools.utils import utils
 from plaster.tools.c_common import c_common_tools
@@ -131,7 +131,8 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
     # radiometry.c but had problems so I reverted (at least for now)
     # to a high-res sampling of the reg_psf
     n_divs = 64
-    samples = reg_psf.sample_params_grid(n_divs=n_divs)
+    assert n_channels == 1  # Until multi-channel
+    samples = reg_psf.sample_params_grid(ch_i=0, n_divs=n_divs)
 
     out_radiometry = np.zeros((n_peaks, n_channels, n_cycles, 4), dtype=np.float64)
 
@@ -225,9 +226,9 @@ def test_interp():
                 if error is not None:
                     raise CException(error)
 
-                sig_x = reg_psf.interp_sig_x_fn(x, y)
-                sig_y = reg_psf.interp_sig_y_fn(x, y)
-                rho = reg_psf.interp_rho_fn(x, y)
+                sig_x = reg_psf.interp_sig_x_fn[0](x, y)
+                sig_y = reg_psf.interp_sig_y_fn[0](x, y)
+                rho = reg_psf.interp_rho_fn[0](x, y)
 
                 diffs += [
                     (

@@ -6,7 +6,7 @@ import math
 from plaster.run.ims_import.ims_import_worker import OUTPUT_NP_TYPE
 from plaster.run.ims_import.ims_import_params import ImsImportParams
 from plaster.run.ims_import.ims_import_result import ImsImportResult
-from plaster.run.sigproc_v2.reg_psf import RegPSF
+from plaster.run.calib.calib import RegPSF
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.utils import utils

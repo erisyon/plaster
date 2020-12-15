@@ -9,7 +9,7 @@ from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.sigproc_v2 import synth
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
-from plaster.tools.calibration.calibration import Calibration
+from plaster.run.calib.calib import Calib
 from plaster.tools.image import imops
 from plaster.tools.log.log import debug
 from plaster.tools.schema import check
@@ -294,7 +294,7 @@ def zest_sigproc_v2_calibration():
                 # data returned is getting put into the calibration objects
                 # with the right shape, and using the right keyword
                 ims_import_result = result_from_z_stack(n_fields=2, n_cycles=15)
-                calib = Calibration()
+                calib = Calib()
                 sigproc_v2_params = SigprocV2Params(
                     calibration_file="temp", mode=common.SIGPROC_V2_INSTRUMENT_CALIB
                 )
@@ -510,7 +510,7 @@ def zest_sigproc_v2_calibration():
             calibration_file="temp", mode=common.SIGPROC_V2_INSTRUMENT_CALIB
         )
         sigproc_v2_params.mode = common.SIGPROC_V2_INSTRUMENT_ANALYZE
-        calib = Calibration()
+        calib = Calib()
         sigproc_v2_params.calibration = calib
 
         # MEASURE the psf stats using this z-stack
@@ -555,7 +555,7 @@ def zest_sigproc_v2_calibration():
             calibration_file="temp", mode=common.SIGPROC_V2_INSTRUMENT_CALIB
         )
         sigproc_v2_params.mode = common.SIGPROC_V2_INSTRUMENT_ANALYZE
-        calib = Calibration()
+        calib = Calib()
         sigproc_v2_params.calibration = calib
 
         # PROCESS the calib object through steps 1 and 2
@@ -642,7 +642,7 @@ def zest_sigproc_v2_calibration():
             calibration_file="temp", mode=common.SIGPROC_V2_INSTRUMENT_CALIB
         )
         sigproc_v2_params.mode = common.SIGPROC_V2_INSTRUMENT_ANALYZE
-        calib = Calibration()
+        calib = Calib()
         sigproc_v2_params.calibration = calib
         calib = worker._calibrate_step_2_psf(
             calib, ims_import_result, sigproc_v2_params
@@ -656,7 +656,7 @@ def zest_sigproc_v2_calibration():
 
     def it_can_calibrate_regional_illumination_balance():
         # CREATE calib and ImsImportResult
-        calib = Calibration()
+        calib = Calib()
         n_z_slices = 15
         n_fields = 2
         ims_import_result = result_from_z_stack(n_fields=n_fields, n_cycles=n_z_slices)

@@ -4,9 +4,9 @@ import pickle
 from zest import zest
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.sigproc_v2 import synth
-from plaster.run.sigproc_v2.reg_psf import RegPSF
+from plaster.run.calib.calib import RegPSF
 from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Params
-from plaster.tools.calibration.calibration import Calibration
+from plaster.tools.calib.calib import Calib
 from plaster.tools.utils.tmp import tmp_folder
 from plaster.tools.log.log import debug, prof
 
@@ -26,7 +26,7 @@ def zest_sigproc_v2_worker_analyze():
         sigproc_v2_params = SigprocV2Params(
             divs=5, peak_mea=13, calibration_file="", mode="analyze", **extra_params,
         )
-        calib = Calibration()
+        calib = Calib()
         calib[f"regional_psf.instrument_channel[0]"] = reg_psf
         calib[f"regional_illumination_balance.instrument_channel[0]"] = np.ones((5, 5))
 
@@ -327,7 +327,7 @@ def zest_sigproc_v2_worker_calibrate():
 def zest_channel_weights():
     def it_returns_balanced_channels():
         with tmp_file() as cal_file:
-            calibration = Calibration(
+            calib = Calib(
                 {
                     "regional_bg_mean.instrument_channel[0].test": [
                         [100.0, 100.0],

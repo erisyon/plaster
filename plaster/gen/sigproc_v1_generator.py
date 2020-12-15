@@ -2,7 +2,6 @@ import re
 
 from munch import Munch
 from plaster.gen.base_generator import BaseGenerator
-from plaster.tools.calibration.calibration import Calibration
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
 from plumbum import local

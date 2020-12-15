@@ -15,7 +15,7 @@ from plaster.tools.utils import utils
 from plaster.tools.utils.fancy_indexer import FancyIndexer
 from plaster.run.base_result import BaseResult, disk_memoize
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
-from plaster.tools.calibration.calibration import Calibration
+from plaster.run.calib.calib import Calib
 from plaster.tools.log.log import debug, prof
 
 
@@ -42,7 +42,7 @@ class SigprocV2Result(BaseResult):
         params=SigprocV2Params,
         n_channels=(type(None), int),
         n_cycles=(type(None), int),
-        calib=Calibration,
+        calib=Calib,
         focus_per_field_per_channel=(type(None), list),
     )
 

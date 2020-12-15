@@ -55,7 +55,6 @@ def zest_gauss2_fitter():
         return true_params, pred_params, std_params
 
     def it_fits_clean():
-        assert False
         true_params, pred_params, _ = _test((1000, 1.8, 1.8, 5.0, 5.0, 0.0, 0.0))
         assert _params_close(true_params, pred_params)
 

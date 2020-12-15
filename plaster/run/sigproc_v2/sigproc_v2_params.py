@@ -1,4 +1,4 @@
-from plaster.tools.calibration.calibration import Calibration
+from plaster.run.calib.calib import Calib
 from plaster.tools.schema.schema import Params, SchemaValidationFailed
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.log import log
@@ -76,6 +76,6 @@ class SigprocV2Params(Params):
         else:
             # Analyzing
             if self.calibration_file != "":
-                self.calibration = Calibration.load(self.calibration_file)
+                self.calibration = Calib.load_file(self.calibration_file)
 
         return True

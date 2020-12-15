@@ -101,6 +101,8 @@ import numpy as np
 import pandas as pd
 from munch import Munch
 
+import plaster.run.calib.calib
+import plaster.run.sigproc_v2.psf
 import plaster.run.sigproc_v2.reg_psf
 from plaster.run.sigproc_v2 import bg, fg, psf
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
@@ -108,9 +110,9 @@ from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
 from plaster.run.sigproc_v2.c_sub_pixel_align.sub_pixel_align import (
     sub_pixel_align_cy_ims,
 )
-from plaster.run.sigproc_v2.reg_psf import RegPSF
+from plaster.run.calib.calib import RegPSF
 from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import Gauss2FitParams
-from plaster.tools.calibration.calibration import Calibration
+from plaster.tools.calib.calib import Calib
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
@@ -208,7 +210,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     dst_filt_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
     dst_unfilt_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
     dst_chcy_bg_std = np.zeros((n_channels, n_cycles))
-    approx_psf = plaster.run.sigproc_v2.reg_psf.approximate_psf()
+    approx_psf = plaster.run.sigproc_v2.psf.approximate_psf()
 
     # Per-frame background estimation and removal
     n_channels, n_cycles = chcy_ims.shape[0:2]
@@ -314,7 +316,7 @@ def _analyze_step_3_align(cy_ims, peak_mea):
         aln_offsets: ndarray(n_cycles, 2); where 2 is (y, x)
     """
 
-    approx_psf = psf.approximate_psf()
+    approx_psf = plaster.run.sigproc_v2.psf.approximate_psf()
 
     fiducial_ims = []
     for im in cy_ims:
@@ -420,7 +422,9 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
     return locs
 
 
-def _analyze_step_6a_fitter(chcy_ims, locs, reg_psf: psf.RegPSF, mask):
+def _analyze_step_6a_fitter(
+    chcy_ims, locs, reg_psf: plaster.run.calib.calib.RegPSF, mask
+):
     """
     Fit Gaussian.
 
@@ -491,7 +495,10 @@ def _analyze_step_6b_radiometry(chcy_ims, locs, calib, focus_adjustment):
 
 
 def _sigproc_analyze_field(
-    filt_chcy_ims, sigproc_v2_params, calib, reg_psf: psf.RegPSF = None
+    filt_chcy_ims,
+    sigproc_v2_params,
+    calib,
+    reg_psf: plaster.run.calib.calib.RegPSF = None,
 ):
     """
     Analyze one field --
@@ -550,7 +557,7 @@ def _sigproc_analyze_field(
     # The goal of previous channel equalization and regional balancing is that
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
-    approx_psf = psf.approximate_psf()
+    approx_psf = plaster.run.sigproc_v2.psf.approximate_psf()
     locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, chcy_bg_stds)
     n_locs = len(locs)
 
@@ -678,7 +685,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
     fg_means = None
 
     if sigproc_v2_params.mode == common.SIGPROC_V2_ILLUM_CALIB:
-        calib = Calibration()
+        calib = Calib()
         calib, fg_means = _calibrate(
             calib, ims_import_result, sigproc_v2_params, progress
         )
@@ -705,7 +712,7 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
     """
 
     if calib is None:
-        calib = Calibration.load(sigproc_v2_params.calibration_file)
+        calib = Calib.load_file(sigproc_v2_params.calibration_file)
 
     assert not calib.is_empty()
 
