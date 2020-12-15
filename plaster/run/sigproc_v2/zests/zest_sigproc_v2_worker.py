@@ -6,7 +6,7 @@ from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.sigproc_v2 import synth
 from plaster.run.calib.calib import RegPSF
 from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Params
-from plaster.tools.calib.calib import Calib
+from plaster.run.calib.calib import Calib
 from plaster.tools.utils.tmp import tmp_folder
 from plaster.tools.log.log import debug, prof
 

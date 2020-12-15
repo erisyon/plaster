@@ -219,7 +219,7 @@ class RegPSF:
         for ch_i in range(n_channels):
             for y in range(divs_y):
                 for x in range(divs_x):
-                    reg_psf._fit(psf_ims[y, x], ch_i, y, x)
+                    reg_psf._fit(psf_ims[ch_i, y, x], ch_i, y, x)
 
         return reg_psf
 
@@ -281,6 +281,10 @@ class CalibIdentity:
     def __eq__(self, other):
         return self.id == other.id
 
+    def validate(self):
+        if self.id is None or self.id == "" or not isinstance(self.id, str):
+            raise TypeError(f"CalibIndentity '{self.id}' not valid")
+
 
 class CalibType(Enum):
     REG_PSF = 1
@@ -314,6 +318,13 @@ class Calib:
     def keep_identity(self, calib_identity: CalibIdentity):
         check.t(calib_identity, CalibIdentity)
         self.recs = [rec for rec in self.recs if rec.calib_identity == calib_identity]
+        return self
+
+    def set_identity(self, calib_identity: CalibIdentity):
+        check.t(calib_identity, CalibIdentity)
+        for rec in self.recs:
+            rec.calib_identity = calib_identity
+        return self
 
     def has_records(self):
         return len(self.recs) > 0
@@ -331,7 +342,7 @@ class Calib:
         check.t(rec, RegPSF)
         return rec
 
-    def add_reg_psf(self, reg_psf: RegPSF, calib_identity: CalibIdentity):
+    def add_reg_psf(self, reg_psf: RegPSF, calib_identity: CalibIdentity = None):
         check.t(reg_psf, RegPSF)
 
         if self.find_rec_of_type(CalibType.REG_PSF) is not None:
@@ -371,6 +382,16 @@ class Calib:
         self.validate()
 
     def save_file(self, path):
+        _identity = None
+        for rec in self.recs:
+            if _identity is not None and rec.calib_identity != _identity:
+                raise ValueError(
+                    "All calib records must have the same identity during save"
+                )
+            if rec.calib_identity is None:
+                raise ValueError("calib identity not specified in calib save")
+            rec.calib_identity.validate()
+            _identity = rec.calib_identity
         utils.pickle_save(path, self.recs)
 
     @classmethod
@@ -690,3 +711,22 @@ class Calibration(Munch):
         super().__init__()
         self.add(propsubs)
 '''
+
+
+def approximate_psf():
+    """
+    Return a zero-centered AUC=1.0 2D Gaussian for peak finding
+    """
+    std = 1.5  # This needs to be tuned and may be instrument dependent
+    mea = 11
+    kern = imops.gauss2_rho_form(
+        amp=1.0,
+        std_x=std,
+        std_y=std,
+        pos_x=mea // 2,
+        pos_y=mea // 2,
+        rho=0.0,
+        const=0.0,
+        mea=mea,
+    )
+    return kern - np.mean(kern)

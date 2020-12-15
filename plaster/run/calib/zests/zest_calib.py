@@ -53,4 +53,24 @@ def zest_calib():
         calib = Calib.load_file(test_path, CalibIdentity("foo"))
         assert np.all(calib.reg_psf().params == reg_psf.params)
 
+    def adds_without_ident():
+        reg_psf = RegPSF.fixture(n_channels=2)
+        test_path = "/tmp/_test.calib"
+
+        def it_enforces_identity():
+            calib = Calib()
+            calib.add_reg_psf(reg_psf)
+            with zest.raises(ValueError, in_args="calib identity not specified"):
+                calib.save_file(test_path)
+
+        def it_rewrites_identity():
+            calib = Calib()
+            calib.add_reg_psf(reg_psf)
+            calib.set_identity(CalibIdentity("me"))
+            calib.save_file(test_path)
+            _calib = Calib.load_file(test_path, CalibIdentity("me"))
+            assert np.all(_calib.reg_psf().params == reg_psf.params)
+
+        zest()
+
     zest()

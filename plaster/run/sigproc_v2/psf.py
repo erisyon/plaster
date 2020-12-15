@@ -1,6 +1,4 @@
-import math
 from enum import IntEnum
-import cv2
 import numpy as np
 from plaster.run.sigproc_v2 import bg, fg
 from plaster.tools.image import imops
@@ -9,8 +7,7 @@ from plaster.tools.image.imops import sub_pixel_center
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
-from plaster.run.calib.calib import RegPSF
-from plaster.tools.utils import data
+from plaster.run.calib.calib import RegPSF, approximate_psf
 from plaster.tools.log.log import debug
 
 
@@ -284,29 +281,14 @@ def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress=None) -> Re
     psf_ims = np.sum(region_to_psf_per_field, axis=0)
     psf_ims = psf_normalize(psf_ims)
 
+    psf_ims = psf_ims[None, :, :, :, :]  # single channel until multi channel
+
     # At this point psf_ims is a pixel image of the PSF at each reg div.
     # ie, 4 dimensional: (divs_y, divs_x, n_pixels_y, n_pixels_w)
     # Now we convert it to Gaussian Parameters by fitting so we don't have
     # to store the pixels anymore: just the 3 critical shape parameters:
     # sigma_x, sigma_y, and rho.
-    reg_psf = RegPSF.from_psf_ims(flcy_ims.shape[0], psf_ims)
+    assert flcy_ims.shape[-1] == flcy_ims.shape[-2]
+    debug(psf_ims.shape)
+    reg_psf = RegPSF.from_psf_ims(flcy_ims.shape[-1], psf_ims)
     return reg_psf
-
-
-def approximate_psf():
-    """
-    Return a zero-centered AUC=1.0 2D Gaussian for peak finding
-    """
-    std = 1.5  # This needs to be tuned and may be instrument dependent
-    mea = 11
-    kern = imops.gauss2_rho_form(
-        amp=1.0,
-        std_x=std,
-        std_y=std,
-        pos_x=mea // 2,
-        pos_y=mea // 2,
-        rho=0.0,
-        const=0.0,
-        mea=mea,
-    )
-    return kern - np.mean(kern)

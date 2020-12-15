@@ -1,8 +1,9 @@
 import numpy as np
 
+import plaster.run.calib.calib
 import plaster.run.sigproc_v2.psf
 from plaster.run.sigproc_v2 import synth, bg, fg, psf
-from plaster.run.sigproc_v2.psf import approximate_psf
+from plaster.run.calib.calib import approximate_psf
 from plaster.tools.image.coord import HW
 from plaster.tools.image import imops
 from plaster.tools.log.log import debug
@@ -69,7 +70,7 @@ def zest_peak_find():
             high_inflection=0.5,
             high_sharpness=50.0,
         )
-        kernel = plaster.run.sigproc_v2.psf.approximate_psf()
+        kernel = plaster.run.calib.calib.approximate_psf()
         locs = fg.peak_find(chcy_ims[0, 0], kernel, np.mean(bg_std))
         n_peaks, n_dims = locs.shape
         assert n_dims == 2
