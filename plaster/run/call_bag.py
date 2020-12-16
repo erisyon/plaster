@@ -1016,3 +1016,30 @@ class CallBag:
             axis=1,
         )
         return df
+
+    def fdr(self):
+        """
+        Generate the False Discovery Rate for each peptide, and add it to self.df
+
+        Returns:
+            np.ndarray of fdr values
+        """
+        if "fdr" not in self.df:
+            peps = self._prep_result.pros__peps__pepstrs()
+
+            # Merge with protein info
+            sorted_df = self.df.merge(
+                peps, left_on="pred_pep_iz", right_on="pep_i"
+            ).sort_values("scores", ascending=False)
+
+            # Add Fdrs
+            sorted_df["fdr"] = np.cumsum(sorted_df.pro_is_decoy.values) / np.arange(
+                1, len(sorted_df.index) + 1
+            )
+
+            # Reset sort
+            sorted_df = sorted_df.sort_index()
+
+            self.df["fdr"] = sorted_df.fdr.values
+
+        return self.df.fdr.values
