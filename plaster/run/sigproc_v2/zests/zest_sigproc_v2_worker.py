@@ -4,7 +4,7 @@ import pickle
 from zest import zest
 from plaster.run.sigproc_v2 import sigproc_v2_worker as worker
 from plaster.run.sigproc_v2 import synth
-from plaster.run.calib.calib import RegPSF
+from plaster.run.calib.calib import RegPSF, RegIllum
 from plaster.run.sigproc_v2.sigproc_v2_task import SigprocV2Params
 from plaster.run.calib.calib import Calib
 from plaster.tools.utils.tmp import tmp_folder
@@ -24,11 +24,17 @@ def zest_sigproc_v2_worker_analyze():
             extra_params["run_focal_adjustments"] = False
 
         sigproc_v2_params = SigprocV2Params(
-            divs=5, peak_mea=13, calibration_file="", mode="analyze", **extra_params,
+            instrument_identity="synth",
+            divs=5,
+            peak_mea=13,
+            calibration_file="",
+            mode="analyze",
+            **extra_params,
         )
         calib = Calib()
-        calib[f"regional_psf.instrument_channel[0]"] = reg_psf
-        calib[f"regional_illumination_balance.instrument_channel[0]"] = np.ones((5, 5))
+        calib.add_reg_psf(reg_psf, "synth")
+        reg_illum = RegIllum(1, reg_psf.im_mea, 5)
+        calib.add_reg_illum(reg_illum, "synth")
 
         ims_import_result = synth.synth_to_ims_import_result(s)
         sigproc_v2_result = worker.sigproc_analyze(

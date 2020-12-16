@@ -108,7 +108,8 @@ class RegPSF:
     def render_one_reg(
         self, ch_i, div_y, div_x, amp=1.0, frac_y=0.0, frac_x=0.0, const=0.0
     ):
-        if ch_i is None: ch_i = self._selected_ch_i
+        if ch_i is None:
+            ch_i = self._selected_ch_i
         assert 0 <= ch_i < self.n_channels
         assert 0 <= div_y < self.n_divs
         assert 0 <= div_x < self.n_divs
@@ -131,7 +132,8 @@ class RegPSF:
         return amp * im / np.sum(im)
 
     def render_at_loc(self, ch_i, loc, amp=1.0, const=0.0, focus=1.0):
-        if ch_i is None: ch_i = self._selected_ch_i
+        if ch_i is None:
+            ch_i = self._selected_ch_i
         assert 0 <= ch_i < self.n_channels
         self._init_interpolation(ch_i)
         loc_x = loc[1]
@@ -171,7 +173,8 @@ class RegPSF:
         return psf_ims
 
     def sample_params(self, ch_i, n_divs=6):
-        if ch_i is None: ch_i = self._selected_ch_i
+        if ch_i is None:
+            ch_i = self._selected_ch_i
         self._init_interpolation(self.n_channels)
         space = np.linspace(0, self.im_mea, n_divs)
         n_samples = len(space) ** 2
@@ -190,7 +193,8 @@ class RegPSF:
         # TODO: Optimize to avoid the python double loop. Numpy
         #   Something is wrong because when I try this in a notebook it is instant
         #   but here is taking almost 0.5 sec?
-        if ch_i is None: ch_i = self._selected_ch_i
+        if ch_i is None:
+            ch_i = self._selected_ch_i
         self_hash = hash((self, n_divs))
         if self_hash == self._grid_hash:
             return self._grid_cache
@@ -210,7 +214,8 @@ class RegPSF:
         return samples
 
     def _fit(self, im, ch_i, y, x):
-        if ch_i is None: ch_i = self._selected_ch_i
+        if ch_i is None:
+            ch_i = self._selected_ch_i
         check.array_t(im, ndim=2, is_square=True)
         if np.sum(im) > 0:
             fit_params, _ = imops.fit_gauss2(im)
@@ -231,9 +236,7 @@ class RegPSF:
         divs_y, divs_x, peak_mea_h, peak_mea_w = psf_ims.shape
         assert divs_y == divs_x
         assert peak_mea_h == peak_mea_w
-        reg_psf = cls(
-            n_channels=1, im_mea=im_mea, peak_mea=peak_mea_h, n_divs=divs_y
-        )
+        reg_psf = cls(n_channels=1, im_mea=im_mea, peak_mea=peak_mea_h, n_divs=divs_y)
         for y in range(divs_y):
             for x in range(divs_x):
                 reg_psf._fit(psf_ims[y, x], ch_i=0, y=y, x=x)
@@ -262,7 +265,9 @@ class RegPSF:
         """
         n_channels = len(reg_psfs)
         check.list_t(reg_psfs, RegPSF)
-        reg_psf = cls(n_channels, reg_psfs[0].im_mea, reg_psfs[0].peak_mea, reg_psfs[0].n_divs)
+        reg_psf = cls(
+            n_channels, reg_psfs[0].im_mea, reg_psfs[0].peak_mea, reg_psfs[0].n_divs
+        )
         for ch_i, ch_reg_psf in enumerate(reg_psfs):
             assert ch_reg_psf.im_mea == reg_psf.im_mea
             assert ch_reg_psf.peak_mea == reg_psf.peak_mea
@@ -307,7 +312,11 @@ class RegPSF:
 
 class CalibIdentity:
     def __init__(self, id):
-        self.id = id
+        check.t(id, (str, CalibIdentity))
+        if isinstance(id, CalibIdentity):
+            self.id = id.id
+        else:
+            self.id = id
 
     def __str__(self):
         return self.id
@@ -354,7 +363,7 @@ class Calib:
         self.recs = [rec for rec in self.recs if rec.calib_identity == calib_identity]
         return self
 
-    def set_identity(self, id:str):
+    def set_identity(self, id: str):
         check.t(id, str)
         calib_identity = CalibIdentity(id)
         for rec in self.recs:
@@ -432,8 +441,8 @@ class Calib:
         utils.pickle_save(path, self.recs)
 
     @classmethod
-    def load_file(cls, path: str, id: str):
-        check.t(id, str)
+    def load_file(cls, path: str, id):
+        check.t(id, (str, CalibIdentity))
         identity = CalibIdentity(id)
         _recs = utils.pickle_load(path)
         calib = cls(_recs)

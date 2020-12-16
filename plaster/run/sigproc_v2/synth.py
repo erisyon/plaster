@@ -236,7 +236,7 @@ class PeaksModelPSF(PeaksModel):
                 amp = amp[cy_i]
 
             psf_im, accum_to_loc = self.reg_psf.render_at_loc(
-                loc, amp=amp, const=0.0, focus=focus
+                ch_i, loc, amp=amp, const=0.0, focus=focus
             )
             imops.accum_inplace(im, psf_im, loc=YX(accum_to_loc), center=False)
 

@@ -29,9 +29,9 @@ def zest_reg_illum():
     zest()
 
 
-def zest_reg_psf():
-    raise NotImplementedError
-    zest()
+# def zest_reg_psf():
+#     raise NotImplementedError
+#     zest()
 
 
 def zest_calib():
@@ -66,9 +66,9 @@ def zest_calib():
         def it_rewrites_identity():
             calib = Calib()
             calib.add_reg_psf(reg_psf)
-            calib.set_identity(CalibIdentity("me"))
+            calib.set_identity("me")
             calib.save_file(test_path)
-            _calib = Calib.load_file(test_path, CalibIdentity("me"))
+            _calib = Calib.load_file(test_path, "me")
             assert np.all(_calib.reg_psf().params == reg_psf.params)
 
         zest()

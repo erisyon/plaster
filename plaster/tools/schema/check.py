@@ -65,6 +65,9 @@ class CheckError(Exception):
         self.lineno = lineno
         self.message = message
 
+    def __deepcopy__(self, memodict={}):
+        return CheckError(self.expected_type, self.was_type, message=self.message)
+
     def __repr__(self):
         return f"Check failed in {os.path.basename(self.source)}:{self.lineno}, {self.message}\n"
 
