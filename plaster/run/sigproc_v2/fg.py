@@ -240,15 +240,15 @@ def fit_image_with_reg_psf(im, locs, reg_psf: RegPSF):
     guess_params = np.zeros((n_locs, AugmentedGauss2Params.N_FULL_PARAMS))
 
     # COPY over parameters by region for each peak
-    guess_params[:, Gauss2Params.SIGMA_X] = reg_psf.params[
+    guess_params[:, Gauss2Params.SIGMA_X] = reg_psf.get_params(
         reg_yx[:, 0], reg_yx[:, 1], RegPSF.SIGMA_X,
-    ]
-    guess_params[:, Gauss2Params.SIGMA_Y] = reg_psf.params[
+    )
+    guess_params[:, Gauss2Params.SIGMA_Y] = reg_psf.get_params(
         reg_yx[:, 0], reg_yx[:, 1], RegPSF.SIGMA_Y,
-    ]
-    guess_params[:, Gauss2Params.RHO] = reg_psf.params[
+    )
+    guess_params[:, Gauss2Params.RHO] = reg_psf.get_params(
         reg_yx[:, 0], reg_yx[:, 1], RegPSF.RHO,
-    ]
+    )
 
     # CENTER
     guess_params[:, Gauss2Params.CENTER_X] = reg_psf.peak_mea / 2

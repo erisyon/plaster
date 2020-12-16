@@ -102,6 +102,9 @@ class RegPSF:
     def select_ch(self, ch_i):
         self._selected_ch_i = ch_i
 
+    def get_params(self, y, x, param):
+        return self.params[self._selected_ch_i, y, x, param]
+
     def render_one_reg(
         self, ch_i, div_y, div_x, amp=1.0, frac_y=0.0, frac_x=0.0, const=0.0
     ):
@@ -163,6 +166,8 @@ class RegPSF:
         for y, x in product(range(self.n_divs), range(self.n_divs)):
             for ch_i in range(self.n_channels):
                 psf_ims[ch_i, y, x] = self.render_one_reg(ch_i, y, x)
+        if ch_i is not None:
+            psf_ims = psf_ims[ch_i]
         return psf_ims
 
     def sample_params(self, ch_i, n_divs=6):

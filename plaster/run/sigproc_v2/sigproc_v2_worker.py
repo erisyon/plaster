@@ -219,9 +219,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     n_channels, n_cycles = chcy_ims.shape[0:2]
     dim = chcy_ims.shape[-2:]
     for ch_i in range(n_channels):
-        reg_bal = calib.reg_bal()
-        assert np.all(~np.isnan(reg_bal))
-        bal_im = imops.interp(reg_bal, dim)
+        bal_im = calib.reg_illum().interp(ch_i)
 
         for cy_i in range(n_cycles):
             im = np.copy(chcy_ims[ch_i, cy_i])
@@ -486,7 +484,7 @@ def _analyze_step_6b_radiometry(chcy_ims, locs, calib, focus_adjustment):
     assert (
         n_channels == 1
     ), "Until further notice, only passing in one reg_psf for one channel"
-    reg_psf = calib.psfs(0)
+    reg_psf = calib.reg_psf(0)
 
     radmat = radiometry_field_stack(
         chcy_ims, locs=locs, reg_psf=reg_psf, focus_adjustment=focus_adjustment
