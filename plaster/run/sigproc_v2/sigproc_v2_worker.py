@@ -185,6 +185,7 @@ def _calibrate(ims_import_result, sigproc_v2_params, progress):
         reg_illum = RegIllum(
             n_channels=n_channels, im_mea=fl_ims.shape[-1], n_divs=reg_bal.shape[0]
         )
+        reg_illum.set(ch_i, reg_bal)
         calib.add_reg_illum(reg_illum)
 
     return calib, fg_means
