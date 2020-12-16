@@ -135,6 +135,15 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
         )
     )
 
+    sigproc_v2_calib_schema = s(
+        s.is_kws_r(
+            sigproc_source=s.is_str(noneable=True, help="See Main Help"),
+            instrument_identity=s.is_str(),
+            mode=s.is_str(options=["illum"]),
+            # mode will eventually have a second option "dye calib"
+        )
+    )
+
     error_model_schema = s(
         s.is_kws_r(
             err_p_edman_failure=s.is_list(elems=s.is_str(help="See Main Help")),

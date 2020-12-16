@@ -28,14 +28,14 @@ class SigprocV2Task(PipelineTask):
             calib.set_identity(sigproc_v2_params.instrument_identity)
             calib.save_file("./calib.calib")
 
-            # SAVE to the designated, warn if failure
-            try:
-                calib.save_file(
-                    sigproc_v2_params.calibration_file
-                )
-            except Exception as e:
-                colorful_exception(e)
-                important(f"Calib was not able to save to '{sigproc_v2_params.calibration_file}'. It was written to '{os.getcwd()}/calib.calib' as a backup.")
+            # # SAVE to the designated, warn if failure
+            # try:
+            #     calib.save_file(
+            #         sigproc_v2_params.calibration_file
+            #     )
+            # except Exception as e:
+            #     # colorful_exception(e)
+            #     important(f"Calib was not able to save to '{sigproc_v2_params.calibration_file}'. It was written to '{os.getcwd()}/calib.calib' as a backup.")
 
         elif sigproc_v2_params.mode == common.SIGPROC_V2_INSTRUMENT_ANALYZE:
             sigproc_v2_result = worker.sigproc_analyze(

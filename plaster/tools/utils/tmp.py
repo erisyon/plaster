@@ -44,9 +44,12 @@ _current_tmp_folder = None
 
 
 def erisyon_tmp():
-    _erisyon_tmp = local.env.get("ERISYON_TMP")
-    if _erisyon_tmp is None:
-        raise FileNotFoundError("The ERISYON_TMP variable is not set")
+    if local.env.get("ON_AWS"):
+        _erisyon_tmp = "/erisyon/jobs_folder/zack/_tmp"
+    else:
+        _erisyon_tmp = local.env.get("ERISYON_TMP")
+        if _erisyon_tmp is None:
+            raise FileNotFoundError("The ERISYON_TMP variable is not set")
     p = local.path(_erisyon_tmp)
     p.mkdir()
     return p
