@@ -151,11 +151,13 @@ def _calibrate(ims_import_result, sigproc_v2_params, progress):
         flchcy_ims = ims_import_result.ims[field_slice, :, :].astype(np.float64)
 
     n_channels = ims_import_result.n_channels
+    ch_reg_psfs = []
     for ch_i in range(0, n_channels):
         flcy_ims = flchcy_ims[:, ch_i, :]
-
-        reg_psf = psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress)
-        calib.add_reg_psf(reg_psf)
+        ch_reg_psfs += [psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress)]
+    
+    reg_psf = RegPSF.from_channel_reg_psfs(ch_reg_psfs)
+    calib.add_reg_psf(reg_psf)
 
     bandpass_kwargs = dict(
         low_inflection=sigproc_v2_params.low_inflection,
@@ -171,14 +173,15 @@ def _calibrate(ims_import_result, sigproc_v2_params, progress):
         # the zap and accumulation buffers. Until then this runs only on cycle 0
         cy_i = 0
         fl_ims = flchcy_ims[:, ch_i, cy_i]
-        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i), bandpass_kwargs)
+        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.reg_psf(ch_i), bandpass_kwargs)
         fg_means[ch_i] = fg_mean
-        check.array_t(reg_bal, ndim=4)
+        check.array_t(reg_bal, ndim=2)
         assert np.all(~np.isnan(reg_bal))
         assert reg_bal.shape[-1] == reg_bal.shape[-2]
         assert reg_bal.shape[0] == reg_bal.shape[1]
+        assert fl_ims.shape[-1] == fl_ims.shape[-2]
         reg_illum = RegIllum(
-            n_channels=n_channels, im_mea=reg_bal.shape[-1], n_divs=reg_bal.shape[0]
+            n_channels=n_channels, im_mea=fl_ims.shape[-1], n_divs=reg_bal.shape[0]
         )
         calib.add_reg_illum(reg_illum)
 
@@ -216,9 +219,7 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     n_channels, n_cycles = chcy_ims.shape[0:2]
     dim = chcy_ims.shape[-2:]
     for ch_i in range(n_channels):
-        reg_bal = np.array(
-            calib[f"regional_illumination_balance.instrument_channel[{ch_i}]"]
-        )
+        reg_bal = calib.reg_bal()
         assert np.all(~np.isnan(reg_bal))
         bal_im = imops.interp(reg_bal, dim)
 
@@ -618,7 +619,8 @@ def _do_sigproc_analyze_and_save_field(
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
     assert n_channels == 1
-    reg_psf = calib.psfs(0)  # TODO: Multichannel
+    reg_psf = calib.reg_psf()  
+    reg_psf.select_ch(0)  # TODO: Multichannel
 
     (
         aln_filt_chcy_ims,
@@ -709,9 +711,9 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
     """
 
     if calib is None:
-        calib = Calib.load_file(sigproc_v2_params.calibration_file)
+        calib = Calib.load_file(sigproc_v2_params.calibration_file, sigproc_v2_params.instrument_identity)
 
-    assert not calib.is_empty()
+    assert calib.has_records()
 
     n_fields = ims_import_result.n_fields
     n_fields_limit = sigproc_v2_params.n_fields_limit

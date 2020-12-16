@@ -94,9 +94,18 @@ class RegPSF:
         self._grid_cache = None
         self._grid_hash = None
 
+        # ZBS: I don't love this modal channel selection but for now
+        # it gets me over a hump of various code that expectes RegPSF
+        # to be for a single channel
+        self._selected_ch_i = None
+
+    def select_ch(self, ch_i):
+        self._selected_ch_i = ch_i
+
     def render_one_reg(
         self, ch_i, div_y, div_x, amp=1.0, frac_y=0.0, frac_x=0.0, const=0.0
     ):
+        if ch_i is None: ch_i = self._selected_ch_i
         assert 0 <= ch_i < self.n_channels
         assert 0 <= div_y < self.n_divs
         assert 0 <= div_x < self.n_divs
@@ -119,6 +128,7 @@ class RegPSF:
         return amp * im / np.sum(im)
 
     def render_at_loc(self, ch_i, loc, amp=1.0, const=0.0, focus=1.0):
+        if ch_i is None: ch_i = self._selected_ch_i
         assert 0 <= ch_i < self.n_channels
         self._init_interpolation(ch_i)
         loc_x = loc[1]
@@ -156,6 +166,7 @@ class RegPSF:
         return psf_ims
 
     def sample_params(self, ch_i, n_divs=6):
+        if ch_i is None: ch_i = self._selected_ch_i
         self._init_interpolation(self.n_channels)
         space = np.linspace(0, self.im_mea, n_divs)
         n_samples = len(space) ** 2
@@ -174,6 +185,7 @@ class RegPSF:
         # TODO: Optimize to avoid the python double loop. Numpy
         #   Something is wrong because when I try this in a notebook it is instant
         #   but here is taking almost 0.5 sec?
+        if ch_i is None: ch_i = self._selected_ch_i
         self_hash = hash((self, n_divs))
         if self_hash == self._grid_hash:
             return self._grid_cache
@@ -193,6 +205,7 @@ class RegPSF:
         return samples
 
     def _fit(self, im, ch_i, y, x):
+        if ch_i is None: ch_i = self._selected_ch_i
         check.array_t(im, ndim=2, is_square=True)
         if np.sum(im) > 0:
             fit_params, _ = imops.fit_gauss2(im)
@@ -207,19 +220,18 @@ class RegPSF:
     @classmethod
     def from_psf_ims(cls, im_mea, psf_ims):
         """
-        Fit to a Gaussian
+        Fit to a Gaussian for one-channel
         """
-        check.array_t(psf_ims, ndim=5)
-        n_channels, divs_y, divs_x, peak_mea_h, peak_mea_w = psf_ims.shape
+        check.array_t(psf_ims, ndim=4)
+        divs_y, divs_x, peak_mea_h, peak_mea_w = psf_ims.shape
         assert divs_y == divs_x
         assert peak_mea_h == peak_mea_w
         reg_psf = cls(
-            n_channels=n_channels, im_mea=im_mea, peak_mea=peak_mea_h, n_divs=divs_y
+            n_channels=1, im_mea=im_mea, peak_mea=peak_mea_h, n_divs=divs_y
         )
-        for ch_i in range(n_channels):
-            for y in range(divs_y):
-                for x in range(divs_x):
-                    reg_psf._fit(psf_ims[ch_i, y, x], ch_i, y, x)
+        for y in range(divs_y):
+            for x in range(divs_x):
+                reg_psf._fit(psf_ims[y, x], ch_i=0, y=y, x=x)
 
         return reg_psf
 
@@ -235,6 +247,23 @@ class RegPSF:
         )
         reg_psf.params = arr
 
+        return reg_psf
+
+    @classmethod
+    def from_channel_reg_psfs(cls, reg_psfs):
+        """
+        ZBS: I'm not happy with this pattern of assembling reg_psfs from channels
+        but it will do for now and it is minimal changes to existing code.
+        """
+        n_channels = len(reg_psfs)
+        check.list_t(reg_psfs, RegPSF)
+        reg_psf = cls(n_channels, reg_psfs[0].im_mea, reg_psfs[0].peak_mea, reg_psfs[0].n_divs)
+        for ch_i, ch_reg_psf in enumerate(reg_psfs):
+            assert ch_reg_psf.im_mea == reg_psf.im_mea
+            assert ch_reg_psf.peak_mea == reg_psf.peak_mea
+            assert ch_reg_psf.n_divs == reg_psf.n_divs
+            assert ch_reg_psf.n_channels == 1
+            reg_psf.params[ch_i] = ch_reg_psf.params[0]
         return reg_psf
 
     @classmethod
@@ -320,8 +349,9 @@ class Calib:
         self.recs = [rec for rec in self.recs if rec.calib_identity == calib_identity]
         return self
 
-    def set_identity(self, calib_identity: CalibIdentity):
-        check.t(calib_identity, CalibIdentity)
+    def set_identity(self, id:str):
+        check.t(id, str)
+        calib_identity = CalibIdentity(id)
         for rec in self.recs:
             rec.calib_identity = calib_identity
         return self
@@ -335,11 +365,13 @@ class Calib:
             return rec.value
         return None
 
-    def reg_psf(self) -> RegPSF:
+    def reg_psf(self, ch_i=None) -> RegPSF:
         rec = self.find_rec_of_type(CalibType.REG_PSF)
         if rec is None:
             raise KeyError("No object of CalibType.REG_PSF was found in calib")
         check.t(rec, RegPSF)
+        if ch_i is not None:
+            rec.select_ch(ch_i)  # See other notes, I don't like this solution
         return rec
 
     def add_reg_psf(self, reg_psf: RegPSF, calib_identity: CalibIdentity = None):
@@ -365,7 +397,7 @@ class Calib:
         check.t(rec, RegIllum)
         return rec
 
-    def add_reg_illum(self, reg_illum: RegIllum, calib_identity: CalibIdentity):
+    def add_reg_illum(self, reg_illum: RegIllum, calib_identity: CalibIdentity = None):
         check.t(reg_illum, RegIllum)
 
         if self.find_rec_of_type(CalibType.REG_ILLUM) is not None:
@@ -395,7 +427,9 @@ class Calib:
         utils.pickle_save(path, self.recs)
 
     @classmethod
-    def load_file(cls, path: str, identity: CalibIdentity):
+    def load_file(cls, path: str, id: str):
+        check.t(id, str)
+        identity = CalibIdentity(id)
         _recs = utils.pickle_load(path)
         calib = cls(_recs)
         calib.keep_identity(identity)

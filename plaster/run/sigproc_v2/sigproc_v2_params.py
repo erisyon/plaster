@@ -39,6 +39,7 @@ class SigprocV2Params(Params):
     schema = s(
         s.is_kws_r(
             calibration_file=s.is_str(noneable=True),
+            instrument_identity=s.is_str(),
             mode=s.is_str(options=common.SIGPROC_V2_MODES),
             divs=s.is_int(),
             peak_mea=s.is_int(),
@@ -76,6 +77,6 @@ class SigprocV2Params(Params):
         else:
             # Analyzing
             if self.calibration_file != "":
-                self.calibration = Calib.load_file(self.calibration_file)
+                self.calibration = Calib.load_file(self.calibration_file, self.instrument_identity)
 
         return True

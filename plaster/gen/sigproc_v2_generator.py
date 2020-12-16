@@ -44,7 +44,7 @@ class SigprocV2Generator(BaseGenerator):
         calib_dst_path = local.path(self.local_sources_tmp_folder) / calib_src_path.name
         calib_src_path.copy(calib_dst_path)
         sigproc_v2_task = task_templates.sigproc_v2_analyze(
-            self.gen_sources_folder / calib_src_path.name
+            self.gen_sources_folder / calib_src_path.name, instrument_identity=self.instrument_identity
         )
 
         nn_n2_task = {}

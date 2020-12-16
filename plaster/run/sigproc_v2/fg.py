@@ -156,7 +156,7 @@ def fg_estimate(fl_ims, reg_psf: RegPSF, bandpass_kwargs):
     the first cycle.
 
     Thus we:
-        Remove bg the BG
+        Remove the background
         Find the peaks
         Compute radiometry
         Keep the reasonable radiometry (ie percentile 10-90)

@@ -35,7 +35,7 @@ class SigprocV2CalibGenerator(BaseGenerator):
         assert mode is not None
 
         sigproc_v2_calib_task = task_templates.sigproc_v2_calib(
-            self.calibration_file, mode=mode,
+            self.calibration_file, mode=mode, instrument_identity=self.instrument_identity
         )
 
         run = Munch(

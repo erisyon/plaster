@@ -281,14 +281,11 @@ def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress=None) -> Re
     psf_ims = np.sum(region_to_psf_per_field, axis=0)
     psf_ims = psf_normalize(psf_ims)
 
-    psf_ims = psf_ims[None, :, :, :, :]  # single channel until multi channel
-
     # At this point psf_ims is a pixel image of the PSF at each reg div.
     # ie, 4 dimensional: (divs_y, divs_x, n_pixels_y, n_pixels_w)
     # Now we convert it to Gaussian Parameters by fitting so we don't have
     # to store the pixels anymore: just the 3 critical shape parameters:
     # sigma_x, sigma_y, and rho.
     assert flcy_ims.shape[-1] == flcy_ims.shape[-2]
-    debug(psf_ims.shape)
     reg_psf = RegPSF.from_psf_ims(flcy_ims.shape[-1], psf_ims)
     return reg_psf
