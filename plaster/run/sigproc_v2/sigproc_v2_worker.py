@@ -154,8 +154,10 @@ def _calibrate(ims_import_result, sigproc_v2_params, progress):
     ch_reg_psfs = []
     for ch_i in range(0, n_channels):
         flcy_ims = flchcy_ims[:, ch_i, :]
-        ch_reg_psfs += [psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress)]
-    
+        ch_reg_psfs += [
+            psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress)
+        ]
+
     reg_psf = RegPSF.from_channel_reg_psfs(ch_reg_psfs)
     calib.add_reg_psf(reg_psf)
 
@@ -570,7 +572,10 @@ def _sigproc_analyze_field(
         # Subsample peaks for fitting
         mask = np.zeros((n_locs,), dtype=bool)
         count = 100  # Don't know if this is enough
-        iz = np.random.choice(n_locs, count)  # Allow replace in case count > n_locs
+        try:
+            iz = np.random.choice(n_locs, count)  # Allow replace in case count > n_locs
+        except ValueError:
+            iz = np.array([])
         mask[iz] = 1
 
     fitmat = _analyze_step_6a_fitter(aln_unfilt_chcy_ims, locs, reg_psf, mask)
@@ -617,7 +622,7 @@ def _do_sigproc_analyze_and_save_field(
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
     assert n_channels == 1
-    reg_psf = calib.reg_psf()  
+    reg_psf = calib.reg_psf()
     reg_psf.select_ch(0)  # TODO: Multichannel
 
     (
@@ -709,7 +714,9 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
     """
 
     if calib is None:
-        calib = Calib.load_file(sigproc_v2_params.calibration_file, sigproc_v2_params.instrument_identity)
+        calib = Calib.load_file(
+            sigproc_v2_params.calibration_file, sigproc_v2_params.instrument_identity
+        )
 
     assert calib.has_records()
 
