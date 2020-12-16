@@ -64,19 +64,23 @@ class SigprocV2Params(Params):
         self.schema.validate(self, context=self.__class__.__name__)
 
         if self.mode == common.SIGPROC_V2_ILLUM_CALIB:
-            if local.path(self.calibration_file).exists():
-                if not log.confirm_yn(
-                    f"\nCalibration file '{self.calibration_file}' already exists "
-                    "when creating a SIGPROC_V2_PSF_CALIB. Overwrite?",
-                    "y",
-                ):
-                    raise SchemaValidationFailed(
-                        f"Not overwriting calibration file '{self.calibration_file}'"
-                    )
+            pass
+            # ZBS: At the moment these checks are more trouble than they are worth
+            # if local.path(self.calibration_file).exists():
+            #     if not log.confirm_yn(
+            #         f"\nCalibration file '{self.calibration_file}' already exists "
+            #         "when creating a SIGPROC_V2_PSF_CALIB. Overwrite?",
+            #         "y",
+            #     ):
+            #         raise SchemaValidationFailed(
+            #             f"Not overwriting calibration file '{self.calibration_file}'"
+            #         )
 
         else:
             # Analyzing
             if self.calibration_file != "":
-                self.calibration = Calib.load_file(self.calibration_file, self.instrument_identity)
+                self.calibration = Calib.load_file(
+                    self.calibration_file, self.instrument_identity
+                )
 
         return True
