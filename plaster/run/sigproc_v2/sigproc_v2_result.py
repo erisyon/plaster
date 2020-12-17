@@ -307,15 +307,16 @@ class SigprocV2Result(BaseResult):
 
     def snr(self, fields=None, **kwargs):
         return np.nan_to_num(
-            utils.np_safe_divide(
-                self.sig(fields=fields, **kwargs), self.noi(fields=fields, **kwargs)
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 2],
+                **kwargs,
             )
         )
 
     def aspect_ratio(self, fields=None, **kwargs):
         return np.nan_to_num(
             self.flat_if_requested(
-                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 2],
+                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 3],
                 **kwargs,
             )
         )

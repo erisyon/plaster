@@ -1030,7 +1030,7 @@ class ZPlots:
         self.im(data[row_iz])
 
     @trap()
-    def im_peaks(self, im, circle_im, index_im, sig_im, snr_im, **kws):
+    def im_peaks(self, im, circle_im, index_im, sig_im, snr_im, asr_im, **kws):
         """
         This is a custom plot for drawing information about sigproc data
 
@@ -1097,6 +1097,7 @@ class ZPlots:
                 peak_i=[index_im],
                 sig=[sig_im],
                 snr=[snr_im],
+                asr=[asr_im],
                 val=[im],
             ),
             image="image",
@@ -1117,6 +1118,7 @@ class ZPlots:
                     ("value", "@val{0,0.0}"),
                     ("sig", "@sig{0,0.0}"),
                     ("snr", "@snr{0,0.0}"),
+                    ("asr", "@asr{0,0.0}"),
                 ],
             )
         )

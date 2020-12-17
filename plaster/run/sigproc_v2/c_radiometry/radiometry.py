@@ -191,14 +191,12 @@ def _do_radiometry_field_stack_one_peak(ctx: RadiometryContext, peak_i: int):
 
 
 def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
-    debug("radiometry_field_stack start", os.getpid())
     with context(
         chcy_ims=chcy_ims,
         locs=locs,
         reg_psf=reg_psf,
         focus_adjustment=focus_adjustment,
     ) as ctx:
-        debug("radiometry_field_stack in context", os.getpid())
         check.array_t(locs, ndim=2, dtype=np.float64)
         n_peaks = locs.shape[0]
         zap.arrays(

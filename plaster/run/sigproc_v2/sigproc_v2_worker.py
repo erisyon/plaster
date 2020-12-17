@@ -419,8 +419,8 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
     # TODO: Remove bg_std and derive it now that I have cleaner bg subtraction with band pass
 
     ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
-    bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
-    locs = fg.sub_pixel_peak_find(ch_mean_of_cy0_im, kernel, bg_std)
+    # bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
+    locs = fg.sub_pixel_peak_find(ch_mean_of_cy0_im, kernel)
     return locs
 
 
