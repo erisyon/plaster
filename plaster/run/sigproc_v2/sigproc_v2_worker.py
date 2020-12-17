@@ -676,7 +676,6 @@ def _do_sigproc_analyze_and_save_field(
         _aln_unfilt_chcy_ims=aln_unfilt_chcy_ims,
     )
 
-
 # Entrypoints
 # -------------------------------------------------------------------------------
 

@@ -78,14 +78,17 @@ class SubPixelAlignContext(c_common_tools.FixupStructure):
 _lib = None
 
 
-def load_lib():
-    global _lib
-    if _lib is not None:
-        return _lib
+c_sub_pixel_align_path = local.path("/erisyon/plaster/plaster/run/sigproc_v2/c_sub_pixel_align")
+
+def init():
+    """
+    Must be called before anything else in this module
+    """
+    debug("BUILD C SUB PIXEL ALIGN")
 
     SubPixelAlignContext.struct_fixup()
 
-    with local.cwd("/erisyon/plaster/plaster/run/sigproc_v2/c_sub_pixel_align"):
+    with local.cwd(c_sub_pixel_align_path):
         fp = StringIO()
         with redirect_stdout(fp):
             print(
@@ -108,10 +111,21 @@ def load_lib():
             utils.save(header_file_path, fp.getvalue())
 
         build(
-            dst_folder="/erisyon/plaster/plaster/run/sigproc_v2/c_sub_pixel_align",
+            dst_folder=c_sub_pixel_align_path,
             c_common_folder="/erisyon/plaster/plaster/tools/c_common",
         )
         lib = c.CDLL("./_sub_pixel_align.so")
+
+
+
+def load_lib():
+    global _lib
+    if _lib is not None:
+        return _lib
+
+    SubPixelAlignContext.struct_fixup()
+
+    lib = c.CDLL(c_sub_pixel_align_path / "_sub_pixel_align.so")
 
     lib.context_init.argtypes = [
         c.POINTER(SubPixelAlignContext),

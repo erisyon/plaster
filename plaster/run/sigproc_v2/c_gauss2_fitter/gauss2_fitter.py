@@ -8,9 +8,6 @@ from plaster.tools.c_common.c_common_tools import CException
 from plaster.tools.log.log import debug
 
 
-_lib = None
-
-
 class Gauss2Params:
     AMP = 0
     SIGMA_X = 1
@@ -30,17 +27,31 @@ class AugmentedGauss2Params(Gauss2Params):
     N_FULL_PARAMS = 10
 
 
+c_gauss_fitter_path = local.path("/erisyon/plaster/plaster/run/sigproc_v2/c_gauss2_fitter")
+
+
+def init():
+    """
+    Must be called before anything else in this module
+    """
+    debug("BUILD C GAUSS FITTER")
+    with local.cwd(c_gauss_fitter_path):
+        build(
+            dst_folder=c_gauss_fitter_path,
+            c_common_folder="/erisyon/plaster/plaster/tools/c_common",
+        )
+        lib = c.CDLL("./_gauss2_fitter.so")
+
+
+_lib = None
+
+
 def load_lib():
     global _lib
     if _lib is not None:
         return _lib
 
-    with local.cwd("/erisyon/plaster/plaster/run/sigproc_v2/c_gauss2_fitter"):
-        build(
-            dst_folder="/erisyon/plaster/plaster/run/sigproc_v2/c_gauss2_fitter",
-            c_common_folder="/erisyon/plaster/plaster/tools/c_common",
-        )
-        lib = c.CDLL("./_gauss2_fitter.so")
+    lib = c.CDLL(c_gauss_fitter_path / "_gauss2_fitter.so")
 
     lib.gauss2_check.argtypes = []
     lib.gauss2_check.restype = c.c_char_p

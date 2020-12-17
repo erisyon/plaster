@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from plumbum import local
 import ctypes as c
@@ -42,17 +43,17 @@ class RadiometryContext(c_common_tools.FixupStructure):
     # fmt: on
 
 
-_lib = None
+c_radiometry_path = local.path("/erisyon/plaster/plaster/run/sigproc_v2/c_radiometry")
 
 
-def load_lib():
-    global _lib
-    if _lib is not None:
-        return _lib
-
+def init():
+    """
+    This must be called once before any work
+    """
+    debug("BUILD C RADIOMETRY")
     RadiometryContext.struct_fixup()
 
-    with local.cwd("/erisyon/plaster/plaster/run/sigproc_v2/c_radiometry"):
+    with local.cwd(c_radiometry_path):
         fp = StringIO()
         with redirect_stdout(fp):
             print(
@@ -80,6 +81,16 @@ def load_lib():
         )
         lib = c.CDLL("./_radiometry.so")
 
+
+_lib = None
+
+
+def load_lib():
+    global _lib
+    if _lib is not None:
+        return _lib
+
+    lib = c.CDLL(c_radiometry_path / "_radiometry.so")
     lib.context_init.argtypes = [
         c.POINTER(RadiometryContext),
     ]
@@ -180,12 +191,14 @@ def _do_radiometry_field_stack_one_peak(ctx: RadiometryContext, peak_i: int):
 
 
 def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
+    debug("radiometry_field_stack start", os.getpid())
     with context(
         chcy_ims=chcy_ims,
         locs=locs,
         reg_psf=reg_psf,
         focus_adjustment=focus_adjustment,
     ) as ctx:
+        debug("radiometry_field_stack in context", os.getpid())
         check.array_t(locs, ndim=2, dtype=np.float64)
         n_peaks = locs.shape[0]
         zap.arrays(

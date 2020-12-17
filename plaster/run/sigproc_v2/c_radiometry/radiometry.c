@@ -112,7 +112,6 @@ Float64 *_get_psf_at_loc(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y) {
 
 Float64 aspect_ratio(Float64 *dat_pixels, Size w, Size h) {
     // The aspect ratio is the ratio of the eigen value of the covariance matrix
-
     Float64 com_x = 0.0;
     Float64 com_y = 0.0;
     Float64 total_sum = 0.0;
@@ -222,8 +221,17 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     // Add 0.5 to round up as opposed to floor to keep the spots more centered
     Index corner_x = floor(loc_x - half_mea + 0.5);
     Index corner_y = floor(loc_y - half_mea + 0.5);
-    ensure_only_in_debug(0 <= corner_x && corner_x < ctx->width, "corner_x out of bounds");
-    ensure_only_in_debug(0 <= corner_y && corner_y < ctx->height, "corner_y out of bounds");
+
+    if(
+        !(0 <= corner_x && corner_x + mea < ctx->width)
+        || !(0 <= corner_y && corner_y + mea < ctx->height)
+    ) {
+        trace("Out of bound %f %f\n", corner_x, corner_y);
+        return NULL;
+    }
+
+    ensure_only_in_debug(0 <= corner_x && corner_x + mea < ctx->width, "corner_x out of bounds");
+    ensure_only_in_debug(0 <= corner_y && corner_y + mea < ctx->height, "corner_y out of bounds");
 
     // center is the location relative to the the corner
     Float64 center_x = loc_x - corner_x;
@@ -257,9 +265,19 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
 
         // COPY the data into a contiguous buffer
         Float64 *dst_p = dat_pixels;
+
+        Float64 *start_dst = &dat_pixels[0];
+        Float64 *stop_dst = &dat_pixels[mea_sq];
+        Float64 *start_dat = &ctx->chcy_ims.base[0];
+        Float64 *stop_dat = &ctx->chcy_ims.base[ctx->n_cycles * (int)ctx->width * (int)ctx->height];
+
         for(Index y=0; y<mea; y++) {
-            Float64 *dat_p = f64arr_ptr4(&ctx->chcy_ims, ch_i, cy_i, corner_y+y, corner_x);
+            Float64 *dat_p = f64arr_ptr4(&ctx->chcy_ims, ch_i, cy_i, corner_y + y, corner_x);
             for(Index x=0; x<mea; x++) {
+                //ensure(start_dst <= dst_p, "OUT OF BOUND dst0");
+                //ensure(dst_p < stop_dst, "OUT OF BOUND dst1");
+                //ensure(start_dat <= dat_p, "OUT OF BOUND dat0");
+                //ensure(dat_p < stop_dat, "OUT OF BOUND dat1");
                 *dst_p++ = *dat_p++;
             }
         }
