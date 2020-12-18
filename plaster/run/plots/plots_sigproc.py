@@ -199,7 +199,6 @@ def circle_locs(
         return circle_im
 
     if fill_mode == "peak_iz":
-        debug()
         circle_im = np.zeros_like(im)
         for peak_i, loc, keep in zip(peak_iz, locs, keep_mask):
             if keep:
@@ -247,7 +246,7 @@ def sigproc_v2_movie_from_df(
             df = df[df.field_i == fl_i]
 
         assert df.field_i.nunique() == 1
-        fl_i = df.field_i[0]
+        fl_i = df.field_i.values[0]
 
         locs = df[["aln_y", "aln_x"]].drop_duplicates().values
     else:
@@ -287,7 +286,7 @@ def sigproc_v2_movie_from_df(
     else:
         overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
         overlay = 255 * circle_locs(
-            overlay, locs, fill_mode="one", inner_radius=4, outer_radius=outer_radius
+            overlay, locs, fill_mode="one", inner_radius=outer_radius-1, outer_radius=outer_radius
         ).astype(np.uint8)
 
     kwargs["_duration"] = kwargs.get("_duration", 1)
@@ -300,8 +299,6 @@ def sigproc_v2_movie_from_df(
     ims = ims[:, yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1]]
     if overlay is not None:
         overlay = overlay[yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1]]
-
-    debug(ims.shape)
 
     displays.movie(
         ims,
