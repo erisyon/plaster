@@ -238,7 +238,7 @@ def _do_psf_one_field_one_channel(cy_ims, peak_mea, divs, bandpass_kwargs):
         # which cycle a given peak turns off so we treat each cycle
         # as it own min-experiment
         filtered_im, bg_std = bg.bandpass_filter(cy_im, **bandpass_kwargs,)
-        locs = fg.peak_find(filtered_im, approx_psf, bg_std)
+        locs = fg.peak_find(filtered_im, approx_psf)
 
         _reg_psf_ims, _ = _psf_from_im(
             filtered_im, divs=divs, peak_mea=peak_dim[0], locs=locs
