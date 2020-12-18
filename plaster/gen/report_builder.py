@@ -137,7 +137,7 @@ class ReportBuilder:
         mpl_config_block = Munch(**self.code_block)
         mpl_config_block.source = [
             "import os\n",
-            'os.environ["MPLCONFIGDIR"] = "/tmp"\n',
+            'os.environ["MPLCONFIGDIR"] = "/tmp"',
         ]
         report.cells += [mpl_config_block]
 
