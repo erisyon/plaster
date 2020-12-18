@@ -134,6 +134,10 @@ class ReportBuilder:
         #     )
         # ]
 
+        report.cells += [
+            (SectionType.CODE, ("import os\n" 'os.environ["MPLCONFIGDIR"] = "/tmp"\n'),)
+        ]
+
         import_merge += ["from plaster.tools.zplots import zplots\n"]
         import_merge = sorted(list(set(import_merge))) + ["z = zplots.setup()"]
 

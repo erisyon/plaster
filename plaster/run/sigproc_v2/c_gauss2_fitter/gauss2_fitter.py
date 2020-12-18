@@ -27,14 +27,15 @@ class AugmentedGauss2Params(Gauss2Params):
     N_FULL_PARAMS = 10
 
 
-c_gauss_fitter_path = local.path("/erisyon/plaster/plaster/run/sigproc_v2/c_gauss2_fitter")
+c_gauss_fitter_path = local.path(
+    "/erisyon/plaster/plaster/run/sigproc_v2/c_gauss2_fitter"
+)
 
 
 def init():
     """
     Must be called before anything else in this module
     """
-    debug("BUILD C GAUSS FITTER")
     with local.cwd(c_gauss_fitter_path):
         build(
             dst_folder=c_gauss_fitter_path,

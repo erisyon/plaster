@@ -50,7 +50,6 @@ def init():
     """
     This must be called once before any work
     """
-    debug("BUILD C RADIOMETRY")
     RadiometryContext.struct_fixup()
 
     with local.cwd(c_radiometry_path):

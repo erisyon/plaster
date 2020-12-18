@@ -158,8 +158,6 @@ def init():
     """
     Must be called before anything else in this module
     """
-    debug("BUILD C NN_V2")
-
     NNV2Context.struct_fixup()
 
     with local.cwd(c_nn_v2_path):
