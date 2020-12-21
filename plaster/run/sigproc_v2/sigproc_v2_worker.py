@@ -573,11 +573,14 @@ def _sigproc_analyze_field(
         # Subsample peaks for fitting
         mask = np.zeros((n_locs,), dtype=bool)
         count = 100  # Don't know if this is enough
-        try:
-            iz = np.random.choice(n_locs, count)  # Allow replace in case count > n_locs
-        except ValueError:
-            iz = np.array([])
-        mask[iz] = 1
+        if n_locs > 0:
+            try:
+                iz = np.random.choice(
+                    n_locs, count
+                )  # Allow replace in case count > n_locs
+                mask[iz] = 1
+            except ValueError:
+                pass
 
     fitmat = _analyze_step_6a_fitter(aln_unfilt_chcy_ims, locs, reg_psf, mask)
 
@@ -675,6 +678,7 @@ def _do_sigproc_analyze_and_save_field(
         _aln_filt_chcy_ims=aln_filt_chcy_ims,
         _aln_unfilt_chcy_ims=aln_unfilt_chcy_ims,
     )
+
 
 # Entrypoints
 # -------------------------------------------------------------------------------

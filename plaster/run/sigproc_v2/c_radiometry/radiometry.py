@@ -198,13 +198,14 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
     ) as ctx:
         check.array_t(locs, ndim=2, dtype=np.float64)
         n_peaks = locs.shape[0]
-        zap.arrays(
-            _do_radiometry_field_stack_one_peak,
-            dict(peak_i=np.arange(n_peaks)),
-            _process_mode=False,
-            _trap_exceptions=False,
-            ctx=ctx,
-        )
+        if n_peaks > 0:
+            zap.arrays(
+                _do_radiometry_field_stack_one_peak,
+                dict(peak_i=np.arange(n_peaks)),
+                _process_mode=False,
+                _trap_exceptions=False,
+                ctx=ctx,
+            )
 
     # Sanity check
     bad_signals = ctx._out_radiometry[:, :, :, 0] > 1e6
