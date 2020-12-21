@@ -1,6 +1,6 @@
 import numpy as np
 from plaster.run.sigproc_v2 import synth, psf, bg
-from plaster.run.sigproc_v2.reg_psf import RegPSF
+from plaster.run.calib.calib import RegPSF
 from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
 from zest import zest
 from plaster.tools.log.log import debug

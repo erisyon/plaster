@@ -36,7 +36,7 @@ def plot_psfs(psfs, scale=1.0, **kwargs):
         z.im(comp, **kwargs)
 
 
-def _sigproc_v2_im(im, locs, sig=None, snr=None, keep_mask=None, **kwargs):
+def _sigproc_v2_im(im, locs, sig=None, snr=None, asr=None, keep_mask=None, peak_iz=None, **kwargs):
     # if keep_mask is not None:
     #     locs = locs[keep_mask]
     #     sig = sig[keep_mask]
@@ -58,11 +58,17 @@ def _sigproc_v2_im(im, locs, sig=None, snr=None, keep_mask=None, **kwargs):
     if snr is None:
         snr = np.full((n_locs,), np.nan)
 
+    if asr is None:
+        asr = np.full((n_locs,), np.nan)
+
+    if peak_iz is None:
+        peak_iz = np.arange(locs.shape[0])
+
     circle_im = circle_locs(
         im, locs, inner_radius=6, outer_radius=7, fill_mode="one", keep_mask=keep_mask
     )
     index_im = circle_locs(
-        im, locs, inner_radius=0, outer_radius=7, fill_mode="index", keep_mask=keep_mask
+        im, locs, inner_radius=0, outer_radius=7, fill_mode="peak_iz", keep_mask=keep_mask, peak_iz=peak_iz
     )
     sig_im = circle_locs(
         im,
@@ -83,7 +89,17 @@ def _sigproc_v2_im(im, locs, sig=None, snr=None, keep_mask=None, **kwargs):
         keep_mask=keep_mask,
     )
 
-    z.im_peaks(im, circle_im, index_im, sig_im, snr_im, **kwargs)
+    asr_im = circle_locs(
+        im,
+        locs,
+        inner_radius=0,
+        outer_radius=7,
+        fill_mode="vals",
+        vals=asr,
+        keep_mask=keep_mask,
+    )
+
+    z.im_peaks(im, circle_im, index_im, sig_im, snr_im, asr_im=asr_im, **kwargs)
 
 
 def sigproc_v2_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
@@ -132,7 +148,7 @@ def sigproc_v1_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
 
 
 def circle_locs(
-    im, locs, inner_radius=3, outer_radius=4, fill_mode="nan", vals=None, keep_mask=None
+    im, locs, inner_radius=3, outer_radius=4, fill_mode="nan", vals=None, keep_mask=None, peak_iz=None
 ):
     """
     Returns a copy of im with circles placed around the locs.
@@ -147,6 +163,7 @@ def circle_locs(
                      (This causes the loss of the 0-th peak)
             "one": zero on background one on foreground
             "vals": zero on background val[loc_i[ for foreground
+            "peak_iz": peak_iz
         style_mode:
             "donut" Draw a 1 pixel donut
             "solid": Draw a filled circle
@@ -178,6 +195,15 @@ def circle_locs(
             if keep:
                 imops.set_with_mask_in_place(
                     circle_im, brim, loc_i, loc=loc, center=True
+                )
+        return circle_im
+
+    if fill_mode == "peak_iz":
+        circle_im = np.zeros_like(im)
+        for peak_i, loc, keep in zip(peak_iz, locs, keep_mask):
+            if keep:
+                imops.set_with_mask_in_place(
+                    circle_im, brim, peak_i, loc=loc, center=True
                 )
         return circle_im
 
@@ -220,7 +246,7 @@ def sigproc_v2_movie_from_df(
             df = df[df.field_i == fl_i]
 
         assert df.field_i.nunique() == 1
-        fl_i = df.field_i[0]
+        fl_i = df.field_i.values[0]
 
         locs = df[["aln_y", "aln_x"]].drop_duplicates().values
     else:
@@ -260,7 +286,7 @@ def sigproc_v2_movie_from_df(
     else:
         overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
         overlay = 255 * circle_locs(
-            overlay, locs, fill_mode="one", inner_radius=4, outer_radius=outer_radius
+            overlay, locs, fill_mode="one", inner_radius=outer_radius-1, outer_radius=outer_radius
         ).astype(np.uint8)
 
     kwargs["_duration"] = kwargs.get("_duration", 1)
@@ -273,8 +299,6 @@ def sigproc_v2_movie_from_df(
     ims = ims[:, yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1]]
     if overlay is not None:
         overlay = overlay[yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1]]
-
-    debug(ims.shape)
 
     displays.movie(
         ims,
@@ -292,17 +316,19 @@ def sigproc_v2_im_from_df(run, df, fl_i=None, ch_i=0, cy_i=0, **kwargs):
         df = df[df.field_i == fl_i]
 
     assert df.field_i.nunique() == 1
-    fl_i = df.field_i[0]
+    fl_i = df.field_i.values[0]
 
     df = df[(df.field_i == fl_i) & (df.channel_i == ch_i) & (df.cycle_i == cy_i)]
 
     im = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_i]
     locs = df[["aln_y", "aln_x"]].values
+    peak_iz = df.peak_i
 
     sig = df.signal.values
     snr = df.snr.values
+    asr = df.aspect_ratio.values
 
-    _sigproc_v2_im(im, locs, sig, snr, **kwargs)
+    _sigproc_v2_im(im, locs, sig, snr, asr=asr, peak_iz=peak_iz, **kwargs)
 
 
 def wizard_xy_df(

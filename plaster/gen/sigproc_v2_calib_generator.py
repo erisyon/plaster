@@ -12,13 +12,7 @@ class SigprocV2CalibGenerator(BaseGenerator):
     (future: multi-channel single dye count).
     """
 
-    schema = s(
-        s.is_kws_r(
-            **BaseGenerator.sigproc_v2_schema.schema(),
-            mode=s.is_str(options=["illum"]),
-            # This will eventually have a second option "dye calib"
-        )
-    )
+    schema = s(s.is_kws_r(**BaseGenerator.sigproc_v2_calib_schema.schema(),))
 
     def generate(self):
         runs = []
@@ -35,7 +29,7 @@ class SigprocV2CalibGenerator(BaseGenerator):
         assert mode is not None
 
         sigproc_v2_calib_task = task_templates.sigproc_v2_calib(
-            self.calibration_file, mode=mode,
+            mode=mode, instrument_identity=self.instrument_identity
         )
 
         run = Munch(

@@ -134,6 +134,13 @@ class ReportBuilder:
         #     )
         # ]
 
+        mpl_config_block = Munch(**self.code_block)
+        mpl_config_block.source = [
+            "import os\n",
+            'os.environ["MPLCONFIGDIR"] = "/tmp"',
+        ]
+        report.cells += [mpl_config_block]
+
         import_merge += ["from plaster.tools.zplots import zplots\n"]
         import_merge = sorted(list(set(import_merge))) + ["z = zplots.setup()"]
 

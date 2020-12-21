@@ -15,7 +15,7 @@ from plaster.tools.utils import utils
 from plaster.tools.utils.fancy_indexer import FancyIndexer
 from plaster.run.base_result import BaseResult, disk_memoize
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
-from plaster.tools.calibration.calibration import Calibration
+from plaster.run.calib.calib import Calib
 from plaster.tools.log.log import debug, prof
 
 
@@ -42,7 +42,7 @@ class SigprocV2Result(BaseResult):
         params=SigprocV2Params,
         n_channels=(type(None), int),
         n_cycles=(type(None), int),
-        calib=Calibration,
+        calib=Calib,
         focus_per_field_per_channel=(type(None), list),
     )
 
@@ -307,15 +307,16 @@ class SigprocV2Result(BaseResult):
 
     def snr(self, fields=None, **kwargs):
         return np.nan_to_num(
-            utils.np_safe_divide(
-                self.sig(fields=fields, **kwargs), self.noi(fields=fields, **kwargs)
+            self.flat_if_requested(
+                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 2],
+                **kwargs,
             )
         )
 
     def aspect_ratio(self, fields=None, **kwargs):
         return np.nan_to_num(
             self.flat_if_requested(
-                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 2],
+                self._load_ndarray_prop_from_fields(fields, "radmat")[:, :, :, 3],
                 **kwargs,
             )
         )
@@ -514,6 +515,19 @@ class SigprocV2Result(BaseResult):
 
 # The following operate on dataframes returned by fields__n_peaks__peaks__radmat
 
+def mean_non_dark_asr(df, dark, ch_i):
+    """
+    Return the mean of non-dark aspect ratios per row
+    """
+    assert dark is not None
+    rad_pt = pd.pivot_table(df, values="signal", index=["peak_i"], columns=["channel_i", "cycle_i"])
+    ch_rad_pt = rad_pt.loc[:, ch_i]
+    asr_pt = pd.pivot_table(df, values="aspect_ratio", index=["peak_i"], columns=["channel_i", "cycle_i"])
+    ch_asr_pt = asr_pt.loc[:, ch_i]
+    non_dark_asr = np.where(ch_rad_pt >= dark, ch_asr_pt, np.nan)
+    with utils.np_no_warn():
+        return np.nanmean(non_dark_asr, axis=1)
+
 
 def df_filter(
     df,
@@ -589,21 +603,17 @@ def df_filter(
 
         if max_aspect_ratio is not None or min_aspect_ratio is not None:
             assert dark is not None
-            asr_pt = pd.pivot_table(
-                _df,
-                values="aspect_ratio",
-                index=["peak_i"],
-                columns=["channel_i", "cycle_i"],
-            )
+            asr_pt = pd.pivot_table(_df, values="aspect_ratio", index=["peak_i"], columns=["channel_i", "cycle_i"])
             ch_asr_pt = asr_pt.loc[:, channel_i]
+            non_dark_asr = np.where(ch_rad_pt >= dark, ch_asr_pt, np.nan)
+            with utils.np_no_warn():
+                mean_asr_per_row = np.nanmean(non_dark_asr, axis=1)
+            
             if max_aspect_ratio is not None:
-                keep_peaks_mask &= np.all(
-                    (ch_asr_pt <= max_aspect_ratio) | (ch_rad_pt < dark), axis=1
-                )
+                keep_peaks_mask &= mean_asr_per_row <= max_aspect_ratio
+                
             if min_aspect_ratio is not None:
-                keep_peaks_mask &= np.all(
-                    (ch_asr_pt >= min_aspect_ratio) | (ch_rad_pt < dark), axis=1
-                )
+                keep_peaks_mask &= mean_asr_per_row >= min_aspect_ratio
 
         if on_through_cy_i is not None:
             assert dark is not None
@@ -642,11 +652,7 @@ def df_filter(
 
         keep_peak_i = ch_rad_pt[keep_peaks_mask].index.values
         keep_df = pd.DataFrame(dict(keep_peak_i=keep_peak_i)).set_index("keep_peak_i")
-        _df = (
-            keep_df.join(df.set_index("peak_i"))
-            .reset_index()
-            .rename(columns=dict(index="peak_i"))
-        )
+        _df = keep_df.join(df.set_index("peak_i", drop=False))
 
     return _df
 

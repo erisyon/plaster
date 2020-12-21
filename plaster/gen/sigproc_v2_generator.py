@@ -5,7 +5,6 @@ from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
 from plaster.gen.report_builder import ReportBuilder
 from plaster.tools.log.log import debug, current_file_and_line_str
-from plaster.tools.calibration.calibration import Calibration
 from plumbum import local
 
 
@@ -45,7 +44,8 @@ class SigprocV2Generator(BaseGenerator):
         calib_dst_path = local.path(self.local_sources_tmp_folder) / calib_src_path.name
         calib_src_path.copy(calib_dst_path)
         sigproc_v2_task = task_templates.sigproc_v2_analyze(
-            self.gen_sources_folder / calib_src_path.name
+            f"../../../_gen_sources/{calib_src_path.name}",
+            instrument_identity=self.instrument_identity,
         )
 
         nn_n2_task = {}

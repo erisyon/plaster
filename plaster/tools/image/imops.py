@@ -87,6 +87,8 @@ def generate_circle_mask(rad, size=None):
         size = diam
     assert size & 1 == 1  # dimensions must be odd
     assert size >= diam
+    if rad == 0:
+        return np.zeros((size, size), dtype=bool)
     offset = (diam - size) // 2
     x, y = np.mgrid[:size, :size]
     circle_dist = (x - rad + offset) ** 2 + (y - rad + offset) ** 2

@@ -116,6 +116,10 @@ class FixupStructure(c.Structure):
             struct_fixup(MyStruct)
 
         """
+        if getattr(cls, "_fixed_up", False):
+            return
+
+        setattr(cls, "_fixed_up", True)
         setattr(cls, "_tab_types", dict())
 
         fields = []

@@ -1,4 +1,4 @@
-from plaster.tools.calibration.calibration import Calibration
+from plaster.run.calib.calib import Calib
 from plaster.tools.schema.schema import Params, SchemaValidationFailed
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.log import log
@@ -38,7 +38,8 @@ class SigprocV2Params(Params):
 
     schema = s(
         s.is_kws_r(
-            calibration_file=s.is_str(noneable=True),
+            calibration_file=s.is_str(noneable=True, required=False),
+            instrument_identity=s.is_str(),
             mode=s.is_str(options=common.SIGPROC_V2_MODES),
             divs=s.is_int(),
             peak_mea=s.is_int(),
@@ -63,19 +64,23 @@ class SigprocV2Params(Params):
         self.schema.validate(self, context=self.__class__.__name__)
 
         if self.mode == common.SIGPROC_V2_ILLUM_CALIB:
-            if local.path(self.calibration_file).exists():
-                if not log.confirm_yn(
-                    f"\nCalibration file '{self.calibration_file}' already exists "
-                    "when creating a SIGPROC_V2_PSF_CALIB. Overwrite?",
-                    "y",
-                ):
-                    raise SchemaValidationFailed(
-                        f"Not overwriting calibration file '{self.calibration_file}'"
-                    )
+            pass
+            # ZBS: At the moment these checks are more trouble than they are worth
+            # if local.path(self.calibration_file).exists():
+            #     if not log.confirm_yn(
+            #         f"\nCalibration file '{self.calibration_file}' already exists "
+            #         "when creating a SIGPROC_V2_PSF_CALIB. Overwrite?",
+            #         "y",
+            #     ):
+            #         raise SchemaValidationFailed(
+            #             f"Not overwriting calibration file '{self.calibration_file}'"
+            #         )
 
         else:
             # Analyzing
             if self.calibration_file != "":
-                self.calibration = Calibration.load(self.calibration_file)
+                self.calibration = Calib.load_file(
+                    self.calibration_file, self.instrument_identity
+                )
 
         return True

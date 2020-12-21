@@ -408,7 +408,7 @@ def zest_smart_wrap():
             width=None,
         )
         assert l.startswith(
-            "\nABC\n\nThis is a very very long line, much longer than the 80 chracters that are the default length of a line that woudl normally wrap but here it should not wrap. \n    GHI\nJKL\n"
+            "\nABC\n\nThis is a very very long line, much longer than the 80 chracters that are the default length of a line that woudl normally wrap but here it should not wrap.\n    GHI\nJKL\n"
         )
 
     zest()

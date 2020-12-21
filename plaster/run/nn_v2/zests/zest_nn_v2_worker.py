@@ -18,6 +18,10 @@ from plaster.tools.log.log import debug
 def zest_nn_v2_worker():
     prep_result = prep_fixtures.result_random_fixture(2)
 
+    from plaster.run.nn_v2.c.nn_v2 import init as nn_v2_init
+
+    nn_v2_init()
+
     def _run(labels="DE", sigproc_result=None, _prep_result=prep_result):
         sim_v2_result = sim_v2_fixtures.result_from_prep_fixture(
             _prep_result, labels=labels

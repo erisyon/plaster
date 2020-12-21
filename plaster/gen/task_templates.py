@@ -60,7 +60,7 @@ def sigproc_v1():
     )
 
 
-def sigproc_v2_analyze(calibration_file):
+def sigproc_v2_analyze(calibration_file, instrument_identity):
     assert calibration_file is not None
     return Munch(
         sigproc_v2=Munch(
@@ -69,21 +69,18 @@ def sigproc_v2_analyze(calibration_file):
             parameters=Munch(
                 calibration_file=calibration_file,
                 mode=sigproc_v2_common.SIGPROC_V2_INSTRUMENT_ANALYZE,
+                instrument_identity=instrument_identity,
             ),
         )
     )
 
 
-def sigproc_v2_calib(calibration_file, mode):
-    """
-    TODO: subject_id
-    """
-    assert calibration_file is not None
+def sigproc_v2_calib(mode, instrument_identity):
     return Munch(
         sigproc_v2=Munch(
             version="1.0",
             inputs=Munch(ims_import="../ims_import"),
-            parameters=Munch(calibration_file=calibration_file, mode=mode,),
+            parameters=Munch(mode=mode, instrument_identity=instrument_identity),
         )
     )
 

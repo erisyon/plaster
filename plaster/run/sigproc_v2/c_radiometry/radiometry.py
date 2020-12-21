@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from plumbum import local
 import ctypes as c
@@ -6,7 +7,7 @@ from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
 from plaster.run.sigproc_v2.c_radiometry.build import build
-from plaster.run.sigproc_v2.reg_psf import RegPSF
+from plaster.run.calib.calib import RegPSF
 from plaster.tools.c_common.c_common_tools import CException
 from plaster.tools.utils import utils
 from plaster.tools.c_common import c_common_tools
@@ -42,17 +43,16 @@ class RadiometryContext(c_common_tools.FixupStructure):
     # fmt: on
 
 
-_lib = None
+c_radiometry_path = local.path("/erisyon/plaster/plaster/run/sigproc_v2/c_radiometry")
 
 
-def load_lib():
-    global _lib
-    if _lib is not None:
-        return _lib
-
+def init():
+    """
+    This must be called once before any work
+    """
     RadiometryContext.struct_fixup()
 
-    with local.cwd("/erisyon/plaster/plaster/run/sigproc_v2/c_radiometry"):
+    with local.cwd(c_radiometry_path):
         fp = StringIO()
         with redirect_stdout(fp):
             print(
@@ -80,6 +80,16 @@ def load_lib():
         )
         lib = c.CDLL("./_radiometry.so")
 
+
+_lib = None
+
+
+def load_lib():
+    global _lib
+    if _lib is not None:
+        return _lib
+
+    lib = c.CDLL(c_radiometry_path / "_radiometry.so")
     lib.context_init.argtypes = [
         c.POINTER(RadiometryContext),
     ]
@@ -131,7 +141,8 @@ def context(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
     # radiometry.c but had problems so I reverted (at least for now)
     # to a high-res sampling of the reg_psf
     n_divs = 64
-    samples = reg_psf.sample_params_grid(n_divs=n_divs)
+    assert n_channels == 1  # Until multi-channel
+    samples = reg_psf.sample_params_grid(ch_i=0, n_divs=n_divs)
 
     out_radiometry = np.zeros((n_peaks, n_channels, n_cycles, 4), dtype=np.float64)
 
@@ -187,13 +198,14 @@ def radiometry_field_stack(chcy_ims, locs, reg_psf: RegPSF, focus_adjustment):
     ) as ctx:
         check.array_t(locs, ndim=2, dtype=np.float64)
         n_peaks = locs.shape[0]
-        zap.arrays(
-            _do_radiometry_field_stack_one_peak,
-            dict(peak_i=np.arange(n_peaks)),
-            _process_mode=False,
-            _trap_exceptions=False,
-            ctx=ctx,
-        )
+        if n_peaks > 0:
+            zap.arrays(
+                _do_radiometry_field_stack_one_peak,
+                dict(peak_i=np.arange(n_peaks)),
+                _process_mode=False,
+                _trap_exceptions=False,
+                ctx=ctx,
+            )
 
     # Sanity check
     bad_signals = ctx._out_radiometry[:, :, :, 0] > 1e6
@@ -225,9 +237,9 @@ def test_interp():
                 if error is not None:
                     raise CException(error)
 
-                sig_x = reg_psf.interp_sig_x_fn(x, y)
-                sig_y = reg_psf.interp_sig_y_fn(x, y)
-                rho = reg_psf.interp_rho_fn(x, y)
+                sig_x = reg_psf.interp_sig_x_fn[0](x, y)
+                sig_y = reg_psf.interp_sig_y_fn[0](x, y)
+                rho = reg_psf.interp_rho_fn[0](x, y)
 
                 diffs += [
                     (

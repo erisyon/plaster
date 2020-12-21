@@ -101,6 +101,7 @@ import numpy as np
 import pandas as pd
 from munch import Munch
 
+import plaster.run.sigproc_v2.psf
 import plaster.run.sigproc_v2.reg_psf
 from plaster.run.sigproc_v2 import bg, fg, psf
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
@@ -108,9 +109,8 @@ from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
 from plaster.run.sigproc_v2.c_sub_pixel_align.sub_pixel_align import (
     sub_pixel_align_cy_ims,
 )
-from plaster.run.sigproc_v2.reg_psf import RegPSF
 from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import Gauss2FitParams
-from plaster.tools.calibration.calibration import Calibration
+from plaster.run.calib.calib import Calib, RegPSF, RegIllum
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
@@ -124,19 +124,19 @@ from plumbum import local
 # ---------------------------------------------------------------------------------------------
 
 
-def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
+def _calibrate(ims_import_result, sigproc_v2_params, progress):
     """
     Extract a PSF and extract illumination balance from (assumed) 1-count data.
 
     Arguments:
-        calib:
-            Where to add the calibration
         TODO
 
     Returns:
         calib, with new records added
         fg_means:
     """
+
+    calib = Calib()
 
     if sigproc_v2_params.n_fields_limit is None:
         # Use quality metrics
@@ -151,13 +151,15 @@ def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
         flchcy_ims = ims_import_result.ims[field_slice, :, :].astype(np.float64)
 
     n_channels = ims_import_result.n_channels
+    ch_reg_psfs = []
     for ch_i in range(0, n_channels):
         flcy_ims = flchcy_ims[:, ch_i, :]
+        ch_reg_psfs += [
+            psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress)
+        ]
 
-        reg_psf = psf.psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress)
-
-        prop = f"regional_psf.instrument_channel[{ch_i}]"
-        calib.add({prop: reg_psf})
+    reg_psf = RegPSF.from_channel_reg_psfs(ch_reg_psfs)
+    calib.add_reg_psf(reg_psf)
 
     bandpass_kwargs = dict(
         low_inflection=sigproc_v2_params.low_inflection,
@@ -173,12 +175,18 @@ def _calibrate(calib, ims_import_result, sigproc_v2_params, progress):
         # the zap and accumulation buffers. Until then this runs only on cycle 0
         cy_i = 0
         fl_ims = flchcy_ims[:, ch_i, cy_i]
-        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.psfs(ch_i), bandpass_kwargs)
+        reg_bal, fg_mean = fg.fg_estimate(fl_ims, calib.reg_psf(ch_i), bandpass_kwargs)
         fg_means[ch_i] = fg_mean
+        check.array_t(reg_bal, ndim=2)
         assert np.all(~np.isnan(reg_bal))
-
-        prop = f"regional_illumination_balance.instrument_channel[{ch_i}]"
-        calib.add({prop: reg_bal.tolist()})
+        assert reg_bal.shape[-1] == reg_bal.shape[-2]
+        assert reg_bal.shape[0] == reg_bal.shape[1]
+        assert fl_ims.shape[-1] == fl_ims.shape[-2]
+        reg_illum = RegIllum(
+            n_channels=n_channels, im_mea=fl_ims.shape[-1], n_divs=reg_bal.shape[0]
+        )
+        reg_illum.set(ch_i, reg_bal)
+        calib.add_reg_illum(reg_illum)
 
     return calib, fg_means
 
@@ -208,17 +216,13 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     dst_filt_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
     dst_unfilt_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
     dst_chcy_bg_std = np.zeros((n_channels, n_cycles))
-    approx_psf = plaster.run.sigproc_v2.reg_psf.approximate_psf()
+    approx_psf = plaster.run.calib.calib.approximate_psf()
 
     # Per-frame background estimation and removal
     n_channels, n_cycles = chcy_ims.shape[0:2]
     dim = chcy_ims.shape[-2:]
     for ch_i in range(n_channels):
-        reg_bal = np.array(
-            calib[f"regional_illumination_balance.instrument_channel[{ch_i}]"]
-        )
-        assert np.all(~np.isnan(reg_bal))
-        bal_im = imops.interp(reg_bal, dim)
+        bal_im = calib.reg_illum().interp(ch_i)
 
         for cy_i in range(n_cycles):
             im = np.copy(chcy_ims[ch_i, cy_i])
@@ -314,7 +318,7 @@ def _analyze_step_3_align(cy_ims, peak_mea):
         aln_offsets: ndarray(n_cycles, 2); where 2 is (y, x)
     """
 
-    approx_psf = psf.approximate_psf()
+    approx_psf = plaster.run.calib.calib.approximate_psf()
 
     fiducial_ims = []
     for im in cy_ims:
@@ -415,12 +419,14 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
     # TODO: Remove bg_std and derive it now that I have cleaner bg subtraction with band pass
 
     ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
-    bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
-    locs = fg.sub_pixel_peak_find(ch_mean_of_cy0_im, kernel, bg_std)
+    # bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
+    locs = fg.sub_pixel_peak_find(ch_mean_of_cy0_im, kernel)
     return locs
 
 
-def _analyze_step_6a_fitter(chcy_ims, locs, reg_psf: psf.RegPSF, mask):
+def _analyze_step_6a_fitter(
+    chcy_ims, locs, reg_psf: plaster.run.calib.calib.RegPSF, mask
+):
     """
     Fit Gaussian.
 
@@ -481,7 +487,7 @@ def _analyze_step_6b_radiometry(chcy_ims, locs, calib, focus_adjustment):
     assert (
         n_channels == 1
     ), "Until further notice, only passing in one reg_psf for one channel"
-    reg_psf = calib.psfs(0)
+    reg_psf = calib.reg_psf(0)
 
     radmat = radiometry_field_stack(
         chcy_ims, locs=locs, reg_psf=reg_psf, focus_adjustment=focus_adjustment
@@ -491,7 +497,10 @@ def _analyze_step_6b_radiometry(chcy_ims, locs, calib, focus_adjustment):
 
 
 def _sigproc_analyze_field(
-    filt_chcy_ims, sigproc_v2_params, calib, reg_psf: psf.RegPSF = None
+    filt_chcy_ims,
+    sigproc_v2_params,
+    calib,
+    reg_psf: plaster.run.calib.calib.RegPSF = None,
 ):
     """
     Analyze one field --
@@ -550,7 +559,7 @@ def _sigproc_analyze_field(
     # The goal of previous channel equalization and regional balancing is that
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
-    approx_psf = psf.approximate_psf()
+    approx_psf = plaster.run.calib.calib.approximate_psf()
     locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, chcy_bg_stds)
     n_locs = len(locs)
 
@@ -564,8 +573,14 @@ def _sigproc_analyze_field(
         # Subsample peaks for fitting
         mask = np.zeros((n_locs,), dtype=bool)
         count = 100  # Don't know if this is enough
-        iz = np.random.choice(n_locs, count)  # Allow replace in case count > n_locs
-        mask[iz] = 1
+        if n_locs > 0:
+            try:
+                iz = np.random.choice(
+                    n_locs, count
+                )  # Allow replace in case count > n_locs
+                mask[iz] = 1
+            except ValueError:
+                pass
 
     fitmat = _analyze_step_6a_fitter(aln_unfilt_chcy_ims, locs, reg_psf, mask)
 
@@ -611,7 +626,8 @@ def _do_sigproc_analyze_and_save_field(
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
     assert n_channels == 1
-    reg_psf = calib.psfs(0)  # TODO: Multichannel
+    reg_psf = calib.reg_psf()
+    reg_psf.select_ch(0)  # TODO: Multichannel
 
     (
         aln_filt_chcy_ims,
@@ -678,10 +694,7 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
     fg_means = None
 
     if sigproc_v2_params.mode == common.SIGPROC_V2_ILLUM_CALIB:
-        calib = Calibration()
-        calib, fg_means = _calibrate(
-            calib, ims_import_result, sigproc_v2_params, progress
-        )
+        calib, fg_means = _calibrate(ims_import_result, sigproc_v2_params, progress)
 
     return SigprocV2Result(
         params=sigproc_v2_params,
@@ -705,9 +718,11 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
     """
 
     if calib is None:
-        calib = Calibration.load(sigproc_v2_params.calibration_file)
+        calib = Calib.load_file(
+            sigproc_v2_params.calibration_file, sigproc_v2_params.instrument_identity
+        )
 
-    assert not calib.is_empty()
+    assert calib.has_records()
 
     n_fields = ims_import_result.n_fields
     n_fields_limit = sigproc_v2_params.n_fields_limit

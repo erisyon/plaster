@@ -88,7 +88,11 @@ class ClassifyV2Generator(BaseGenerator):
         self.report_section_user_config()
 
         sigproc_v2_task = (
-            self.sigprocs_v2(calibration_file=self.calibration_file) or {}
+            self.sigprocs_v2(
+                calibration_file=self.calibration_file,
+                instrument_identity=self.instrument_identity,
+            )
+            or {}
         )  # guarantee traverse loop once
 
         # TODO: 'default' reporting needs to be rethought.  Maybe we just employ

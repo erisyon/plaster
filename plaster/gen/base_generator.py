@@ -131,6 +131,16 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
         s.is_kws_r(
             calibration_file=s.is_str(noneable=True),
             sigproc_source=s.is_str(noneable=True, help="See Main Help"),
+            instrument_identity=s.is_str(),
+        )
+    )
+
+    sigproc_v2_calib_schema = s(
+        s.is_kws_r(
+            sigproc_source=s.is_str(noneable=True, help="See Main Help"),
+            instrument_identity=s.is_str(),
+            mode=s.is_str(options=["illum"]),
+            # mode will eventually have a second option "dye calib"
         )
     )
 

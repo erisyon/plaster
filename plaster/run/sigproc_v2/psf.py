@@ -1,6 +1,4 @@
-import math
 from enum import IntEnum
-import cv2
 import numpy as np
 from plaster.run.sigproc_v2 import bg, fg
 from plaster.tools.image import imops
@@ -9,8 +7,7 @@ from plaster.tools.image.imops import sub_pixel_center
 from plaster.tools.schema import check
 from plaster.tools.utils import utils
 from plaster.tools.zap import zap
-from plaster.run.sigproc_v2.reg_psf import RegPSF, approximate_psf
-from plaster.tools.utils import data
+from plaster.run.calib.calib import RegPSF, approximate_psf
 from plaster.tools.log.log import debug
 
 
@@ -241,7 +238,7 @@ def _do_psf_one_field_one_channel(cy_ims, peak_mea, divs, bandpass_kwargs):
         # which cycle a given peak turns off so we treat each cycle
         # as it own min-experiment
         filtered_im, bg_std = bg.bandpass_filter(cy_im, **bandpass_kwargs,)
-        locs = fg.peak_find(filtered_im, approx_psf, bg_std)
+        locs = fg.peak_find(filtered_im, approx_psf)
 
         _reg_psf_ims, _ = _psf_from_im(
             filtered_im, divs=divs, peak_mea=peak_dim[0], locs=locs
@@ -289,5 +286,6 @@ def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress=None) -> Re
     # Now we convert it to Gaussian Parameters by fitting so we don't have
     # to store the pixels anymore: just the 3 critical shape parameters:
     # sigma_x, sigma_y, and rho.
-    reg_psf = RegPSF.from_psf_ims(flcy_ims.shape[0], psf_ims)
+    assert flcy_ims.shape[-1] == flcy_ims.shape[-2]
+    reg_psf = RegPSF.from_psf_ims(flcy_ims.shape[-1], psf_ims)
     return reg_psf

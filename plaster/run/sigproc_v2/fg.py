@@ -1,7 +1,7 @@
 import numpy as np
 import time
 from plaster.run.sigproc_v2 import bg
-from plaster.run.sigproc_v2.reg_psf import RegPSF, approximate_psf
+from plaster.run.calib.calib import RegPSF, approximate_psf
 from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
 from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import (
     AugmentedGauss2Params,
@@ -10,11 +10,13 @@ from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import (
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.schema import check
+from plaster.tools.utils.data import one_sided_nanstd
+
 from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
 from plaster.tools.log.log import debug, important, prof
 
 
-def peak_find(im, approx_psf, bg_std):
+def peak_find(im, approx_psf):
     """
     Peak find on a single image.
 
@@ -33,7 +35,8 @@ def peak_find(im, approx_psf, bg_std):
     """
     from skimage.feature import peak_local_max  # Defer slow import
 
-    thresh = 1.25 * bg_std  # This 1.25 was found empirically
+    std = one_sided_nanstd(im.flatten())
+    thresh = 2 * std  # 2 std found empirically
 
     cim = imops.convolve(np.nan_to_num(im, nan=float(np.nanmedian(im))), approx_psf)
 
@@ -86,12 +89,12 @@ def _sub_pixel_peak_find(im, peak_dim, locs):
     return lower_left_locs + com_per_loc
 
 
-def sub_pixel_peak_find(im, approx_psf, bg_std):
+def sub_pixel_peak_find(im, approx_psf):
     """
     First find peaks with pixel accuracy and then go back over each
     one and use the center of mass method to sub-locate them
     """
-    locs = peak_find(im, approx_psf, bg_std).astype(int)
+    locs = peak_find(im, approx_psf).astype(int)
     return _sub_pixel_peak_find(im, HW(approx_psf.shape), locs)
 
 
@@ -117,7 +120,7 @@ def _do_?(im, approx_psf, reg_psf, ):
     im_no_bg, bg_std = bg.bg_estimate_and_remove(fl_ims[fl_i], approx_psf)
 
     # FIND PEAKS
-    locs = peak_find(im_no_bg, approx_psf, bg_std)
+    locs = peak_find(im_no_bg, approx_psf)
 
     # RADIOMETRY
     # signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, reg_psf, locs)
@@ -156,7 +159,7 @@ def fg_estimate(fl_ims, reg_psf: RegPSF, bandpass_kwargs):
     the first cycle.
 
     Thus we:
-        Remove bg the BG
+        Remove the background
         Find the peaks
         Compute radiometry
         Keep the reasonable radiometry (ie percentile 10-90)
@@ -181,7 +184,7 @@ def fg_estimate(fl_ims, reg_psf: RegPSF, bandpass_kwargs):
     # TODO: Replace with a zap over fields (see notes in commented out above)
     for fl_i in range(n_fields):
         filtered_im, bg_std = bg.bandpass_filter(fl_ims[fl_i], **bandpass_kwargs,)
-        locs = peak_find(filtered_im, approx_psf, bg_std)
+        locs = peak_find(filtered_im, approx_psf)
 
         # RADIOMETRY
         # signals, _, _ = radiometry_one_channel_one_cycle(im_no_bg, reg_psf, locs)
@@ -240,15 +243,15 @@ def fit_image_with_reg_psf(im, locs, reg_psf: RegPSF):
     guess_params = np.zeros((n_locs, AugmentedGauss2Params.N_FULL_PARAMS))
 
     # COPY over parameters by region for each peak
-    guess_params[:, Gauss2Params.SIGMA_X] = reg_psf.params[
+    guess_params[:, Gauss2Params.SIGMA_X] = reg_psf.get_params(
         reg_yx[:, 0], reg_yx[:, 1], RegPSF.SIGMA_X,
-    ]
-    guess_params[:, Gauss2Params.SIGMA_Y] = reg_psf.params[
+    )
+    guess_params[:, Gauss2Params.SIGMA_Y] = reg_psf.get_params(
         reg_yx[:, 0], reg_yx[:, 1], RegPSF.SIGMA_Y,
-    ]
-    guess_params[:, Gauss2Params.RHO] = reg_psf.params[
+    )
+    guess_params[:, Gauss2Params.RHO] = reg_psf.get_params(
         reg_yx[:, 0], reg_yx[:, 1], RegPSF.RHO,
-    ]
+    )
 
     # CENTER
     guess_params[:, Gauss2Params.CENTER_X] = reg_psf.peak_mea / 2

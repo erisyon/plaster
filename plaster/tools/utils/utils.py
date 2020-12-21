@@ -192,7 +192,15 @@ def pad_list(list_, len_, pad=None):
 
 
 def filt_first(list_, func):
-    """Like filter but reverse arguments are expects there to be only one result, None on not found"""
+    """
+    Like filter but reverse arguments and it expects there to be only one result,
+    None on not found.
+
+    Example:
+        my_list = [(1, 2), (3, 4)]
+        ret = filt_first(my_list, lambda x: x[1] == 4)
+        assert ret == (3, 4)
+    """
     try:
         return next(i for i in list_ if func(i))
     except StopIteration:
