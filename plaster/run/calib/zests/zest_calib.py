@@ -29,6 +29,7 @@ def zest_reg_illum():
     zest()
 
 
+# TODO
 # def zest_reg_psf():
 #     raise NotImplementedError
 #     zest()
