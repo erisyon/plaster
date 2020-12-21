@@ -30,6 +30,10 @@ def zest_c_nn_v2():
         dtype=np.uint64,
     )
 
+    from plaster.run.nn_v2.c import nn_v2
+
+    nn_v2.init()
+
     gain_model = GainModel.test_fixture()
 
     def _test(

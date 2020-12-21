@@ -71,7 +71,7 @@ def zest_peak_find():
             high_sharpness=50.0,
         )
         kernel = plaster.run.calib.calib.approximate_psf()
-        locs = fg.peak_find(chcy_ims[0, 0], kernel, np.mean(bg_std))
+        locs = fg.peak_find(chcy_ims[0, 0], kernel)
         n_peaks, n_dims = locs.shape
         assert n_dims == 2
         assert n_peaks > 0.85 * true_n_peaks
