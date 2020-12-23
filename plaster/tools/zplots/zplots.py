@@ -1032,7 +1032,7 @@ class ZPlots:
         _n_samples = ustack.get("_n_samples", 1000)
         row_iz = arg_subsample(data, _n_samples)
         row_iz = row_iz[np.argsort(np.nansum(data[row_iz], axis=1))]
-        self.im(data[row_iz])
+        self.im(data[row_iz], **kws)
 
     @trap()
     def im_peaks(self, im, circle_im, index_im, sig_im, snr_im, asr_im, **kws):
