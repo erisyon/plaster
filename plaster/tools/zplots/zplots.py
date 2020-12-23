@@ -867,6 +867,11 @@ class ZPlots:
         ustack = self._u_stack()
         nan_color = ustack.get("_nan_color")
 
+        _n_samples = ustack.get("_n_samples")
+        if _n_samples is not None:
+            _n_samples = ustack.get("_n_samples", 1000)
+            im_data = subsample(im_data, _n_samples)
+
         if nan_color is not None:
             is_nan_im = np.isnan(im_data)
             im_data = np.where(is_nan_im, 0, im_data)
