@@ -830,7 +830,16 @@ class ZPlots:
         self._end()
 
     @trap()
-    def im(self, im_data=None, **kws):
+    def im(self, *args, **kwargs):
+        """
+        Short term hack to fix the issue where im munges the stack.
+
+        The hack works by creating a new stack just for the im call that can get screwed up and will then be reset before we return.
+        """
+        with self():
+            return self._im(*args, **kwargs)
+
+    def _im(self, im_data=None, **kws):
         """
         Image.
         _cspan: Low and High heatmap range. Default=(0, mean + 4*std)
