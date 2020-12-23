@@ -41,8 +41,12 @@ class ClassifyV1Generator(BaseGenerator):
             **BaseGenerator.sigproc_v1_schema.schema(),
             **BaseGenerator.error_model_schema.schema(),
             **BaseGenerator.sim_schema.schema(),
-            **BaseGenerator.classify_schema.schema(),
             **BaseGenerator.scheme_schema.schema(),
+            rf=s.is_bool(help="Include rf classifier", noneable=True),
+            report_prec=s.is_list(
+                elems=s.is_float(bounds=(0.001, 0.999)),
+                help="The precision for classifier reporting",
+            ),
         )
     )
 
@@ -54,9 +58,7 @@ class ClassifyV1Generator(BaseGenerator):
         n_samples_test=1_000,
         decoys="none",
         random_seed=None,
-        nnF_v1=False,
-        nn_v2=True,
-        rf=False,
+        rf=True,
         sigproc_source=None,
         protein_of_interest=None,
         lnfit_name=None,
@@ -86,8 +88,11 @@ class ClassifyV1Generator(BaseGenerator):
         if len(self.report_prec) == 0:
             self.report_prec = self.defaults.report_prec
 
-    def generate(self):
+    def validate(self):
+        super().validate()
+        assert self.rf
 
+    def generate(self):
         self.report_section_user_config()
 
         sigproc_tasks = self.sigprocs_v1() or [{}]  # guarantee traverse loop once
@@ -173,57 +178,28 @@ class ClassifyV1Generator(BaseGenerator):
                 sim_v2_task = {}
                 train_rf_task = {}
                 test_rf_task = {}
-                nn_v1_task = {}
-                nn_v2_task = {}
                 classify_rf_task = {}
 
-                if self.rf:
-                    train_rf_task = task_templates.train_rf()
-                    test_rf_task = task_templates.test_rf()
-                    if sigproc_v1_task:
-                        classify_rf_task = task_templates.classify_rf(
-                            sim_relative_path="../sim_v1",
-                            train_relative_path="../train_rf",
-                            sigproc_relative_path=f"../sigproc_v1",
-                        )
-
-                if self.nn_v1:
-                    # note: same seed is used to generate decoys
-                    nn_v1_task = task_templates.nn_v1()
-
-                if self.nn_v2:
-                    sim_v2_task = task_templates.sim_v2(
-                        list(aa_list),
-                        err_set,
-                        n_pres=self.n_pres,
-                        n_mocks=self.n_mocks,
-                        n_edmans=self.n_edmans,
-                        n_samples_train=self.n_samples_train,
-                        n_samples_test=self.n_samples_test,
-                    )
-                    sim_v2_task.sim_v2.parameters.random_seed = self.random_seed
-                    sigproc_relative_path = None
-                    if sigproc_v1_task:
-                        sigproc_relative_path = f"../sigproc_v1"
-
-                    nn_v2_task = task_templates.nn_v2(
-                        sigproc_relative_path=sigproc_relative_path,
-                        err_set=err_set,
-                        prep_folder="../prep",
-                        sim_v2_folder="../sim_v2",
+                train_rf_task = task_templates.train_rf()
+                test_rf_task = task_templates.test_rf()
+                if sigproc_v1_task:
+                    classify_rf_task = task_templates.classify_rf(
+                        prep_relative_path="../prep",
+                        sim_relative_path="../sim_v1",
+                        train_relative_path="../train_rf",
+                        sigproc_relative_path=f"../sigproc_v1",
                     )
 
-                if self.nn_v1 or self.rf:
-                    sim_v1_task = task_templates.sim_v1(
-                        list(aa_list),
-                        err_set,
-                        n_pres=self.n_pres,
-                        n_mocks=self.n_mocks,
-                        n_edmans=self.n_edmans,
-                        n_samples_train=self.n_samples_train,
-                        n_samples_test=self.n_samples_test,
-                    )
-                    sim_v1_task.sim_v1.parameters.random_seed = self.random_seed
+                sim_v1_task = task_templates.sim_v1(
+                    list(aa_list),
+                    err_set,
+                    n_pres=self.n_pres,
+                    n_mocks=self.n_mocks,
+                    n_edmans=self.n_edmans,
+                    n_samples_train=self.n_samples_train,
+                    n_samples_test=self.n_samples_test,
+                )
+                sim_v1_task.sim_v1.parameters.random_seed = self.random_seed
 
                 lnfit_task = self.lnfits("v2")
 
@@ -245,8 +221,6 @@ class ClassifyV1Generator(BaseGenerator):
                     **sim_v2_task,
                     **train_rf_task,
                     **test_rf_task,
-                    **nn_v1_task,
-                    **nn_v2_task,
                     **sigproc_v1_task,
                     **lnfit_task,
                     **classify_rf_task,
@@ -258,7 +232,7 @@ class ClassifyV1Generator(BaseGenerator):
                 if not ptm_report and not mhc_report and not pro_report:
                     self.report_section_markdown(f"# RUN {run_desc.run_name}")
                     self.report_section_run_object(run_desc)
-                    if test_rf_task or nn_v1_task:
+                    if test_rf_task:
                         self.report_section_from_template(
                             "train_and_test_template.ipynb"
                         )

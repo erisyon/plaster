@@ -40,8 +40,13 @@ class ClassifyV2Generator(BaseGenerator):
             **BaseGenerator.sigproc_v2_schema.schema(),
             **BaseGenerator.error_model_schema.schema(),
             **BaseGenerator.sim_schema.schema(),
-            **BaseGenerator.classify_schema.schema(),
             **BaseGenerator.scheme_schema.schema(),
+            nn_v2=s.is_bool(help="Include nn_v2 classifier", noneable=True),
+            rf=s.is_bool(help="Include rf classifier", noneable=True),
+            report_prec=s.is_list(
+                elems=s.is_float(bounds=(0.001, 0.999)),
+                help="The precision for classifier reporting",
+            ),
         )
     )
 
@@ -53,7 +58,7 @@ class ClassifyV2Generator(BaseGenerator):
         n_samples_test=1_000,
         decoys="none",
         random_seed=None,
-        nnF_v1=False,
+        nn_v1=False,
         nn_v2=True,
         rf=False,
         sigproc_source=None,

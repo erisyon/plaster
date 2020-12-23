@@ -1,12 +1,11 @@
-from munch import Munch
 import numpy as np
 import pandas as pd
-from zest import zest
-from plaster.tools.utils import utils
+from munch import Munch
 from plaster.run.call_bag import CallBag
 from plaster.run.prep import prep_fixtures
-
 from plaster.tools.log.log import debug
+from plaster.tools.utils import utils
+from zest import zest
 
 
 def zest_prs_at_prec():
@@ -543,3 +542,26 @@ def zest_pr_curve_no_tied_scores_mean_recall():
     recall_at_thresh = np.append([0.0], recall_at_thresh)
 
     zest()
+
+
+def zest_call_bag_fdr():
+    stub_sim_result = Munch(train_pep_recalls=np.array([-1.0, 0.1, 0.2, 0.3]))
+    stub_prep_result = prep_fixtures.result_simple_fixture(has_decoy=True)
+
+    true_pep_iz = np.array([1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3])
+    pred_pep_iz = np.array([1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 1])
+    scores = np.array(
+        [0.8, 0.9, 0.7, 0.6, 0.85, 0.53, 0.54, 0.55, 0.75, 0.4, 0.3, 0.35]
+    )
+
+    cb = CallBag(
+        sim_result=stub_sim_result,
+        prep_result=stub_prep_result,
+        true_pep_iz=true_pep_iz,
+        pred_pep_iz=pred_pep_iz,
+        scores=scores,
+    )
+
+    fdrs = cb.fdr()
+
+    # TODO: how should I test that these fdrs are correct?
