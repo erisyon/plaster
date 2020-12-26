@@ -34,12 +34,15 @@ class SigprocV2Params(Params):
         low_sharpness=50.0,
         high_inflection=0.50,
         high_sharpness=50.0,
+        no_calib=False,
+        no_calib_psf_sigma=1.8,
+        instrument_identity=None,
     )
 
     schema = s(
         s.is_kws_r(
             calibration_file=s.is_str(noneable=True, required=False),
-            instrument_identity=s.is_str(),
+            instrument_identity=s.is_str(noneable=True),
             mode=s.is_str(options=common.SIGPROC_V2_MODES),
             divs=s.is_int(),
             peak_mea=s.is_int(),
@@ -55,6 +58,8 @@ class SigprocV2Params(Params):
             low_sharpness=s.is_float(),
             high_inflection=s.is_float(),
             high_sharpness=s.is_float(),
+            no_calib=s.is_bool(),
+            no_calib_psf_sigma=s.is_float(),
         )
     )
 
@@ -78,7 +83,7 @@ class SigprocV2Params(Params):
 
         else:
             # Analyzing
-            if self.calibration_file != "":
+            if not self.no_calib and self.calibration_file != "":
                 self.calibration = Calib.load_file(
                     self.calibration_file, self.instrument_identity
                 )

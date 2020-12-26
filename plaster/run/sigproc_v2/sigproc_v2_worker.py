@@ -110,15 +110,15 @@ from plaster.run.sigproc_v2.c_sub_pixel_align.sub_pixel_align import (
     sub_pixel_align_cy_ims,
 )
 from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import Gauss2FitParams
-from plaster.run.calib.calib import Calib, RegPSF, RegIllum
+from plaster.run.calib.calib import Calib, RegPSF, RegIllum, CalibIdentity
 from plaster.tools.image import imops
-from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
-from plaster.tools.utils import data
 from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
-from plumbum import local
+from plaster.run.sigproc_v2.c_radiometry import radiometry
+from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
+from plaster.run.sigproc_v2.c_sub_pixel_align import sub_pixel_align
+from plaster.tools.log.log import debug, important, prof
 
 # Calibration
 # ---------------------------------------------------------------------------------------------
@@ -598,8 +598,8 @@ def _sigproc_analyze_field(
 
     focus_adjustments = np.ones((n_cycles,))
 
-    # This is taking about 2.5 seconds (0.5 of which is the interpolation o the psf)
-    # Seems surprisingly slow
+    # This is taking about 2.5 seconds (0.5 of which is the interpolation of the psf)
+    # Seems surprisingly slow. Something is up.
     radmat = _analyze_step_6b_radiometry(
         aln_filt_chcy_ims, locs, calib, focus_adjustments
     )
@@ -717,12 +717,31 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
     (used for testing)
     """
 
-    if calib is None:
+    radiometry.init()
+    gauss2_fitter.init()
+    sub_pixel_align.init()
+
+    if sigproc_v2_params.no_calib:
+        assert sigproc_v2_params.instrument_identity is None
+        calib_identity = CalibIdentity("_identity")
+
+        calib = Calib()
+        arr = np.zeros((ims_import_result.n_channels, 5, 5, RegPSF.N_PARAMS))
+        arr[:, :, :, RegPSF.SIGMA_X] = sigproc_v2_params.no_calib_psf_sigma
+        arr[:, :, :, RegPSF.SIGMA_Y] = sigproc_v2_params.no_calib_psf_sigma
+        arr[:, :, :, RegPSF.RHO] = 0.0
+        reg_psf = RegPSF.from_array(im_mea=ims_import_result.dim, peak_mea=11, arr=arr)
+        calib.add_reg_psf(reg_psf, calib_identity)
+
+        reg_illum = RegIllum.identity(ims_import_result.n_channels, ims_import_result.dim)
+        calib.add_reg_illum(reg_illum, calib_identity)
+
+    elif calib is None:
+        assert sigproc_v2_params.instrument_identity is not None
         calib = Calib.load_file(
             sigproc_v2_params.calibration_file, sigproc_v2_params.instrument_identity
         )
-
-    assert calib.has_records()
+        assert calib.has_records()
 
     n_fields = ims_import_result.n_fields
     n_fields_limit = sigproc_v2_params.n_fields_limit
@@ -753,5 +772,7 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         _trap_exceptions=False,
         _progress=progress,
     )
+
+    sigproc_v2_result.save()
 
     return sigproc_v2_result

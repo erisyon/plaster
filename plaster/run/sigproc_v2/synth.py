@@ -73,8 +73,8 @@ class Synth:
         Synth.synth = None
         if exception_type is not None:
             raise exception_type(exception_value)
-        ims = self.render_flchcy()
-        self._save_np(ims, "ims")
+        self.ims = self.render_flchcy()
+        self._save_np(self.ims, "ims")
 
     def zero_aln_offsets(self):
         self.aln_offsets = np.zeros((self.n_cycles, 2))

@@ -39,6 +39,13 @@ class RegIllum:
         """
         return imops.interp(self.reg_illum[ch_i], (self.im_mea, self.im_mea))
 
+    @classmethod
+    def identity(cls, n_channels, im_mea):
+        n_divs = 5
+        reg_illum = RegIllum(n_channels, im_mea, n_divs)
+        reg_illum.reg_illum = np.ones((n_channels, n_divs, n_divs))
+        return reg_illum
+
 
 class RegPSF:
     """

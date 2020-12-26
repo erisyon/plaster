@@ -38,10 +38,9 @@ class SigprocV2Task(PipelineTask):
             #     important(f"Calib was not able to save to '{sigproc_v2_params.calibration_file}'. It was written to '{os.getcwd()}/calib.calib' as a backup.")
 
         elif sigproc_v2_params.mode == common.SIGPROC_V2_INSTRUMENT_ANALYZE:
-            sigproc_v2_result = worker.sigproc_analyze(
+            worker.sigproc_analyze(
                 sigproc_v2_params, ims_import_result, self.progress
             )
-            sigproc_v2_result.save()
 
         else:
             raise ValueError("Unknown sigproc_v2 mode")

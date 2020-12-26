@@ -64,6 +64,9 @@ def nn_v2(
     progress=None,
     pipeline=None,
 ):
+    from plaster.run.nn_v2.c.nn_v2 import init as nn_v2_c_init
+    nn_v2_c_init()
+
     if sim_v2_result is not None:
         n_cols = sim_v2_result.flat_train_dyemat().shape[1]
     else:
