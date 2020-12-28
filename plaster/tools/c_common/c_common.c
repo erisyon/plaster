@@ -78,8 +78,7 @@ Table table_init_readonly(void *base, Size n_bytes, Size n_bytes_per_row) {
     return table;
 }
 
-Table table_init_subset(Table *src, Index row_i, Size n_rows,
-                        Uint64 is_readonly) {
+Table table_init_subset(Table *src, Index row_i, Size n_rows, Uint64 is_readonly) {
     Index last_row = row_i + n_rows;
     last_row = last_row < src->n_max_rows ? last_row : src->n_max_rows;
     n_rows = last_row - row_i;
@@ -96,13 +95,11 @@ Table table_init_subset(Table *src, Index row_i, Size n_rows,
 
 void *_table_get_row(Table *table, Index row) {
     // Fetch a row from a table with bounds checking if activated
-    ensure_only_in_debug(0 <= row && row < table->n_rows,
-                         "table get outside bounds");
+    ensure_only_in_debug(0 <= row && row < table->n_rows, "table get outside bounds");
     return (void *)(table->rows + table->n_bytes_per_row * row);
 }
 
-Index table_add(Table *table, void *src, pthread_mutex_t *lock,
-                char *table_name) {
+Index table_add(Table *table, void *src, pthread_mutex_t *lock, char *table_name) {
     // Add a row to the table and halt on overflow.
     // Optionally copies src into place if it isn't NULL.
     // Returns the row_i where the data was written (or will be written)
@@ -113,25 +110,20 @@ Index table_add(Table *table, void *src, pthread_mutex_t *lock,
     table->n_rows++;
     if (lock)
         pthread_mutex_unlock(lock);
-    ensure_only_in_debug(!table->readonly,
-                         "Attempting to write to a readonly table");
-    ensure(row_i < table->n_max_rows, "Table overflow on %s. max_rows=%ld",
-           table_name, table->n_max_rows);
+    ensure_only_in_debug(!table->readonly, "Attempting to write to a readonly table");
+    ensure(row_i < table->n_max_rows, "Table overflow on %s. max_rows=%ld", table_name, table->n_max_rows);
     if (src != 0) {
-        memcpy(table->rows + table->n_bytes_per_row * row_i, src,
-               table->n_bytes_per_row);
+        memcpy(table->rows + table->n_bytes_per_row * row_i, src, table->n_bytes_per_row);
     }
     return row_i;
 }
 
 void table_set_row(Table *table, Index row_i, void *src) {
     // Set a row to the table and halt on overflow.
-    ensure_only_in_debug(!table->readonly,
-                         "Attempting to set to a readonly table");
+    ensure_only_in_debug(!table->readonly, "Attempting to set to a readonly table");
     ensure(0 <= row_i && row_i < table->n_max_rows, "Table overflow");
     if (src != 0) {
-        memcpy(table->rows + table->n_bytes_per_row * row_i, src,
-               table->n_bytes_per_row);
+        memcpy(table->rows + table->n_bytes_per_row * row_i, src, table->n_bytes_per_row);
     }
 }
 
@@ -140,9 +132,7 @@ void table_validate(Table *table, void *ptr, char *msg) {
     // Use table_validate_only_in_debug (see below)
     Sint64 byte_offset = ((Uint8 *)ptr - table->rows);
     ensure(byte_offset % table->n_bytes_per_row == 0, msg);
-    ensure(0 <= byte_offset &&
-               (Size)byte_offset < table->n_bytes_per_row * table->n_max_rows,
-           msg);
+    ensure(0 <= byte_offset && (Size)byte_offset < table->n_bytes_per_row * table->n_max_rows, msg);
 }
 
 void table_dump(Table *table, char *msg) {
@@ -253,18 +243,14 @@ Tab tab_malloc_by_n_rows(Size n_rows, Size n_bytes_per_row, Uint64 flags) {
     return tab_malloc_by_size(n_rows * n_bytes_per_row, n_bytes_per_row, flags);
 }
 
-Tab tab_by_arr(void *base, Uint64 n_rows, Uint64 n_cols,
-               Uint64 n_bytes_per_elem, Uint64 flags) {
+Tab tab_by_arr(void *base, Uint64 n_rows, Uint64 n_cols, Uint64 n_bytes_per_elem, Uint64 flags) {
     Size n_bytes_per_row = n_cols * n_bytes_per_elem;
-    return tab_by_size(base, n_rows * n_bytes_per_row, n_bytes_per_row,
-                       flags | TAB_FLAGS_HAS_ELEMS);
+    return tab_by_size(base, n_rows * n_bytes_per_row, n_bytes_per_row, flags | TAB_FLAGS_HAS_ELEMS);
 }
 
-Tab tab_malloc_by_arr(Uint64 n_rows, Uint64 n_cols, Uint64 n_bytes_per_elem,
-                      Uint64 flags) {
+Tab tab_malloc_by_arr(Uint64 n_rows, Uint64 n_cols, Uint64 n_bytes_per_elem, Uint64 flags) {
     Size n_bytes_per_row = n_cols * n_bytes_per_elem;
-    return tab_malloc_by_size(n_rows * n_bytes_per_row, n_bytes_per_row,
-                              flags | TAB_FLAGS_HAS_ELEMS);
+    return tab_malloc_by_size(n_rows * n_bytes_per_row, n_bytes_per_row, flags | TAB_FLAGS_HAS_ELEMS);
 }
 
 void tab_free(Tab *tab) {
@@ -273,15 +259,11 @@ void tab_free(Tab *tab) {
 }
 
 Tab _tab_subset(Tab *src, Index row_i, Size n_rows, char *file, int line) {
-    ensure_only_in_debug(n_rows >= 0,
-                         "tab_subset @%s:%d has illegal n_rows %lu", file, line,
-                         n_rows);
-    ensure_only_in_debug(0 <= row_i && row_i < src->n_rows,
-                         "tab_subset @%s:%d has illegal row_i %lu", file, line,
+    ensure_only_in_debug(n_rows >= 0, "tab_subset @%s:%d has illegal n_rows %lu", file, line, n_rows);
+    ensure_only_in_debug(0 <= row_i && row_i < src->n_rows, "tab_subset @%s:%d has illegal row_i %lu", file, line,
                          row_i);
     ensure_only_in_debug(0 <= row_i + n_rows && row_i + n_rows <= src->n_rows,
-                         "tab_subset @%s:%d has illegal row_i %lu beyond end",
-                         file, line, row_i);
+                         "tab_subset @%s:%d has illegal row_i %lu beyond end", file, line, row_i);
 
     Index last_row = row_i + n_rows;
     last_row = last_row < src->n_max_rows ? last_row : src->n_max_rows;
@@ -297,16 +279,13 @@ Tab _tab_subset(Tab *src, Index row_i, Size n_rows, char *file, int line) {
 }
 
 void *_tab_get(Tab *tab, Index row_i, Uint64 flags, char *file, int line) {
-    ensure_only_in_debug(
-        0 <= row_i && row_i < tab->n_rows,
-        "tab_get outside bounds @%s:%d requested=%lu n_rows=%lu "
-        "n_bytes_per_row=%lu",
-        file, line, row_i, tab->n_rows, tab->n_bytes_per_row);
+    ensure_only_in_debug(0 <= row_i && row_i < tab->n_rows,
+                         "tab_get outside bounds @%s:%d requested=%lu n_rows=%lu "
+                         "n_bytes_per_row=%lu",
+                         file, line, row_i, tab->n_rows, tab->n_bytes_per_row);
     ensure_only_in_debug(!(tab->flags & TAB_FLAGS_HAS_ELEMS) ||
-                             ((tab->flags & TAB_FLAGS_HAS_ELEMS) &&
-                              (flags & TAB_FLAGS_HAS_ELEMS)),
-                         "requesting elems on a non-array tab @%s:%d", file,
-                         line);
+                             ((tab->flags & TAB_FLAGS_HAS_ELEMS) && (flags & TAB_FLAGS_HAS_ELEMS)),
+                         "requesting elems on a non-array tab @%s:%d", file, line);
     return (void *)(tab->base + tab->n_bytes_per_row * row_i);
 }
 
@@ -316,61 +295,44 @@ void _tab_set(Tab *tab, Index row_i, void *src, char *file, int line) {
                          "n_bytes_per_row=%lu",
                          file, line, row_i, tab->n_rows, tab->n_bytes_per_row);
     if (src != (void *)0) {
-        memcpy(tab->base + tab->n_bytes_per_row * row_i, src,
-               tab->n_bytes_per_row);
+        memcpy(tab->base + tab->n_bytes_per_row * row_i, src, tab->n_bytes_per_row);
     }
 }
 
-void _tab_set_col(Tab *tab, Index row_i, Index col_i, void *src, char *file,
-                  int line) {
+void _tab_set_col(Tab *tab, Index row_i, Index col_i, void *src, char *file, int line) {
     ensure_only_in_debug(0 <= row_i && row_i < tab->n_rows,
                          "tab_set outside rouw bounds @%s:%d row_i=%lu "
                          "n_rows=%lu n_bytes_per_row=%lu",
                          file, line, row_i, tab->n_rows, tab->n_bytes_per_row);
-    ensure_only_in_debug(
-        0 <= col_i && col_i < tab->n_cols,
-        "tab_set outside col bounds @%s:%d col_i=%lu n_cols=%lu", file, line,
-        col_i, tab->n_cols);
-    ensure_only_in_debug(tab->n_bytes_per_elem > 0,
-                         "tab_set_col outside on non-column tab @%s:%d", file,
-                         line);
-    ensure_only_in_debug(tab->n_cols > 0,
-                         "tab_set_col outside on non-column tab @%s:%d", file,
-                         line);
+    ensure_only_in_debug(0 <= col_i && col_i < tab->n_cols, "tab_set outside col bounds @%s:%d col_i=%lu n_cols=%lu",
+                         file, line, col_i, tab->n_cols);
+    ensure_only_in_debug(tab->n_bytes_per_elem > 0, "tab_set_col outside on non-column tab @%s:%d", file, line);
+    ensure_only_in_debug(tab->n_cols > 0, "tab_set_col outside on non-column tab @%s:%d", file, line);
     if (src != (void *)0) {
-        memcpy(tab->base + tab->n_bytes_per_row * row_i +
-                   col_i * tab->n_bytes_per_elem,
-               src, tab->n_bytes_per_elem);
+        memcpy(tab->base + tab->n_bytes_per_row * row_i + col_i * tab->n_bytes_per_elem, src, tab->n_bytes_per_elem);
     }
 }
 
-Index _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file,
-               int line) {
-    ensure_only_in_debug(tab->flags & TAB_GROWABLE,
-                         "Attempting to grow to a un-growable table @%s:%d",
-                         file, line);
+Index _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file, int line) {
+    ensure_only_in_debug(tab->flags & TAB_GROWABLE, "Attempting to grow to a un-growable table @%s:%d", file, line);
     if (lock)
         pthread_mutex_lock(lock);
     Index row_i = tab->n_rows;
     tab->n_rows++;
     if (lock)
         pthread_mutex_unlock(lock);
-    ensure_only_in_debug(0 <= row_i && row_i < tab->n_max_rows,
-                         "Table overflow @%s:%d. n_max_rows=%lu", file, line,
+    ensure_only_in_debug(0 <= row_i && row_i < tab->n_max_rows, "Table overflow @%s:%d. n_max_rows=%lu", file, line,
                          tab->n_max_rows);
     if (src != (void *)0) {
-        memcpy(tab->base + tab->n_bytes_per_row * row_i, src,
-               tab->n_bytes_per_row);
+        memcpy(tab->base + tab->n_bytes_per_row * row_i, src, tab->n_bytes_per_row);
     }
     return row_i;
 }
 
 void _tab_validate(Tab *tab, void *ptr, char *file, int line) {
     // Check that a ptr is valid on a table
-    ensure_only_in_debug(
-        tab->base <= ptr &&
-            ptr < tab->base + tab->n_bytes_per_row * tab->n_rows,
-        "Tab ptr invalid @%s:%d. n_max_rows=%lu", file, line, tab->n_max_rows);
+    ensure_only_in_debug(tab->base <= ptr && ptr < tab->base + tab->n_bytes_per_row * tab->n_rows,
+                         "Tab ptr invalid @%s:%d. n_max_rows=%lu", file, line, tab->n_max_rows);
 }
 
 void tab_dump(Tab *tab, char *msg) {
@@ -393,12 +355,10 @@ void tab_tests() {
         }
     }
 
-    Tab tab_a = tab_by_n_rows(buf, N_ROWS * N_COLS, N_COLS * sizeof(int),
-                              TAB_NOT_GROWABLE);
+    Tab tab_a = tab_by_n_rows(buf, N_ROWS * N_COLS, N_COLS * sizeof(int), TAB_NOT_GROWABLE);
     ensure(*(int *)tab_row(&tab_a, 0) == (0), "tab_row[0,0] wrong");
     ensure(*(int *)tab_row(&tab_a, 1) == (1 << 16 | 0), "tab_row[1,1] wrong");
-    ensure(((int *)tab_row(&tab_a, 1))[1] == (1 << 16 | 1),
-           "tab_row[1,1] wrong");
+    ensure(((int *)tab_row(&tab_a, 1))[1] == (1 << 16 | 1), "tab_row[1,1] wrong");
 
     tab_var(int, b, &tab_a, 1);
     ensure(b[0] == (1 << 16 | 0), "tab_var[1,0] wrong");
@@ -458,8 +418,7 @@ int sanity_check() {
     ensure(sizeof(Float32) == 4, "Wrong size: Float32");
     ensure(sizeof(Float64) == 8, "Wrong size: Float64");
 
-    ensure(UINT64_MAX == 0xFFFFFFFFFFFFFFFFULL,
-           "Failed sanity check: UINT64_MAX");
+    ensure(UINT64_MAX == 0xFFFFFFFFFFFFFFFFULL, "Failed sanity check: UINT64_MAX");
 
     // This is particularly annoying. See csim.pxd for explanation
     ensure(N_MAX_CYCLES == 64, "Failed sanity check: N_MAX_CYCLES");
@@ -513,20 +472,14 @@ F64Arr f64arr_malloc(Size n_dims, Size *shape) {
 
 void f64arr_free(F64Arr *arr) { free(arr->base); }
 
-Float64 *f64arr_ptr1(F64Arr *arr, Index i) {
-    return &arr->base[i * arr->pitch[0]];
-}
+Float64 *f64arr_ptr1(F64Arr *arr, Index i) { return &arr->base[i * arr->pitch[0]]; }
 
-Float64 *f64arr_ptr2(F64Arr *arr, Index i, Index j) {
-    return &arr->base[i * arr->pitch[0] + j * arr->pitch[1]];
-}
+Float64 *f64arr_ptr2(F64Arr *arr, Index i, Index j) { return &arr->base[i * arr->pitch[0] + j * arr->pitch[1]]; }
 
 Float64 *f64arr_ptr3(F64Arr *arr, Index i, Index j, Index k) {
-    return &arr->base[i * arr->pitch[0] + j * arr->pitch[1] +
-                      k * arr->pitch[2]];
+    return &arr->base[i * arr->pitch[0] + j * arr->pitch[1] + k * arr->pitch[2]];
 }
 
 Float64 *f64arr_ptr4(F64Arr *arr, Index i, Index j, Index k, Index l) {
-    return &arr->base[i * arr->pitch[0] + j * arr->pitch[1] +
-                      k * arr->pitch[2] + l * arr->pitch[3]];
+    return &arr->base[i * arr->pitch[0] + j * arr->pitch[1] + k * arr->pitch[2] + l * arr->pitch[3]];
 }

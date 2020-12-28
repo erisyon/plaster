@@ -60,8 +60,8 @@ void _dump_vec(Float64 *vec, int width, int height, char *msg) {
     fflush(_log);
 }
 
-void psf_im(Float64 center_x, Float64 center_y, Float64 sigma_x,
-            Float64 sigma_y, Float64 rho, Float64 *pixels, Size mea) {
+void psf_im(Float64 center_x, Float64 center_y, Float64 sigma_x, Float64 sigma_y, Float64 rho, Float64 *pixels,
+            Size mea) {
     center_x -= 0.5;
     center_y -= 0.5;
 
@@ -81,11 +81,17 @@ void psf_im(Float64 center_x, Float64 center_y, Float64 sigma_x,
         for (int j = 0; j < mea; j++) {
             Float64 x = (Float64)j;
             Float64 xmpx = x - center_x;
-            *dst++ = (linear_term *
-                      exp((numer_const * xmpx * ympy + sgxs * ympy * ympy +
-                           sgys * xmpx * xmpx) /
-                          denom) /
-                      PI2);
+            // clang-format off
+            *dst++ = (
+                linear_term * exp(
+                    (
+                        numer_const * xmpx * ympy
+                        + sgxs * ympy * ympy
+                        + sgys * xmpx * xmpx
+                    ) / denom
+                ) / PI2
+            );
+            // clang-format on
         }
     }
 }
@@ -93,10 +99,8 @@ void psf_im(Float64 center_x, Float64 center_y, Float64 sigma_x,
 Float64 *_get_psf_at_loc(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y) {
     Index x_i = floor(ctx->n_divs * loc_x / ctx->width);
     Index y_i = floor(ctx->n_divs * loc_y / ctx->height);
-    ensure_only_in_debug(0.0 <= loc_x && loc_x < ctx->width,
-                         "loc x out of bounds");
-    ensure_only_in_debug(0.0 <= loc_y && loc_y < ctx->height,
-                         "loc x out of bounds");
+    ensure_only_in_debug(0.0 <= loc_x && loc_x < ctx->width, "loc x out of bounds");
+    ensure_only_in_debug(0.0 <= loc_y && loc_y < ctx->height, "loc x out of bounds");
     ensure_only_in_debug(0 <= x_i && x_i < ctx->n_divs, "x_i out of bounds");
     ensure_only_in_debug(0 <= y_i && y_i < ctx->n_divs, "y_i out of bounds");
     return f64arr_ptr2(&ctx->reg_psf_samples, y_i, x_i);
@@ -195,8 +199,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 *im = f64arr_ptr2(&ctx->chcy_ims, 0, 0);
 
     // Position
-    ensure(ctx->n_channels == 1,
-           "Only 1 channel supported until I have a chance to implement it");
+    ensure(ctx->n_channels == 1, "Only 1 channel supported until I have a chance to implement it");
     Size n_cycles = ctx->n_cycles;
     Size mea = ctx->peak_mea;
     Size mea_sq = mea * mea;
@@ -206,10 +209,8 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 *loc_p = f64arr_ptr1(&ctx->locs, peak_i);
     Float64 loc_x = loc_p[1];
     Float64 loc_y = loc_p[0];
-    ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width,
-                         "loc_x out of bounds");
-    ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height,
-                         "loc_y out of bounds");
+    ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width, "loc_x out of bounds");
+    ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
 
     // corner is the lower left pixel coordinate in image coordinates
     // where the (mea, mea) sub-image will be extracted
@@ -217,24 +218,19 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Index corner_x = floor(loc_x - half_mea + 0.5);
     Index corner_y = floor(loc_y - half_mea + 0.5);
 
-    if (!(0 <= corner_x && corner_x + mea < ctx->width) ||
-        !(0 <= corner_y && corner_y + mea < ctx->height)) {
+    if (!(0 <= corner_x && corner_x + mea < ctx->width) || !(0 <= corner_y && corner_y + mea < ctx->height)) {
         trace("Out of bound %f %f\n", corner_x, corner_y);
         return NULL;
     }
 
-    ensure_only_in_debug(0 <= corner_x && corner_x + mea < ctx->width,
-                         "corner_x out of bounds");
-    ensure_only_in_debug(0 <= corner_y && corner_y + mea < ctx->height,
-                         "corner_y out of bounds");
+    ensure_only_in_debug(0 <= corner_x && corner_x + mea < ctx->width, "corner_x out of bounds");
+    ensure_only_in_debug(0 <= corner_y && corner_y + mea < ctx->height, "corner_y out of bounds");
 
     // center is the location relative to the the corner
     Float64 center_x = loc_x - corner_x;
     Float64 center_y = loc_y - corner_y;
-    ensure_only_in_debug(0 <= center_x && center_x < mea,
-                         "center out of bounds");
-    ensure_only_in_debug(0 <= center_y && center_y < mea,
-                         "center out of bounds");
+    ensure_only_in_debug(0 <= center_x && center_x < mea, "center out of bounds");
+    ensure_only_in_debug(0 <= center_y && center_y < mea, "center out of bounds");
 
     // Shape
     Index n_divs_minus_one = ctx->n_divs - 1;
@@ -259,8 +255,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         sigma_x *= focus;
         sigma_y *= focus;
 
-        psf_im(center_x, center_y, sigma_x, sigma_y, rho, psf_pixels,
-               ctx->peak_mea);
+        psf_im(center_x, center_y, sigma_x, sigma_y, rho, psf_pixels, ctx->peak_mea);
 
         // COPY the data into a contiguous buffer
         Float64 *dst_p = dat_pixels;
@@ -268,13 +263,10 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         Float64 *start_dst = &dat_pixels[0];
         Float64 *stop_dst = &dat_pixels[mea_sq];
         Float64 *start_dat = &ctx->chcy_ims.base[0];
-        Float64 *stop_dat =
-            &ctx->chcy_ims
-                 .base[ctx->n_cycles * (int)ctx->width * (int)ctx->height];
+        Float64 *stop_dat = &ctx->chcy_ims.base[ctx->n_cycles * (int)ctx->width * (int)ctx->height];
 
         for (Index y = 0; y < mea; y++) {
-            Float64 *dat_p =
-                f64arr_ptr4(&ctx->chcy_ims, ch_i, cy_i, corner_y + y, corner_x);
+            Float64 *dat_p = f64arr_ptr4(&ctx->chcy_ims, ch_i, cy_i, corner_y + y, corner_x);
             for (Index x = 0; x < mea; x++) {
                 // ensure(start_dst <= dst_p, "OUT OF BOUND dst0");
                 // ensure(dst_p < stop_dst, "OUT OF BOUND dst1");
@@ -352,8 +344,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     return NULL;
 }
 
-char *test_interp(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y,
-                  Float64 *out_vals) {
+char *test_interp(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y, Float64 *out_vals) {
     Float64 *psf_params = _get_psf_at_loc(ctx, loc_x, loc_y);
     Float64 sigma_x = psf_params[0];
     Float64 sigma_y = psf_params[1];

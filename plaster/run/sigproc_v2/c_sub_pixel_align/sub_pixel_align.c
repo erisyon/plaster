@@ -21,8 +21,7 @@ void _dump_vec(Float64 *vec, int width, int height, char *msg) {
     fprintf(_log, "]\n");
 }
 
-void _slice(F64Arr *im, Index row_i, Index n_rows_per_slice, Float64 *out_slice,
-            Size width) {
+void _slice(F64Arr *im, Index row_i, Index n_rows_per_slice, Float64 *out_slice, Size width) {
     // Sum over the vertical element to go from a short 2D signal
     // to a 1D signal.
 
@@ -36,8 +35,7 @@ void _slice(F64Arr *im, Index row_i, Index n_rows_per_slice, Float64 *out_slice,
     }
 }
 
-void _cubic_spline_segment(Float64 p0, Float64 p1, Float64 p2, Float64 p3,
-                           Float64 *dst, Size n_steps) {
+void _cubic_spline_segment(Float64 p0, Float64 p1, Float64 p2, Float64 p3, Float64 *dst, Size n_steps) {
     // Catmull-Rom spline
     //
     // p0 --------- p1 ----------- p2 ----------- p3
@@ -69,23 +67,19 @@ void _rescale(Float64 *slice, Float64 *out_slice, Size width, Size scale) {
     // values.
 
     // Interpolate the first point by duplicating point[0]
-    _cubic_spline_segment(slice[0], slice[0], slice[1], slice[2], &out_slice[0],
-                          scale);
+    _cubic_spline_segment(slice[0], slice[0], slice[1], slice[2], &out_slice[0], scale);
 
     // Interpolate the middle points (no boundary effects)
     for (Index i = 1; i < width - 2; i++) {
-        _cubic_spline_segment(slice[i - 1], slice[i], slice[i + 1],
-                              slice[i + 2], &out_slice[i * scale], scale);
+        _cubic_spline_segment(slice[i - 1], slice[i], slice[i + 1], slice[i + 2], &out_slice[i * scale], scale);
     }
 
     // Interpolate the last two points duplicating the point[-1] twice.
     Index i = width - 2;
-    _cubic_spline_segment(slice[i - 1], slice[i], slice[i + 1], slice[i + 1],
-                          &out_slice[i * scale], scale);
+    _cubic_spline_segment(slice[i - 1], slice[i], slice[i + 1], slice[i + 1], &out_slice[i * scale], scale);
 
     i = width - 1;
-    _cubic_spline_segment(slice[i - 1], slice[i], slice[i + 1], slice[i + 1],
-                          &out_slice[i * scale], scale);
+    _cubic_spline_segment(slice[i - 1], slice[i], slice[i + 1], slice[i + 1], &out_slice[i * scale], scale);
 }
 
 int _convolve(Float64 *cy0, Float64 *cyi, int scale, int width) {
@@ -140,8 +134,7 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
 
     int *offset_samples = (int *)malloc(sizeof(int) * n_slices);
     Float64 *slice_buffer = (Float64 *)malloc(sizeof(Float64) * width);
-    Float64 *large_slice_buffer =
-        (Float64 *)malloc(sizeof(Float64) * large_width);
+    Float64 *large_slice_buffer = (Float64 *)malloc(sizeof(Float64) * large_width);
 
     ensure(offset_samples != NULL, "malloc failed");
     ensure(slice_buffer != NULL, "malloc failed");
@@ -152,12 +145,10 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
         Index row_i = slice_i * slice_h;
         _slice(&cy_im, row_i, slice_h, slice_buffer, width);
         _rescale(slice_buffer, large_slice_buffer, width, scale);
-        Float64 *large_cy0_slice =
-            f64arr_ptr1(&ctx->_large_cy0_slices, slice_i);
+        Float64 *large_cy0_slice = f64arr_ptr1(&ctx->_large_cy0_slices, slice_i);
 
         // Compare cycle i slice with the paired cycle 0 slice.
-        Index offset =
-            _convolve(large_cy0_slice, large_slice_buffer, scale, large_width);
+        Index offset = _convolve(large_cy0_slice, large_slice_buffer, scale, large_width);
         offset_samples[slice_i] = offset;
     }
 
@@ -198,8 +189,7 @@ char *context_init(SubPixelAlignContext *ctx) {
     for (Index slice_i = 0; slice_i < n_slices; slice_i++) {
         Index row_i = slice_i * slice_h;
         _slice(&cy0_im, row_i, slice_h, slice_buffer, width);
-        _rescale(slice_buffer, f64arr_ptr1(&ctx->_large_cy0_slices, slice_i),
-                 width, scale);
+        _rescale(slice_buffer, f64arr_ptr1(&ctx->_large_cy0_slices, slice_i), width, scale);
     }
 
     free(slice_buffer);
