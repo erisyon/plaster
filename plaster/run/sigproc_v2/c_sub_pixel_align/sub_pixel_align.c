@@ -12,8 +12,8 @@
 
 void _dump_vec(Float64 *vec, int width, int height, char *msg) {
     trace("VEC %s [\n", msg);
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
+    for(int y = 0; y < height; y++) {
+        for(int x = 0; x < width; x++) {
             fprintf(_log, "%4.4f, ", vec[y * width + x]);
         }
         fprintf(_log, "\n");
@@ -26,10 +26,10 @@ void _slice(F64Arr *im, Index row_i, Index n_rows_per_slice, Float64 *out_slice,
     // to a 1D signal.
 
     memset(out_slice, 0, sizeof(Float64) * width);
-    for (Index i = 0; i < n_rows_per_slice; i++) {
+    for(Index i = 0; i < n_rows_per_slice; i++) {
         Float64 *src = f64arr_ptr1(im, row_i + i);
         Float64 *dst = out_slice;
-        for (Index col_i = 0; col_i < width; col_i++) {
+        for(Index col_i = 0; col_i < width; col_i++) {
             *dst++ += *src++;
         }
     }
@@ -50,7 +50,7 @@ void _cubic_spline_segment(Float64 p0, Float64 p1, Float64 p2, Float64 p3, Float
 
     Float64 step = 1.0 / n_steps;
     Float64 x = 0.0;
-    for (Index x_i = 0; x_i < n_steps; x_i++) {
+    for(Index x_i = 0; x_i < n_steps; x_i++) {
         Float64 x2 = x * x;
         Float64 x3 = x * x2;
         *dst++ = cubic * x3 + quadratic * x2 + linear * x + constant;
@@ -70,7 +70,7 @@ void _rescale(Float64 *slice, Float64 *out_slice, Size width, Size scale) {
     _cubic_spline_segment(slice[0], slice[0], slice[1], slice[2], &out_slice[0], scale);
 
     // Interpolate the middle points (no boundary effects)
-    for (Index i = 1; i < width - 2; i++) {
+    for(Index i = 1; i < width - 2; i++) {
         _cubic_spline_segment(slice[i - 1], slice[i], slice[i + 1], slice[i + 2], &out_slice[i * scale], scale);
     }
 
@@ -96,22 +96,22 @@ int _convolve(Float64 *cy0, Float64 *cyi, int scale, int width) {
 
     // SCAN offset, compute sum(a * shifted(b)) and track the maximum
     // to find the best fit.
-    for (int offset = -scale; offset <= scale; offset++) {
+    for(int offset = -scale; offset <= scale; offset++) {
         Float64 *_cy0 = cy0;
         Float64 *_cyi = cyi;
 
         // TRIM appropriate side of the function
-        if (offset < 0) {
+        if(offset < 0) {
             _cyi = &cyi[-offset];
         } else {
             _cy0 = &cy0[offset];
         }
 
         Float64 sum = 0.0;
-        for (Index i = 0; i < _width; i++) {
+        for(Index i = 0; i < _width; i++) {
             sum += (*_cy0++) * (*_cyi++);
         }
-        if (sum > max_sum) {
+        if(sum > max_sum) {
             max_sum = sum;
             max_offset = offset;
         }
@@ -141,7 +141,7 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
     ensure(large_slice_buffer != NULL, "malloc failed");
 
     F64Arr cy_im = f64arr_subset(&ctx->cy_ims, cy_i);
-    for (Index slice_i = 0; slice_i < n_slices; slice_i++) {
+    for(Index slice_i = 0; slice_i < n_slices; slice_i++) {
         Index row_i = slice_i * slice_h;
         _slice(&cy_im, row_i, slice_h, slice_buffer, width);
         _rescale(slice_buffer, large_slice_buffer, width, scale);
@@ -154,7 +154,7 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
 
     // We may need filtering, for now just compute a mean
     Float64 mean_offset = 0.0;
-    for (Index slice_i = 0; slice_i < n_slices; slice_i++) {
+    for(Index slice_i = 0; slice_i < n_slices; slice_i++) {
         mean_offset += offset_samples[slice_i];
     }
     mean_offset /= (Float64)n_slices;
@@ -186,7 +186,7 @@ char *context_init(SubPixelAlignContext *ctx) {
     ctx->_large_cy0_slices = f64arr_malloc(2, cy0_slices_shape);
 
     F64Arr cy0_im = f64arr_subset(&ctx->cy_ims, 0);
-    for (Index slice_i = 0; slice_i < n_slices; slice_i++) {
+    for(Index slice_i = 0; slice_i < n_slices; slice_i++) {
         Index row_i = slice_i * slice_h;
         _slice(&cy0_im, row_i, slice_h, slice_buffer, width);
         _rescale(slice_buffer, f64arr_ptr1(&ctx->_large_cy0_slices, slice_i), width, scale);

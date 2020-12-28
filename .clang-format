@@ -1,4 +1,15 @@
+# LLVM seems to have the fewest required changes to match our style
 BasedOnStyle: LLVM
+
+# Indent 4 spaces
 IndentWidth: 4
 AccessModifierOffset: -4
+
+# Extend default column limit to 120 (We all have big monitors)
 ColumnLimit: 120
+
+# If not all arguments fit on same line, all go on separate lines
+BinPackArguments: false
+
+# if() instead of if ()
+SpaceBeforeParens: Never
