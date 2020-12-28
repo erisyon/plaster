@@ -1,6 +1,4 @@
 #include "alloca.h"
-#include "c_common_new.h"
-#include "c_common_old.h"
 #include "inttypes.h"
 #include "math.h"
 #include "memory.h"
@@ -11,6 +9,12 @@
 #include "stdlib.h"
 #include "time.h"
 #include "unistd.h"
+
+// These includes must be defined last, and must be defined in this order.
+// Empty lines between them prevent clang-format from sorting them
+#include "c_common_old.h"
+
+#include "c_common_new.h"
 
 Uint64 now() {
     struct timespec spec;
