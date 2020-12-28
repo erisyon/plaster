@@ -93,7 +93,8 @@ built plaster:latest as per above.
 
 Assuming your aws credentials are in ~/.aws, you can mount them into the container:
 ```bash
-$ docker run -it -v ${HOME}/.aws:/root/.aws
+$ docker run -it -v ${HOME}/.aws:/root/.aws plaster:latest /bin/bash
+```
 
 ## Running Jupyter from a Docker container
 
