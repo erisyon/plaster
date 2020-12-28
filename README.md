@@ -40,7 +40,7 @@ It consists of the following two parts:
       --n_edmans=10 \
       --n_pres=1
 
-    # Run the job...    
+    # Run the job...
     $ plas run /jobs_folder/human_random_2
     # Report in: /jobs_folder/human_random_2/report.html
     ```
@@ -62,7 +62,7 @@ $ cd $PLASTER_ROOT
 $ docker build -t plaster:latest .
 $ docker run -it plaster:latest /bin/bash
 $ plas test
-# All the tests should pass 
+# All the tests should pass
 ```
 
 Typically you will use data from outside the container and save your jobs
@@ -72,7 +72,7 @@ built plaster:latest as per above.
     ```bash
     # Step 1: Build the cotainer
     $ docker build -t plaster:latest .
-    
+
     # Step 2: Start the container with volume mount(s)
     $ docker run -it --volume ${HOME}/jobs_folder:/jobs_folder:rw plaster:latest /bin/bash
 
@@ -85,14 +85,20 @@ built plaster:latest as per above.
       --n_edmans=10 \
       --n_pres=1
 
-    # Step 4: Run the job...    
+    # Step 4: Run the job...
     $ plas run /jobs_folder/human_random_2
     ```
+
+## Mounting aws credentials into the container (for pulling from S3, etc.)
+
+Assuming your aws credentials are in ~/.aws, you can mount them into the container:
+```bash
+$ docker run -it -v ${HOME}/.aws:/root/.aws
 
 ## Running Jupyter from a Docker container
 
 Jupyter notebooks beed to open ports so you need to add this
-to the Docker command line. 
+to the Docker command line.
 
     ```bash
     $ docker run -it --volume ${HOME}/jobs_folder:/jobs_folder:rw -p 8080:8080 plaster:e2e plas jupyter
