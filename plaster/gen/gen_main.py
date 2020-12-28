@@ -482,6 +482,10 @@ class GenApp(cli.Application, GenFuncs):
         ["--skip_report"], default=False, help="Skip report generation"
     )
 
+    defer_s3 = cli.Flag(
+        ["--defer_s3"], default=False, help="Defer pulling from s3 until run"
+    )
+
     generator_klass_by_name = Munch(
         classify_v1=ClassifyV1Generator,
         classify_v2=ClassifyV2Generator,
@@ -741,6 +745,29 @@ class GenApp(cli.Application, GenFuncs):
                 if arg_userdata.get("allowed_to_be_entered_manually"):
                     generator_args[arg_name] = self._request_field_from_user(
                         arg_name, arg_type, default=defaults.get(arg_name)
+                    )
+
+        if "sigproc_source" in generator_args:
+            sigproc_source = generator_args["sigproc_source"]
+            if sigproc_source.startswith("s3:"):
+                if not self.defer_s3:
+                    found_cache, cache_path = tmp.cache_path(
+                        "plaster_s3", sigproc_source
+                    )
+                    if not found_cache:
+                        important(f"Syncing from {sigproc_source} to {dst_path}")
+                        local["aws"]["s3", "sync", sigproc_source, cache_path] & FG
+
+                    sigproc_source_folder_name = sigproc_source.split("/")[-1]
+
+                    local["cp"][
+                        "-r",
+                        cache_path,
+                        self.local_sources_tmp_folder / sigproc_source_folder_name,
+                    ]()
+
+                    generator_args["sigproc_source"] = (
+                        "../../../_gen_sources/" + sigproc_source_folder_name
                     )
 
         # Intentionally run the generate before the job folder is written

@@ -1,5 +1,3 @@
-#include "_radiometry.h"
-#include "c_common.h"
 #include "math.h"
 #include "memory.h"
 #include "pthread.h"
@@ -8,6 +6,10 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "unistd.h"
+
+#include "c_common.h"
+
+#include "_radiometry.h"
 
 #define PI2 (2.0 * M_PI)
 
