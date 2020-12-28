@@ -1,6 +1,4 @@
-#include "_sub_pixel_align.h"
 #include "alloca.h"
-#include "c_common.h"
 #include "math.h"
 #include "memory.h"
 #include "pthread.h"
@@ -9,6 +7,10 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "unistd.h"
+
+#include "c_common.h"
+
+#include "_sub_pixel_align.h"
 
 void _dump_vec(Float64 *vec, int width, int height, char *msg) {
     trace("VEC %s [\n", msg);
