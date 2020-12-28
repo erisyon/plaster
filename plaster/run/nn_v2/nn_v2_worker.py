@@ -177,6 +177,8 @@ def nn_v2(
     if sigproc_result is not None:
         sigproc_radmat = sigproc_result.sig(flat_chcy=True).astype(RadType)
 
+        debug(sigproc_radmat[1])
+
         if sigproc_radmat.shape[1] != n_cols:
             raise TypeError(
                 f"In nn_v2 sigproc_radmat did not have same number of columns as training dyemat {sigproc_radmat.shape[1]} vs {n_cols}"
@@ -196,6 +198,8 @@ def nn_v2(
                 nn_v2_params.dyetrack_n_cycles, nn_v2_params.dyetrack_n_counts
             )
             sigproc_context = _run(sigproc_radmat, dyemat, dyepeps)
+            debug(sigproc_context._output)
+
         else:
             sigproc_context = _run(
                 sigproc_radmat,
