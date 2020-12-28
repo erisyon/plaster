@@ -1,17 +1,15 @@
-#include "stdint.h"
-#include "alloca.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "stdarg.h"
+#include "_radiometry.h"
+#include "c_common.h"
+#include "math.h"
 #include "memory.h"
 #include "pthread.h"
+#include "stdarg.h"
+#include "stdint.h"
+#include "stdio.h"
+#include "stdlib.h"
 #include "unistd.h"
-#include "math.h"
-#include "c_common.h"
-#include "_radiometry.h"
 
 #define PI2 (2.0 * M_PI)
-
 
 /*
     SPLINE INTERPOLATION NOTES
@@ -52,9 +50,9 @@
 
 void _dump_vec(Float64 *vec, int width, int height, char *msg) {
     trace("VEC %s [\n", msg);
-    for(int y=0; y<height; y++) {
-        for(int x=0; x<width; x++) {
-            fprintf(_log, "%4.4f, ", vec[y*width + x]);
+    for(int y = 0; y < height; y++) {
+        for(int x = 0; x < width; x++) {
+            fprintf(_log, "%4.4f, ", vec[y * width + x]);
         }
         fprintf(_log, "\n");
     }
@@ -63,10 +61,7 @@ void _dump_vec(Float64 *vec, int width, int height, char *msg) {
 }
 
 void psf_im(
-    Float64 center_x, Float64 center_y,
-    Float64 sigma_x, Float64 sigma_y,
-    Float64 rho, Float64 *pixels, Size mea
-) {
+    Float64 center_x, Float64 center_y, Float64 sigma_x, Float64 sigma_y, Float64 rho, Float64 *pixels, Size mea) {
     center_x -= 0.5;
     center_y -= 0.5;
 
@@ -80,12 +75,13 @@ void psf_im(
     Float64 linear_term = tem_a * sqrt(omrs);
 
     Float64 *dst = pixels;
-    for (int i=0; i<mea; i++) {
+    for(int i = 0; i < mea; i++) {
         Float64 y = (Float64)i;
         Float64 ympy = y - center_y;
-        for (int j=0; j<mea; j++) {
+        for(int j = 0; j < mea; j++) {
             Float64 x = (Float64)j;
             Float64 xmpx = x - center_x;
+            // clang-format off
             *dst++ = (
                 linear_term * exp(
                     (
@@ -95,10 +91,10 @@ void psf_im(
                     ) / denom
                 ) / PI2
             );
+            // clang-format on
         }
     }
 }
-
 
 Float64 *_get_psf_at_loc(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y) {
     Index x_i = floor(ctx->n_divs * loc_x / ctx->width);
@@ -110,15 +106,14 @@ Float64 *_get_psf_at_loc(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y) {
     return f64arr_ptr2(&ctx->reg_psf_samples, y_i, x_i);
 }
 
-
 Float64 aspect_ratio(Float64 *dat_pixels, Size w, Size h) {
     // The aspect ratio is the ratio of the eigen value of the covariance matrix
     Float64 com_x = 0.0;
     Float64 com_y = 0.0;
     Float64 total_sum = 0.0;
     Float64 *src = dat_pixels;
-    for(Index y=0; y<h; y++) {
-        for(Index x=0; x<w; x++) {
+    for(Index y = 0; y < h; y++) {
+        for(Index x = 0; x < w; x++) {
             Float64 pixel = *src++;
             total_sum += pixel;
             com_y += pixel * (Float64)y;
@@ -128,10 +123,12 @@ Float64 aspect_ratio(Float64 *dat_pixels, Size w, Size h) {
     com_y /= total_sum;
     com_x /= total_sum;
 
-    Float64 cov[2][2] = { 0, };
+    Float64 cov[2][2] = {
+        0,
+    };
     src = dat_pixels;
-    for(Index y=0; y<h; y++) {
-        for(Index x=0; x<w; x++) {
+    for(Index y = 0; y < h; y++) {
+        for(Index x = 0; x < w; x++) {
             Float64 pixel = *src++;
             Float64 dy = ((Float64)y - com_y) * pixel;
             Float64 dx = ((Float64)x - com_x) * pixel;
@@ -165,20 +162,18 @@ Float64 aspect_ratio(Float64 *dat_pixels, Size w, Size h) {
     Float64 b = -cov_trace;
     Float64 c = cov_det;
 
-    Float64 right = sqrt( b*b - 4.0 * a * c );
+    Float64 right = sqrt(b * b - 4.0 * a * c);
     Float64 denom = 2.0 * a;
-    Float64 lambda0 = fabs( ( -b + right ) / denom );
-    Float64 lambda1 = fabs( ( -b - right ) / denom );
+    Float64 lambda0 = fabs((-b + right) / denom);
+    Float64 lambda1 = fabs((-b - right) / denom);
 
     // The aspect ratio is the ratio of the eigen value of the covariance matrix
     if(lambda0 > lambda1) {
         return lambda0 / lambda1;
-    }
-    else {
+    } else {
         return lambda1 / lambda0;
     }
 }
-
 
 char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     /*
@@ -223,10 +218,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Index corner_x = floor(loc_x - half_mea + 0.5);
     Index corner_y = floor(loc_y - half_mea + 0.5);
 
-    if(
-        !(0 <= corner_x && corner_x + mea < ctx->width)
-        || !(0 <= corner_y && corner_y + mea < ctx->height)
-    ) {
+    if(!(0 <= corner_x && corner_x + mea < ctx->width) || !(0 <= corner_y && corner_y + mea < ctx->height)) {
         trace("Out of bound %f %f\n", corner_x, corner_y);
         return NULL;
     }
@@ -243,12 +235,16 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     // Shape
     Index n_divs_minus_one = ctx->n_divs - 1;
 
-    Float64 *psf_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
-    Float64 *dat_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
-    Float64 *msk_pixels = (Float64 *)alloca(sizeof(Float64) * mea_sq);
+    Float64 *psf_pixels = (Float64 *)malloc(sizeof(Float64) * mea_sq);
+    Float64 *dat_pixels = (Float64 *)malloc(sizeof(Float64) * mea_sq);
+    Float64 *msk_pixels = (Float64 *)malloc(sizeof(Float64) * mea_sq);
+
+    ensure(psf_pixels != NULL, "malloc failed");
+    ensure(dat_pixels != NULL, "malloc failed");
+    ensure(msk_pixels != NULL, "malloc failed");
 
     Index ch_i = 0;
-    for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
+    for(Index cy_i = 0; cy_i < n_cycles; cy_i++) {
         Float64 focus = *f64arr_ptr1(&ctx->focus_adjustment, cy_i);
 
         Float64 *psf_params = _get_psf_at_loc(ctx, loc_x, loc_y);
@@ -259,11 +255,7 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         sigma_x *= focus;
         sigma_y *= focus;
 
-        psf_im(
-            center_x, center_y,
-            sigma_x, sigma_y,
-            rho, psf_pixels, ctx->peak_mea
-        );
+        psf_im(center_x, center_y, sigma_x, sigma_y, rho, psf_pixels, ctx->peak_mea);
 
         // COPY the data into a contiguous buffer
         Float64 *dst_p = dat_pixels;
@@ -273,18 +265,18 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         Float64 *start_dat = &ctx->chcy_ims.base[0];
         Float64 *stop_dat = &ctx->chcy_ims.base[ctx->n_cycles * (int)ctx->width * (int)ctx->height];
 
-        for(Index y=0; y<mea; y++) {
+        for(Index y = 0; y < mea; y++) {
             Float64 *dat_p = f64arr_ptr4(&ctx->chcy_ims, ch_i, cy_i, corner_y + y, corner_x);
-            for(Index x=0; x<mea; x++) {
-                //ensure(start_dst <= dst_p, "OUT OF BOUND dst0");
-                //ensure(dst_p < stop_dst, "OUT OF BOUND dst1");
-                //ensure(start_dat <= dat_p, "OUT OF BOUND dat0");
-                //ensure(dat_p < stop_dat, "OUT OF BOUND dat1");
+            for(Index x = 0; x < mea; x++) {
+                // ensure(start_dst <= dst_p, "OUT OF BOUND dst0");
+                // ensure(dst_p < stop_dst, "OUT OF BOUND dst1");
+                // ensure(start_dat <= dat_p, "OUT OF BOUND dat0");
+                // ensure(dat_p < stop_dat, "OUT OF BOUND dat1");
                 *dst_p++ = *dat_p++;
             }
         }
-//        _dump_vec(psf_pixels, mea, mea, "psf");
-//        _dump_vec(dat_pixels, mea, mea, "data");
+        //        _dump_vec(psf_pixels, mea, mea, "psf");
+        //        _dump_vec(dat_pixels, mea, mea, "data");
 
         // SIGNAL
         Float64 psf_sum_square = 0.0;
@@ -292,14 +284,14 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         Float64 *psf_p = psf_pixels;
         Float64 *dat_p = dat_pixels;
         Float64 *msk_p = msk_pixels;
-        for(Index i=0; i<mea_sq; i++) {
+        for(Index i = 0; i < mea_sq; i++) {
             Float64 psf_times_dat = *psf_p * *dat_p;
             signal += psf_times_dat;
             psf_sum_square += *psf_p * *psf_p;
             *msk_p = psf_times_dat;
-            psf_p ++;
-            dat_p ++;
-            msk_p ++;
+            psf_p++;
+            dat_p++;
+            msk_p++;
         }
         signal /= psf_sum_square;
 
@@ -307,11 +299,11 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         Float64 residual_mean = 0.0;
         psf_p = psf_pixels;
         dat_p = dat_pixels;
-        for(Index i=0; i<mea_sq; i++) {
+        for(Index i = 0; i < mea_sq; i++) {
             Float64 residual = *dat_p - signal * *psf_p;
             residual_mean += residual;
-            psf_p ++;
-            dat_p ++;
+            psf_p++;
+            dat_p++;
         }
         residual_mean /= (Float64)mea_sq;
 
@@ -319,12 +311,12 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         Float64 residual_var = 0.0;
         psf_p = psf_pixels;
         dat_p = dat_pixels;
-        for(Index i=0; i<mea_sq; i++) {
+        for(Index i = 0; i < mea_sq; i++) {
             Float64 residual = *dat_p - signal * *psf_p;
             Float64 mean_centered = residual - residual_mean;
             residual_var += mean_centered * mean_centered;
-            psf_p ++;
-            dat_p ++;
+            psf_p++;
+            dat_p++;
         }
         residual_var /= (Float64)mea_sq;
 
@@ -345,9 +337,12 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
         out[3] = asr;
     }
 
+    free(psf_pixels);
+    free(dat_pixels);
+    free(msk_pixels);
+
     return NULL;
 }
-
 
 char *test_interp(RadiometryContext *ctx, Float64 loc_x, Float64 loc_y, Float64 *out_vals) {
     Float64 *psf_params = _get_psf_at_loc(ctx, loc_x, loc_y);
@@ -397,7 +392,6 @@ char *context_init(RadiometryContext *ctx) {
 
     return NULL;
 }
-
 
 char *context_free(RadiometryContext *ctx) {
     /*

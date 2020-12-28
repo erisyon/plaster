@@ -1,0 +1,32 @@
+# LLVM seems to have the fewest required changes to match our style
+BasedOnStyle: LLVM
+
+# Indent 4 spaces
+IndentWidth: 4
+AccessModifierOffset: -4
+
+# Increase column limit
+ColumnLimit: 120
+
+# If not all arguments fit on same line, all go on separate lines
+BinPackArguments: false
+
+# If not all args in function definition fit on same line, all go on separate lines
+BinPackParameters: false
+
+# if() instead of if ()
+SpaceBeforeParens: Never
+
+AlignAfterOpenBracket: AlwaysBreak
+# TODO: how to get clang-format to format function args like:
+# fn(
+#   arg,
+#   arg,
+#   arg,
+# )
+# Instead of
+# fn(
+#    arg,
+#    arg,
+#    arg)
+# This appears to be stuck in the clang-format review process https://reviews.llvm.org/D33029

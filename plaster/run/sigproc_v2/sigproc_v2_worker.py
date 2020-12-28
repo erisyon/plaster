@@ -99,25 +99,25 @@ TASKS:
 import cv2
 import numpy as np
 import pandas as pd
-from munch import Munch
-
 import plaster.run.sigproc_v2.psf
 import plaster.run.sigproc_v2.reg_psf
+from munch import Munch
+from plaster.run.calib.calib import Calib, RegIllum, RegPSF
 from plaster.run.sigproc_v2 import bg, fg, psf
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
+from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import \
+    Gauss2FitParams
+from plaster.run.sigproc_v2.c_radiometry.radiometry import \
+    radiometry_field_stack
+from plaster.run.sigproc_v2.c_sub_pixel_align.sub_pixel_align import \
+    sub_pixel_align_cy_ims
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
-from plaster.run.sigproc_v2.c_sub_pixel_align.sub_pixel_align import (
-    sub_pixel_align_cy_ims,
-)
-from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import Gauss2FitParams
-from plaster.run.calib.calib import Calib, RegPSF, RegIllum
 from plaster.tools.image import imops
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
-from plaster.tools.zap import zap
 from plaster.tools.utils import data
-from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
+from plaster.tools.zap import zap
 from plumbum import local
 
 # Calibration
