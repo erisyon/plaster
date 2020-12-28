@@ -17,7 +17,12 @@ BinPackParameters: false
 # if() instead of if ()
 SpaceBeforeParens: Never
 
+# New line after paren if args are on multiple lines
 AlignAfterOpenBracket: AlwaysBreak
+
+# If you don't want includes sorted, put empty newline between them
+IncludeBlocks: Preserve
+#
 # TODO: how to get clang-format to format function args like:
 # fn(
 #   arg,
