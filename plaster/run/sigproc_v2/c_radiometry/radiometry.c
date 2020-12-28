@@ -60,8 +60,8 @@ void _dump_vec(Float64 *vec, int width, int height, char *msg) {
     fflush(_log);
 }
 
-void psf_im(Float64 center_x, Float64 center_y, Float64 sigma_x, Float64 sigma_y, Float64 rho, Float64 *pixels,
-            Size mea) {
+void psf_im(
+    Float64 center_x, Float64 center_y, Float64 sigma_x, Float64 sigma_y, Float64 rho, Float64 *pixels, Size mea) {
     center_x -= 0.5;
     center_y -= 0.5;
 
@@ -364,10 +364,9 @@ char *context_init(RadiometryContext *ctx) {
     trace("n_samples=%ld\n", n_samples);
     _dump_vec(f64arr_ptr1(&ctx->reg_psf_x, 0), n_divs, n_divs, "x");
     _dump_vec(f64arr_ptr1(&ctx->reg_psf_y, 0), n_divs, n_divs, "y");
-    _dump_vec(f64arr_ptr1(&ctx->reg_psf_sigma_x, 0), n_divs, n_divs,
-    "reg_psf_sigma_x"); _dump_vec(f64arr_ptr1(&ctx->reg_psf_sigma_y, 0), n_divs,
-    n_divs, "reg_psf_sigma_y"); _dump_vec(f64arr_ptr1(&ctx->reg_psf_rho, 0),
-    n_divs, n_divs, "reg_psf_rho");
+    _dump_vec(f64arr_ptr1(&ctx->reg_psf_sigma_x, 0), n_divs, n_divs, "reg_psf_sigma_x");
+    _dump_vec(f64arr_ptr1(&ctx->reg_psf_sigma_y, 0), n_divs, n_divs, "reg_psf_sigma_y");
+    _dump_vec(f64arr_ptr1(&ctx->reg_psf_rho, 0), n_divs, n_divs, "reg_psf_rho");
 
     ctx->_interp_sigma_x = _init_interpolate(
         ctx->n_reg_psf_samples,

@@ -43,10 +43,12 @@ void _cubic_spline_segment(Float64 p0, Float64 p1, Float64 p2, Float64 p3, Float
     //              in this section.
     //
 
-    Float64 cubic = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
-    Float64 quadratic = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3;
-    Float64 linear = -0.5 * p0 + 0.5 * p2;
-    Float64 constant = p1;
+    // clang-format off
+    Float64 cubic     = -0.5*p0 + 1.5*p1 - 1.5*p2 + 0.5*p3;
+    Float64 quadratic =      p0 - 2.5*p1 + 2.0*p2 - 0.5*p3;
+    Float64 linear    = -0.5*p0          + 0.5*p2;
+    Float64 constant  =               p1;
+    // clang-format on
 
     Float64 step = 1.0 / n_steps;
     Float64 x = 0.0;
