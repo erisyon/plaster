@@ -128,12 +128,20 @@ class BaseSynthModel:
 
 
 class PeaksModel(BaseSynthModel):
-    def __init__(self, n_peaks=1000):
+    def __init__(self, n_peaks=1000, focus_per_cycle=None):
         super().__init__()
         self.n_peaks = n_peaks
         self.locs = np.zeros((n_peaks, 2))
         self.amps = np.ones((n_peaks,))
         self.row_k = np.ones((n_peaks,))
+        self.focus_per_cycle = focus_per_cycle
+
+    def focus(self, cy_i):
+        if self.focus_per_cycle is None:
+            focus = 1.0
+        else:
+            focus = self.focus_per_cycle[cy_i]
+        return focus
 
     def locs_randomize(self):
         self.locs = np.random.uniform(0, self.dim, (self.n_peaks, 2))
@@ -221,19 +229,15 @@ class PeaksModel(BaseSynthModel):
 class PeaksModelPSF(PeaksModel):
     """Sample from a RegPSF"""
 
-    def __init__(self, reg_psf: RegPSF, focus_per_cycle=None, **kws):
+    def __init__(self, reg_psf: RegPSF, **kws):
         check.t(reg_psf, RegPSF)
         self.reg_psf = reg_psf
-        self._focus_per_cycle = focus_per_cycle
         super().__init__(**kws)
 
     def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
-        if self._focus_per_cycle is None:
-            focus = 1.0
-        else:
-            focus = self._focus_per_cycle[cy_i]
+        focus = self.focus(cy_i)
 
         for loc, amp, k in zip(self.locs, self.amps, self.row_k):
             loc = loc + aln_offset
@@ -253,13 +257,6 @@ class PeaksModelGaussian(PeaksModel):
         self.std = None
         self.std_x = None
         self.std_y = None
-        self.z_scale = None  # (simulates z stage)
-        self.z_center = None  # (simulates z stage)
-
-    def z_function(self, z_scale, z_center):
-        self.z_scale = z_scale
-        self.z_center = z_center
-        return self
 
     def uniform_width_and_heights(self, width=1.5, height=1.5):
         self.std_x = [width for _ in self.locs]
@@ -280,12 +277,11 @@ class PeaksModelGaussian(PeaksModel):
 
         super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
-        z_scale = 1.0
-        if self.z_scale is not None:
-            assert self.z_center is not None
-            z_scale = 1.0 + self.z_scale * (cy_i - self.z_center) ** 2
+        focus = self.focus(cy_i)
 
-        for loc, amp, std_x, std_y, k in zip(self.locs, self.amps, self.std_x, self.std_y, self.row_k):
+        for loc, amp, std_x, std_y, k in zip(
+            self.locs, self.amps, self.std_x, self.std_y, self.row_k
+        ):
             loc = loc + aln_offset
 
             if isinstance(amp, np.ndarray):
@@ -295,8 +291,8 @@ class PeaksModelGaussian(PeaksModel):
             frac_x = np.modf(loc[1])[0]
             peak_im = imops.gauss2_rho_form(
                 amp=amp,
-                std_x=z_scale * std_x,
-                std_y=z_scale * std_y,
+                std_x=focus * std_x,
+                std_y=focus * std_y,
                 pos_x=self.mea // 2 + frac_x,
                 pos_y=self.mea // 2 + frac_y,
                 rho=0.0,
