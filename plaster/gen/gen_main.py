@@ -690,6 +690,33 @@ class GenApp(cli.Application, GenFuncs):
             tailargs = []
         return super()._validate_args(swfuncs, tailargs)
 
+    def _cache_s3_reference(self, source):
+        if source.startswith("s3:"):
+            found_cache, cache_path = tmp.cache_path("plaster_s3", source)
+            if not found_cache:
+                important(f"Syncing from {source} to {cache_path}")
+                local["aws"]["s3", "sync", source, cache_path] & FG
+
+            source_folder_name = source.split("/")[-1]
+
+            if self.symlink_to_cache:
+                local["ln"][
+                    "-s",
+                    cache_path,
+                    self.local_sources_tmp_folder / source_folder_name,
+                ]()
+            else:
+                local["cp"][
+                    "-r",
+                    cache_path,
+                    self.local_sources_tmp_folder / source_folder_name,
+                ]()
+
+            # Hardcoding relative path here. It will always be the same 3 levels: run/plaster_output/task
+            return "../../../_gen_sources/" + source_folder_name
+
+        return source
+
     def __init__(self, generator_name):
         if self.construct_fail:
             return super().__init__(generator_name)
@@ -749,36 +776,11 @@ class GenApp(cli.Application, GenFuncs):
                         arg_name, arg_type, default=defaults.get(arg_name)
                     )
 
-        # Download s3 references in sources to _gen_sources
-        sources_to_cache = ["sigproc_source"]
-        for source_name in sources_to_cache:
-            if source_name in generator_args:
-                source = generator_args[source_name]
-                if source.startswith("s3:"):
-                    found_cache, cache_path = tmp.cache_path("plaster_s3", source)
-                    if not found_cache:
-                        important(f"Syncing from {source} to {cache_path}")
-                        local["aws"]["s3", "sync", source, cache_path] & FG
-
-                    source_folder_name = source.split("/")[-1]
-
-                    if self.symlink_to_cache:
-                        local["ln"][
-                            "-s",
-                            cache_path,
-                            self.local_sources_tmp_folder / source_folder_name,
-                        ]()
-                    else:
-                        local["cp"][
-                            "-r",
-                            cache_path,
-                            self.local_sources_tmp_folder / source_folder_name,
-                        ]()
-
-                    # Hardcoding relative path here. It will always be the same 3 levels: run/plaster_output/task
-                    generator_args[source_name] = (
-                        "../../../_gen_sources/" + source_folder_name
-                    )
+        # Download sigproc sources and replace with local path before handing to generator
+        if "sigproc_source" in generator_args:
+            source = generator_args["sigproc_source"]
+            if source.startswith("s3:"):
+                generator_args["sigproc_source"] = self._cache_s3_reference(source)
 
         # Intentionally run the generate before the job folder is written
         # so that if generate fails it doesn't leave around a partial job.
