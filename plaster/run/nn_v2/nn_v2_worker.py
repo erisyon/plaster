@@ -6,6 +6,7 @@ from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.sim_v2.sim_v2_result import DyeType, RadType
 from plaster.tools.log.log import debug
 from plaster.tools.zap import zap
+from plaster.tools.schema import check
 
 
 def triangle_dyemat(n_cycles, n_dyes):
@@ -177,6 +178,13 @@ def nn_v2(
     sigproc_df = None
     if sigproc_result is not None:
         sigproc_radmat = sigproc_result.sig(flat_chcy=True).astype(RadType)
+
+        if nn_v2_params.cycle_balance is not None:
+            check.list_t(nn_v2_params.cycle_balance.balance, float)
+            assert len(nn_v2_params.cycle_balance.balance) == sigproc_result.n_cycles
+            sigproc_radmat = sigproc_radmat * np.repeat(
+                np.array(nn_v2_params.cycle_balance.balance), sigproc_result.n_channels
+            ).astype(sigproc_radmat.dtype)
 
         if sigproc_radmat.shape[1] != n_cols:
             raise TypeError(

@@ -71,10 +71,16 @@ class GainModel:
             row_k_beta=1.0,
             row_k_sigma=0.15,
             channels=[
-                ChGainModel(beta=beta, sigma=sigma, zero_beta=0.0, zero_sigma=zero_sigma)
+                ChGainModel(
+                    beta=beta, sigma=sigma, zero_beta=0.0, zero_sigma=zero_sigma
+                )
             ],
         )
 
+
+@dataclass
+class CycleBalance:
+    balance: List[float]
 
 
 class ErrorModel(Params):
