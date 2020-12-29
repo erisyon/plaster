@@ -210,6 +210,23 @@ class PeaksModel(BaseSynthModel):
         self.amps = self.dyt_amp * dyts[choices, :]
         return self
 
+    def dyt_random_choice_lognormal(self, dyts, probs, beta, sigma):
+        """
+        """
+        dyts = np.array(dyts)
+        check.array_t(dyts, ndim=2)
+        assert dyts.shape[0] == len(probs)
+
+        choices = np.random.choice(len(dyts), size=self.n_peaks, p=probs)
+
+        _dyts = dyts[choices, :].astype(float)
+        _dyts[_dyts == 0] = np.nan
+
+        self.amps = np.random.lognormal(np.log(beta * _dyts), sigma, size=_dyts.shape)
+        self.amps = np.where(np.isnan(self.amps), 0.0, self.amps)
+
+        return self
+
     def row_k_randomize(self, mean=1.0, std=0.2):
         self.row_k = np.random.normal(loc=mean, scale=std, size=(self.n_peaks,))
         return self
