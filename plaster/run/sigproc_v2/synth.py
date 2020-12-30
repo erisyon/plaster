@@ -159,13 +159,9 @@ class PeaksModel(BaseSynthModel):
 
     def locs_grid(self, pad=10):
         steps = math.floor(math.sqrt(self.n_peaks))
-        self.locs = np.array(
-            [
-                (y, x)
-                for y in np.linspace(pad, self.dim[0] - pad, steps)
-                for x in np.linspace(pad, self.dim[1] - pad, steps)
-            ]
-        )
+        y = np.linspace(pad, self.dim[0] - pad, steps)
+        x = np.linspace(pad, self.dim[1] - pad, steps)
+        self.locs = np.array(np.meshgrid(x, y)).T.reshape(-1, 2)
         return self
 
     def locs_add_random_subpixel(self):
@@ -281,16 +277,9 @@ class PeaksModelGaussian(PeaksModel):
         return self
 
     def render(self, im, fl_i, ch_i, cy_i, aln_offset):
-        if self.std_x is None:
-            self.std_x = [self.std]
-        if self.std_y is None:
-            self.std_y = [self.std]
-
         n_locs = len(self.locs)
-        if len(self.std_x) != n_locs:
-            self.std_x = np.repeat(self.std_x, (n_locs,))
-        if len(self.std_y) != n_locs:
-            self.std_y = np.repeat(self.std_y, (n_locs,))
+        assert n_locs == len(self.std_x)
+        assert n_locs == len(self.std_y)
 
         super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
