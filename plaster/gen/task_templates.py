@@ -309,11 +309,14 @@ def ptm_test_rf():
     )
 
 
-def classify_rf(train_relative_path, sigproc_relative_path, sim_relative_path):
+def classify_rf(
+    prep_relative_path, train_relative_path, sigproc_relative_path, sim_relative_path
+):
     return Munch(
         classify_rf=Munch(
             version="1.0",
             inputs=Munch(
+                prep=prep_relative_path,
                 sim_v1=sim_relative_path,
                 train_rf=train_relative_path,
                 sigproc_v1=sigproc_relative_path,

@@ -646,9 +646,15 @@ class ZPlots:
         # Note the pattern: When an arg is allowed (in this case top)
         # then it must be added to the kws also for normal processing.
         kws["top"] = top
+
+        ustack = self._u_stack()
+        _x = ustack.get("_x", kws.get("_x"))
+        if _x is None:
+            _x = np.arange(len(top))
+
         fig = self._begin(
             kws,
-            dict(x=np.arange(len(top)), top=top, _label=np.arange(len(top))),
+            dict(x=_x, top=top, _label=_x),
             x="x",
             width=0.9,
             top="top",
@@ -830,7 +836,16 @@ class ZPlots:
         self._end()
 
     @trap()
-    def im(self, im_data=None, **kws):
+    def im(self, *args, **kwargs):
+        """
+        Short term hack to fix the issue where im munges the stack.
+
+        The hack works by creating a new stack just for the im call that can get screwed up and will then be reset before we return.
+        """
+        with self():
+            return self._im(*args, **kwargs)
+
+    def _im(self, im_data=None, **kws):
         """
         Image.
         _cspan: Low and High heatmap range. Default=(0, mean + 4*std)

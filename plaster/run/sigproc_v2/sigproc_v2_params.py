@@ -26,6 +26,7 @@ class SigprocV2Params(Params):
         run_analysis_gauss2_fitter=False,
         run_bandpass_filter=True,
         run_focal_adjustments=False,
+        run_aligner=True,
         # TODO: Derive the follow during calibration by spectral analysis (ie, 2 std of the power spectrum)
         # ALSO: This needs to be moved into the calibration because it can not allowed to be
         # different from the calibration results because the calibration bakes in the PSF
@@ -54,6 +55,7 @@ class SigprocV2Params(Params):
             run_analysis_gauss2_fitter=s.is_bool(),
             run_focal_adjustments=s.is_bool(),
             run_bandpass_filter=s.is_bool(),
+            run_aligner=s.is_bool(),
             low_inflection=s.is_float(),
             low_sharpness=s.is_float(),
             high_inflection=s.is_float(),

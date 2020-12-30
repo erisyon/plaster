@@ -1,7 +1,7 @@
 from munch import Munch
 from plaster.gen import task_templates
 from plaster.gen.base_generator import BaseGenerator
-from plaster.tools.log.log import debug, important, current_file_and_line_str
+from plaster.tools.log.log import current_file_and_line_str, debug, important
 from plaster.tools.schema.schema import Schema as s
 from plaster.tools.utils import utils
 from plumbum import cli
@@ -40,8 +40,14 @@ class ClassifyV2Generator(BaseGenerator):
             **BaseGenerator.sigproc_v2_schema.schema(),
             **BaseGenerator.error_model_schema.schema(),
             **BaseGenerator.sim_schema.schema(),
-            **BaseGenerator.classify_schema.schema(),
             **BaseGenerator.scheme_schema.schema(),
+            nn_v1=s.is_bool(help="Include nn_v1 classifier", noneable=True),
+            nn_v2=s.is_bool(help="Include nn_v2 classifier", noneable=True),
+            rf=s.is_bool(help="Include rf classifier", noneable=True),
+            report_prec=s.is_list(
+                elems=s.is_float(bounds=(0.001, 0.999)),
+                help="The precision for classifier reporting",
+            ),
         )
     )
 
@@ -53,7 +59,7 @@ class ClassifyV2Generator(BaseGenerator):
         n_samples_test=1_000,
         decoys="none",
         random_seed=None,
-        nnF_v1=False,
+        nn_v1=False,
         nn_v2=True,
         rf=False,
         sigproc_source=None,

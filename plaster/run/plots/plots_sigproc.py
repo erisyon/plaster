@@ -36,7 +36,9 @@ def plot_psfs(psfs, scale=1.0, **kwargs):
         z.im(comp, **kwargs)
 
 
-def _sigproc_v2_im(im, locs, sig=None, snr=None, asr=None, keep_mask=None, peak_iz=None, **kwargs):
+def _sigproc_v2_im(
+    im, locs, sig=None, snr=None, asr=None, keep_mask=None, peak_iz=None, **kwargs
+):
     # if keep_mask is not None:
     #     locs = locs[keep_mask]
     #     sig = sig[keep_mask]
@@ -68,7 +70,13 @@ def _sigproc_v2_im(im, locs, sig=None, snr=None, asr=None, keep_mask=None, peak_
         im, locs, inner_radius=6, outer_radius=7, fill_mode="one", keep_mask=keep_mask
     )
     index_im = circle_locs(
-        im, locs, inner_radius=0, outer_radius=7, fill_mode="peak_iz", keep_mask=keep_mask, peak_iz=peak_iz
+        im,
+        locs,
+        inner_radius=0,
+        outer_radius=7,
+        fill_mode="peak_iz",
+        keep_mask=keep_mask,
+        peak_iz=peak_iz,
     )
     sig_im = circle_locs(
         im,
@@ -148,7 +156,14 @@ def sigproc_v1_im(run, fl_i=0, ch_i=0, cy_i=0, keep_mask=None, **kwargs):
 
 
 def circle_locs(
-    im, locs, inner_radius=3, outer_radius=4, fill_mode="nan", vals=None, keep_mask=None, peak_iz=None
+    im,
+    locs,
+    inner_radius=3,
+    outer_radius=4,
+    fill_mode="nan",
+    vals=None,
+    keep_mask=None,
+    peak_iz=None,
 ):
     """
     Returns a copy of im with circles placed around the locs.
@@ -286,7 +301,11 @@ def sigproc_v2_movie_from_df(
     else:
         overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
         overlay = 255 * circle_locs(
-            overlay, locs, fill_mode="one", inner_radius=outer_radius-1, outer_radius=outer_radius
+            overlay,
+            locs,
+            fill_mode="one",
+            inner_radius=outer_radius - 1,
+            outer_radius=outer_radius,
         ).astype(np.uint8)
 
     kwargs["_duration"] = kwargs.get("_duration", 1)

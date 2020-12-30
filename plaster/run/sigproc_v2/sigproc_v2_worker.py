@@ -99,10 +99,10 @@ TASKS:
 import cv2
 import numpy as np
 import pandas as pd
-from munch import Munch
-
 import plaster.run.sigproc_v2.psf
 import plaster.run.sigproc_v2.reg_psf
+from munch import Munch
+from plaster.run.calib.calib import Calib
 from plaster.run.sigproc_v2 import bg, fg, psf
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
@@ -527,6 +527,8 @@ def _sigproc_analyze_field(
         filt_chcy_ims.astype(np.float64), sigproc_v2_params, calib
     )
 
+    n_cycles = filt_chcy_ims.shape[1]
+
     """
     Removed temporarily see _analyze_step_2_mask_anomalies_im for explanation
     # Step 2: Remove anomalies (at least for alignment)
@@ -538,9 +540,12 @@ def _sigproc_analyze_field(
     # Step 3: Find alignment offsets by using the mean of all channels
     # Note that this requires that the channel balancing has equalized the channel weights
     # This is taking about 1 sec, need to look at optimizing
-    aln_offsets = _analyze_step_3_align(
-        np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea
-    )
+    if sigproc_v2_params.run_aligner:
+        aln_offsets = _analyze_step_3_align(
+            np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea
+        )
+    else:
+        aln_offsets = np.zeros((n_cycles, 2))
 
     # Step 4: Composite with alignment
     aln_filt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
@@ -583,8 +588,6 @@ def _sigproc_analyze_field(
                 pass
 
     fitmat = _analyze_step_6a_fitter(aln_unfilt_chcy_ims, locs, reg_psf, mask)
-
-    n_cycles = fitmat.shape[2]
 
     # At moment it appears that focus adjustment does nothing under the
     # the filters and alignment -- because there is no correlation anymore
@@ -733,7 +736,9 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         reg_psf = RegPSF.from_array(im_mea=ims_import_result.dim, peak_mea=11, arr=arr)
         calib.add_reg_psf(reg_psf, calib_identity)
 
-        reg_illum = RegIllum.identity(ims_import_result.n_channels, ims_import_result.dim)
+        reg_illum = RegIllum.identity(
+            ims_import_result.n_channels, ims_import_result.dim
+        )
         calib.add_reg_illum(reg_illum, calib_identity)
 
     elif calib is None:
