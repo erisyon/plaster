@@ -31,5 +31,6 @@ Float64 *f64arr_ptr2(F64Arr *arr, Index i, Index j);
 Float64 *f64arr_ptr3(F64Arr *arr, Index i, Index j, Index k);
 Float64 *f64arr_ptr4(F64Arr *arr, Index i, Index j, Index k, Index l);
 
+#define in_bounds(x, a, b) (((a) <= (x)) && ((x) < (b)))
 
 #endif

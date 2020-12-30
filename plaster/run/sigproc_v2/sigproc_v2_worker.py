@@ -564,8 +564,15 @@ def _sigproc_analyze_field(
     # The goal of previous channel equalization and regional balancing is that
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
-    approx_psf = plaster.run.calib.calib.approximate_psf()
-    locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, chcy_bg_stds)
+
+    if sigproc_v2_params.locs is not None:
+        locs = np.array(sigproc_v2_params.locs)
+        assert locs.ndim == 1
+        locs = np.reshape(locs, (locs.shape[0] // 2, 2))
+    else:
+        approx_psf = plaster.run.calib.calib.approximate_psf()
+        locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, chcy_bg_stds)
+
     n_locs = len(locs)
 
     # Step 6: Radiometry over each channel, cycle

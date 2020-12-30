@@ -211,8 +211,9 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 *loc_p = f64arr_ptr1(&ctx->locs, peak_i);
     Float64 loc_x = loc_p[1];
     Float64 loc_y = loc_p[0];
-    ensure_only_in_debug(0 <= loc_x && loc_x < ctx->width, "loc_x out of bounds");
-    ensure_only_in_debug(0 <= loc_y && loc_y < ctx->height, "loc_y out of bounds");
+
+    if(!in_bounds(loc_x, 0, ctx->width)) return NULL;
+    if(!in_bounds(loc_y, 0, ctx->height)) return NULL;
 
     // corner is the lower left pixel coordinate in image coordinates
     // where the (mea, mea) sub-image will be extracted
@@ -220,29 +221,26 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Index corner_x = floor(loc_x - half_mea + 0.5);
     Index corner_y = floor(loc_y - half_mea + 0.5);
 
-    if(!(0 <= corner_x && corner_x + mea < ctx->width) || !(0 <= corner_y && corner_y + mea < ctx->height)) {
-        trace("Out of bound %f %f\n", corner_x, corner_y);
-        return NULL;
-    }
-
-    ensure_only_in_debug(0 <= corner_x && corner_x + mea < ctx->width, "corner_x out of bounds");
-    ensure_only_in_debug(0 <= corner_y && corner_y + mea < ctx->height, "corner_y out of bounds");
+    if(!in_bounds(corner_x, 0, ctx->width - mea)) return NULL;
+    if(!in_bounds(corner_y, 0, ctx->height - mea)) return NULL;
 
     // center is the location relative to the the corner
-    Float64 center_x = loc_x - corner_x;
-    Float64 center_y = loc_y - corner_y;
-    ensure_only_in_debug(0 <= center_x && center_x < mea, "center out of bounds");
-    ensure_only_in_debug(0 <= center_y && center_y < mea, "center out of bounds");
+    Float64 center_x = loc_x - (Float64)corner_x;
+    Float64 center_y = loc_y - (Float64)corner_y;
+
+    if(!in_bounds(center_x, 0, mea)) return NULL;
+    if(!in_bounds(center_y, 0, mea)) return NULL;
 
     // Shape
     Index n_divs_minus_one = ctx->n_divs - 1;
 
     Float64 *psf_pixels = (Float64 *)malloc(sizeof(Float64) * mea_sq);
-    Float64 *dat_pixels = (Float64 *)malloc(sizeof(Float64) * mea_sq);
-    Float64 *msk_pixels = (Float64 *)malloc(sizeof(Float64) * mea_sq);
-
     ensure(psf_pixels != NULL, "malloc failed");
+
+    Float64 *dat_pixels = (Float64 *)malloc(sizeof(Float64) * mea_sq);
     ensure(dat_pixels != NULL, "malloc failed");
+
+    Float64 *msk_pixels = (Float64 *)malloc(sizeof(Float64) * mea_sq);
     ensure(msk_pixels != NULL, "malloc failed");
 
     Index ch_i = 0;
