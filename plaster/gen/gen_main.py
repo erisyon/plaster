@@ -697,7 +697,8 @@ class GenApp(cli.Application, GenFuncs):
                 important(f"Syncing from {source} to {cache_path}")
                 local["aws"]["s3", "sync", source, cache_path] & FG
 
-            source_folder_name = source.split("/")[-1]
+            # A little bit of a hack to apply this to an url but it does what we want
+            source_folder_name = local.path(source).basename
 
             if self.symlink_to_cache:
                 local["ln"][
