@@ -202,8 +202,9 @@ class PeaksModel(BaseSynthModel):
         check.array_t(dyts, ndim=2)
         assert dyts.shape[0] == len(probs)
 
-        choices = np.random.choice(len(dyts), size=self.n_peaks, p=probs)
-        self.amps = self.dyt_amp * dyts[choices, :]
+        self.dyt_iz = np.random.choice(len(dyts), size=self.n_peaks, p=probs)
+        self.amps = self.dyt_amp * dyts[self.dyt_iz, :]
+        self.dyts = dyts[self.dyt_iz]
         return self
 
     def dyt_random_choice_lognormal(self, dyts, probs, beta, sigma):
@@ -213,9 +214,10 @@ class PeaksModel(BaseSynthModel):
         check.array_t(dyts, ndim=2)
         assert dyts.shape[0] == len(probs)
 
-        choices = np.random.choice(len(dyts), size=self.n_peaks, p=probs)
+        self.dyt_iz = np.random.choice(len(dyts), size=self.n_peaks, p=probs)
 
-        _dyts = dyts[choices, :].astype(float)
+        _dyts = dyts[self.dyt_iz, :].astype(float)
+        self.dyts = _dyts.copy()
         _dyts[_dyts == 0] = np.nan
 
         self.amps = np.random.lognormal(np.log(beta * _dyts), sigma, size=_dyts.shape)
@@ -258,9 +260,9 @@ class PeaksModelPSF(PeaksModel):
                 amp = amp[cy_i]
 
             psf_im, accum_to_loc = self.reg_psf.render_at_loc(
-                ch_i, loc, amp=amp, const=0.0, focus=focus
+                ch_i, loc, amp=k * amp, const=0.0, focus=focus
             )
-            imops.accum_inplace(im, k * psf_im, loc=YX(accum_to_loc), center=False)
+            imops.accum_inplace(im, psf_im, loc=YX(accum_to_loc), center=False)
 
 
 class PeaksModelGaussian(PeaksModel):
@@ -296,7 +298,7 @@ class PeaksModelGaussian(PeaksModel):
             frac_y = np.modf(loc[0])[0]
             frac_x = np.modf(loc[1])[0]
             peak_im = imops.gauss2_rho_form(
-                amp=amp,
+                amp=k * amp,
                 std_x=focus * std_x,
                 std_y=focus * std_y,
                 pos_x=self.mea // 2 + frac_x,
@@ -306,7 +308,7 @@ class PeaksModelGaussian(PeaksModel):
                 mea=self.mea,
             )
 
-            imops.accum_inplace(im, k * peak_im, loc=YX(*np.floor(loc)), center=True)
+            imops.accum_inplace(im, peak_im, loc=YX(*np.floor(loc)), center=True)
 
 
 class PeaksModelGaussianCircular(PeaksModelGaussian):

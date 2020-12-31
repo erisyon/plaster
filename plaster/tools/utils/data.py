@@ -9,6 +9,54 @@ from scipy.cluster.hierarchy import leaves_list, linkage, to_tree
 from scipy.spatial.distance import cdist, pdist, squareform
 
 
+def param_sweep(*param_lists):
+    """
+    Returns an array where all permutations of the parameter lists are enumerated
+    Example:
+        param_sweep([1, 2, 3], [10, 11], [20, 21])
+
+        array([
+            [ 1, 10, 20],
+            [ 1, 11, 20],
+            [ 2, 10, 20],
+            [ 2, 11, 20],
+            [ 3, 10, 20],
+            [ 3, 11, 20],
+            [ 1, 10, 21],
+            [ 1, 11, 21],
+            [ 2, 10, 21],
+            [ 2, 11, 21],
+            [ 3, 10, 21],
+            [ 3, 11, 21]
+        ])
+    """
+    return np.array(np.meshgrid(*param_lists)).T.reshape(-1, len(param_lists))
+
+
+def kw_param_sweep(**kws):
+    """
+    Returns an array where all permutations of the parameter lists are enumerated
+    Example:
+        kw_param_sweep(a=[1, 2, 3], b=[10, 11], c=[20, 21])
+        [
+            {'a': 1, 'b': 10, 'c': 20},
+            {'a': 1, 'b': 11, 'c': 20},
+            {'a': 2, 'b': 10, 'c': 20},
+            {'a': 2, 'b': 11, 'c': 20},
+            {'a': 3, 'b': 10, 'c': 20},
+            {'a': 3, 'b': 11, 'c': 20},
+            {'a': 1, 'b': 10, 'c': 21},
+            {'a': 1, 'b': 11, 'c': 21},
+            {'a': 2, 'b': 10, 'c': 21},
+            {'a': 2, 'b': 11, 'c': 21},
+            {'a': 3, 'b': 10, 'c': 21},
+            {'a': 3, 'b': 11, 'c': 21}
+        ]
+    """
+    params = param_sweep(*list(kws.values()))
+    return [{k: v for k, v in zip(kws.keys(), p)} for p in params]
+
+
 def cluster(data, n_subsample=None, **kwargs):
     return_order = kwargs.pop("return_order", False)
     optimal_ordering = kwargs.pop("optimal_ordering", True)
