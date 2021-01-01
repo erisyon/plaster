@@ -195,7 +195,7 @@ def _step_3_generate_decoys(pros_df, pro_seqs_df, decoy_mode):
     def reverse_pro_ptm_locs():
         reversed_locs = []
         for pro in pros_df.itertuples():
-            seq_length = pro_seqs_df[pro_seqs_df.pro_i == pro.pro_i].count()[0]
+            seq_length = pro_seqs_df[pro_seqs_df.pro_i == pro.pro_i].counts()[0]
             reversed = ";".join(
                 map(
                     str,

@@ -130,19 +130,16 @@ class BaseSynthModel:
 class PeaksModel(BaseSynthModel):
     def __init__(self, n_peaks=1000, focus_per_cycle=None):
         super().__init__()
+        self.n_cycles = Synth.synth.n_cycles
+        self.focus = np.ones((self.n_cycles,))
         self.n_peaks = n_peaks
         self.locs = np.zeros((n_peaks, 2))
-        self.amps = np.ones((n_peaks,))
         self.row_k = np.ones((n_peaks,))
-        self.focus_per_cycle = focus_per_cycle
+        self.counts = np.ones((n_peaks, self.n_cycles), dtype=int)
+        self._amps = np.ones((n_peaks, self.n_cycles))
 
-    def focus(self, cy_i):
-        if self.focus_per_cycle is None:
-            focus = 1.0
-        else:
-            focus = self.focus_per_cycle[cy_i]
-        return focus
-
+    # locs related
+    # ------------------------------------------------------------------------
     def locs_randomize(self):
         self.locs = np.random.uniform(0, self.dim, (self.n_peaks, 2))
         return self
@@ -168,22 +165,41 @@ class PeaksModel(BaseSynthModel):
         self.locs += np.random.uniform(-1, 1, self.locs.shape)
         return self
 
-    def amps_constant(self, val):
-        self.amps = val * np.ones((self.n_peaks,))
+    def remove_near_edges(self, dist=20):
+        self.locs = np.array(
+            [
+                loc
+                for loc in self.locs
+                if dist < loc[0] < self.dim[0] - dist
+                and dist < loc[1] < self.dim[1] - dist
+            ]
+        )
         return self
 
-    def amps_randomize(self, mean=1000, std=10):
-        self.amps = mean + std * np.random.randn(self.n_peaks)
+    # count related. Use this preferentially over direct amps assignment
+    # ------------------------------------------------------------------------
+    def counts_uniform(self, cnt):
+        self.counts = cnt * np.ones((self.n_peaks, self.n_cycles), dtype=int)
         return self
 
-    def dyt_amp_constant(self, amp):
-        self.dyt_amp = amp
+    def bleach(self, p_bleach_per_cycle):
+        r = np.random.uniform(0.0, 1.0, size=(self.n_peaks, self.n_cycles))
+        decrement = np.where(r < p_bleach_per_cycle, -1, 0)
+        self.counts[:, 1:] = decrement[:, 1:]
+        self.counts = np.clip(np.cumsum(self.counts, axis=1), a_min=0, a_max=None)
         return self
 
+    def lognormal(self, beta, sigma):
+        # Convert cnt to _amps with lognormal
+        with utils.np_no_warn():
+            self._amps = np.nan_to_num(np.random.lognormal(np.log(beta * self.counts), sigma, size=self.counts.shape))
+        return self
+
+    # dyt related
+    # ------------------------------------------------------------------------
     def dyt_uniform(self, dyt):
         dyt = np.array(dyt)
-        dyts = np.tile(dyt, (self.amps.shape[0], 1))
-        self.amps = self.dyt_amp * dyts
+        self.counts = np.repeat(dyt[:, None], self.n_peaks, axis=1)
         return self
 
     def dyt_random_choice(self, dyts, probs):
@@ -201,44 +217,26 @@ class PeaksModel(BaseSynthModel):
         dyts = np.array(dyts)
         check.array_t(dyts, ndim=2)
         assert dyts.shape[0] == len(probs)
-
         self.dyt_iz = np.random.choice(len(dyts), size=self.n_peaks, p=probs)
-        self.amps = self.dyt_amp * dyts[self.dyt_iz, :]
-        self.dyts = dyts[self.dyt_iz]
+        self.counts = dyts[self.dyt_iz]
         return self
 
-    def dyt_random_choice_lognormal(self, dyts, probs, beta, sigma):
-        """
-        """
-        dyts = np.array(dyts)
-        check.array_t(dyts, ndim=2)
-        assert dyts.shape[0] == len(probs)
-
-        self.dyt_iz = np.random.choice(len(dyts), size=self.n_peaks, p=probs)
-
-        _dyts = dyts[self.dyt_iz, :].astype(float)
-        self.dyts = _dyts.copy()
-        _dyts[_dyts == 0] = np.nan
-
-        self.amps = np.random.lognormal(np.log(beta * _dyts), sigma, size=_dyts.shape)
-        self.amps = np.where(np.isnan(self.amps), 0.0, self.amps)
-
+    # amps related (Prefer the above over these direct manipulations)
+    # ------------------------------------------------------------------------
+    def amps_constant(self, val):
+        self._amps = val * np.ones((self.n_peaks,))
         return self
 
+    def amps_randomize(self, mean=1000, std=10):
+        self._amps = mean + std * np.random.randn(self.n_peaks)
+        return self
+
+    # row_k related
+    # ------------------------------------------------------------------------
     def row_k_randomize(self, mean=1.0, std=0.2):
         self.row_k = np.random.normal(loc=mean, scale=std, size=(self.n_peaks,))
         return self
 
-    def remove_near_edges(self, dist=20):
-        self.locs = np.array(
-            [
-                loc
-                for loc in self.locs
-                if dist < loc[0] < self.dim[0] - dist
-                and dist < loc[1] < self.dim[1] - dist
-            ]
-        )
-        return self
 
 
 class PeaksModelPSF(PeaksModel):
@@ -252,9 +250,9 @@ class PeaksModelPSF(PeaksModel):
     def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
-        focus = self.focus(cy_i)
+        focus = self.focus[cy_i]
 
-        for loc, amp, k in zip(self.locs, self.amps, self.row_k):
+        for loc, amp, k in zip(self.locs, self._amps, self.row_k):
             loc = loc + aln_offset
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
@@ -285,10 +283,10 @@ class PeaksModelGaussian(PeaksModel):
 
         super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
-        focus = self.focus(cy_i)
+        focus = self.focus[cy_i]
 
         for loc, amp, std_x, std_y, k in zip(
-            self.locs, self.amps, self.std_x, self.std_y, self.row_k
+            self.locs, self._amps, self.std_x, self.std_y, self.row_k
         ):
             loc = loc + aln_offset
 

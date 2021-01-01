@@ -924,7 +924,7 @@ def wizard_boxplot_df(
             outy.append(out.loc[keys[0]].loc[keys[1]])
 
     x_labels = range(14)
-    count = groups.count()[value_col][0]
+    count = groups.counts()[value_col][0]
     p = figure(
         tools="",
         background_fill_color="#efefef",

@@ -239,7 +239,7 @@ class SurveyV2Result(BaseResult):
                 total_aa_covered += pep_coverage_groups.get_group(poi_i).pep_len.sum()
             except KeyError:
                 pass  # protein not covered at all, no length added to total_aa_covered
-            total_proteins_len += proseq_groups.get_group(poi_i).aa.count()
+            total_proteins_len += proseq_groups.get_group(poi_i).aa.counts()
         return total_aa_covered / total_proteins_len
 
     def max_nn_dist(self, unique_flus_only=True, filters=None, df=None):
