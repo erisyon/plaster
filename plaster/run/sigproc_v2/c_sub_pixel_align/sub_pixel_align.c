@@ -128,7 +128,6 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
     // The work horse
     // Loops over each slice and "convolves" each slice re-using the
     // same buffer on each slice so that the memory requirements don't go up.
-
     Size height = ctx->mea_h;
     Size width = ctx->mea_w;
     Size scale = ctx->scale;

@@ -212,8 +212,12 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Float64 loc_x = loc_p[1];
     Float64 loc_y = loc_p[0];
 
-    if(!in_bounds(loc_x, 0, ctx->width)) return NULL;
-    if(!in_bounds(loc_y, 0, ctx->height)) return NULL;
+    if(!in_bounds(loc_x, 0, ctx->width)) {
+        return NULL;
+    }
+    if(!in_bounds(loc_y, 0, ctx->height)) {
+        return NULL;
+    }
 
     // corner is the lower left pixel coordinate in image coordinates
     // where the (mea, mea) sub-image will be extracted
@@ -221,15 +225,23 @@ char *radiometry_field_stack_one_peak(RadiometryContext *ctx, Index peak_i) {
     Index corner_x = floor(loc_x - half_mea + 0.5);
     Index corner_y = floor(loc_y - half_mea + 0.5);
 
-    if(!in_bounds(corner_x, 0, ctx->width - mea)) return NULL;
-    if(!in_bounds(corner_y, 0, ctx->height - mea)) return NULL;
+    if(!in_bounds(corner_x, 0, ctx->width - mea)) {
+        return NULL;
+    }
+    if(!in_bounds(corner_y, 0, ctx->height - mea)) {
+        return NULL;
+    }
 
     // center is the location relative to the the corner
     Float64 center_x = loc_x - (Float64)corner_x;
     Float64 center_y = loc_y - (Float64)corner_y;
 
-    if(!in_bounds(center_x, 0, mea)) return NULL;
-    if(!in_bounds(center_y, 0, mea)) return NULL;
+    if(!in_bounds(center_x, 0, mea)) {
+        return NULL;
+    }
+    if(!in_bounds(center_y, 0, mea)) {
+        return NULL;
+    }
 
     // Shape
     Index n_divs_minus_one = ctx->n_divs - 1;

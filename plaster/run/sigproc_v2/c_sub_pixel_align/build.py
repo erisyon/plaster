@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-from plumbum import local, FG
 from plaster.tools.utils.utils import any_out_of_date
+from plumbum import FG, local
 
 
 def build(dst_folder, c_common_folder):
@@ -23,7 +23,7 @@ def build(dst_folder, c_common_folder):
         return target_o
 
     common_include_files = [f"{c_common_folder}/c_common.h"]
-    sub_pixel_align_o = build_c("sub_pixel_align.c", common_include_files)
+    sub_pixel_align_o = build_c(f"{dst_folder}/sub_pixel_align.c", common_include_files)
     c_common_o = build_c(f"{c_common_folder}/c_common.c", common_include_files)
 
     sub_pixel_align_so = f"{dst_folder}/_sub_pixel_align.so"
