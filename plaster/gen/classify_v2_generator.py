@@ -97,6 +97,8 @@ class ClassifyV2Generator(BaseGenerator):
             self.sigprocs_v2(
                 calibration_file=self.calibration_file,
                 instrument_identity=self.instrument_identity,
+                no_calib=self.no_calib,
+                no_calib_psf_sigma=self.no_calib_psf_sigma,
             )
             or {}
         )  # guarantee traverse loop once

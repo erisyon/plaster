@@ -119,7 +119,9 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
         s.is_kws_r(
             calibration_file=s.is_str(noneable=True),
             sigproc_source=s.is_str(noneable=True, help="See Main Help"),
-            instrument_identity=s.is_str(),
+            instrument_identity=s.is_str(noneable=True),
+            no_calib=s.is_bool(noneable=True),
+            no_calib_psf_sigma=s.is_float(noneable=True),
         )
     )
 
