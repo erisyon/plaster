@@ -775,7 +775,7 @@ def max_rss():
 
 
 def duplicates(iter):
-    return list(set([x for x in iter if iter.counts(x) > 1]))
+    return list(set([x for x in iter if iter.count(x) > 1]))
 
 
 def _escape_quotes(text, quote_character):
