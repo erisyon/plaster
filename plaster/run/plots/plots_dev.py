@@ -36,7 +36,7 @@ def _run_iz_count_pep_iz(df):
     grp = df.groupby("run_i")
     run_iz = np.array(list(grp.indices.keys()))
     peps = np.array([g.pep_i.values for r, g in grp])
-    pep_counts = grp.pep_i.counts().values
+    pep_counts = grp.pep_i.count().values
     run_labels = np.array([_run_labels(g.run_name.iloc[0]) for r, g in grp])
     pep_counts_reverse_sort_i = np.argsort(pep_counts)[::-1]
     return Munch(
