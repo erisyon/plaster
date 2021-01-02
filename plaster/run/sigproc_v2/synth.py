@@ -192,7 +192,11 @@ class PeaksModel(BaseSynthModel):
     def lognormal(self, beta, sigma):
         # Convert cnt to _amps with lognormal
         with utils.np_no_warn():
-            self._amps = np.nan_to_num(np.random.lognormal(np.log(beta * self.counts), sigma, size=self.counts.shape))
+            self._amps = np.nan_to_num(
+                np.random.lognormal(
+                    np.log(beta * self.counts), sigma, size=self.counts.shape
+                )
+            )
         return self
 
     # dyt related
@@ -236,7 +240,6 @@ class PeaksModel(BaseSynthModel):
     def row_k_randomize(self, mean=1.0, std=0.2):
         self.row_k = np.random.normal(loc=mean, scale=std, size=(self.n_peaks,))
         return self
-
 
 
 class PeaksModelPSF(PeaksModel):
