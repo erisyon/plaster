@@ -59,6 +59,10 @@ global_debug_mode = None
 global_progress = None
 
 
+if os.environ.get("ZAP_DEBUG_MODE") == "True":
+    global_debug_mode = True
+
+
 @contextmanager
 def Context(cpu_limit=None, debug_mode=None, progress=None):
     global global_cpu_limit, global_debug_mode, global_progress

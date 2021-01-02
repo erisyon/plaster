@@ -46,6 +46,8 @@ class SigprocV2Generator(BaseGenerator):
         sigproc_v2_task = task_templates.sigproc_v2_analyze(
             f"../../../_gen_sources/{calib_src_path.name}",
             instrument_identity=self.instrument_identity,
+            no_calib=self.no_calib,
+            no_calib_psf_sigma=self.no_calib_psf_sigma,
         )
 
         nn_n2_task = {}

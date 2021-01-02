@@ -199,6 +199,10 @@ class PeaksModel(BaseSynthModel):
             )
         return self
 
+    def gain_constant(self, gain):
+        self._amps = gain * self.counts
+        return self
+
     # dyt related
     # ------------------------------------------------------------------------
     def dyt_uniform(self, dyt):

@@ -15,6 +15,7 @@ class NNV2Params(Params):
         dyetrack_n_counts=None,
         dyetrack_n_cycles=None,
         row_k_score_factor=0.05,
+        cycle_balance=None,
     )
 
     schema = s(

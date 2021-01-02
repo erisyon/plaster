@@ -699,6 +699,10 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
     Entrypoint for Illumination and PSF calibration.
     """
 
+    radiometry.init()
+    gauss2_fitter.init()
+    sub_pixel_align.init()
+
     focus_per_field_per_channel = None
     calib = None
     fg_means = None

@@ -61,8 +61,8 @@ class SigprocV2Params(Params):
             low_sharpness=s.is_float(),
             high_inflection=s.is_float(),
             high_sharpness=s.is_float(),
-            no_calib=s.is_bool(),
-            no_calib_psf_sigma=s.is_float(),
+            no_calib=s.is_bool(noneable=True),
+            no_calib_psf_sigma=s.is_float(noneable=True),
             locs=s.is_list(elems=s.is_float(), noneable=True),
         )
     )
