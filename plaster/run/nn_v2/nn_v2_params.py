@@ -1,7 +1,7 @@
 from munch import Munch
 from plaster.tools.schema.schema import Params
 from plaster.tools.schema.schema import Schema as s
-from plaster.run.error_model import GainModel
+from plaster.run.error_model import GainModel, CycleBalance
 
 
 class NNV2Params(Params):
@@ -14,7 +14,8 @@ class NNV2Params(Params):
         run_row_k_fit=False,
         dyetrack_n_counts=None,
         dyetrack_n_cycles=None,
-        row_k_score_factor=1.0,
+        row_k_score_factor=0.05,
+        cycle_balance=None,
     )
 
     schema = s(
@@ -29,5 +30,6 @@ class NNV2Params(Params):
             dyetrack_n_counts=s.is_int(noneable=True),
             dyetrack_n_cycles=s.is_int(noneable=True),
             row_k_score_factor=s.is_float(),
+            cycle_balance=s.is_type(CycleBalance, noneable=True),
         )
     )

@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from plaster.run.base_result import ArrayResult, BaseResult
 from plaster.run.nn_v2.nn_v2_params import NNV2Params
+from plaster.tools.log.log import debug
 
 
 class NNV2Result(BaseResult):

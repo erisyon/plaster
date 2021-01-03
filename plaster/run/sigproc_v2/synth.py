@@ -73,8 +73,8 @@ class Synth:
         Synth.synth = None
         if exception_type is not None:
             raise exception_type(exception_value)
-        ims = self.render_flchcy()
-        self._save_np(ims, "ims")
+        self.ims = self.render_flchcy()
+        self._save_np(self.ims, "ims")
 
     def zero_aln_offsets(self):
         self.aln_offsets = np.zeros((self.n_cycles, 2))
@@ -128,12 +128,18 @@ class BaseSynthModel:
 
 
 class PeaksModel(BaseSynthModel):
-    def __init__(self, n_peaks=1000):
+    def __init__(self, n_peaks=1000, focus_per_cycle=None):
         super().__init__()
+        self.n_cycles = Synth.synth.n_cycles
+        self.focus = np.ones((self.n_cycles,))
         self.n_peaks = n_peaks
         self.locs = np.zeros((n_peaks, 2))
-        self.amps = np.ones((n_peaks,))
+        self.row_k = np.ones((n_peaks,))
+        self.counts = np.ones((n_peaks, self.n_cycles), dtype=int)
+        self._amps = np.ones((n_peaks, self.n_cycles))
 
+    # locs related
+    # ------------------------------------------------------------------------
     def locs_randomize(self):
         self.locs = np.random.uniform(0, self.dim, (self.n_peaks, 2))
         return self
@@ -150,35 +156,58 @@ class PeaksModel(BaseSynthModel):
 
     def locs_grid(self, pad=10):
         steps = math.floor(math.sqrt(self.n_peaks))
-        self.locs = np.array(
-            [
-                (y, x)
-                for y in np.linspace(pad, self.dim[0] - pad, steps)
-                for x in np.linspace(pad, self.dim[1] - pad, steps)
-            ]
-        )
+        y = np.linspace(pad, self.dim[0] - pad, steps)
+        x = np.linspace(pad, self.dim[1] - pad, steps)
+        self.locs = np.array(np.meshgrid(x, y)).T.reshape(-1, 2)
         return self
 
     def locs_add_random_subpixel(self):
         self.locs += np.random.uniform(-1, 1, self.locs.shape)
         return self
 
-    def amps_constant(self, val):
-        self.amps = val * np.ones((self.n_peaks,))
+    def remove_near_edges(self, dist=20):
+        self.locs = np.array(
+            [
+                loc
+                for loc in self.locs
+                if dist < loc[0] < self.dim[0] - dist
+                and dist < loc[1] < self.dim[1] - dist
+            ]
+        )
         return self
 
-    def amps_randomize(self, mean=1000, std=10):
-        self.amps = mean + std * np.random.randn(self.n_peaks)
+    # count related. Use this preferentially over direct amps assignment
+    # ------------------------------------------------------------------------
+    def counts_uniform(self, cnt):
+        self.counts = cnt * np.ones((self.n_peaks, self.n_cycles), dtype=int)
         return self
 
-    def dyt_amp_constant(self, amp):
-        self.dyt_amp = amp
+    def bleach(self, p_bleach_per_cycle):
+        r = np.random.uniform(0.0, 1.0, size=(self.n_peaks, self.n_cycles))
+        decrement = np.where(r < p_bleach_per_cycle, -1, 0)
+        self.counts[:, 1:] = decrement[:, 1:]
+        self.counts = np.clip(np.cumsum(self.counts, axis=1), a_min=0, a_max=None)
         return self
 
+    def lognormal(self, beta, sigma):
+        # Convert cnt to _amps with lognormal
+        with utils.np_no_warn():
+            self._amps = np.nan_to_num(
+                np.random.lognormal(
+                    np.log(beta * self.counts), sigma, size=self.counts.shape
+                )
+            )
+        return self
+
+    def gain_constant(self, gain):
+        self._amps = gain * self.counts
+        return self
+
+    # dyt related
+    # ------------------------------------------------------------------------
     def dyt_uniform(self, dyt):
         dyt = np.array(dyt)
-        dyts = np.tile(dyt, (self.amps.shape[0], 1))
-        self.amps = self.dyt_amp * dyts
+        self.counts = np.repeat(dyt[:, None], self.n_peaks, axis=1)
         return self
 
     def dyt_random_choice(self, dyts, probs):
@@ -196,47 +225,47 @@ class PeaksModel(BaseSynthModel):
         dyts = np.array(dyts)
         check.array_t(dyts, ndim=2)
         assert dyts.shape[0] == len(probs)
-
-        choices = np.random.choice(len(dyts), size=self.n_peaks, p=probs)
-        self.amps = self.dyt_amp * dyts[choices, :]
+        self.dyt_iz = np.random.choice(len(dyts), size=self.n_peaks, p=probs)
+        self.counts = dyts[self.dyt_iz]
         return self
 
-    def remove_near_edges(self, dist=20):
-        self.locs = np.array(
-            [
-                loc
-                for loc in self.locs
-                if dist < loc[0] < self.dim[0] - dist
-                and dist < loc[1] < self.dim[1] - dist
-            ]
-        )
+    # amps related (Prefer the above over these direct manipulations)
+    # ------------------------------------------------------------------------
+    def amps_constant(self, val):
+        self._amps = val * np.ones((self.n_peaks,))
+        return self
+
+    def amps_randomize(self, mean=1000, std=10):
+        self._amps = mean + std * np.random.randn(self.n_peaks)
+        return self
+
+    # row_k related
+    # ------------------------------------------------------------------------
+    def row_k_randomize(self, mean=1.0, std=0.2):
+        self.row_k = np.random.normal(loc=mean, scale=std, size=(self.n_peaks,))
         return self
 
 
 class PeaksModelPSF(PeaksModel):
     """Sample from a RegPSF"""
 
-    def __init__(self, reg_psf: RegPSF, focus_per_cycle=None, **kws):
+    def __init__(self, reg_psf: RegPSF, **kws):
         check.t(reg_psf, RegPSF)
         self.reg_psf = reg_psf
-        self._focus_per_cycle = focus_per_cycle
         super().__init__(**kws)
 
     def render(self, im, fl_i, ch_i, cy_i, aln_offset):
         super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
-        if self._focus_per_cycle is None:
-            focus = 1.0
-        else:
-            focus = self._focus_per_cycle[cy_i]
+        focus = self.focus[cy_i]
 
-        for loc, amp in zip(self.locs, self.amps):
+        for loc, amp, k in zip(self.locs, self._amps, self.row_k):
             loc = loc + aln_offset
             if isinstance(amp, np.ndarray):
                 amp = amp[cy_i]
 
             psf_im, accum_to_loc = self.reg_psf.render_at_loc(
-                ch_i, loc, amp=amp, const=0.0, focus=focus
+                ch_i, loc, amp=k * amp, const=0.0, focus=focus
             )
             imops.accum_inplace(im, psf_im, loc=YX(accum_to_loc), center=False)
 
@@ -248,13 +277,6 @@ class PeaksModelGaussian(PeaksModel):
         self.std = None
         self.std_x = None
         self.std_y = None
-        self.z_scale = None  # (simulates z stage)
-        self.z_center = None  # (simulates z stage)
-
-    def z_function(self, z_scale, z_center):
-        self.z_scale = z_scale
-        self.z_center = z_center
-        return self
 
     def uniform_width_and_heights(self, width=1.5, height=1.5):
         self.std_x = [width for _ in self.locs]
@@ -262,25 +284,17 @@ class PeaksModelGaussian(PeaksModel):
         return self
 
     def render(self, im, fl_i, ch_i, cy_i, aln_offset):
-        if self.std_x is None:
-            self.std_x = [self.std]
-        if self.std_y is None:
-            self.std_y = [self.std]
-
         n_locs = len(self.locs)
-        if len(self.std_x) != n_locs:
-            self.std_x = np.repeat(self.std_x, (n_locs,))
-        if len(self.std_y) != n_locs:
-            self.std_y = np.repeat(self.std_y, (n_locs,))
+        assert n_locs == len(self.std_x)
+        assert n_locs == len(self.std_y)
 
         super().render(im, fl_i, ch_i, cy_i, aln_offset)
 
-        z_scale = 1.0
-        if self.z_scale is not None:
-            assert self.z_center is not None
-            z_scale = 1.0 + self.z_scale * (cy_i - self.z_center) ** 2
+        focus = self.focus[cy_i]
 
-        for loc, amp, std_x, std_y in zip(self.locs, self.amps, self.std_x, self.std_y):
+        for loc, amp, std_x, std_y, k in zip(
+            self.locs, self._amps, self.std_x, self.std_y, self.row_k
+        ):
             loc = loc + aln_offset
 
             if isinstance(amp, np.ndarray):
@@ -289,9 +303,9 @@ class PeaksModelGaussian(PeaksModel):
             frac_y = np.modf(loc[0])[0]
             frac_x = np.modf(loc[1])[0]
             peak_im = imops.gauss2_rho_form(
-                amp=amp,
-                std_x=z_scale * std_x,
-                std_y=z_scale * std_y,
+                amp=k * amp,
+                std_x=focus * std_x,
+                std_y=focus * std_y,
                 pos_x=self.mea // 2 + frac_x,
                 pos_y=self.mea // 2 + frac_y,
                 rho=0.0,

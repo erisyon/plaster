@@ -515,14 +515,19 @@ class SigprocV2Result(BaseResult):
 
 # The following operate on dataframes returned by fields__n_peaks__peaks__radmat
 
+
 def mean_non_dark_asr(df, dark, ch_i):
     """
     Return the mean of non-dark aspect ratios per row
     """
     assert dark is not None
-    rad_pt = pd.pivot_table(df, values="signal", index=["peak_i"], columns=["channel_i", "cycle_i"])
+    rad_pt = pd.pivot_table(
+        df, values="signal", index=["peak_i"], columns=["channel_i", "cycle_i"]
+    )
     ch_rad_pt = rad_pt.loc[:, ch_i]
-    asr_pt = pd.pivot_table(df, values="aspect_ratio", index=["peak_i"], columns=["channel_i", "cycle_i"])
+    asr_pt = pd.pivot_table(
+        df, values="aspect_ratio", index=["peak_i"], columns=["channel_i", "cycle_i"]
+    )
     ch_asr_pt = asr_pt.loc[:, ch_i]
     non_dark_asr = np.where(ch_rad_pt >= dark, ch_asr_pt, np.nan)
     with utils.np_no_warn():
@@ -603,15 +608,20 @@ def df_filter(
 
         if max_aspect_ratio is not None or min_aspect_ratio is not None:
             assert dark is not None
-            asr_pt = pd.pivot_table(_df, values="aspect_ratio", index=["peak_i"], columns=["channel_i", "cycle_i"])
+            asr_pt = pd.pivot_table(
+                _df,
+                values="aspect_ratio",
+                index=["peak_i"],
+                columns=["channel_i", "cycle_i"],
+            )
             ch_asr_pt = asr_pt.loc[:, channel_i]
             non_dark_asr = np.where(ch_rad_pt >= dark, ch_asr_pt, np.nan)
             with utils.np_no_warn():
                 mean_asr_per_row = np.nanmean(non_dark_asr, axis=1)
-            
+
             if max_aspect_ratio is not None:
                 keep_peaks_mask &= mean_asr_per_row <= max_aspect_ratio
-                
+
             if min_aspect_ratio is not None:
                 keep_peaks_mask &= mean_asr_per_row >= min_aspect_ratio
 
@@ -658,10 +668,28 @@ def df_filter(
 
 
 def df_to_radmat(
-    df, radmat_field="signal", channel_i=None, n_cycles=None, nan_to_zero=True
+    df,
+    radmat_field="signal",
+    channel_i=None,
+    n_cycles=None,
+    nan_to_zero=True,
+    nan_missing_rows=False,
+    n_peaks=None,
 ):
     """
     Convert the dataframe filtered by df_filter into a radmat
+
+    channel_i:
+        If non-None pluck out that channel
+    n_cycles:
+        If non None specifies the cycles otherwise uses df.cycle_i.max() + 1
+    nan_to_zero:
+        Convert nans to zeros
+    nan_missing_rows:
+        adding nan rows where the peak_i is missing in the df.
+        If used, n_peaks must be non-None
+    n_peaks:
+        Used with nan_missing_rows
     """
     if n_cycles is None:
         n_cycles = df.cycle_i.max() + 1
@@ -671,12 +699,29 @@ def df_to_radmat(
     else:
         n_channels = 1
 
+    if nan_missing_rows:
+        new_index = pd.MultiIndex.from_arrays(
+            [
+                np.tile(np.arange(0, n_peaks), n_cycles),
+                np.repeat(np.arange(0, n_cycles), n_peaks),
+            ],
+            names=("peak_i", "cycle_i"),
+        )
+        df = (
+            df.set_index(["peak_i", "cycle_i"])
+            .reindex(new_index)
+            .reset_index()
+            .sort_values(["peak_i", "cycle_i"])
+            .reset_index(drop=True)
+        )
+
     radmat = pd.pivot_table(
         df,
         values=radmat_field,
         index=["field_i", "peak_i"],
         columns=["channel_i", "cycle_i"],
     )
+
     radmat = radmat.values
     n_rows = radmat.shape[0]
     radmat = radmat.reshape((n_rows, n_channels, n_cycles))

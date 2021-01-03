@@ -60,7 +60,7 @@ def sigproc_v1():
     )
 
 
-def sigproc_v2_analyze(calibration_file, instrument_identity):
+def sigproc_v2_analyze(calibration_file, instrument_identity, no_calib, no_calib_psf_sigma):
     assert calibration_file is not None
     return Munch(
         sigproc_v2=Munch(
@@ -70,6 +70,8 @@ def sigproc_v2_analyze(calibration_file, instrument_identity):
                 calibration_file=calibration_file,
                 mode=sigproc_v2_common.SIGPROC_V2_INSTRUMENT_ANALYZE,
                 instrument_identity=instrument_identity,
+                no_calib=no_calib,
+                no_calib_psf_sigma=no_calib_psf_sigma,
             ),
         )
     )
@@ -309,7 +311,9 @@ def ptm_test_rf():
     )
 
 
-def classify_rf(prep_relative_path, train_relative_path, sigproc_relative_path, sim_relative_path):
+def classify_rf(
+    prep_relative_path, train_relative_path, sigproc_relative_path, sim_relative_path
+):
     return Munch(
         classify_rf=Munch(
             version="1.0",

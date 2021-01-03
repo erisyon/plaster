@@ -39,7 +39,7 @@ def zest_nn_v2_worker():
         ).copy()
 
         gain_model = sim_v2_result.params.error_model.to_gain_model()
-        nn_v2_params = NNV2Params(n_neighbors=10, gain_model=gain_model,)
+        nn_v2_params = NNV2Params(n_neighbors=10, gain_model=gain_model)
 
         nn_v2_result = nn_v2(
             nn_v2_params, _prep_result, sim_v2_result, sigproc_result=sigproc_result

@@ -6,6 +6,7 @@ from plaster.run.nn_v2.nn_v2_result import NNV2Result
 from plaster.run.sim_v2.sim_v2_result import DyeType, RadType
 from plaster.tools.log.log import debug
 from plaster.tools.zap import zap
+from plaster.tools.schema import check
 
 
 def triangle_dyemat(n_cycles, n_dyes):
@@ -64,6 +65,10 @@ def nn_v2(
     progress=None,
     pipeline=None,
 ):
+    from plaster.run.nn_v2.c.nn_v2 import init as nn_v2_c_init
+
+    nn_v2_c_init()
+
     if sim_v2_result is not None:
         n_cols = sim_v2_result.flat_train_dyemat().shape[1]
     else:
@@ -174,6 +179,13 @@ def nn_v2(
     if sigproc_result is not None:
         sigproc_radmat = sigproc_result.sig(flat_chcy=True).astype(RadType)
 
+        if nn_v2_params.cycle_balance is not None:
+            check.list_t(nn_v2_params.cycle_balance.balance, float)
+            assert len(nn_v2_params.cycle_balance.balance) == sigproc_result.n_cycles
+            sigproc_radmat = sigproc_radmat * np.repeat(
+                np.array(nn_v2_params.cycle_balance.balance), sigproc_result.n_channels
+            ).astype(sigproc_radmat.dtype)
+
         if sigproc_radmat.shape[1] != n_cols:
             raise TypeError(
                 f"In nn_v2 sigproc_radmat did not have same number of columns as training dyemat {sigproc_radmat.shape[1]} vs {n_cols}"
@@ -193,6 +205,7 @@ def nn_v2(
                 nn_v2_params.dyetrack_n_cycles, nn_v2_params.dyetrack_n_counts
             )
             sigproc_context = _run(sigproc_radmat, dyemat, dyepeps)
+
         else:
             sigproc_context = _run(
                 sigproc_radmat,

@@ -780,7 +780,7 @@ class GenApp(cli.Application, GenFuncs):
         # Download sigproc sources and replace with local path before handing to generator
         if "sigproc_source" in generator_args:
             source = generator_args["sigproc_source"]
-            if source.startswith("s3:"):
+            if source is not None and source.startswith("s3:"):
                 generator_args["sigproc_source"] = self._cache_s3_reference(source)
 
         # Intentionally run the generate before the job folder is written

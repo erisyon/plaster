@@ -56,7 +56,7 @@ def zest_sigproc_v2_worker_analyze():
                 # Change the PSF in the corner to ensure that it is picking up the PSF
                 reg_psf = RegPSF.fixture()
 
-                peaks = synth.PeaksModelPSF(reg_psf, n_peaks=1).dyt_amp_constant(5000)
+                peaks = synth.PeaksModelPSF(reg_psf, n_peaks=1).gain_constant(5000)
                 peaks.locs = np.array([[100.3, 72.9]])
 
                 sigproc_v2_result = _run(reg_psf, s)

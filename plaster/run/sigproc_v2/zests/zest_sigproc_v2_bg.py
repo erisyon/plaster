@@ -52,9 +52,9 @@ def zest_bg():
             )
             synth.CameraModel(bg_mean=100, bg_std=10)
             synth.HaloModel()
-            peaks.dyt_amp_constant(5000).dyt_random_choice(
+            peaks.dyt_random_choice(
                 [[1, 1, 1], [1, 0, 1]], [0.5, 0.5]
-            )
+            ).gain_constant(5000)
             chcy_ims = s.render_chcy()
 
         im, std = bg.bandpass_filter(

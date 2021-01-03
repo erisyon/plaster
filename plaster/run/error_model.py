@@ -52,6 +52,9 @@ class GainModel:
     def n_channels(self):
         return len(self.channels)
 
+    def asdict(self):
+        return asdict(self)
+
     @classmethod
     def test_fixture(cls):
         return GainModel(
@@ -62,8 +65,22 @@ class GainModel:
             ],
         )
 
-    def asdict(self):
-        return asdict(self)
+    @classmethod
+    def one_channel(cls, beta, sigma, zero_sigma=200.0):
+        return GainModel(
+            row_k_beta=1.0,
+            row_k_sigma=0.15,
+            channels=[
+                ChGainModel(
+                    beta=beta, sigma=sigma, zero_beta=0.0, zero_sigma=zero_sigma
+                )
+            ],
+        )
+
+
+@dataclass
+class CycleBalance:
+    balance: List[float]
 
 
 class ErrorModel(Params):

@@ -646,9 +646,15 @@ class ZPlots:
         # Note the pattern: When an arg is allowed (in this case top)
         # then it must be added to the kws also for normal processing.
         kws["top"] = top
+
+        ustack = self._u_stack()
+        _x = ustack.get("_x", kws.get("_x"))
+        if _x is None:
+            _x = np.arange(len(top))
+
         fig = self._begin(
             kws,
-            dict(x=np.arange(len(top)), top=top, _label=np.arange(len(top))),
+            dict(x=_x, top=top, _label=_x),
             x="x",
             width=0.9,
             top="top",
@@ -876,6 +882,11 @@ class ZPlots:
         ustack = self._u_stack()
         nan_color = ustack.get("_nan_color")
 
+        _n_samples = ustack.get("_n_samples")
+        if _n_samples is not None:
+            _n_samples = ustack.get("_n_samples", 1000)
+            im_data = subsample(im_data, _n_samples)
+
         if nan_color is not None:
             is_nan_im = np.isnan(im_data)
             im_data = np.where(is_nan_im, 0, im_data)
@@ -1036,7 +1047,7 @@ class ZPlots:
         _n_samples = ustack.get("_n_samples", 1000)
         row_iz = arg_subsample(data, _n_samples)
         row_iz = row_iz[np.argsort(np.nansum(data[row_iz], axis=1))]
-        self.im(data[row_iz])
+        self.im(data[row_iz], **kws)
 
     @trap()
     def im_peaks(self, im, circle_im, index_im, sig_im, snr_im, asr_im, **kws):

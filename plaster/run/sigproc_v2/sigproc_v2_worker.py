@@ -102,22 +102,23 @@ import pandas as pd
 import plaster.run.sigproc_v2.psf
 import plaster.run.sigproc_v2.reg_psf
 from munch import Munch
-from plaster.run.calib.calib import Calib, RegIllum, RegPSF
+from plaster.run.calib.calib import Calib
 from plaster.run.sigproc_v2 import bg, fg, psf
 from plaster.run.sigproc_v2 import sigproc_v2_common as common
-from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import Gauss2FitParams
-from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
+from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
 from plaster.run.sigproc_v2.c_sub_pixel_align.sub_pixel_align import (
     sub_pixel_align_cy_ims,
 )
-from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
+from plaster.run.sigproc_v2.c_gauss2_fitter.gauss2_fitter import Gauss2FitParams
+from plaster.run.calib.calib import Calib, RegPSF, RegIllum, CalibIdentity
 from plaster.tools.image import imops
-from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug, important, prof
 from plaster.tools.schema import check
-from plaster.tools.utils import data
 from plaster.tools.zap import zap
-from plumbum import local
+from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
+from plaster.run.sigproc_v2.c_radiometry import radiometry
+from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
+from plaster.run.sigproc_v2.c_sub_pixel_align import sub_pixel_align
+from plaster.tools.log.log import debug, important, prof
 
 # Calibration
 # ---------------------------------------------------------------------------------------------
@@ -526,6 +527,8 @@ def _sigproc_analyze_field(
         filt_chcy_ims.astype(np.float64), sigproc_v2_params, calib
     )
 
+    n_cycles = filt_chcy_ims.shape[1]
+
     """
     Removed temporarily see _analyze_step_2_mask_anomalies_im for explanation
     # Step 2: Remove anomalies (at least for alignment)
@@ -537,9 +540,12 @@ def _sigproc_analyze_field(
     # Step 3: Find alignment offsets by using the mean of all channels
     # Note that this requires that the channel balancing has equalized the channel weights
     # This is taking about 1 sec, need to look at optimizing
-    aln_offsets = _analyze_step_3_align(
-        np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea
-    )
+    if sigproc_v2_params.run_aligner:
+        aln_offsets = _analyze_step_3_align(
+            np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea
+        )
+    else:
+        aln_offsets = np.zeros((n_cycles, 2))
 
     # Step 4: Composite with alignment
     aln_filt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
@@ -558,8 +564,15 @@ def _sigproc_analyze_field(
     # The goal of previous channel equalization and regional balancing is that
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
-    approx_psf = plaster.run.calib.calib.approximate_psf()
-    locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, chcy_bg_stds)
+
+    if sigproc_v2_params.locs is not None:
+        locs = np.array(sigproc_v2_params.locs)
+        assert locs.ndim == 1
+        locs = np.reshape(locs, (locs.shape[0] // 2, 2))
+    else:
+        approx_psf = plaster.run.calib.calib.approximate_psf()
+        locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, chcy_bg_stds)
+
     n_locs = len(locs)
 
     # Step 6: Radiometry over each channel, cycle
@@ -583,8 +596,6 @@ def _sigproc_analyze_field(
 
     fitmat = _analyze_step_6a_fitter(aln_unfilt_chcy_ims, locs, reg_psf, mask)
 
-    n_cycles = fitmat.shape[2]
-
     # At moment it appears that focus adjustment does nothing under the
     # the filters and alignment -- because there is no correlation anymore
     # between peak width and brightness, so for now I'm turning off the
@@ -597,8 +608,8 @@ def _sigproc_analyze_field(
 
     focus_adjustments = np.ones((n_cycles,))
 
-    # This is taking about 2.5 seconds (0.5 of which is the interpolation o the psf)
-    # Seems surprisingly slow
+    # This is taking about 2.5 seconds (0.5 of which is the interpolation of the psf)
+    # Seems surprisingly slow. Something is up.
     radmat = _analyze_step_6b_radiometry(
         aln_filt_chcy_ims, locs, calib, focus_adjustments
     )
@@ -688,6 +699,10 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
     Entrypoint for Illumination and PSF calibration.
     """
 
+    radiometry.init()
+    gauss2_fitter.init()
+    sub_pixel_align.init()
+
     focus_per_field_per_channel = None
     calib = None
     fg_means = None
@@ -716,12 +731,33 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
     (used for testing)
     """
 
-    if calib is None:
+    radiometry.init()
+    gauss2_fitter.init()
+    sub_pixel_align.init()
+
+    if sigproc_v2_params.no_calib:
+        assert sigproc_v2_params.instrument_identity is None
+        calib_identity = CalibIdentity("_identity")
+
+        calib = Calib()
+        arr = np.zeros((ims_import_result.n_channels, 5, 5, RegPSF.N_PARAMS))
+        arr[:, :, :, RegPSF.SIGMA_X] = sigproc_v2_params.no_calib_psf_sigma
+        arr[:, :, :, RegPSF.SIGMA_Y] = sigproc_v2_params.no_calib_psf_sigma
+        arr[:, :, :, RegPSF.RHO] = 0.0
+        reg_psf = RegPSF.from_array(im_mea=ims_import_result.dim, peak_mea=11, arr=arr)
+        calib.add_reg_psf(reg_psf, calib_identity)
+
+        reg_illum = RegIllum.identity(
+            ims_import_result.n_channels, ims_import_result.dim
+        )
+        calib.add_reg_illum(reg_illum, calib_identity)
+
+    elif calib is None:
+        assert sigproc_v2_params.instrument_identity is not None
         calib = Calib.load_file(
             sigproc_v2_params.calibration_file, sigproc_v2_params.instrument_identity
         )
-
-    assert calib.has_records()
+        assert calib.has_records()
 
     n_fields = ims_import_result.n_fields
     n_fields_limit = sigproc_v2_params.n_fields_limit
@@ -752,5 +788,7 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         _trap_exceptions=False,
         _progress=progress,
     )
+
+    sigproc_v2_result.save()
 
     return sigproc_v2_result

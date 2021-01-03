@@ -36,7 +36,15 @@ def peak_find(im, approx_psf):
     from skimage.feature import peak_local_max  # Defer slow import
 
     std = one_sided_nanstd(im.flatten())
-    thresh = 2 * std  # 2 std found empirically
+
+    # Tuning thresh:
+    #  I initially had it set at 2 * std.
+    #  Later, in synthetic 2 count data without a bandpass filter
+    #  I found that I was losing too many 1 counts so I tried 1 * std
+    #  but I found that when I put the badpass back in that 2 * std
+    #  seemed right again.  We probably should find an objective way
+    #  to determine this.
+    thresh = 2 * std
 
     cim = imops.convolve(np.nan_to_num(im, nan=float(np.nanmedian(im))), approx_psf)
 

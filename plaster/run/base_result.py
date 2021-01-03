@@ -20,6 +20,11 @@ def disable_disk_memoize():
         _disable_disk_memoize = False
 
 
+def disable_disk_memoize_from_notebook():
+    global _disable_disk_memoize
+    _disable_disk_memoize = True
+
+
 def disk_memoize():
     """
     Only used for memoizing methods of BaseResult classes.

@@ -97,18 +97,6 @@ class RunApp(cli.Application):
             )
             return 1
 
-        # BUILD any code. This absolutely can not happen in any milti-thread or multi-process
-        # and thus we init c modules (buildinf if needed) here at start up.
-        from plaster.run.sigproc_v2.c_radiometry import radiometry
-        radiometry.init()
-        from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
-        gauss2_fitter.init()
-        from plaster.run.sigproc_v2.c_sub_pixel_align import sub_pixel_align
-        sub_pixel_align.init()
-        from plaster.run.nn_v2.c import nn_v2
-        nn_v2.init()
-
-
         # A normal run where all happens in this process
         failure_count = 0
         for run_dir_i, run_dir in enumerate(sorted(run_dirs)):
