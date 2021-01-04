@@ -179,6 +179,9 @@ def nn_v2(
     if sigproc_result is not None:
         sigproc_radmat = sigproc_result.sig(flat_chcy=True).astype(RadType)
 
+        if nn_v2_params.n_rows_limit is not None:
+            sigproc_radmat = sigproc_radmat[0 : nn_v2_params.n_rows_limit]
+
         if nn_v2_params.cycle_balance is not None:
             check.list_t(nn_v2_params.cycle_balance.balance, float)
             assert len(nn_v2_params.cycle_balance.balance) == sigproc_result.n_cycles
