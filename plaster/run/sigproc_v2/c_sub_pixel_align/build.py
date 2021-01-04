@@ -22,7 +22,11 @@ def build(dst_folder, c_common_folder):
             gcc[c_opts, src_name, "-o", target_o] & FG
         return target_o
 
-    common_include_files = [f"{c_common_folder}/c_common.h"]
+    common_include_files = [
+        f"{c_common_folder}/c_common.h",
+        f"{c_common_folder}/c_common_old.h",
+        f"{c_common_folder}/c_common_new.h",
+    ]
     sub_pixel_align_o = build_c(f"{dst_folder}/sub_pixel_align.c", common_include_files)
     c_common_o = build_c(f"{c_common_folder}/c_common.c", common_include_files)
 
