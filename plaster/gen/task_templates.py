@@ -61,7 +61,6 @@ def sigproc_v1():
 
 
 def sigproc_v2_analyze(calibration_file, instrument_identity, no_calib, no_calib_psf_sigma):
-    assert calibration_file is not None
     return Munch(
         sigproc_v2=Munch(
             version="1.0",
