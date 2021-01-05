@@ -64,6 +64,7 @@ def nn_v2(
     sigproc_result,
     progress=None,
     pipeline=None,
+    _batch_size=1024*16
 ):
     from plaster.run.nn_v2.c.nn_v2 import init as nn_v2_c_init
 
@@ -87,7 +88,7 @@ def nn_v2(
         ) as nn_v2_context:
             # _nn_v2.c chokes if a batch is larger than 1024*16
             batches = zap.make_batch_slices(
-                n_rows=radmat.shape[0], _batch_size=1024 * 16
+                n_rows=radmat.shape[0], _batch_size=_batch_size
             )
             work_orders = [
                 dict(
@@ -98,6 +99,7 @@ def nn_v2(
                 )
                 for batch in batches
             ]
+            debug(len(work_orders))
             zap.work_orders(
                 work_orders,
                 _process_mode=False,
