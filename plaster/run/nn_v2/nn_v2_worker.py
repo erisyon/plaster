@@ -203,12 +203,13 @@ def nn_v2(
         if nn_v2_params.dyetrack_n_cycles is not None:
             assert nn_v2_params.dyetrack_n_counts is not None
             assert (
-                nn_v2_params.dyetrack_n_counts < 4
+                nn_v2_params.dyetrack_n_counts <= 4
             )  # Defend against crazy large memory alloc
 
             dyemat, dyepeps = triangle_dyemat(
                 nn_v2_params.dyetrack_n_cycles, nn_v2_params.dyetrack_n_counts
             )
+            debug(dyemat.shape, dyepeps.shape, dyemat.nbytes, dyepeps.nbytes)
             sigproc_context = _run(sigproc_radmat, dyemat, dyepeps)
 
         else:

@@ -118,7 +118,7 @@ from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stac
 from plaster.run.sigproc_v2.c_radiometry import radiometry
 from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
 from plaster.run.sigproc_v2.c_sub_pixel_align import sub_pixel_align
-from plaster.tools.log.log import debug, important, prof
+from plaster.tools.log.log import debug, important, prof, exception
 
 # Calibration
 # ---------------------------------------------------------------------------------------------
@@ -420,7 +420,11 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
 
     ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
     # bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
-    locs = fg.sub_pixel_peak_find(ch_mean_of_cy0_im, kernel)
+    try:
+        locs = fg.sub_pixel_peak_find(ch_mean_of_cy0_im, kernel)
+    except Exception as e:
+        exception(e, "Failure during peak find, no peaks recorded for this frame.")
+        locs = np.zeros((0, 2))
     return locs
 
 
