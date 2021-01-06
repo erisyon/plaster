@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 from plaster.run.sim_v2.sim_v2_result import RadType
-from plaster.run.survey_v2.fast import survey_v2_fast
+
+# from plaster.run.survey_v2.fast import survey_v2_fast
 from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
 from plaster.tools.aaseq.aaseq import aa_str_to_list
 from plaster.tools.log.log import debug

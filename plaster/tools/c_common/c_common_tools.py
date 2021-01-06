@@ -1,5 +1,6 @@
-import numpy as np
 import ctypes as c
+
+import numpy as np
 from plaster.tools.schema import check
 
 
@@ -36,6 +37,8 @@ typedefs = {
     "WeightType": ("Float32", c.c_float),
     "IsolationType": ("Float32", c.c_float),
     "RowKType": ("Float32", c.c_float),
+    "ProgressFn": ("ProgressFn", c.CFUNCTYPE(c.c_void_p, c.c_int, c.c_int, c.c_int)),
+    "KeyboardInterruptFn": ("KeyboardInterruptFn", c.CFUNCTYPE(c.c_int)),
 }
 
 
@@ -239,3 +242,19 @@ class F64Arr(c.Structure):
         arr.pitch0 = max(1, arr.shape1) * arr.pitch1 if ndarr.ndim >= 1 else 1
 
         return arr
+
+
+class HashVal(c.Union):
+    _fields_ = [("val", c.c_void_p), ("contention_val", c.c_float)]
+
+
+class HashRec(c.Structure):
+    _fields_ = [("key", c.c_uint64), ("val_union", HashVal)]
+
+
+class Hash(c.Structure):
+    _fields_ = [
+        ("recs", c.POINTER(HashRec)),
+        ("n_max_recs", c.c_uint64),
+        ("n_active_recs", c.c_uint64),
+    ]
