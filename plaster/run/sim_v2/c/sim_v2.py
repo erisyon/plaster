@@ -6,6 +6,7 @@ import numpy as np
 from plaster.run.sim_v2.c.build import build
 from plaster.tools.c_common import c_common_tools
 from plaster.tools.c_common.c_common_tools import Hash, Tab
+from plaster.tools.log.log import debug
 from plaster.tools.utils import utils
 from plumbum import local
 
@@ -259,12 +260,6 @@ def sim(
                 f"dyt_gb={dyt_gb}, dyepep_gb={dyepep_gb}, n_max_dyts={n_max_dyts}, n_max_dyepeps={n_max_dyepeps}"
             )
 
-    # dyts_buf = (c.c_uint8 * n_max_dyts * n_dyt_row_bytes)()
-    # dyt_hash_buf = (c.c_uint8 * c.sizeof(lib.HashRec) * n_max_dyt_hash_recs)()
-    # dyepeps_buf = (c.c_uint8 * c.sizeof(c.DyePepRec) * n_max_dyepeps)()
-    # dyepep_hash_buf = (c.c_uint8 * c.sizeof(lib.HashRec) * n_max_dyepep_hash_recs)()
-    # pep_i_to_pcb_i_buf = c.c_uint64 * c.sizeof(c.c_uint64) * (n_peps + 1)
-
     # TODO: check to make sure tab.from_mat args are np arrays with type uint8
     ctx = SimV2Context(
         n_peps=n_peps,
@@ -274,15 +269,25 @@ def sim(
         pi_bleach=lib.prob_to_p_i(p_bleach),
         pi_detach=lib.prob_to_p_i(p_detach),
         pi_edman_success=lib.prob_to_p_i(1.0 - p_edman_fail),
-        cycles=cycles,
-        # dyts=lib.tab_by_n_rows(dyts_buf),
-        # dyt_hash=lib.hash_init(dyt_hash_buf, n_max_dyt_hash_recs),
-        # dyepeps=lib.tab_by_size(dyepeps_buf, n_max_dyepeps * c.sizeof(lib.DyePepRec), c.sizeof(lib.DyePepRec), lib.TAB_GROWABLE),
-        # dyepep_hash=lib.hash_init(dyepep_hash_buf, n_max_dyepep_hash_recs),
+        cycles=(c.c_uint8 * n_cycles)(),
         pcbs=Tab.from_mat(pcbs, expected_dtype=np.float64),
-        # pep_i_to_pcb_i=
+        n_max_dyts=int(n_max_dyts),
+        n_max_dyt_hash_recs=int(n_max_dyepep_hash_recs),
+        n_max_dyepeps=int(n_max_dyepeps),
+        n_max_dyepep_hash_recs=int(n_max_dyepep_hash_recs),
+        n_dyt_row_bytes=n_dyt_row_bytes,
+        pep_recalls=np.zeros((n_peps), dtype=np.float64).ctypes.data_as(
+            c.POINTER(c.c_float)
+        ),
+        n_threads=1,  # n_threads=1,
+        progress_fn=progress_fn,
+        check_keyboard_interrupt_fn=check_keyboard_interrupt_fn,
     )
 
+    for i in range(ctx.n_cycles):
+        ctx.cycles[i] = cycles[i]
+
+    debug("starting")
     ret = lib.context_work_orders_start(ctx)
     if ret != 0:
         raise Exception("Worker ended prematurely")

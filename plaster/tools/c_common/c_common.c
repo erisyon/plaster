@@ -49,6 +49,11 @@ void _trace(char *file, int line, const char *fmt, ...) {
     vfprintf(_log, fmt, args);
     fflush(_log);
     va_end(args);
+
+    va_start(args, fmt);
+    fprintf(stderr, "@%s:%d ", file, line);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
 }
 
 // Table

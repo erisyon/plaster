@@ -99,10 +99,10 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
         return 6;
     }
 
-    if(sizeof(Dyt) != 16) {
-        printf("Failed sanity check: Dyt size\n");
-        return 7;
-    }
+    // if(sizeof(Dyt) != 16) {
+    //     printf("Failed sanity check: Dyt size\n");
+    //     return 7;
+    // }
 
     Size n_hashkey_factors = sizeof(hashkey_factors) / sizeof(hashkey_factors[0]);
     for(Index i = 0; i < n_hashkey_factors; i++) {
@@ -130,6 +130,19 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
 // Dyts = Dye tracks
 //=========================================================================================
 
+Dyt *malloc_dyt(Size bytes) {
+    Dyt *dyt = malloc(sizeof(Dyt));
+    if(dyt == NULL)
+        return dyt;
+    dyt->chcy_dye_counts = malloc(bytes);
+    return dyt;
+}
+
+void *free_dyt(Dyt *dyt) {
+    free(dyt->chcy_dye_counts);
+    free(dyt);
+}
+
 HashKey dyt_get_hashkey(Dyt *dyt, Size n_channels, Size n_cycles) {
     // Get a hashkey for the Dyt by a dot product with a set of random 64-bit
     // values initialized in the hashkey_factors
@@ -144,7 +157,7 @@ HashKey dyt_get_hashkey(Dyt *dyt, Size n_channels, Size n_cycles) {
 
 Size dyt_n_bytes(Size n_channels, Size n_cycles) {
     // Return aligned Dyt size
-    Size size = sizeof(Dyt) + sizeof(DyeType) * n_cycles * n_channels;
+    Size size = sizeof(DyeType) * n_cycles * n_channels;
     int over = size % 8;
     int padding = over == 0 ? 0 : 8 - over;
     return size + padding;
@@ -244,7 +257,6 @@ Counts context_sim_flu(SimV2Context *ctx, Index pep_i, Tab *pcb_block, Size n_aa
     // Runs the Monte-Carlo simulation of one peptide flu over n_samples
     // See algorithm described at top of file.
     // Returns the number of NEW dyts
-
     // Make local copies of inner-loop variables
     DyeType ch_sums[N_MAX_CHANNELS];
     Size n_cycles = ctx->n_cycles;
@@ -501,6 +513,9 @@ typedef struct {
 void *context_work_orders_worker(void *_tctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
+
+    trace("worker 1\n");
+
     ThreadContext *tctx = (ThreadContext *)_tctx;
     SimV2Context *ctx = tctx->ctx;
     if(ctx->count_only) {
@@ -539,33 +554,49 @@ void *context_work_orders_worker(void *_tctx) {
 }
 
 int context_work_orders_start(SimV2Context *ctx) {
+    trace("calloc\n");
     // Allocate memory (this used to take place in the pyx file)
     uint8_t *dyts_buf = calloc(ctx->n_max_dyts, ctx->n_dyt_row_bytes);
     uint8_t *dyepeps_buf = calloc(ctx->n_max_dyepeps, sizeof(DyePepRec));
     HashRec *dyt_hash_buf = calloc(ctx->n_max_dyt_hash_recs, sizeof(HashRec));
     HashRec *dyepep_hash_buf = calloc(ctx->n_max_dyepep_hash_recs, sizeof(HashRec));
-    // Index *
+    Index *pep_i_to_pcb_i_buf = calloc(ctx->n_peps + 1, sizeof(Index)); // Why + 1 ? see above
+
+    trace("malloc\n");
     ctx->work_order_lock = malloc(sizeof(pthread_mutex_t));
     ctx->tab_lock = malloc(sizeof(pthread_mutex_t));
 
+    trace("dyts %d %d\n", ctx->n_max_dyts, ctx->n_dyt_row_bytes);
     ctx->dyts = tab_by_n_rows(dyts_buf, ctx->n_max_dyts, ctx->n_dyt_row_bytes, TAB_GROWABLE);
+    ctx->dyepeps = tab_by_size(dyepeps_buf, ctx->n_max_dyepeps * sizeof(DyePepRec), sizeof(DyePepRec), TAB_GROWABLE);
+    ctx->dyt_hash = hash_init(dyt_hash_buf, ctx->n_max_dyt_hash_recs);
+    ctx->dyepep_hash = hash_init(dyepep_hash_buf, ctx->n_max_dyepep_hash_recs);
+    ctx->pep_i_to_pcb_i = tab_by_n_rows(pep_i_to_pcb_i_buf, ctx->n_peps + 1, sizeof(Index), TAB_NOT_GROWABLE);
 
     // context_dump(ctx);
 
     // Initialize mutex and start the worker thread(s).
+    trace("sanity_check\n");
     ensure(setup_and_sanity_check(ctx->n_channels, ctx->n_cycles) == 0, "Sanity checks failed");
     rand64_seed(ctx->rng_seed);
 
     ctx->next_pep_i = 0;
 
+    trace("null rows\n");
     // Add a nul-row
     Size n_dyetrack_bytes = dyt_n_bytes(ctx->n_channels, ctx->n_cycles);
-    Dyt *nul_rec = (Dyt *)alloca(n_dyetrack_bytes);
-    memset(nul_rec, 0, n_dyetrack_bytes);
+    trace("null rows 1, %d\n", n_dyetrack_bytes);
+    Dyt *nul_rec = malloc_dyt(n_dyetrack_bytes);
+    trace("null rows 2 %x\n", nul_rec);
+    memset(nul_rec->chcy_dye_counts, 0, n_dyetrack_bytes);
+    trace("null rows 3\n");
     HashKey dyt_hashkey = dyt_get_hashkey(nul_rec, ctx->n_channels, ctx->n_cycles);
+    trace("null rows 4\n");
     HashRec *dyt_hash_rec = hash_get(ctx->dyt_hash, dyt_hashkey);
+    trace("null rows 5\n");
     ensure(dyt_hash_rec->key == 0, "dyt hash should not have found nul row");
 
+    trace("A\n");
     Tab *dyts = &ctx->dyts;
     Index nul_i = tab_add(dyts, nul_rec, TAB_NO_LOCK);
     tab_var(Dyt, nul_dyt, dyts, nul_i);
@@ -574,6 +605,7 @@ int context_work_orders_start(SimV2Context *ctx) {
     nul_dyt->dyt_i = nul_i;
     dyt_hash_rec->val = nul_dyt;
 
+    trace("B\n");
     ThreadContext thread_contexts[256];
     ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
 
@@ -585,6 +617,7 @@ int context_work_orders_start(SimV2Context *ctx) {
         ensure(ret == 0, "pthread lock create failed");
     }
 
+    trace("C\n");
     for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
         thread_contexts[thread_i].thread_i = thread_i;
         thread_contexts[thread_i].ctx = ctx;
@@ -595,6 +628,7 @@ int context_work_orders_start(SimV2Context *ctx) {
         ensure(ret == 0, "Thread not created.");
     }
 
+    trace("D\n");
     // MONITOR progress and callback from this main thread
     // Python doesn't seem to like callbacks coming from other threads
     int interrupted = 0;
@@ -624,9 +658,12 @@ int context_work_orders_start(SimV2Context *ctx) {
         usleep(10000); // 10 ms
     }
 
+    trace("E\n");
     for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
         pthread_join(thread_contexts[thread_i].id, NULL);
     }
+
+    free_dyt(nul_rec);
 
     return interrupted;
 }
