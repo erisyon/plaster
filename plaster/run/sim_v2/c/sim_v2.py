@@ -1,4 +1,5 @@
 import ctypes as c
+import time
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from io import StringIO
 
@@ -9,6 +10,9 @@ from plaster.tools.c_common.c_common_tools import Hash, Tab
 from plaster.tools.log.log import debug
 from plaster.tools.utils import utils
 from plumbum import local
+
+DyeType = np.uint8
+Size = np.uint64
 
 lib_folder = local.path("/erisyon/plaster/plaster/run/sim_v2/c")
 
@@ -31,11 +35,17 @@ def load_lib():
     lib.context_work_orders_start.argtypes = [
         c.POINTER(SimV2Context),
     ]
-    lib.context_work_orders_start.restype = c.c_char_p
+    lib.context_work_orders_start.restype = c.c_int
 
     lib.context_free.argtypes = [
         c.POINTER(SimV2Context),
     ]
+
+    lib.context_dyt_get_count.argtypes = [c.POINTER(SimV2Context), c.c_uint64]
+    lib.context_dyt_get_count.restype = c.c_uint64
+
+    lib.context_dyt_get_count.argtypes = [c.POINTER(SimV2Context), c.c_uint64]
+    lib.context_dyt_get_count.restype = c.POINTER(c.c_uint8)
 
     _lib = lib
     return lib
@@ -98,12 +108,12 @@ class SimV2Context(c_common_tools.FixupStructure):
     # fmt: on
 
 
-class Dyt(c_common_tools.FixupStructure):
-    _fixup_fields = [
-        ("count", "Size"),
-        ("dyt_i", "Index"),
-        ("chcy_dye_counts", "DyeType *"),
-    ]
+# class Dyt(c_common_tools.FixupStructure):
+#     _fixup_fields = [
+#         ("count", "Size"),
+#         ("dyt_i", "Index"),
+#         ("chcy_dye_counts", "DyeType *"),
+#     ]
 
 
 class PCB(c_common_tools.FixupStructure):
@@ -125,13 +135,19 @@ class DyePepRec(c_common_tools.FixupStructure):
     ]
 
 
+def _assert_array_contiguous(arr, dtype):
+    assert isinstance(arr, np.ndarray)
+    assert arr.dtype == dtype, f"{arr.dtype} {dtype}"
+    assert arr.flags["C_CONTIGUOUS"]
+
+
 def init():
     """
     Must be called before anything else in this module
     """
 
     SimV2Context.struct_fixup()
-    Dyt.struct_fixup()
+    # Dyt.struct_fixup()
     PCB.struct_fixup()
     Counts.struct_fixup()
     DyePepRec.struct_fixup()
@@ -147,8 +163,20 @@ def init():
             print('#include "stdint.h"')
             print('#include "c_common.h"')
             print()
+            print(
+                """
+typedef struct {
+    Size count;
+    Index dyt_i;
+    DyeType chcy_dye_counts[];
+    // Note, this is a variable sized record
+    // See dyt_* functions for manipulating it
+} Dyt;  // Dye-track record
+                """
+            )
+            print()
             SimV2Context.struct_emit_header(fp)
-            Dyt.struct_emit_header(fp)
+            # Dyt.struct_emit_header(fp)
             PCB.struct_emit_header(fp)
             Counts.struct_emit_header(fp)
             DyePepRec.struct_emit_header(fp)
@@ -282,12 +310,63 @@ def sim(
         n_threads=1,  # n_threads=1,
         progress_fn=progress_fn,
         check_keyboard_interrupt_fn=check_keyboard_interrupt_fn,
+        rng_seed=int(time.time() * 1_000_000),
     )
 
     for i in range(ctx.n_cycles):
         ctx.cycles[i] = cycles[i]
 
+    for f in ctx._fields_:
+        print(f[0], getattr(ctx, f[0]))
+
     debug("starting")
-    ret = lib.context_work_orders_start(ctx)
-    if ret != 0:
-        raise Exception("Worker ended prematurely")
+    try:
+        ret = lib.context_work_orders_start(ctx)
+        debug("-1")
+        if ret != 0:
+            raise Exception(f"Worker ended prematurely {ret}")
+
+        debug("0")
+
+        if count_only:
+            print(f"n_dyts={ctx.output_n_dyts}")
+            print(f"n_dyepeps={ctx.output_n_dyepeps}")
+            return None, None, None
+
+        # The results are in ctx.dyts and ctx.dyepeps
+        # So now allocate the numpy arrays that will be returned
+        # to the caller and copy into those arrays from the
+        # much larger arrays that were used during the context_work_orders_start()
+        debug("a")
+        n_chcy = ctx.n_channels * ctx.n_cycles
+        dyetracks = np.zeros((ctx.dyts.n_rows, n_chcy), dtype=DyeType)
+        debug("b")
+
+        # We need a special record at 0 for nul so we need to add one here
+        dyepeps = np.zeros((ctx.dyepeps.n_rows + 1, 3), dtype=Size)
+        _assert_array_contiguous(dyetracks, DyeType)
+        _assert_array_contiguous(dyepeps, Size)
+
+        dyetracks_view = dyetracks
+        dyepeps_view = dyepeps
+
+        for i in range(ctx.dyts.n_rows):
+            debug(i)
+            dyt_count = lib.context_dyt_get_count(ctx, i)
+            dyetrack = lib.context_dyt_dyetrack(ctx, i)
+            for j in range(n_chcy):
+                dyetracks_view[i, j] = dyetrack[j]
+
+        # nul record
+        dyepeps_view[0, 0] = 0
+        dyepeps_view[0, 1] = 0
+        dyepeps_view[0, 2] = 0
+        for i in range(ctx.dyepeps.n_rows):
+            dyepeprec = lib.context_dyepep(ctx, i)
+            dyepeps_view[i + 1, 0] = dyepeprec.dyt_i
+            dyepeps_view[i + 1, 1] = dyepeprec.pep_i
+            dyepeps_view[i + 1, 2] = dyepeprec.n_reads
+
+        return dyetracks, dyepeps, pep_recalls
+    finally:
+        lib.context_free(ctx)

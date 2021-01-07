@@ -130,19 +130,6 @@ int setup_and_sanity_check(Size n_channels, Size n_cycles) {
 // Dyts = Dye tracks
 //=========================================================================================
 
-Dyt *malloc_dyt(Size bytes) {
-    Dyt *dyt = malloc(sizeof(Dyt));
-    if(dyt == NULL)
-        return dyt;
-    dyt->chcy_dye_counts = malloc(bytes);
-    return dyt;
-}
-
-void *free_dyt(Dyt *dyt) {
-    free(dyt->chcy_dye_counts);
-    free(dyt);
-}
-
 HashKey dyt_get_hashkey(Dyt *dyt, Size n_channels, Size n_cycles) {
     // Get a hashkey for the Dyt by a dot product with a set of random 64-bit
     // values initialized in the hashkey_factors
@@ -257,6 +244,7 @@ Counts context_sim_flu(SimV2Context *ctx, Index pep_i, Tab *pcb_block, Size n_aa
     // Runs the Monte-Carlo simulation of one peptide flu over n_samples
     // See algorithm described at top of file.
     // Returns the number of NEW dyts
+
     // Make local copies of inner-loop variables
     DyeType ch_sums[N_MAX_CHANNELS];
     Size n_cycles = ctx->n_cycles;
@@ -528,6 +516,7 @@ void *context_work_orders_worker(void *_tctx) {
     while(!tctx->stop_requested) {
         Index pep_i_plus_1 = context_work_orders_pop(ctx);
         if(pep_i_plus_1 == 0) {
+            trace("done with work orders\n");
             break;
         }
         Index pep_i = pep_i_plus_1 - 1;
@@ -582,21 +571,14 @@ int context_work_orders_start(SimV2Context *ctx) {
 
     ctx->next_pep_i = 0;
 
-    trace("null rows\n");
     // Add a nul-row
     Size n_dyetrack_bytes = dyt_n_bytes(ctx->n_channels, ctx->n_cycles);
-    trace("null rows 1, %d\n", n_dyetrack_bytes);
-    Dyt *nul_rec = malloc_dyt(n_dyetrack_bytes);
-    trace("null rows 2 %x\n", nul_rec);
-    memset(nul_rec->chcy_dye_counts, 0, n_dyetrack_bytes);
-    trace("null rows 3\n");
+    Dyt *nul_rec = (Dyt *)alloca(n_dyetrack_bytes);
+    memset(nul_rec, 0, n_dyetrack_bytes);
     HashKey dyt_hashkey = dyt_get_hashkey(nul_rec, ctx->n_channels, ctx->n_cycles);
-    trace("null rows 4\n");
     HashRec *dyt_hash_rec = hash_get(ctx->dyt_hash, dyt_hashkey);
-    trace("null rows 5\n");
     ensure(dyt_hash_rec->key == 0, "dyt hash should not have found nul row");
 
-    trace("A\n");
     Tab *dyts = &ctx->dyts;
     Index nul_i = tab_add(dyts, nul_rec, TAB_NO_LOCK);
     tab_var(Dyt, nul_dyt, dyts, nul_i);
@@ -649,6 +631,7 @@ int context_work_orders_start(SimV2Context *ctx) {
         }
         int got_interrupt = ctx->check_keyboard_interrupt_fn();
         if(got_interrupt) {
+            trace("interrupted");
             for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
                 thread_contexts[thread_i].stop_requested = 1;
             }
@@ -662,9 +645,8 @@ int context_work_orders_start(SimV2Context *ctx) {
     for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
         pthread_join(thread_contexts[thread_i].id, NULL);
     }
-
-    free_dyt(nul_rec);
-
+    trace("done %d\n", interrupted);
+    usleep(100000);
     return interrupted;
 }
 
@@ -673,7 +655,7 @@ int context_free(SimV2Context *ctx) {
     free(ctx->tab_lock);
 }
 
-Index context_dyt_get_count(SimV2Context *ctx, Index dyt_i) {
+Size context_dyt_get_count(SimV2Context *ctx, Index dyt_i) {
     tab_var(Dyt, dyt, &ctx->dyts, dyt_i);
     return dyt->count;
 }
