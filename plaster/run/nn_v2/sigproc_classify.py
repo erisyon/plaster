@@ -119,4 +119,4 @@ def n_dyts_by_count(cnt, dyemat):
     """
     Used to "triangle" dyemats, return the dyt_i for the last of a given count.
     """
-    return np.argmin(np.all(dyemat <= cnt, axis=1)) - 1
+    return np.argmin( np.concatenate((np.all(dyemat <= cnt, axis=1), [False]))) - 1

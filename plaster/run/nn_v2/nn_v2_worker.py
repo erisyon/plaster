@@ -99,7 +99,6 @@ def nn_v2(
                 )
                 for batch in batches
             ]
-            debug(len(work_orders))
             zap.work_orders(
                 work_orders,
                 _process_mode=False,
@@ -209,7 +208,6 @@ def nn_v2(
             dyemat, dyepeps = triangle_dyemat(
                 nn_v2_params.dyetrack_n_cycles, nn_v2_params.dyetrack_n_counts
             )
-            debug(dyemat.shape, dyepeps.shape, dyemat.nbytes, dyepeps.nbytes)
             sigproc_context = _run(sigproc_radmat, dyemat, dyepeps)
 
         else:
