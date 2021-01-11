@@ -31,6 +31,7 @@ def zest_sigproc_v2_worker_analyze():
             mode="analyze",
             **extra_params,
         )
+
         calib = Calib()
         calib.add_reg_psf(reg_psf, "synth")
         reg_illum = RegIllum(1, reg_psf.im_mea, 5)
@@ -155,7 +156,7 @@ def zest_sigproc_v2_worker_analyze():
         """
         Prove that it handles a non-uniform PSF without considering focus
         """
-        with tmp_folder(chdir=True):
+        with tmp_folder(chdir=True) as tt:
             with synth.Synth(
                 n_channels=1, n_cycles=1, overwrite=True, dim=(512, 512)
             ) as s:

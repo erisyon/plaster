@@ -224,6 +224,8 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     for ch_i in range(n_channels):
         bal_im = calib.reg_illum().interp(ch_i)
 
+        assert bal_im.sum() > 0.0, "Sanity check"
+
         for cy_i in range(n_cycles):
             im = np.copy(chcy_ims[ch_i, cy_i])
             if sigproc_params.run_regional_balance:
