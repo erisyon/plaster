@@ -50,8 +50,8 @@ def result_simple_fixture(has_decoy=False):
     peps = pd.DataFrame(
         dict(
             pep_i=[0, 1, 2, 3],
-            pep_start=[0, 0, 0,  6],
-            pep_stop= [1, 5, 6, 11],
+            pep_start=[0, 0, 0, 6],
+            pep_stop=[1, 5, 6, 11],
             pro_i=[0, 1, 2, 2],
         )
     )
@@ -131,9 +131,9 @@ def result_cterm_label_fixture(has_decoy=False):
     peps = pd.DataFrame(
         dict(
             pep_i=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-            pep_start=[ 0, 0, 1, 3,  6, 10, 0, 1, 3,  6, 10],
-            pep_stop= [ 1, 1, 3, 6, 10, 15, 1, 3, 6, 10, 15],
-            pro_i=[0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
+            pep_start=[0, 0, 1, 3, 6, 10, 0, 1, 3, 6, 10],
+            pep_stop=[1, 1, 3, 6, 10, 15, 1, 3, 6, 10, 15],
+            pro_i=[0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2],
         )
     )
 
@@ -142,7 +142,7 @@ def result_cterm_label_fixture(has_decoy=False):
         dict(
             pep_i=[
                 0,
-                1, 
+                1,
                 2, 2,
                 3, 3, 3,
                 4, 4, 4, 4,
@@ -190,6 +190,7 @@ def result_cterm_label_fixture(has_decoy=False):
         _peps=peps,
         _pep_seqs=pep_seqs,
     )
+
 
 def result_random_fixture(n_proteins):
     """

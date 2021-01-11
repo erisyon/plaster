@@ -91,7 +91,10 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
         s.is_kws_r(
             n_samples_train=s.is_int(bounds=(1, None), help="See Main Help"),
             n_samples_test=s.is_int(bounds=(1, None), help="See Main Help"),
-            prevent_edman_cterm=s.is_bool(noneable=True, help="Edman cycles will not remove final C-terminal AA from peptides at plate boundary.")
+            prevent_edman_cterm=s.is_bool(
+                noneable=True,
+                help="Edman cycles will not remove final C-terminal AA from peptides at plate boundary.",
+            ),
         )
     )
 

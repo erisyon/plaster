@@ -275,7 +275,9 @@ def zest_sim_v2_worker():
         prep_cterm = prep_fixtures.result_cterm_label_fixture()
 
         # dyemat when prevent_edman_cterm is True
-        sim_v2_result, sim_v2_params = _sim(_prep_result=prep_cterm, sim_kwargs=Munch(prevent_edman_cterm=True))
+        sim_v2_result, sim_v2_params = _sim(
+            _prep_result=prep_cterm, sim_kwargs=Munch(prevent_edman_cterm=True)
+        )
         assert sim_v2_result.train_dyemat.shape == (3, 5 * 2)  # 5 cycles, 2 channels
         assert utils.np_array_same(
             sim_v2_result.train_dyemat,
