@@ -75,12 +75,6 @@ class SimV2Context(c_common_tools.FixupStructure):
 
         ("cycles", "CycleKindType *"),
 
-        ("n_max_dyts", "Size"),
-        ("n_max_dyepeps", "Size"),
-        ("n_dyt_row_bytes", "Size"),
-        ("n_max_dyt_hash_recs", "Size"),
-        ("n_max_dyepep_hash_recs", "Size"),
-
         ("dyts", Tab, "Uint8"),
         ("dyt_hash", Hash, "Uint8"), # TODO: add Hash struct to c_common_tools
         ("dyepeps", Tab, "Uint8"),
@@ -99,11 +93,16 @@ class SimV2Context(c_common_tools.FixupStructure):
 
         ("rng_seed", "Uint64"),
 
-        ("work_order_lock", "pthread_mutex_t *"),
-        ("tab_lock", "pthread_mutex_t *"),
-
         ("progress_fn", "ProgressFn"),
         ("check_keyboard_interrupt_fn", "KeyboardInterruptFn"),
+
+        ("pep_i_to_pcb_i_buf", "Index *"),
+
+        ("n_max_dyts", "Size"),
+        ("n_max_dyepeps", "Size"),
+        ("n_dyt_row_bytes", "Size"),
+        ("n_max_dyt_hash_recs", "Size"),
+        ("n_max_dyepep_hash_recs", "Size"),
     ]
     # fmt: on
 
@@ -165,13 +164,13 @@ def init():
             print()
             print(
                 """
-typedef struct {
-    Size count;
-    Index dyt_i;
-    DyeType chcy_dye_counts[];
-    // Note, this is a variable sized record
-    // See dyt_* functions for manipulating it
-} Dyt;  // Dye-track record
+                typedef struct {
+                    Size count;
+                    Index dyt_i;
+                    DyeType chcy_dye_counts[];
+                    // Note, this is a variable sized record
+                    // See dyt_* functions for manipulating it
+                } Dyt;  // Dye-track record
                 """
             )
             print()
@@ -253,12 +252,27 @@ def sim(
 
     lib = load_lib()
 
+    # TODO:
+    # assert c.sanity_check() == 0
+    # _assert_array_contiguous(cycles, CycleKindType)
+    # _assert_array_contiguous(pcbs, PCBType)
+    # assert np.dtype(CycleKindType).itemsize == sizeof(c.CycleKindType)
+    # assert np.dtype(DyeType).itemsize == sizeof(c.DyeType)
+
     # BUILD a map from pep_i to pcb_i.
     #   Note, this map needs to be one longer than n_peps so that we
     #   can subtract each offset to get the pcb length for each pep_i
     pep_i_to_pcb_i = np.unique(pcbs[:, 0], return_index=1)[1].astype(np.uint64)
     pep_i_to_pcb_i_view = pep_i_to_pcb_i
     n_peps = pep_i_to_pcb_i.shape[0]
+
+    pep_i_to_pcb_i_buf = (c.c_ulonglong * (n_peps + 1))()
+    c.memmove(
+        pep_i_to_pcb_i_buf,
+        pep_i_to_pcb_i_view.ctypes.data,
+        n_peps * c.sizeof(c.c_ulonglong),
+    )
+    pep_i_to_pcb_i_buf[n_peps] = pcbs.shape[0]
 
     n_cycles = cycles.shape[0]
 
@@ -297,20 +311,23 @@ def sim(
         pi_bleach=lib.prob_to_p_i(p_bleach),
         pi_detach=lib.prob_to_p_i(p_detach),
         pi_edman_success=lib.prob_to_p_i(1.0 - p_edman_fail),
-        cycles=(c.c_uint8 * n_cycles)(),
-        pcbs=Tab.from_mat(pcbs, expected_dtype=np.float64),
+        cycles=(c.c_uint8 * 64)(),
+        pcbs=Tab.from_mat(pcbs, expected_dtype=np.float64),  # Suspect
         n_max_dyts=int(n_max_dyts),
         n_max_dyt_hash_recs=int(n_max_dyepep_hash_recs),
         n_max_dyepeps=int(n_max_dyepeps),
         n_max_dyepep_hash_recs=int(n_max_dyepep_hash_recs),
         n_dyt_row_bytes=n_dyt_row_bytes,
-        pep_recalls=np.zeros((n_peps), dtype=np.float64).ctypes.data_as(
+        # TODO: look at F64Arr
+        pep_recalls=np.zeros(n_peps, dtype=np.float64).ctypes.data_as(
             c.POINTER(c.c_float)
         ),
-        n_threads=1,  # n_threads=1,
+        n_threads=1,  # n_threads=n_threads,
         progress_fn=progress_fn,
         check_keyboard_interrupt_fn=check_keyboard_interrupt_fn,
         rng_seed=int(time.time() * 1_000_000),
+        count_only=count_only,
+        pep_i_to_pcb_i_buf=pep_i_to_pcb_i_buf,
     )
 
     for i in range(ctx.n_cycles):
@@ -321,6 +338,7 @@ def sim(
 
     debug("starting")
     try:
+        # TODO: use convention in radiometry.py with context_init in a context manager, so ctx is always freed
         ret = lib.context_work_orders_start(ctx)
         debug("-1")
         if ret != 0:
