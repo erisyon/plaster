@@ -60,7 +60,9 @@ def sigproc_v1():
     )
 
 
-def sigproc_v2_analyze(calibration_file, instrument_identity, no_calib, no_calib_psf_sigma):
+def sigproc_v2_analyze(
+    calibration_file, instrument_identity, no_calib, no_calib_psf_sigma
+):
     return Munch(
         sigproc_v2=Munch(
             version="1.0",

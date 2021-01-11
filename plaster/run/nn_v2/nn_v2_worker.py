@@ -64,7 +64,7 @@ def nn_v2(
     sigproc_result,
     progress=None,
     pipeline=None,
-    _batch_size=1024*16
+    _batch_size=1024 * 16,
 ):
     from plaster.run.nn_v2.c.nn_v2 import init as nn_v2_c_init
 
