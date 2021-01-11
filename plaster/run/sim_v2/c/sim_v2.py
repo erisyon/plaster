@@ -82,6 +82,7 @@ class SimV2Context(c_common_tools.FixupStructure):
         ("pi_bleach", "Uint64"),
         ("pi_detach", "Uint64"),
         ("pi_edman_success", "Uint64"),
+        ("prevent_edman_cterm", "Uint64"),
 
         ("cycles", "CycleKindType *"),
 
@@ -257,6 +258,7 @@ def sim(
     p_bleach,
     p_detach,
     p_edman_fail,
+    prevent_edman_cterm,
     n_threads=1,
     rng_seed=None,
     progress=None,
@@ -324,6 +326,7 @@ def sim(
         pi_bleach=lib.prob_to_p_i(p_bleach),
         pi_detach=lib.prob_to_p_i(p_detach),
         pi_edman_success=lib.prob_to_p_i(1.0 - p_edman_fail),
+        prevent_edman_cterm=prevent_edman_cterm,
         cycles=(c.c_uint8 * 64)(),
         pcbs=Tab.from_mat(pcbs, expected_dtype=np.float64),
         n_max_dyts=int(n_max_dyts),
