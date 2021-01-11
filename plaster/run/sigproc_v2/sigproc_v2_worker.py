@@ -556,6 +556,7 @@ def _sigproc_analyze_field(
         )
     else:
         aln_offsets = np.zeros((n_cycles, 2))
+    prof()
 
     # Step 4: Composite with alignment
     # Timings:
@@ -564,9 +565,11 @@ def _sigproc_analyze_field(
     aln_filt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
         filt_chcy_ims, aln_offsets
     )
+    prof()
     aln_unfilt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
         unfilt_chcy_ims, aln_offsets
     )
+    prof()
 
     # aln_*filt_chcy_ims is now only the shape of only intersection region so is likely
     # to be smaller than the original and not necessarily a power of 2.
@@ -578,6 +581,7 @@ def _sigproc_analyze_field(
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
 
+    prof()
     if sigproc_v2_params.locs is not None:
         locs = np.array(sigproc_v2_params.locs)
         assert locs.ndim == 1
@@ -585,6 +589,7 @@ def _sigproc_analyze_field(
     else:
         approx_psf = plaster.run.calib.calib.approximate_psf()
         locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, chcy_bg_stds)
+    prof()
 
     n_locs = len(locs)
 
@@ -607,7 +612,9 @@ def _sigproc_analyze_field(
             except ValueError:
                 pass
 
+    prof()
     fitmat = _analyze_step_6a_fitter(aln_unfilt_chcy_ims, locs, reg_psf, mask)
+    prof()
 
     # At moment it appears that focus adjustment does nothing under the
     # the filters and alignment -- because there is no correlation anymore
@@ -626,6 +633,7 @@ def _sigproc_analyze_field(
     radmat = _analyze_step_6b_radiometry(
         aln_filt_chcy_ims, locs, calib, focus_adjustments
     )
+    prof()
 
     return (
         aln_filt_chcy_ims,
@@ -645,6 +653,7 @@ def _do_sigproc_analyze_and_save_field(
     Analyze AND SAVE one field by calling the sigproc_v2_result.save_field()
     """
 
+    debug(field_i)
     chcy_ims = ims_import_result.ims[field_i]
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
@@ -701,6 +710,7 @@ def _do_sigproc_analyze_and_save_field(
         _aln_filt_chcy_ims=aln_filt_chcy_ims,
         _aln_unfilt_chcy_ims=aln_unfilt_chcy_ims,
     )
+    debug(field_i)
 
 
 # Entrypoints
@@ -800,6 +810,7 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         ],
         _trap_exceptions=False,
         _progress=progress,
+        _debug_mode=True,
     )
 
     sigproc_v2_result.save()
