@@ -155,7 +155,6 @@ def help_template(generators):
 
         ^                                             # The following probabilities
         ^                                             # are specified per-aa-label
-        ^                                             # are specified per-aa-label
         ^                                             # like: "aa:prob" where aa
         ^                                             # matches a --label_set
         ^--err_p_failure_to_bind_amino_acid=0.0       # Failure to bind AA

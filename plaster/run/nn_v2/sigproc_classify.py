@@ -119,4 +119,7 @@ def n_dyts_by_count(cnt, dyemat):
     """
     Used to "triangle" dyemats, return the dyt_i for the last of a given count.
     """
-    return np.argmin( np.concatenate((np.all(dyemat <= cnt, axis=1), [False]))) - 1
+    # Concat an extra False on to this list because argmin of a uniform
+    # array has the annoying property of returning -1.
+    # argmin([True, True, True]) == -1 but I want it to return 2.
+    return np.argmin(np.concatenate((np.all(dyemat <= cnt, axis=1), [False]))) - 1
