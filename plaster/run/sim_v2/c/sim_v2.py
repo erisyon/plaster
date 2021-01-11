@@ -13,6 +13,8 @@ from plumbum import local
 
 DyeType = np.uint8
 Size = np.uint64
+PCBType = np.float64
+CycleKindType = np.uint8
 
 lib_folder = local.path("/erisyon/plaster/plaster/run/sim_v2/c")
 
@@ -26,6 +28,11 @@ def load_lib():
 
     lib = c.CDLL(lib_folder / "_sim_v2.so")
 
+    # C_COMMON
+    lib.sanity_check.argtypes = []
+    lib.sanity_check.restype = c.c_int
+
+    # SIM_V2
     lib.dyt_n_bytes.argtypes = [c.c_uint64, c.c_uint64]
     lib.dyt_n_bytes.restype = c.c_uint64
 
@@ -44,8 +51,11 @@ def load_lib():
     lib.context_dyt_get_count.argtypes = [c.POINTER(SimV2Context), c.c_uint64]
     lib.context_dyt_get_count.restype = c.c_uint64
 
-    lib.context_dyt_get_count.argtypes = [c.POINTER(SimV2Context), c.c_uint64]
-    lib.context_dyt_get_count.restype = c.POINTER(c.c_uint8)
+    lib.context_dyt_dyetrack.argtypes = [c.POINTER(SimV2Context), c.c_uint64]
+    lib.context_dyt_dyetrack.restype = c.POINTER(c.c_uint8)
+
+    lib.context_dyepep.argtypes = [c.POINTER(SimV2Context), c.c_uint64]
+    lib.context_dyepep.restype = c.POINTER(DyePepRec)
 
     _lib = lib
     return lib
@@ -90,6 +100,9 @@ class SimV2Context(c_common_tools.FixupStructure):
         ("output_n_dyts", "Size"),
         ("output_n_dyepeps", "Size"),
         ("n_threads", "Size"),
+
+        ("work_order_lock", "pthread_mutex_t *"),
+        ("tab_lock", "pthread_mutex_t *"),
 
         ("rng_seed", "Uint64"),
 
@@ -253,11 +266,9 @@ def sim(
     lib = load_lib()
 
     # TODO:
-    # assert c.sanity_check() == 0
-    # _assert_array_contiguous(cycles, CycleKindType)
-    # _assert_array_contiguous(pcbs, PCBType)
-    # assert np.dtype(CycleKindType).itemsize == sizeof(c.CycleKindType)
-    # assert np.dtype(DyeType).itemsize == sizeof(c.DyeType)
+    assert lib.sanity_check() == 0
+    _assert_array_contiguous(cycles, CycleKindType)
+    _assert_array_contiguous(pcbs, PCBType)
 
     # BUILD a map from pep_i to pcb_i.
     #   Note, this map needs to be one longer than n_peps so that we
@@ -302,7 +313,9 @@ def sim(
                 f"dyt_gb={dyt_gb}, dyepep_gb={dyepep_gb}, n_max_dyts={n_max_dyts}, n_max_dyepeps={n_max_dyepeps}"
             )
 
-    # TODO: check to make sure tab.from_mat args are np arrays with type uint8
+    # It's important that we hold onto a reference to this ndarray before we drop into c so it's not GC'd
+    pep_recalls = np.zeros(n_peps, dtype=np.float64)
+
     ctx = SimV2Context(
         n_peps=n_peps,
         n_cycles=n_cycles,
@@ -312,17 +325,15 @@ def sim(
         pi_detach=lib.prob_to_p_i(p_detach),
         pi_edman_success=lib.prob_to_p_i(1.0 - p_edman_fail),
         cycles=(c.c_uint8 * 64)(),
-        pcbs=Tab.from_mat(pcbs, expected_dtype=np.float64),  # Suspect
+        pcbs=Tab.from_mat(pcbs, expected_dtype=np.float64),
         n_max_dyts=int(n_max_dyts),
-        n_max_dyt_hash_recs=int(n_max_dyepep_hash_recs),
+        n_max_dyt_hash_recs=int(n_max_dyt_hash_recs),
         n_max_dyepeps=int(n_max_dyepeps),
         n_max_dyepep_hash_recs=int(n_max_dyepep_hash_recs),
         n_dyt_row_bytes=n_dyt_row_bytes,
         # TODO: look at F64Arr
-        pep_recalls=np.zeros(n_peps, dtype=np.float64).ctypes.data_as(
-            c.POINTER(c.c_float)
-        ),
-        n_threads=1,  # n_threads=n_threads,
+        pep_recalls=pep_recalls.ctypes.data_as(c.POINTER(c.c_double)),
+        n_threads=n_threads,
         progress_fn=progress_fn,
         check_keyboard_interrupt_fn=check_keyboard_interrupt_fn,
         rng_seed=int(time.time() * 1_000_000),
@@ -333,18 +344,11 @@ def sim(
     for i in range(ctx.n_cycles):
         ctx.cycles[i] = cycles[i]
 
-    for f in ctx._fields_:
-        print(f[0], getattr(ctx, f[0]))
-
-    debug("starting")
     try:
         # TODO: use convention in radiometry.py with context_init in a context manager, so ctx is always freed
         ret = lib.context_work_orders_start(ctx)
-        debug("-1")
         if ret != 0:
             raise Exception(f"Worker ended prematurely {ret}")
-
-        debug("0")
 
         if count_only:
             print(f"n_dyts={ctx.output_n_dyts}")
@@ -355,10 +359,8 @@ def sim(
         # So now allocate the numpy arrays that will be returned
         # to the caller and copy into those arrays from the
         # much larger arrays that were used during the context_work_orders_start()
-        debug("a")
         n_chcy = ctx.n_channels * ctx.n_cycles
         dyetracks = np.zeros((ctx.dyts.n_rows, n_chcy), dtype=DyeType)
-        debug("b")
 
         # We need a special record at 0 for nul so we need to add one here
         dyepeps = np.zeros((ctx.dyepeps.n_rows + 1, 3), dtype=Size)
@@ -369,7 +371,6 @@ def sim(
         dyepeps_view = dyepeps
 
         for i in range(ctx.dyts.n_rows):
-            debug(i)
             dyt_count = lib.context_dyt_get_count(ctx, i)
             dyetrack = lib.context_dyt_dyetrack(ctx, i)
             for j in range(n_chcy):
@@ -380,7 +381,7 @@ def sim(
         dyepeps_view[0, 1] = 0
         dyepeps_view[0, 2] = 0
         for i in range(ctx.dyepeps.n_rows):
-            dyepeprec = lib.context_dyepep(ctx, i)
+            dyepeprec = lib.context_dyepep(ctx, i).contents
             dyepeps_view[i + 1, 0] = dyepeprec.dyt_i
             dyepeps_view[i + 1, 1] = dyepeprec.pep_i
             dyepeps_view[i + 1, 2] = dyepeprec.n_reads

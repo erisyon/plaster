@@ -31,7 +31,7 @@ typedefs = {
     "DyeType": ("Uint8", c.c_ubyte),
     "CycleKindType": ("Uint8", c.c_ubyte),
     "PIType": ("Uint64", c.c_ulonglong),
-    "RecallType": ("Float64", c.c_float),
+    "RecallType": ("Float64", c.c_double),
     "RadType": ("Float32", c.c_float),
     "ScoreType": ("Float32", c.c_float),
     "WeightType": ("Float32", c.c_float),

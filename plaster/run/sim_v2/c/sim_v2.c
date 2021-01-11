@@ -154,7 +154,7 @@ HashKey dyt_get_hashkey(Dyt *dyt, Size n_channels, Size n_cycles) {
 
 Size dyt_n_bytes(Size n_channels, Size n_cycles) {
     // Return aligned Dyt size
-    Size size = sizeof(DyeType) * n_cycles * n_channels;
+    Size size = sizeof(Dyt) + sizeof(DyeType) * n_cycles * n_channels;
     int over = size % 8;
     int padding = over == 0 ? 0 : 8 - over;
     return size + padding;
@@ -254,17 +254,6 @@ Counts context_sim_flu(SimV2Context *ctx, Index pep_i, Tab *pcb_block, Size n_aa
     // Runs the Monte-Carlo simulation of one peptide flu over n_samples
     // See algorithm described at top of file.
     // Returns the number of NEW dyts
-    // The goal here is to go from a flu to many dyetracks
-    // Example: a flu of .0.
-    //          the perfect dyetrack would be 110 in ch0
-    //          it could also generate a dyetrack of 100, if, for example, the dye bleached after cy0
-    //          or it could generate a dyetrack of 000, if the dyetrack was a dud on attach
-    // a dyetrack of all zeros is a "dark" dyetrack, which we handle specially
-    // a "dark" dyetrack is undetectable on our scope
-
-    // Every possible dyetrack that can come out of a flu, also has a probability associated with it.
-    // Some dyetracks are really common, some are rare
-    // The way we sample the distribution of those dyetracks is with this function
 
     // Make local copies of inner-loop variables
     DyeType ch_sums[N_MAX_CHANNELS];
@@ -339,9 +328,6 @@ Counts context_sim_flu(SimV2Context *ctx, Index pep_i, Tab *pcb_block, Size n_aa
     Size n_dark_samples = 0;
     Size n_non_dark_samples = 0;
     while(has_any_dye && n_non_dark_samples < n_samples) {
-        // Since we can't count count dark samples on the scope,
-        // Instead of looping n_samples times, loop until we have n_samples non dark samples
-
         if(n_dark_samples > 10 * n_samples) {
             // Emergency exit. The recall is so low that we need to
             // just give up and declare that it can't be measured.
@@ -434,7 +420,7 @@ Counts context_sim_flu(SimV2Context *ctx, Index pep_i, Tab *pcb_block, Size n_aa
             n_new_dyts++;
             Index dyt_i = 0;
             if(!ctx->count_only) {
-                dyt_i = tab_add(dyts, working_dyt, TAB_NO_LOCK);
+                dyt_i = tab_add(dyts, working_dyt, ctx->n_threads > 1 ? ctx->tab_lock : TAB_NO_LOCK);
             }
             dyt = tab_ptr(Dyt, dyts, dyt_i);
             dyt_hash_rec->key = dyt_hashkey;
@@ -464,7 +450,7 @@ Counts context_sim_flu(SimV2Context *ctx, Index pep_i, Tab *pcb_block, Size n_aa
             n_new_dyepeps++;
             Index dyepep_i = 0;
             if(!ctx->count_only) {
-                dyepep_i = tab_add(dyepeps, NULL, TAB_NO_LOCK);
+                dyepep_i = tab_add(dyepeps, NULL, ctx->n_threads > 1 ? ctx->tab_lock : TAB_NO_LOCK);
             }
             tab_var(DyePepRec, dyepep, dyepeps, dyepep_i);
             dyepep_hash_rec->key = dyepep_hashkey;
@@ -495,9 +481,16 @@ Counts context_sim_flu(SimV2Context *ctx, Index pep_i, Tab *pcb_block, Size n_aa
 
 Index context_work_orders_pop(SimV2Context *ctx) {
     // NOTE: This return +1! So that 0 can be reserved.
+    if(ctx->n_threads > 1) {
+        pthread_mutex_lock(ctx->work_order_lock);
+    }
 
     Index i = ctx->next_pep_i;
     ctx->next_pep_i++;
+
+    if(ctx->n_threads > 1) {
+        pthread_mutex_unlock(ctx->work_order_lock);
+    }
 
     if(i < ctx->n_peps) {
         return i + 1;
@@ -515,24 +508,21 @@ typedef struct {
 #define THREAD_STATE_STARTED (-2)
 #define THREAD_STATE_DONE (-1)
 
-void context_work_orders_worker(SimV2Context *ctx) {
+void *context_work_orders_worker(void *_tctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
-
-    trace("worker 1\n");
-
+    ThreadContext *tctx = (ThreadContext *)_tctx;
+    SimV2Context *ctx = tctx->ctx;
     if(ctx->count_only) {
         ensure(ctx->n_threads == 1, "n_therads must be 1 when counting");
         trace("Counting n_dyts and n_dyepeps for %ld peps\n", ctx->n_peps);
         trace("pep_i, n_dyts, n_dyepeps\n");
     }
-    int stop_requested = 0;
     Size n_dyts = 0;
     Size n_dyepeps = 0;
-    while(1) {
+    while(!tctx->stop_requested) {
         Index pep_i_plus_1 = context_work_orders_pop(ctx);
         if(pep_i_plus_1 == 0) {
-            trace("done with work orders\n");
             break;
         }
         Index pep_i = pep_i_plus_1 - 1;
@@ -548,43 +538,36 @@ void context_work_orders_worker(SimV2Context *ctx) {
         if(ctx->count_only && pep_i % 100 == 0) {
             trace("%ld, %ld, %ld\n", pep_i, n_dyts, n_dyepeps);
         }
-
-        if(ctx->check_keyboard_interrupt_fn()) {
-            break;
-        }
+        tctx->pep_i_status = (Sint64)pep_i;
     }
     if(ctx->count_only) {
         ctx->output_n_dyts = n_dyts;
         ctx->output_n_dyepeps = n_dyepeps;
     }
+    tctx->pep_i_status = THREAD_STATE_DONE;
+    return (void *)0;
 }
 
 // TODO: separate init and run - see sigproc_v2 for naming convention
 int context_work_orders_start(SimV2Context *ctx) {
-    trace("sizeof(DyePepRec) == %d\n", sizeof(DyePepRec));
-    trace("allocate buffers\n");
     // Allocate memory (this used to take place in the pyx file)
     uint8_t *dyts_buf = calloc(ctx->n_max_dyts, ctx->n_dyt_row_bytes);
     uint8_t *dyepeps_buf = calloc(ctx->n_max_dyepeps, sizeof(DyePepRec));
     HashRec *dyt_hash_buf = calloc(ctx->n_max_dyt_hash_recs, sizeof(HashRec));
     HashRec *dyepep_hash_buf = calloc(ctx->n_max_dyepep_hash_recs, sizeof(HashRec));
 
-    trace("init tabs and hashtables\n");
-    trace("n_dyt_row_bytes %d\n", ctx->n_dyt_row_bytes);
-    trace("n_max_dyts %d\n", ctx->n_max_dyts);
+    ctx->work_order_lock = malloc(sizeof(pthread_mutex_t));
+    ctx->tab_lock = malloc(sizeof(pthread_mutex_t));
+
     ctx->dyts = tab_by_n_rows(dyts_buf, ctx->n_max_dyts, ctx->n_dyt_row_bytes, TAB_GROWABLE);
     ctx->dyepeps = tab_by_size(dyepeps_buf, ctx->n_max_dyepeps * sizeof(DyePepRec), sizeof(DyePepRec), TAB_GROWABLE);
     ctx->dyt_hash = hash_init(dyt_hash_buf, ctx->n_max_dyt_hash_recs);
     ctx->dyepep_hash = hash_init(dyepep_hash_buf, ctx->n_max_dyepep_hash_recs);
     ctx->pep_i_to_pcb_i = tab_by_n_rows(ctx->pep_i_to_pcb_i_buf, ctx->n_peps + 1, sizeof(Index), TAB_NOT_GROWABLE);
 
-    trace("dyt bytes_per_elem %d\n", ctx->dyts.n_bytes_per_row);
-    trace("dyt max rows, bytes_per_elem %d %d\n", ctx->dyts.n_max_rows, ctx->dyts.n_bytes_per_row);
-
     // context_dump(ctx);
 
     // Initialize mutex and start the worker thread(s).
-    trace("sanity_check\n");
     ensure(setup_and_sanity_check(ctx->n_channels, ctx->n_cycles) == 0, "Sanity checks failed");
     rand64_seed(ctx->rng_seed);
 
@@ -608,74 +591,71 @@ int context_work_orders_start(SimV2Context *ctx) {
     dyt_hash_rec->val = nul_dyt;
 
     // TODO: remove threading from c - see radiometry.py:200
-    context_work_orders_worker(ctx);
 
-    // trace("B\n");
-    // ThreadContext thread_contexts[256];
-    // ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
+    ThreadContext thread_contexts[256];
+    ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
 
-    // if(ctx->n_threads > 1) {
-    //     int ret = pthread_mutex_init(ctx->work_order_lock, NULL);
-    //     ensure(ret == 0, "pthread lock create failed");
+    if(ctx->n_threads > 1) {
+        int ret = pthread_mutex_init(ctx->work_order_lock, NULL);
+        ensure(ret == 0, "pthread lock create failed");
 
-    //     ret = pthread_mutex_init(ctx->tab_lock, NULL);
-    //     ensure(ret == 0, "pthread lock create failed");
-    // }
+        ret = pthread_mutex_init(ctx->tab_lock, NULL);
+        ensure(ret == 0, "pthread lock create failed");
+    }
 
-    // trace("C\n");
-    // for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
-    //     thread_contexts[thread_i].thread_i = thread_i;
-    //     thread_contexts[thread_i].ctx = ctx;
-    //     thread_contexts[thread_i].pep_i_status = THREAD_STATE_STARTED;
-    //     thread_contexts[thread_i].stop_requested = 0;
-    //     int ret =
-    //         pthread_create(&thread_contexts[thread_i].id, NULL, context_work_orders_worker,
-    //         &thread_contexts[thread_i]);
-    //     ensure(ret == 0, "Thread not created.");
-    // }
+    for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
+        thread_contexts[thread_i].thread_i = thread_i;
+        thread_contexts[thread_i].ctx = ctx;
+        thread_contexts[thread_i].pep_i_status = THREAD_STATE_STARTED;
+        thread_contexts[thread_i].stop_requested = 0;
+        int ret =
+            pthread_create(&thread_contexts[thread_i].id, NULL, context_work_orders_worker, &thread_contexts[thread_i]);
+        ensure(ret == 0, "Thread not created.");
+    }
 
-    // trace("D\n");
-    // // MONITOR progress and callback from this main thread
-    // // Python doesn't seem to like callbacks coming from other threads
-    // int interrupted = 0;
-    // while(1) {
-    //     Size n_threads_done = 0;
-    //     Sint64 largest_pep_i_done = 0;
-    //     for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
-    //         if(thread_contexts[thread_i].pep_i_status == THREAD_STATE_DONE) {
-    //             n_threads_done++;
-    //         }
-    //         largest_pep_i_done = max(largest_pep_i_done, thread_contexts[thread_i].pep_i_status);
-    //     }
-    //     if(n_threads_done == ctx->n_threads) {
-    //         break;
-    //     }
-    //     if(largest_pep_i_done > 0 && largest_pep_i_done % 100 == 0) {
-    //         ctx->progress_fn(largest_pep_i_done, ctx->n_peps, 0);
-    //     }
-    //     int got_interrupt = ctx->check_keyboard_interrupt_fn();
-    //     if(got_interrupt) {
-    //         trace("interrupted");
-    //         for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
-    //             thread_contexts[thread_i].stop_requested = 1;
-    //         }
-    //         interrupted = 1;
-    //         break;
-    //     }
-    //     usleep(10000); // 10 ms
-    // }
+    // MONITOR progress and callback from this main thread
+    // Python doesn't seem to like callbacks coming from other threads
+    int interrupted = 0;
+    while(1) {
+        Size n_threads_done = 0;
+        Sint64 largest_pep_i_done = 0;
+        for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
+            if(thread_contexts[thread_i].pep_i_status == THREAD_STATE_DONE) {
+                n_threads_done++;
+            }
+            largest_pep_i_done = max(largest_pep_i_done, thread_contexts[thread_i].pep_i_status);
+        }
+        if(n_threads_done == ctx->n_threads) {
+            break;
+        }
+        if(largest_pep_i_done > 0 && largest_pep_i_done % 100 == 0) {
+            ctx->progress_fn(largest_pep_i_done, ctx->n_peps, 0);
+        }
+        int got_interrupt = ctx->check_keyboard_interrupt_fn();
+        if(got_interrupt) {
+            for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
+                thread_contexts[thread_i].stop_requested = 1;
+            }
+            interrupted = 1;
+            break;
+        }
+        usleep(10000); // 10 ms
+    }
 
-    // trace("E\n");
-    // for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
-    //     pthread_join(thread_contexts[thread_i].id, NULL);
-    // }
+    for(Index thread_i = 0; thread_i < ctx->n_threads; thread_i++) {
+        pthread_join(thread_contexts[thread_i].id, NULL);
+    }
 
     return 0;
 }
 
 int context_free(SimV2Context *ctx) {
-    // free(ctx->work_order_lock);
-    // free(ctx->tab_lock);
+    free(ctx->work_order_lock);
+    free(ctx->tab_lock);
+    free(ctx->dyts.base);
+    free(ctx->dyepeps.base);
+    free(ctx->dyt_hash.recs);
+    free(ctx->dyepep_hash.recs);
 }
 
 Size context_dyt_get_count(SimV2Context *ctx, Index dyt_i) {
