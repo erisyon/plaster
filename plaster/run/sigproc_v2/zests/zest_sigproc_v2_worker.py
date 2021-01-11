@@ -156,7 +156,7 @@ def zest_sigproc_v2_worker_analyze():
         """
         Prove that it handles a non-uniform PSF without considering focus
         """
-        with tmp_folder(chdir=True) as tt:
+        with tmp_folder(chdir=True):
             with synth.Synth(
                 n_channels=1, n_cycles=1, overwrite=True, dim=(512, 512)
             ) as s:
