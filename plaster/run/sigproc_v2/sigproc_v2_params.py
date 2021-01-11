@@ -22,7 +22,7 @@ class SigprocV2Params(Params):
         snr_thresh=2.0,  # Keep peaks with SNR greater than this
         n_fields_limit=None,
         run_anomaly_detection=False,
-        run_regional_balance=False,
+        run_regional_balance=True,
         run_analysis_gauss2_fitter=False,
         run_bandpass_filter=True,
         run_focal_adjustments=False,

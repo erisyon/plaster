@@ -168,6 +168,11 @@ class SigprocV2Result(BaseResult):
         except Exception as e:
             return "SigprocV2Result"
 
+    def limit(self, field_i_start=0, n_field_files=1):
+        self.field_files = self.field_files[
+            field_i_start : field_i_start + n_field_files
+        ]
+
     def _cache(self, prop, val=None):
         # TASK: This might be better done with a yielding context
         cache_key = f"_load_prop_cache_{prop}"

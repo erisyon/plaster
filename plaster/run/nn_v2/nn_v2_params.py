@@ -16,6 +16,7 @@ class NNV2Params(Params):
         dyetrack_n_cycles=None,
         row_k_score_factor=0.05,
         cycle_balance=None,
+        n_rows_limit=None,
     )
 
     schema = s(
@@ -31,5 +32,6 @@ class NNV2Params(Params):
             dyetrack_n_cycles=s.is_int(noneable=True),
             row_k_score_factor=s.is_float(),
             cycle_balance=s.is_type(CycleBalance, noneable=True),
+            n_rows_limit=s.is_int(noneable=True),
         )
     )
