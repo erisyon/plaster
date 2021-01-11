@@ -183,7 +183,7 @@ class ClassifyV1Generator(BaseGenerator):
                 train_rf_task = task_templates.train_rf()
                 test_rf_task = task_templates.test_rf()
                 if sigproc_v1_task:
-                    classify_rf_task = task_templates.classify_rf(
+                    classify_rf_task = task_templates.classify_rf_v1(
                         prep_relative_path="../prep",
                         sim_relative_path="../sim_v1",
                         train_relative_path="../train_rf",

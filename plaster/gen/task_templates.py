@@ -275,11 +275,37 @@ def train_rf():
     )
 
 
+def train_rf_v2():
+    return Munch(
+        train_rf=Munch(
+            version="1.0",
+            inputs=Munch(sim_v2="../sim_v2"),
+            parameters=Munch(
+                n_estimators=10,
+                min_samples_leaf=50,
+                max_depth=None,
+                max_features="auto",
+                max_leaf_nodes=None,
+            ),
+        )
+    )
+
+
 def test_rf():
     return Munch(
         test_rf=Munch(
             version="1.0",
             inputs=Munch(sim_v1="../sim_v1", train_rf="../train_rf", prep="../prep"),
+            parameters=Munch(include_training_set=False, keep_all_class_scores=False),
+        )
+    )
+
+
+def test_rf_v2():
+    return Munch(
+        test_rf=Munch(
+            version="1.0",
+            inputs=Munch(sim_v2="../sim_v2", train_rf="../train_rf", prep="../prep"),
             parameters=Munch(include_training_set=False, keep_all_class_scores=False),
         )
     )
@@ -312,7 +338,7 @@ def ptm_test_rf():
     )
 
 
-def classify_rf(
+def classify_rf_v1(
     prep_relative_path, train_relative_path, sigproc_relative_path, sim_relative_path
 ):
     return Munch(
@@ -323,6 +349,23 @@ def classify_rf(
                 sim_v1=sim_relative_path,
                 train_rf=train_relative_path,
                 sigproc_v1=sigproc_relative_path,
+            ),
+            parameters=Munch(),
+        )
+    )
+
+
+def classify_rf_v2(
+    prep_relative_path, train_relative_path, sigproc_relative_path, sim_relative_path
+):
+    return Munch(
+        classify_rf=Munch(
+            version="1.0",
+            inputs=Munch(
+                prep=prep_relative_path,
+                sim_v2=sim_relative_path,
+                train_rf=train_relative_path,
+                sigproc_v2=sigproc_relative_path,
             ),
             parameters=Munch(),
         )

@@ -421,9 +421,16 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             #     test_dyepeps_df.set_index("pep_i")
             # )
 
-            if train_radmat is not None:
+            if train_radmat is not None and train_radmat.shape[0] == test_radmat.shape[0]:
                 check.affirm(
-                    not _any_identical_non_zero_rows(train_radmat, test_radmat),
+                    not _any_identical_non_zero_rows(
+                        train_radmat.reshape(
+                            (train_radmat.shape[0], train_radmat.shape[1] * train_radmat.shape[2])
+                        ),
+                        test_radmat.reshape(
+                            (test_radmat.shape[0], test_radmat.shape[1] * test_radmat.shape[2])
+                        )
+                    ),
                     "Train and test sets are identical. Probably RNG bug.",
                 )
 
