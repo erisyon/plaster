@@ -34,6 +34,7 @@ typedef struct {
     Uint64 pi_bleach;
     Uint64 pi_detach;
     Uint64 pi_edman_success;
+    Uint64 prevent_edman_cterm;
     CycleKindType cycles[N_MAX_CYCLES];
     Tab dyts;
     Hash dyt_hash;

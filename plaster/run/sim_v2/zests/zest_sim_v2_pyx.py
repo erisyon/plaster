@@ -64,6 +64,7 @@ def zest_pyx_runs():
         sim_params.error_model.dyes[0].p_bleach_per_cycle,
         sim_params.error_model.p_detach,
         sim_params.error_model.p_edman_failure,
+        sim_params.prevent_edman_cterm,
         n_threads=1,
         rng_seed=1,
     )

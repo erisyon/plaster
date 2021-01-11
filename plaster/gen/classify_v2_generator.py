@@ -57,6 +57,7 @@ class ClassifyV2Generator(BaseGenerator):
         n_mocks=1,
         n_samples_train=5_000,
         n_samples_test=1_000,
+        prevent_edman_cterm=False,
         decoys="none",
         random_seed=None,
         nn_v1=False,
@@ -211,6 +212,7 @@ class ClassifyV2Generator(BaseGenerator):
                     n_edmans=self.n_edmans,
                     n_samples_train=self.n_samples_train,
                     n_samples_test=self.n_samples_test,
+                    prevent_edman_cterm=self.prevent_edman_cterm,
                 )
                 sim_v2_task.sim_v2.parameters.random_seed = self.random_seed
                 sigproc_relative_path = None

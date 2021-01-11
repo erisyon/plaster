@@ -268,6 +268,7 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Tab *pcb_block, Size 
     Uint64 pi_bleach = ctx->pi_bleach;
     Uint64 pi_detach = ctx->pi_detach;
     Uint64 pi_edman_success = ctx->pi_edman_success;
+    Uint64 prevent_edman_cterm = ctx->prevent_edman_cterm;
     Tab *dyts = &ctx->dyts;
     Tab *dyepeps = &ctx->dyepeps;
     Hash dyt_hash = ctx->dyt_hash;
@@ -353,10 +354,14 @@ Counts context_sim_flu(SimV2FastContext *ctx, Index pep_i, Tab *pcb_block, Size 
         for(Index cy_i=0; cy_i<n_cycles; cy_i++) {
             // EDMAN...
             // Edman degrdation chews off the N-terminal amino-acid.
+            // With some peptide-attachment schemes, edman of the C-terminal AA isn't possible.
             // If successful this advances the "head_i" which is where we're summing from.
             if(cycles[cy_i] == CYCLE_TYPE_EDMAN) {
                 if(rand64(pi_edman_success)) {
-                    head_i ++;
+                    // always do rand64 to preserve RNG order independent of following condition
+                    if( !prevent_edman_cterm || head_i < n_aas-1 ) {
+                        head_i ++;
+                    }
                 }
             }
 

@@ -21,6 +21,7 @@ class SurveyGenerator(BaseGenerator):
             **BaseGenerator.peptide_setup_schema.schema(),
             **BaseGenerator.error_model_schema.schema(),
             **BaseGenerator.scope_run_schema.schema(),
+            **BaseGenerator.sim_schema.schema(),
             **BaseGenerator.scheme_schema.schema(),
         )
     )
@@ -35,6 +36,9 @@ class SurveyGenerator(BaseGenerator):
         decoys="none",
         random_seed=None,
         n_ptms_limit=0,
+        n_samples_train=1,
+        n_samples_test=1,
+        prevent_edman_cterm=False,
     )
 
     def generate(self):
@@ -88,6 +92,7 @@ class SurveyGenerator(BaseGenerator):
                 n_edmans=self.n_edmans,
                 n_samples_train=1,
                 n_samples_test=1,
+                prevent_edman_cterm=self.prevent_edman_cterm,
                 is_survey=True,
             )
             sim_v2_task.sim_v2.parameters.random_seed = self.random_seed
