@@ -31,6 +31,7 @@ def zest_sigproc_v2_worker_analyze():
             mode="analyze",
             **extra_params,
         )
+
         calib = Calib()
         calib.add_reg_psf(reg_psf, "synth")
         reg_illum = RegIllum(1, reg_psf.im_mea, 5)

@@ -50,8 +50,8 @@ def result_simple_fixture(has_decoy=False):
     peps = pd.DataFrame(
         dict(
             pep_i=[0, 1, 2, 3],
-            pep_start=[0, 1, 6, 12],
-            pep_stop=[1, 6, 12, 17],
+            pep_start=[0, 0, 0, 6],
+            pep_stop=[1, 5, 6, 11],
             pro_i=[0, 1, 2, 2],
         )
     )
@@ -75,6 +75,109 @@ def result_simple_fixture(has_decoy=False):
                 0,
                 0, 1, 2, 3, 4,
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+            ],
+        )
+    )
+    # fmt: on
+
+    return PrepResult(
+        params=prep_params,
+        _pros=pros,
+        _pro_seqs=pro_seqs,
+        _peps=peps,
+        _pep_seqs=pep_seqs,
+    )
+
+
+def result_cterm_label_fixture(has_decoy=False):
+    """
+    Peptides whose C-terminal AA is labelled
+    """
+
+    prep_params = PrepParams(
+        proteins=[
+            Munch(name="pro1", sequence="B XB XXB XXXB XXXXB"),
+            Munch(name="pro2", sequence="X BX BXX BXXX BXXXX"),
+        ]
+    )
+
+    pros = pd.DataFrame(
+        dict(
+            pro_id=["nul", "pro1", "pro2"],
+            pro_is_decoy=[False, False, has_decoy],
+            pro_i=[0, 1, 2],
+            pro_ptm_locs=[None, None, None],
+            pro_report=[None, None, None],
+        )
+    )
+
+    # fmt: off
+    pro_seqs = pd.DataFrame(
+        dict(
+            pro_i=[
+                0,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
+            ],
+            aa=[
+                ".",
+                "B", "X", "B", "X", "X", "B", "X", "X", "X", "B", "X", "X", "X", "X", "B",
+                "X", "B", "X", "B", "X", "X", "B", "X", "X", "X", "B", "X", "X", "X", "X"
+            ],
+        )
+    )
+    # fmt: on
+
+    peps = pd.DataFrame(
+        dict(
+            pep_i=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            pep_start=[0, 0, 1, 3, 6, 10, 0, 1, 3, 6, 10],
+            pep_stop=[1, 1, 3, 6, 10, 15, 1, 3, 6, 10, 15],
+            pro_i=[0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2],
+        )
+    )
+
+    # fmt: off
+    pep_seqs = pd.DataFrame(
+        dict(
+            pep_i=[
+                0,
+                1,
+                2, 2,
+                3, 3, 3,
+                4, 4, 4, 4,
+                5, 5, 5, 5, 5,
+                6,
+                7, 7,
+                8, 8, 8,
+                9, 9, 9, 9,
+                10, 10, 10, 10, 10
+            ],
+            aa=[
+                ".",
+                "B",
+                "X", "B",
+                "X", "X", "B",
+                "X", "X", "X", "B",
+                "X", "X", "X", "X", "B",
+                "X",
+                "B", "X",
+                "B", "X", "X",
+                "B", "X", "X", "X",
+                "B", "X", "X", "X", "X"
+            ],
+            pep_offset_in_pro=[
+                0,
+                0,
+                1, 2,
+                3, 4, 5,
+                6, 7, 8, 9,
+                10, 11, 12, 13, 14,
+                0,
+                1, 2,
+                3, 4, 5,
+                6, 7, 8, 9,
+                10, 11, 12, 13, 14
             ],
         )
     )

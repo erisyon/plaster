@@ -43,12 +43,14 @@ class SimV2Params(Params):
         labels=[],
         random_seed=None,
         allow_train_test_to_be_identical=False,
+        prevent_edman_cterm=False,
         enable_ptm_labels=False,
         is_survey=False,
         train_includes_radmat=False,
         test_includes_dyemat=False,
         dump_debug=False,
         generate_flus=True,
+        row_k_sigma=None,
     )
 
     schema = s(
@@ -73,11 +75,13 @@ class SimV2Params(Params):
             ),
             random_seed=s.is_int(required=False, noneable=True),
             allow_train_test_to_be_identical=s.is_bool(required=False, noneable=True),
+            prevent_edman_cterm=s.is_bool(required=False, noneable=True),
             enable_ptm_labels=s.is_bool(required=False, noneable=True),
             train_includes_radmat=s.is_bool(required=False, noneable=True),
             test_includes_dyemat=s.is_bool(required=False, noneable=True),
             dump_debug=s.is_bool(),
             generate_flus=s.is_bool(),
+            row_k_sigma=s.is_float(noneable=True),
         )
     )
 

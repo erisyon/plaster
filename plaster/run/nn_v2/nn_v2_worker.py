@@ -64,6 +64,7 @@ def nn_v2(
     sigproc_result,
     progress=None,
     pipeline=None,
+    _batch_size=1024 * 16,
 ):
     from plaster.run.nn_v2.c.nn_v2 import init as nn_v2_c_init
 
@@ -87,7 +88,7 @@ def nn_v2(
         ) as nn_v2_context:
             # _nn_v2.c chokes if a batch is larger than 1024*16
             batches = zap.make_batch_slices(
-                n_rows=radmat.shape[0], _batch_size=1024 * 16
+                n_rows=radmat.shape[0], _batch_size=_batch_size
             )
             work_orders = [
                 dict(
@@ -179,6 +180,9 @@ def nn_v2(
     if sigproc_result is not None:
         sigproc_radmat = sigproc_result.sig(flat_chcy=True).astype(RadType)
 
+        if nn_v2_params.n_rows_limit is not None:
+            sigproc_radmat = sigproc_radmat[0 : nn_v2_params.n_rows_limit]
+
         if nn_v2_params.cycle_balance is not None:
             check.list_t(nn_v2_params.cycle_balance.balance, float)
             assert len(nn_v2_params.cycle_balance.balance) == sigproc_result.n_cycles
@@ -198,7 +202,7 @@ def nn_v2(
         if nn_v2_params.dyetrack_n_cycles is not None:
             assert nn_v2_params.dyetrack_n_counts is not None
             assert (
-                nn_v2_params.dyetrack_n_counts < 4
+                nn_v2_params.dyetrack_n_counts <= 4
             )  # Defend against crazy large memory alloc
 
             dyemat, dyepeps = triangle_dyemat(

@@ -107,6 +107,7 @@ def _dyemat_sim(sim_v2_params, pcbs, n_samples, progress=None):
         sim_v2_params.error_model.dyes[0].p_bleach_per_cycle,
         sim_v2_params.error_model.p_detach,
         sim_v2_params.error_model.p_edman_failure,
+        sim_v2_params.prevent_edman_cterm,
         n_threads=get_cpu_limit(),
         rng_seed=sim_v2_params.random_seed,
         progress=progress,
@@ -422,9 +423,25 @@ def sim_v2(sim_v2_params, prep_result, progress=None, pipeline=None):
             #     test_dyepeps_df.set_index("pep_i")
             # )
 
-            if train_radmat is not None:
+            if (
+                train_radmat is not None
+                and train_radmat.shape[0] == test_radmat.shape[0]
+            ):
                 check.affirm(
-                    not _any_identical_non_zero_rows(train_radmat, test_radmat),
+                    not _any_identical_non_zero_rows(
+                        train_radmat.reshape(
+                            (
+                                train_radmat.shape[0],
+                                train_radmat.shape[1] * train_radmat.shape[2],
+                            )
+                        ),
+                        test_radmat.reshape(
+                            (
+                                test_radmat.shape[0],
+                                test_radmat.shape[1] * test_radmat.shape[2],
+                            )
+                        ),
+                    ),
                     "Train and test sets are identical. Probably RNG bug.",
                 )
 

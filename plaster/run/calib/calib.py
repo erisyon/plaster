@@ -27,7 +27,7 @@ class RegIllum:
         self.n_channels = n_channels
         self.im_mea = im_mea
         self.n_divs = n_divs
-        self.reg_illum = np.zeros((n_channels, n_divs, n_divs))
+        self.reg_illum = np.ones((n_channels, n_divs, n_divs))
 
     def set(self, ch_i, values):
         check.array_t(values, shape=(self.n_divs, self.n_divs))
