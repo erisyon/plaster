@@ -103,6 +103,7 @@ def sim(
     p_bleach,
     p_detach,
     p_edman_fail,
+    prevent_edman_cterm,
     n_threads=1,
     rng_seed=None,
     progress=None,
@@ -207,6 +208,7 @@ def sim(
         ctx.pi_bleach = csim.prob_to_p_i(p_bleach)
         ctx.pi_detach = csim.prob_to_p_i(p_detach)
         ctx.pi_edman_success = csim.prob_to_p_i(1.0 - p_edman_fail)
+        ctx.prevent_edman_cterm = prevent_edman_cterm
         for i in range(ctx.n_cycles):
             ctx.cycles[i] = cycles[i]
 

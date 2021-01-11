@@ -105,6 +105,7 @@ def _dyemat_sim(sim_v2_params, pcbs, n_samples, progress=None):
         sim_v2_params.error_model.dyes[0].p_bleach_per_cycle,
         sim_v2_params.error_model.p_detach,
         sim_v2_params.error_model.p_edman_failure,
+        sim_v2_params.prevent_edman_cterm,
         n_threads=get_cpu_limit(),
         rng_seed=sim_v2_params.random_seed,
         progress=progress,

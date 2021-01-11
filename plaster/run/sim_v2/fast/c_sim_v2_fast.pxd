@@ -30,6 +30,7 @@ cdef extern from "c_sim_v2_fast.h":
         c.Uint64 pi_bleach
         c.Uint64 pi_detach
         c.Uint64 pi_edman_success
+        c.Uint64 prevent_edman_cterm
         # Annoyingly I can't get the following to reference the N_MAX_CYCLES
         # constant from above, I only seem to get this to compile by hard-coding 64!
         # I added a check for this in sanity_checks

@@ -250,6 +250,45 @@ def zest_sim_v2_worker():
         sim_v2_result, sim_v2_params = _sim()
         assert np.all(sim_v2_result.train_dyemat[0, :] == 0)
 
+    def it_returns_train_dyemat_for_cleaved_cterm_labels():
+        prep_cterm = prep_fixtures.result_cterm_label_fixture()
+
+        # dyemat when prevent_edman_cterm is False (default)
+        sim_v2_result, sim_v2_params = _sim(_prep_result=prep_cterm)
+        assert sim_v2_result.train_dyemat.shape == (6, 5 * 2)  # 5 cycles, 2 channels
+        assert utils.np_array_same(
+            sim_v2_result.train_dyemat,
+            np.array(
+                [
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 1, 1, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 1, 1, 1, 0, 0],
+                    [0, 0, 0, 0, 0, 1, 1, 1, 1, 0],
+                    [0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+                ],
+                dtype=np.uint8,
+            ),
+        )
+
+    def it_returns_train_dyemat_for_uncleaved_cterm_labels():
+        prep_cterm = prep_fixtures.result_cterm_label_fixture()
+
+        # dyemat when prevent_edman_cterm is True
+        sim_v2_result, sim_v2_params = _sim(_prep_result=prep_cterm, sim_kwargs=Munch(prevent_edman_cterm=True))
+        assert sim_v2_result.train_dyemat.shape == (3, 5 * 2)  # 5 cycles, 2 channels
+        assert utils.np_array_same(
+            sim_v2_result.train_dyemat,
+            np.array(
+                [
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
+                    [0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+                ],
+                dtype=np.uint8,
+            ),
+        )
+
     def it_returns_train_dyepeps():
         sim_v2_result, sim_v2_params = _sim()
         assert utils.np_array_same(

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-from plumbum import local, FG
 from plaster.tools.utils.utils import any_out_of_date
+from plumbum import FG, local
 
 
 def build(dst_folder, c_common_folder):
@@ -28,7 +28,11 @@ def build(dst_folder, c_common_folder):
             gcc[c_opts, src_name, "-o", target_o] & FG
         return target_o
 
-    common_include_files = [f"{c_common_folder}/c_common.h"]
+    common_include_files = [
+        f"{c_common_folder}/c_common.h",
+        f"{c_common_folder}/c_common_old.h",
+        f"{c_common_folder}/c_common_new.h",
+    ]
     gauss2_fitter_o = build_c("gauss2_fitter.c", common_include_files)
     c_common_o = build_c(f"{c_common_folder}/c_common.c", common_include_files)
 
