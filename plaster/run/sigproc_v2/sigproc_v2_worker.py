@@ -810,7 +810,7 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         ],
         _trap_exceptions=False,
         _progress=progress,
-        _debug_mode=True,
+#        _debug_mode=True,
     )
 
     sigproc_v2_result.save()
