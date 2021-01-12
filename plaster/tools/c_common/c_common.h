@@ -6,10 +6,12 @@ typedef __uint8_t Uint8;
 typedef __uint16_t Uint16;
 typedef __uint32_t Uint32;
 typedef __uint64_t Uint64;
+typedef __uint128_t Uint128;
 typedef __int8_t Sint8;
 typedef __int16_t Sint16;
 typedef __int32_t Sint32;
 typedef __int64_t Sint64;
+typedef __int128_t Sint128;
 typedef __uint64_t Bool;
 typedef float Float32;
 typedef double Float64;
@@ -32,12 +34,19 @@ typedef Float32 IsolationType;
 typedef Float64 RowKType;
 typedef Uint64 DytIndexType;
 
+typedef struct {
+    Index dyt_i;
+    Index pep_i;
+    Size n_reads;
+} DyePepRec;
 
-#define max(a,b) ((a) > (b) ? (a) : (b))
-#define min(a,b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#define min(a, b) ((a) < (b) ? (a) : (b))
 
 // Used for returning exception-like values from calls
-#define check_and_return(expr, static_fail_string) if(!(expr)) return static_fail_string;
+#define check_and_return(expr, static_fail_string)                                                                     \
+    if(!(expr))                                                                                                        \
+        return static_fail_string;
 
 // Ensure
 void ensure(int expr, const char *fmt, ...);
@@ -57,6 +66,7 @@ void _trace(char *file, int line, const char *fmt, ...);
 #endif
 
 typedef void (*ProgressFn)(int complete, int total, int retry);
+typedef int (*KeyboardInterruptFn)();
 
 #define N_MAX_CHANNELS ((DyeType)(8))
 #define NO_LABEL ((DyeType)(N_MAX_CHANNELS - 1))
@@ -66,7 +76,6 @@ typedef void (*ProgressFn)(int complete, int total, int retry);
 #define CYCLE_TYPE_EDMAN ((CycleKindType)(2))
 #define N_MAX_NEIGHBORS (8)
 
-
 // Hash
 //----------------------------------------------------------------------------------------
 
@@ -75,11 +84,10 @@ typedef Uint64 HashKey;
 typedef struct {
     HashKey key;
     union {
-    	void *val;
-    	float contention_val;
-	};
+        void *val;
+        float contention_val;
+    };
 } HashRec;
-
 
 typedef struct {
     HashRec *recs;
@@ -90,7 +98,6 @@ typedef struct {
 Hash hash_init(HashRec *buffer, Uint64 n_max_recs);
 HashRec *hash_get(Hash hash, HashKey key);
 void hash_dump(Hash hash);
-
 
 // Tab
 //----------------------------------------------------------------------------------------
@@ -115,7 +122,6 @@ typedef struct {
     Uint64 flags;
 } Tab;
 
-
 void tab_tests();
 void tab_dump(Tab *tab, char *msg);
 Tab _tab_subset(Tab *src, Uint64 row_i, Uint64 n_rows, char *file, int line);
@@ -130,7 +136,6 @@ void _tab_set(Tab *tab, Uint64 row_i, void *src, char *file, int line);
 void _tab_set_col(Tab *tab, Uint64 row_i, Uint64 col_i, void *src, char *file, int line);
 Uint64 _tab_add(Tab *tab, void *src, pthread_mutex_t *lock, char *file, int line);
 void _tab_validate(Tab *tab, void *ptr, char *file, int line);
-
 
 #define tab_row(tab, row_i) _tab_get(tab, row_i, 0, __FILE__, __LINE__)
 #define tab_var(typ, var, tab, row_i) typ *var = (typ *)_tab_get(tab, row_i, 0, __FILE__, __LINE__)
@@ -149,11 +154,41 @@ void _tab_validate(Tab *tab, void *ptr, char *file, int line);
     #define tab_validate_only_in_debug(...) ((void)0)
 #endif
 
-#define tab_alloca(table_name, n_rows, n_bytes_per_row) \
-	void *buf##__LINE__ = (void *)alloca(n_rows * n_bytes_per_row); \
-    memset(buf##__LINE__, 0, n_rows * n_bytes_per_row); \
+#define tab_alloca(table_name, n_rows, n_bytes_per_row)                                                                \
+    void *buf##__LINE__ = (void *)alloca(n_rows * n_bytes_per_row);                                                    \
+    memset(buf##__LINE__, 0, n_rows *n_bytes_per_row);                                                                 \
     Tab table_name = tab_by_n_rows(buf##__LINE__, n_rows, n_bytes_per_row, TAB_NOT_GROWABLE)
 
-#include "c_common_new.h"
+// F64Arr
+//----------------------------------------------------------------------------------------
+
+#define MAX_ARRAY_DIMS (4)
+
+typedef struct {
+    Float64 *base;
+    Size n_dims;
+
+    // Shape is the number of elements in each dimensions
+    // or zero if none.
+    Size shape[MAX_ARRAY_DIMS];
+
+    // pitch is the product of all subordinate shapes
+    // (ie, the amount you need to add to an index of that
+    // dimension to get to the next element).
+    Size pitch[MAX_ARRAY_DIMS];
+} F64Arr;
+
+void f64arr_set_shape(F64Arr *arr, Size n_dims, Size *shape);
+F64Arr f64arr(void *base, Size n_dims, Size *shape);
+F64Arr f64arr_subset(F64Arr *src, Index i);
+F64Arr f64arr_malloc(Size n_dims, Size *shape);
+void f64arr_free(F64Arr *arr);
+
+Float64 *f64arr_ptr1(F64Arr *arr, Index i);
+Float64 *f64arr_ptr2(F64Arr *arr, Index i, Index j);
+Float64 *f64arr_ptr3(F64Arr *arr, Index i, Index j, Index k);
+Float64 *f64arr_ptr4(F64Arr *arr, Index i, Index j, Index k, Index l);
+
+#define in_bounds(x, a, b) (((a) <= (x)) && ((x) < (b)))
 
 #endif

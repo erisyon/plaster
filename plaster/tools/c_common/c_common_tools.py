@@ -1,5 +1,6 @@
-import numpy as np
 import ctypes as c
+
+import numpy as np
 from plaster.tools.schema import check
 
 
@@ -30,12 +31,14 @@ typedefs = {
     "DyeType": ("Uint8", c.c_ubyte),
     "CycleKindType": ("Uint8", c.c_ubyte),
     "PIType": ("Uint64", c.c_ulonglong),
-    "RecallType": ("Float64", c.c_float),
+    "RecallType": ("Float64", c.c_double),
     "RadType": ("Float32", c.c_float),
     "ScoreType": ("Float32", c.c_float),
     "WeightType": ("Float32", c.c_float),
     "IsolationType": ("Float32", c.c_float),
     "RowKType": ("Float32", c.c_float),
+    "ProgressFn": ("ProgressFn", c.CFUNCTYPE(c.c_void_p, c.c_int, c.c_int, c.c_int)),
+    "KeyboardInterruptFn": ("KeyboardInterruptFn", c.CFUNCTYPE(c.c_int)),
 }
 
 
@@ -77,13 +80,21 @@ class Tab(c.Structure):
             tab.flags = 0
 
         else:
-            check.array_t(mat, ndim=2, dtype=expected_dtype, c_contiguous=True)
+            check.array_t(mat, dtype=expected_dtype, c_contiguous=True)
             tab = Tab()
             tab.base = mat.ctypes.data_as(c.c_void_p)
-            tab.n_bytes_per_row = mat.itemsize * mat.shape[1]
-            tab.n_max_rows = mat.shape[0]
-            tab.n_rows = mat.shape[0]
-            tab.n_cols = mat.shape[1]
+            if mat.ndim == 2:
+                tab.n_bytes_per_row = mat.itemsize * mat.shape[1]
+                tab.n_max_rows = mat.shape[0]
+                tab.n_rows = mat.shape[0]
+                tab.n_cols = mat.shape[1]
+            elif mat.ndim == 1:
+                tab.n_bytes_per_row = mat.itemsize
+                tab.n_max_rows = mat.shape[0]
+                tab.n_rows = mat.shape[0]
+                tab.n_cols = 1
+            else:
+                raise Exception("Unsupported dimension for mat")
             tab.n_bytes_per_elem = mat.itemsize
             tab.flags = Tab.TAB_FLAGS_HAS_ELEMS
 
@@ -239,3 +250,19 @@ class F64Arr(c.Structure):
         arr.pitch0 = max(1, arr.shape1) * arr.pitch1 if ndarr.ndim >= 1 else 1
 
         return arr
+
+
+class HashVal(c.Union):
+    _fields_ = [("val", c.c_void_p), ("contention_val", c.c_float)]
+
+
+class HashRec(c.Structure):
+    _fields_ = [("key", c.c_uint64), ("val_union", HashVal)]
+
+
+class Hash(c.Structure):
+    _fields_ = [
+        ("recs", c.POINTER(HashRec)),
+        ("n_max_recs", c.c_uint64),
+        ("n_active_recs", c.c_uint64),
+    ]
