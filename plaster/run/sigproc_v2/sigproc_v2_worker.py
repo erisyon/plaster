@@ -810,6 +810,11 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         ],
         _trap_exceptions=False,
         _progress=progress,
+        # Setting _debug_mode to True forces each work order
+        # to happen in series which is needed at moment because
+        # the indivudal work orders themselves at various stages
+        # run in parallel and without this we were going into
+        # cpu contention. Need a better solution.
         _debug_mode=True,
     )
 
