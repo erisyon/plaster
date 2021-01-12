@@ -1,12 +1,12 @@
-from zest import zest
 import numpy as np
 from plaster.run.prep import prep_fixtures
 from plaster.run.sim_v2 import sim_v2_fixtures
-from plaster.run.survey_v2.fast import survey_v2_fast
 from plaster.run.survey_v2 import survey_v2_worker
+from plaster.run.survey_v2.c import survey_v2 as survey_v2_fast
 from plaster.run.survey_v2.survey_v2_params import SurveyV2Params
-from plaster.tools.utils import tmp
 from plaster.tools.log.log import debug
+from plaster.tools.utils import tmp
+from zest import zest
 
 
 @zest.skip(reason="broken")

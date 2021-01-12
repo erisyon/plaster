@@ -1,4 +1,5 @@
 import ctypes as c
+import signal
 import time
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from io import StringIO
@@ -61,64 +62,76 @@ def load_lib():
     return lib
 
 
+global_progress_callback = None
+
+
 @c.CFUNCTYPE(c.c_voidp, c.c_int, c.c_int, c.c_int)
 def progress_fn(complete, total, retry):
-    pass
+    if global_progress_callback is not None:
+        global_progress_callback(complete, total, retry)
+
+
+global_interrupted_while_in_c = False
 
 
 @c.CFUNCTYPE(c.c_int)
 def check_keyboard_interrupt_fn():
-    return 0
+    return int(global_interrupted_while_in_c)
+
+
+@contextmanager
+def handle_sigint():
+    """
+    Handles ctrl-c in a special way, intended to be combined with a callback from c to check the global_interrupted_while_in_c value
+    """
+    original_sigint_handler = signal.getsignal(signal.SIGINT)
+
+    def handler(*args, **kwargs):
+        global global_interrupted_while_in_c
+        global_interrupted_while_in_c = True
+
+    signal.signal(signal.SIGINT, handler)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, original_sigint_handler)
 
 
 class SimV2Context(c_common_tools.FixupStructure):
-    # fmt: off
     _fixup_fields = [
         ("n_peps", "Size"),
         ("n_cycles", "Size"),
         ("n_samples", "Size"),
         ("n_channels", "Size"),
-
         ("pi_bleach", "Uint64"),
         ("pi_detach", "Uint64"),
         ("pi_edman_success", "Uint64"),
         ("prevent_edman_cterm", "Uint64"),
-
         ("cycles", "CycleKindType *"),
-
         ("dyts", Tab, "Uint8"),
-        ("dyt_hash", Hash, "Uint8"), # TODO: add Hash struct to c_common_tools
+        ("dyt_hash", Hash, "Uint8"),  # TODO: add Hash struct to c_common_tools
         ("dyepeps", Tab, "Uint8"),
-        ("dyepep_hash", Hash, "Uint8"), # TODO: add Hash struct to c_common_tools
+        ("dyepep_hash", Hash, "Uint8"),  # TODO: add Hash struct to c_common_tools
         ("pcbs", Tab, "Uint8"),
         ("pep_i_to_pcb_i", Tab, "Uint8"),
-
         ("pep_recalls", "RecallType *"),
-
         ("next_pep_i", "Index"),
-
         ("count_only", "Size"),
         ("output_n_dyts", "Size"),
         ("output_n_dyepeps", "Size"),
         ("n_threads", "Size"),
-
         ("work_order_lock", "pthread_mutex_t *"),
         ("tab_lock", "pthread_mutex_t *"),
-
         ("rng_seed", "Uint64"),
-
         ("progress_fn", "ProgressFn"),
         ("check_keyboard_interrupt_fn", "KeyboardInterruptFn"),
-
         ("pep_i_to_pcb_i_buf", "Index *"),
-
         ("n_max_dyts", "Size"),
         ("n_max_dyepeps", "Size"),
         ("n_dyt_row_bytes", "Size"),
         ("n_max_dyt_hash_recs", "Size"),
         ("n_max_dyepep_hash_recs", "Size"),
     ]
-    # fmt: on
 
 
 # class Dyt(c_common_tools.FixupStructure):
@@ -265,6 +278,9 @@ def sim(
 ):
     count_only = 0  # Set to 1 to use the counting mechanisms
 
+    global global_progress_callback
+    global_progress_callback = progress
+
     lib = load_lib()
 
     # TODO:
@@ -349,7 +365,8 @@ def sim(
 
     try:
         # TODO: use convention in radiometry.py with context_init in a context manager, so ctx is always freed
-        ret = lib.context_work_orders_start(ctx)
+        with handle_sigint():
+            ret = lib.context_work_orders_start(ctx)
         if ret != 0:
             raise Exception(f"Worker ended prematurely {ret}")
 

@@ -80,13 +80,21 @@ class Tab(c.Structure):
             tab.flags = 0
 
         else:
-            check.array_t(mat, ndim=2, dtype=expected_dtype, c_contiguous=True)
+            check.array_t(mat, dtype=expected_dtype, c_contiguous=True)
             tab = Tab()
             tab.base = mat.ctypes.data_as(c.c_void_p)
-            tab.n_bytes_per_row = mat.itemsize * mat.shape[1]
-            tab.n_max_rows = mat.shape[0]
-            tab.n_rows = mat.shape[0]
-            tab.n_cols = mat.shape[1]
+            if mat.ndim == 2:
+                tab.n_bytes_per_row = mat.itemsize * mat.shape[1]
+                tab.n_max_rows = mat.shape[0]
+                tab.n_rows = mat.shape[0]
+                tab.n_cols = mat.shape[1]
+            elif mat.ndim == 1:
+                tab.n_bytes_per_row = mat.itemsize
+                tab.n_max_rows = mat.shape[0]
+                tab.n_rows = mat.shape[0]
+                tab.n_cols = 1
+            else:
+                raise Exception("Unsupported dimension for mat")
             tab.n_bytes_per_elem = mat.itemsize
             tab.flags = Tab.TAB_FLAGS_HAS_ELEMS
 

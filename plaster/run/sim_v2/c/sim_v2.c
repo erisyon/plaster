@@ -3,6 +3,7 @@
 #include "math.h"
 #include "memory.h"
 #include "pthread.h"
+#include "signal.h"
 #include "stdarg.h"
 #include "stdint.h"
 #include "stdio.h"
