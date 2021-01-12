@@ -556,7 +556,6 @@ def _sigproc_analyze_field(
         )
     else:
         aln_offsets = np.zeros((n_cycles, 2))
-    prof()
 
     # Step 4: Composite with alignment
     # Timings:
@@ -565,11 +564,9 @@ def _sigproc_analyze_field(
     aln_filt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
         filt_chcy_ims, aln_offsets
     )
-    prof()
     aln_unfilt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
         unfilt_chcy_ims, aln_offsets
     )
-    prof()
 
     # aln_*filt_chcy_ims is now only the shape of only intersection region so is likely
     # to be smaller than the original and not necessarily a power of 2.
@@ -581,7 +578,6 @@ def _sigproc_analyze_field(
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
 
-    prof()
     if sigproc_v2_params.locs is not None:
         locs = np.array(sigproc_v2_params.locs)
         assert locs.ndim == 1
@@ -589,7 +585,6 @@ def _sigproc_analyze_field(
     else:
         approx_psf = plaster.run.calib.calib.approximate_psf()
         locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, chcy_bg_stds)
-    prof()
 
     n_locs = len(locs)
 
@@ -612,9 +607,7 @@ def _sigproc_analyze_field(
             except ValueError:
                 pass
 
-    prof()
     fitmat = _analyze_step_6a_fitter(aln_unfilt_chcy_ims, locs, reg_psf, mask)
-    prof()
 
     # At moment it appears that focus adjustment does nothing under the
     # the filters and alignment -- because there is no correlation anymore
@@ -633,7 +626,31 @@ def _sigproc_analyze_field(
     radmat = _analyze_step_6b_radiometry(
         aln_filt_chcy_ims, locs, calib, focus_adjustments
     )
-    prof()
+
+    neighborhood_stats = None
+    if sigproc_v2_params.run_neighbor_stats:
+        from plaster.tools.image.coord import WH, XY
+
+        ch_i = 0
+        neighborhood_stats = np.zeros((n_locs, n_cycles, 4))
+        for loc_i, (y, x) in enumerate(locs):
+            x = int(x + 0.5)
+            y = int(y + 0.5)
+            for cy_i in range(n_cycles):
+                sub_im = imops.crop(
+                    aln_filt_chcy_ims[ch_i, cy_i],
+                    off=XY(x, y),
+                    dim=WH(30, 30),
+                    center=True,
+                )
+                neighborhood_stats[loc_i, cy_i, 0] = np.mean(sub_im)
+                neighborhood_stats[loc_i, cy_i, 1] = np.std(sub_im)
+                neighborhood_stats[loc_i, cy_i, 2] = np.median(sub_im)
+                a = np.nanpercentile(sub_im, [75, 25])
+                try:
+                    neighborhood_stats[loc_i, cy_i, 3] = a[0] - a[1]
+                except IndexError as e:
+                    neighborhood_stats[loc_i, cy_i, 3] = np.nan
 
     return (
         aln_filt_chcy_ims,
@@ -643,6 +660,7 @@ def _sigproc_analyze_field(
         aln_offsets,
         fitmat,
         focus_adjustments,
+        neighborhood_stats,
     )
 
 
@@ -669,6 +687,7 @@ def _do_sigproc_analyze_and_save_field(
         aln_offsets,
         fitmat,
         focus_adjustments,
+        neighborhood_stats,
     ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, reg_psf)
 
     mea = np.array([chcy_ims.shape[-1:]])
@@ -707,6 +726,7 @@ def _do_sigproc_analyze_and_save_field(
         field_df=field_df,
         radmat=radmat,
         fitmat=fitmat,
+        neighborhood_stats=neighborhood_stats,
         _aln_filt_chcy_ims=aln_filt_chcy_ims,
         _aln_unfilt_chcy_ims=aln_unfilt_chcy_ims,
     )
