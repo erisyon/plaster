@@ -526,8 +526,7 @@ def _sigproc_analyze_field(
 
     # Step 1: Load the images in output channel order, balance, equalize
     # Timings:
-    #   Val8_2t: About 20 seconds per field, using a single core, proably IO bound
-    prof()
+    #   Val8_2t: 20 seconds per field, using a single core, probably IO bound
     (
         filt_chcy_ims,
         unfilt_chcy_ims,
@@ -535,7 +534,6 @@ def _sigproc_analyze_field(
     ) = _analyze_step_1_import_balanced_images(
         filt_chcy_ims.astype(np.float64), sigproc_v2_params, calib
     )
-    prof()
 
     n_cycles = filt_chcy_ims.shape[1]
 
@@ -549,10 +547,9 @@ def _sigproc_analyze_field(
 
     # Step 3: Find alignment offsets by using the mean of all channels
     # Note that this requires that the channel balancing has equalized the channel weights
-    # This is taking about 1 sec, need to look at optimizing
     # Timings:
-    #   Val8_2t: About 50 seconds per field, ???
-    prof()
+    #   Val8_2t: 53 seconds per field, single core for about 20 seconds and then
+    #            several bursts of all cores. Presumably that early delay is load time
     if sigproc_v2_params.run_aligner:
         aln_offsets = _analyze_step_3_align(
             np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea
@@ -562,6 +559,9 @@ def _sigproc_analyze_field(
     prof()
 
     # Step 4: Composite with alignment
+    # Timings:
+    #   Val8_2t: Each of the following two taking 14 sec (28 sec combined)
+    #            Completely single core. This could probably be parallelized somehow
     aln_filt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
         filt_chcy_ims, aln_offsets
     )
