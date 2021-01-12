@@ -123,32 +123,6 @@ def progress_fn(complete, total, retry):
         global_progress_callback(complete, total, retry)
 
 
-global_interrupted_while_in_c = False
-
-
-@c.CFUNCTYPE(c.c_int)
-def check_keyboard_interrupt_fn():
-    return int(global_interrupted_while_in_c)
-
-
-@contextmanager
-def handle_sigint():
-    """
-    Handles ctrl-c in a special way, intended to be combined with a callback from c to check the global_interrupted_while_in_c value
-    """
-    original_sigint_handler = signal.getsignal(signal.SIGINT)
-
-    def handler(*args, **kwargs):
-        global global_interrupted_while_in_c
-        global_interrupted_while_in_c = True
-
-    signal.signal(signal.SIGINT, handler)
-    try:
-        yield
-    finally:
-        signal.signal(signal.SIGINT, original_sigint_handler)
-
-
 IsolationNPType = np.float32
 
 
