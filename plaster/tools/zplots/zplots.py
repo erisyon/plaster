@@ -986,6 +986,9 @@ class ZPlots:
         Range defaults to 0.0-1.0
         See im() options
         """
+        raise NotImplementedError
+        # This code is not working at the moment
+
         assert self._u_stack().get("source") is None
 
         # Set primary image with a preference order
@@ -998,8 +1001,8 @@ class ZPlots:
 
         assert pri_im is not None
 
+        dim, cmap, im_data, y = self._im_setup(pri_im)
         fig = self._begin(kws, dict())
-        dim, cmap, im_data, y = self._im_setup(pri_im, fig)
 
         # ACCUMLATE into a float and then bound 0, 255
         f_color_im = np.zeros((dim.h, dim.w, 4))

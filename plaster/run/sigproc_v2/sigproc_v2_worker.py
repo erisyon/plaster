@@ -114,6 +114,7 @@ from plaster.run.calib.calib import Calib, RegPSF, RegIllum, CalibIdentity
 from plaster.tools.image import imops
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
+from plaster.tools.utils import utils
 from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
 from plaster.run.sigproc_v2.c_radiometry import radiometry
 from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
@@ -627,30 +628,39 @@ def _sigproc_analyze_field(
         aln_filt_chcy_ims, locs, calib, focus_adjustments
     )
 
+    prof()
     neighborhood_stats = None
     if sigproc_v2_params.run_neighbor_stats:
         from plaster.tools.image.coord import WH, XY
-
+        sub_mea = 31
+        peak_mea = 11
+        bot = sub_mea // 2 - peak_mea // 2
+        top = bot + peak_mea
+        lft = sub_mea // 2 - peak_mea // 2
+        rgt = bot + peak_mea
         ch_i = 0
         neighborhood_stats = np.zeros((n_locs, n_cycles, 4))
-        for loc_i, (y, x) in enumerate(locs):
-            x = int(x + 0.5)
-            y = int(y + 0.5)
-            for cy_i in range(n_cycles):
-                sub_im = imops.crop(
-                    aln_filt_chcy_ims[ch_i, cy_i],
-                    off=XY(x, y),
-                    dim=WH(30, 30),
-                    center=True,
-                )
-                neighborhood_stats[loc_i, cy_i, 0] = np.mean(sub_im)
-                neighborhood_stats[loc_i, cy_i, 1] = np.std(sub_im)
-                neighborhood_stats[loc_i, cy_i, 2] = np.median(sub_im)
-                a = np.nanpercentile(sub_im, [75, 25])
-                try:
-                    neighborhood_stats[loc_i, cy_i, 3] = a[0] - a[1]
-                except IndexError as e:
-                    neighborhood_stats[loc_i, cy_i, 3] = np.nan
+        with utils.np_no_warn():
+            for loc_i, (y, x) in enumerate(locs):
+                x = int(x + 0.5)
+                y = int(y + 0.5)
+                for cy_i in range(n_cycles):
+                    sub_im = imops.crop(
+                        aln_filt_chcy_ims[ch_i, cy_i],
+                        off=XY(x, y),
+                        dim=WH(32, 32),
+                        center=True,
+                    )
+                    sub_im[bot:top, lft:rgt] = np.nan
+                    neighborhood_stats[loc_i, cy_i, 0] = np.nanmean(sub_im)
+                    neighborhood_stats[loc_i, cy_i, 1] = np.nanstd(sub_im)
+                    neighborhood_stats[loc_i, cy_i, 2] = np.nanmedian(sub_im)
+                    a = np.nanpercentile(sub_im, [75, 25])
+                    try:
+                        neighborhood_stats[loc_i, cy_i, 3] = a[0] - a[1]
+                    except IndexError as e:
+                        neighborhood_stats[loc_i, cy_i, 3] = np.nan
+    prof()
 
     return (
         aln_filt_chcy_ims,
@@ -691,7 +701,7 @@ def _do_sigproc_analyze_and_save_field(
     ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, reg_psf)
 
     mea = np.array([chcy_ims.shape[-1:]])
-    if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
+    if np.any(aln_offsets ** 2 > (mea * 0.2) ** 2):
         important(f"field {field_i} has bad alignment {aln_offsets}")
 
     # Assign 0 to "peak_i" in the following DF because that is the GLOBAL peak_i
