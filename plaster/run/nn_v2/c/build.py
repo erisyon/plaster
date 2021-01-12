@@ -24,8 +24,6 @@ def build(dst_folder, c_common_folder, flann_include_folder, flann_lib_folder):
 
     common_include_files = [
         f"{c_common_folder}/c_common.h",
-        f"{c_common_folder}/c_common_old.h",
-        f"{c_common_folder}/c_common_new.h",
     ]
     nn_v2_o = build_c("nn_v2.c", common_include_files)
     c_common_o = build_c(f"{c_common_folder}/c_common.c", common_include_files)

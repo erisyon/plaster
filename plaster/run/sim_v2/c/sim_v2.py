@@ -1,3 +1,9 @@
+"""
+TODO:
+    Currently threading takes place in c. At some point we should refactor such that zap handles the parallelism.
+    Then we can strip out all of the ctrl-c handling and all of the locking/threading logic in the c file.
+    See nn_v2 for an example of how this should work.
+"""
 import ctypes as c
 import signal
 import time
@@ -205,7 +211,6 @@ def init():
             # Dyt.struct_emit_header(fp)
             PCB.struct_emit_header(fp)
             Counts.struct_emit_header(fp)
-            DyePepRec.struct_emit_header(fp)
             print("#endif")
 
         header_file_path = "./_sim_v2.h"

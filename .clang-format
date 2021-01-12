@@ -22,7 +22,9 @@ AlignAfterOpenBracket: AlwaysBreak
 
 # If you don't want includes sorted, put empty newline between them
 IncludeBlocks: Preserve
-#
+
+# Indent preprocessor directives
+IndentPPDirectives: BeforeHash
 # TODO: how to get clang-format to format function args like:
 # fn(
 #   arg,

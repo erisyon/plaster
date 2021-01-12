@@ -11,6 +11,7 @@ typedef __int8_t Sint8;
 typedef __int16_t Sint16;
 typedef __int32_t Sint32;
 typedef __int64_t Sint64;
+typedef __int128_t Sint128;
 typedef __uint64_t Bool;
 typedef float Float32;
 typedef double Float64;
@@ -33,6 +34,12 @@ typedef Float32 IsolationType;
 typedef Float64 RowKType;
 typedef Uint64 DytIndexType;
 
+typedef struct {
+    Index dyt_i;
+    Index pep_i;
+    Size n_reads;
+} DyePepRec;
+
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
@@ -44,18 +51,18 @@ typedef Uint64 DytIndexType;
 // Ensure
 void ensure(int expr, const char *fmt, ...);
 #ifdef DEBUG
-#define ensure_only_in_debug ensure
+    #define ensure_only_in_debug ensure
 #else
-#define ensure_only_in_debug(...) ((void)0)
+    #define ensure_only_in_debug(...) ((void)0)
 #endif
 
 // Trace
 extern FILE *_log;
 void _trace(char *file, int line, const char *fmt, ...);
 #ifdef DEBUG
-#define trace(...) _trace(__FILE__, __LINE__, __VA_ARGS__)
+    #define trace(...) _trace(__FILE__, __LINE__, __VA_ARGS__)
 #else
-#define trace(...) ((void)0)
+    #define trace(...) ((void)0)
 #endif
 
 typedef void (*ProgressFn)(int complete, int total, int retry);
@@ -142,9 +149,9 @@ void _tab_validate(Tab *tab, void *ptr, char *file, int line);
 #define tab_subset(src, row_i, n_rows) _tab_subset(src, row_i, n_rows, __FILE__, __LINE__)
 
 #ifdef DEBUG
-#define tab_validate_only_in_debug(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)
+    #define tab_validate_only_in_debug(tab, ptr) _tab_validate(tab, ptr, __FILE__, __LINE__)
 #else
-#define tab_validate_only_in_debug(...) ((void)0)
+    #define tab_validate_only_in_debug(...) ((void)0)
 #endif
 
 #define tab_alloca(table_name, n_rows, n_bytes_per_row)                                                                \
@@ -152,6 +159,36 @@ void _tab_validate(Tab *tab, void *ptr, char *file, int line);
     memset(buf##__LINE__, 0, n_rows *n_bytes_per_row);                                                                 \
     Tab table_name = tab_by_n_rows(buf##__LINE__, n_rows, n_bytes_per_row, TAB_NOT_GROWABLE)
 
-#include "c_common_new.h"
+// F64Arr
+//----------------------------------------------------------------------------------------
+
+#define MAX_ARRAY_DIMS (4)
+
+typedef struct {
+    Float64 *base;
+    Size n_dims;
+
+    // Shape is the number of elements in each dimensions
+    // or zero if none.
+    Size shape[MAX_ARRAY_DIMS];
+
+    // pitch is the product of all subordinate shapes
+    // (ie, the amount you need to add to an index of that
+    // dimension to get to the next element).
+    Size pitch[MAX_ARRAY_DIMS];
+} F64Arr;
+
+void f64arr_set_shape(F64Arr *arr, Size n_dims, Size *shape);
+F64Arr f64arr(void *base, Size n_dims, Size *shape);
+F64Arr f64arr_subset(F64Arr *src, Index i);
+F64Arr f64arr_malloc(Size n_dims, Size *shape);
+void f64arr_free(F64Arr *arr);
+
+Float64 *f64arr_ptr1(F64Arr *arr, Index i);
+Float64 *f64arr_ptr2(F64Arr *arr, Index i, Index j);
+Float64 *f64arr_ptr3(F64Arr *arr, Index i, Index j, Index k);
+Float64 *f64arr_ptr4(F64Arr *arr, Index i, Index j, Index k, Index l);
+
+#define in_bounds(x, a, b) (((a) <= (x)) && ((x) < (b)))
 
 #endif

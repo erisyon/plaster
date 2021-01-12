@@ -62,21 +62,12 @@ class SurveyV2Context(c_common_tools.FixupStructure):
     ]
 
 
-class DyePepRec(c_common_tools.FixupStructure):
-    _fixup_fields = [
-        ("dyt_i", "Index"),
-        ("pep_i", "Index"),
-        ("n_reads", "Size"),
-    ]
-
-
 def init():
     """
     Must be called before anything else in this module
     """
 
     SurveyV2Context.struct_fixup()
-    DyePepRec.struct_fixup()
 
     with local.cwd(lib_folder):
         fp = StringIO()
@@ -90,7 +81,6 @@ def init():
             print('#include "c_common.h"')
             print()
             SurveyV2Context.struct_emit_header(fp)
-            DyePepRec.struct_emit_header(fp)
             print("#endif")
 
         header_file_path = "./_survey_v2.h"

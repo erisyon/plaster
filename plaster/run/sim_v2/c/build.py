@@ -27,8 +27,6 @@ def build(dst_folder, c_common_folder):
 
     common_include_files = [
         f"{c_common_folder}/c_common.h",
-        f"{c_common_folder}/c_common_old.h",
-        f"{c_common_folder}/c_common_new.h",
     ]
     o_filename = build_c(f"{dst_folder}/sim_v2.c", common_include_files)
     c_common_o = build_c(f"{c_common_folder}/c_common.c", common_include_files)
