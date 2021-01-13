@@ -3,11 +3,10 @@
 import pathlib
 from setuptools import Extension, dist, find_packages, setup
 
-dist.Distribution().fetch_build_eggs(["Cython>=0.15.1", "numpy>=1.10"])
+dist.Distribution().fetch_build_eggs(["numpy>=1.10"])
 
 # these two imports must be below the line above; which ensures they're available
 # for use during installation
-from Cython.Build import cythonize  # isort:skip
 import numpy  # isort:skip
 
 # The directory containing this file
@@ -17,52 +16,6 @@ HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text()
 
 exec(open("plaster/version.py").read())
-
-extensions = [
-    Extension(
-        name="plaster.run.sim_v2.fast.sim_v2_fast",
-        sources=[
-            "./plaster/run/sim_v2/fast/sim_v2_fast.pyx",
-            "./plaster/run/sim_v2/fast/c_sim_v2_fast.c",
-            "./plaster/tools/c_common/c_common.c",
-        ],
-        include_dirs=[
-            "./plaster/run/sim_v2/fast",
-            "./plaster/tools/c_common",
-            numpy.get_include(),
-        ],
-        extra_compile_args=[
-            "-Wno-unused-but-set-variable",
-            "-Wno-unused-label",
-            "-Wno-cpp",
-            "-pthread",
-            "-DDEBUG",
-            # "-DNDEBUG",
-        ],
-    ),
-    Extension(
-        name="plaster.run.survey_v2.fast.survey_v2_fast",
-        sources=[
-            "./plaster/run/survey_v2/fast/survey_v2_fast.pyx",
-            "./plaster/run/survey_v2/fast/c_survey_v2_fast.c",
-            "./plaster/tools/c_common/c_common.c",
-        ],
-        include_dirs=[
-            "./plaster/run/survey_v2/fast",
-            "./plaster/tools/c_common",
-            "/flann/src/cpp/flann/",
-            numpy.get_include(),
-        ],
-        libraries=["flann"],
-        library_dirs=["/flann/lib"],
-        extra_compile_args=[
-            "-DNPY_NO_DEPRECATED_API",
-            "-DDEBUG",
-            # "-DNDEBUG",
-        ],
-    ),
-]
-
 
 setup(
     name="erisyon.plaster",
@@ -86,7 +39,6 @@ setup(
     install_requires=[
         "arrow",
         "bokeh",
-        "cython",
         "ipython",
         "jupyter",
         "munch",
@@ -109,7 +61,4 @@ setup(
         "zbs.zest",
     ],
     python_requires=">=3.6",
-    ext_modules=cythonize(
-        extensions, language_level="3", include_path=["./plaster/tools/c_common",]
-    ),
 )
