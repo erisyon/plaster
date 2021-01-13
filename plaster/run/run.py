@@ -420,13 +420,19 @@ class RunResult:
             cached_pr = self.test_rf.test_peps_pr
             cached_pr_abund = self.test_rf.test_peps_pr_abund
 
+        sim = None
+        if "sim_v2" in self.result_klass_by_task_name:
+            sim = self.sim_v2
+        elif "sim_v1" in self.result_klass_by_task_name:
+            sim = self.sim_v1
+
         return CallBag(
             true_pep_iz=true_pep_iz,
             pred_pep_iz=pred_pep_iz,
             scores=scores,
             all_class_scores=all_class_scores,
             prep_result=self.prep,
-            sim_result=self.sim_v1,
+            sim_result=sim,
             cached_pr=cached_pr,
             cached_pr_abund=cached_pr_abund,
             classifier_name="test_rf",
@@ -441,6 +447,15 @@ class RunResult:
             scores=self.classify_rf.scores,
             prep_result=self.prep,
             classifier_name="classify_rf",
+        )
+
+    def classify_nn_v2_call_bag(self):
+        df = self.nn_v2.calls(dataset="sigproc")
+        return CallBag(
+            pred_pep_iz=df.pep_i,
+            scores=df.score,
+            prep_result=self.prep,
+            classifier_name="classify_nn_v2",
         )
 
     def nn_v1_call_bag(self, use_train_data=False):

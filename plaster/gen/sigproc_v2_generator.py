@@ -40,11 +40,15 @@ class SigprocV2Generator(BaseGenerator):
 
         ims_import_task = task_templates.ims_import(self.sigproc_source, is_movie=False)
 
-        calib_src_path = local.path(self.calibration_file)
-        calib_dst_path = local.path(self.local_sources_tmp_folder) / calib_src_path.name
-        calib_src_path.copy(calib_dst_path)
+        calibration_file = None
+        if self.calibration_file is not None:
+            calib_src_path = local.path(self.calibration_file)
+            calib_dst_path = local.path(self.local_sources_tmp_folder) / calib_src_path.name
+            calib_src_path.copy(calib_dst_path)
+            calibration_file = f"../../../_gen_sources/{calib_src_path.name}"
+
         sigproc_v2_task = task_templates.sigproc_v2_analyze(
-            f"../../../_gen_sources/{calib_src_path.name}",
+            calibration_file=calibration_file,
             instrument_identity=self.instrument_identity,
             no_calib=self.no_calib,
             no_calib_psf_sigma=self.no_calib_psf_sigma,

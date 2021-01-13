@@ -230,7 +230,7 @@ def sim_v2(aa_list, err_set, **sim_kws):
         error_model = err_set
     else:
         error_model = ErrorModel.from_err_set(err_set)
-    assert sim_kws.get("n_edmans", 0) > 1
+    # assert sim_kws.get("n_edmans", 0) > 1  # Why is this enforced here?
     n_pres = sim_kws.get("n_pres", 0)
     n_mocks = sim_kws.get("n_mocks", 0)
     assert (
