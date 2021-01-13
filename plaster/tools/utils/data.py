@@ -226,7 +226,7 @@ class ConfMat(np.ndarray):
         """
         check.array_t(abundance, shape=(self.shape[1],))
         assert np.all((abundance >= 1.0) | (abundance == 0.0))
-        return self * abundance.astype(int)
+        return (self * abundance).astype(int)
 
     def false_calls(self, elem_i, n_false):
         """

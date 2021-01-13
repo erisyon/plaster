@@ -764,7 +764,7 @@ class CallBag:
         return s_at_prec
 
     def conf_mat_at_score_threshold(self, score_thresh):
-        return self.conf_mat(mask=self.scores >= score_thresh.astype(self.scores.dtype))
+        return self.conf_mat(mask=self.scores >= score_thresh)
 
     def false_rates_by_pep(self, pep_i, at_prec, n_false):
         """
