@@ -628,10 +628,10 @@ def _sigproc_analyze_field(
         aln_filt_chcy_ims, locs, calib, focus_adjustments
     )
 
-    prof()
     neighborhood_stats = None
     if sigproc_v2_params.run_neighbor_stats:
         from plaster.tools.image.coord import WH, XY
+
         sub_mea = 31
         peak_mea = 11
         bot = sub_mea // 2 - peak_mea // 2
@@ -660,7 +660,6 @@ def _sigproc_analyze_field(
                         neighborhood_stats[loc_i, cy_i, 3] = a[0] - a[1]
                     except IndexError as e:
                         neighborhood_stats[loc_i, cy_i, 3] = np.nan
-    prof()
 
     return (
         aln_filt_chcy_ims,
@@ -681,7 +680,6 @@ def _do_sigproc_analyze_and_save_field(
     Analyze AND SAVE one field by calling the sigproc_v2_result.save_field()
     """
 
-    debug(field_i)
     chcy_ims = ims_import_result.ims[field_i]
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
@@ -740,7 +738,6 @@ def _do_sigproc_analyze_and_save_field(
         _aln_filt_chcy_ims=aln_filt_chcy_ims,
         _aln_unfilt_chcy_ims=aln_unfilt_chcy_ims,
     )
-    debug(field_i)
 
 
 # Entrypoints
