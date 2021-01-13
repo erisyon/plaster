@@ -31,6 +31,7 @@ class SigprocV2Params(Params):
         # ALSO: This needs to be moved into the calibration because it can not allowed to be
         # different from the calibration results because the calibration bakes in the PSF
         # as a function of these parameters.
+        run_neighbor_stats=False,
         low_inflection=0.03,
         low_sharpness=50.0,
         high_inflection=0.50,
@@ -57,6 +58,7 @@ class SigprocV2Params(Params):
             run_focal_adjustments=s.is_bool(),
             run_bandpass_filter=s.is_bool(),
             run_aligner=s.is_bool(),
+            run_neighbor_stats=s.is_bool(),
             low_inflection=s.is_float(),
             low_sharpness=s.is_float(),
             high_inflection=s.is_float(),

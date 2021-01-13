@@ -243,6 +243,7 @@ def sigproc_v2_movie_from_df(
     df=None,
     fl_i=None,
     ch_i=0,
+    cy_iz=None,
     bg_only=False,
     fg_only=False,
     use_unfilt=False,
@@ -269,10 +270,13 @@ def sigproc_v2_movie_from_df(
             fl_i = 0
         locs = []
 
+    if cy_iz is None:
+        cy_iz = slice(None, None, None)
+
     if use_unfilt:
-        ims = run.sigproc_v2.aln_unfilt_ims[fl_i, ch_i, :]
+        ims = run.sigproc_v2.aln_unfilt_ims[fl_i, ch_i, cy_iz]
     else:
-        ims = run.sigproc_v2.aln_ims[fl_i, ch_i, :]
+        ims = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_iz]
 
     overlay = None
     if bg_only:

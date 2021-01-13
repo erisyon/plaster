@@ -114,6 +114,7 @@ from plaster.run.calib.calib import Calib, RegPSF, RegIllum, CalibIdentity
 from plaster.tools.image import imops
 from plaster.tools.schema import check
 from plaster.tools.zap import zap
+from plaster.tools.utils import utils
 from plaster.run.sigproc_v2.c_radiometry.radiometry import radiometry_field_stack
 from plaster.run.sigproc_v2.c_radiometry import radiometry
 from plaster.run.sigproc_v2.c_gauss2_fitter import gauss2_fitter
@@ -525,6 +526,8 @@ def _sigproc_analyze_field(
     """
 
     # Step 1: Load the images in output channel order, balance, equalize
+    # Timings:
+    #   Val8_2t: 20 seconds per field, using a single core, probably IO bound
     (
         filt_chcy_ims,
         unfilt_chcy_ims,
@@ -545,7 +548,9 @@ def _sigproc_analyze_field(
 
     # Step 3: Find alignment offsets by using the mean of all channels
     # Note that this requires that the channel balancing has equalized the channel weights
-    # This is taking about 1 sec, need to look at optimizing
+    # Timings:
+    #   Val8_2t: 53 seconds per field, single core for about 20 seconds and then
+    #            several bursts of all cores. Presumably that early delay is load time
     if sigproc_v2_params.run_aligner:
         aln_offsets = _analyze_step_3_align(
             np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea
@@ -554,6 +559,9 @@ def _sigproc_analyze_field(
         aln_offsets = np.zeros((n_cycles, 2))
 
     # Step 4: Composite with alignment
+    # Timings:
+    #   Val8_2t: Each of the following two taking 14 sec (28 sec combined)
+    #            Completely single core. This could probably be parallelized somehow
     aln_filt_chcy_ims = _analyze_step_4_align_stack_of_chcy_ims(
         filt_chcy_ims, aln_offsets
     )
@@ -620,6 +628,39 @@ def _sigproc_analyze_field(
         aln_filt_chcy_ims, locs, calib, focus_adjustments
     )
 
+    neighborhood_stats = None
+    if sigproc_v2_params.run_neighbor_stats:
+        from plaster.tools.image.coord import WH, XY
+
+        sub_mea = 31
+        peak_mea = 11
+        bot = sub_mea // 2 - peak_mea // 2
+        top = bot + peak_mea
+        lft = sub_mea // 2 - peak_mea // 2
+        rgt = bot + peak_mea
+        ch_i = 0
+        neighborhood_stats = np.zeros((n_locs, n_cycles, 4))
+        with utils.np_no_warn():
+            for loc_i, (y, x) in enumerate(locs):
+                x = int(x + 0.5)
+                y = int(y + 0.5)
+                for cy_i in range(n_cycles):
+                    sub_im = imops.crop(
+                        aln_filt_chcy_ims[ch_i, cy_i],
+                        off=XY(x, y),
+                        dim=WH(32, 32),
+                        center=True,
+                    )
+                    sub_im[bot:top, lft:rgt] = np.nan
+                    neighborhood_stats[loc_i, cy_i, 0] = np.nanmean(sub_im)
+                    neighborhood_stats[loc_i, cy_i, 1] = np.nanstd(sub_im)
+                    neighborhood_stats[loc_i, cy_i, 2] = np.nanmedian(sub_im)
+                    a = np.nanpercentile(sub_im, [75, 25])
+                    try:
+                        neighborhood_stats[loc_i, cy_i, 3] = a[0] - a[1]
+                    except IndexError as e:
+                        neighborhood_stats[loc_i, cy_i, 3] = np.nan
+
     return (
         aln_filt_chcy_ims,
         aln_unfilt_chcy_ims,
@@ -628,6 +669,7 @@ def _sigproc_analyze_field(
         aln_offsets,
         fitmat,
         focus_adjustments,
+        neighborhood_stats,
     )
 
 
@@ -653,10 +695,11 @@ def _do_sigproc_analyze_and_save_field(
         aln_offsets,
         fitmat,
         focus_adjustments,
+        neighborhood_stats,
     ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, reg_psf)
 
     mea = np.array([chcy_ims.shape[-1:]])
-    if np.any(aln_offsets ** 2 > (mea * 0.1) ** 2):
+    if np.any(aln_offsets ** 2 > (mea * 0.2) ** 2):
         important(f"field {field_i} has bad alignment {aln_offsets}")
 
     # Assign 0 to "peak_i" in the following DF because that is the GLOBAL peak_i
@@ -691,6 +734,7 @@ def _do_sigproc_analyze_and_save_field(
         field_df=field_df,
         radmat=radmat,
         fitmat=fitmat,
+        neighborhood_stats=neighborhood_stats,
         _aln_filt_chcy_ims=aln_filt_chcy_ims,
         _aln_unfilt_chcy_ims=aln_unfilt_chcy_ims,
     )
@@ -793,6 +837,12 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         ],
         _trap_exceptions=False,
         _progress=progress,
+        # Setting _debug_mode to True forces each work order
+        # to happen in series which is needed at moment because
+        # the indivudal work orders themselves at various stages
+        # run in parallel and without this we were going into
+        # cpu contention. Need a better solution.
+        _debug_mode=True,
     )
 
     sigproc_v2_result.save()
