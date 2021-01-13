@@ -97,55 +97,6 @@ emit_stop() {
     log_it date --iso-8601=seconds
 }
 
-
-make_cython() {
-	# If any source files have changed, the setup.py needs to be run to build
-	if [[ "${SKIP_CYTHON_BUILD}" != "1" ]] && [[ -e "/erisyon/plaster" ]]; then
-		# TODO: Convert to a makefile or similar
-
-		sim_v2_target="/erisyon/plaster/plaster/run/sim_v2/fast/sim_v2_fast.cpython-38-x86_64-linux-gnu.so"
-		sim_v2_generated_c="/erisyon/plaster/plaster/run/sim_v2/fast/sim_v2_fast.c"
-
-		survey_v2_target="/erisyon/plaster/plaster/run/survey_v2/fast/survey_v2_fast.cpython-38-x86_64-linux-gnu.so"
-		survey_v2_generated_c="/erisyon/plaster/plaster/run/survey_v2/fast/survey_v2_fast.c"
-
-		sim_dirty="0"
-		survey_dirty="0"
-
-		common_src=( /erisyon/plaster/plaster/tools/c_common/* )
-
-		pushd "/erisyon/plaster/plaster/run/sim_v2/fast" > /dev/null
-			src_files=( * )
-			src_files+=("${common_src[@]}")
-			for i in "${src_files[@]}"; do
-				[[ $i -nt $sim_v2_target ]] && { sim_dirty="1"; }
-			done
-			if [[ "${sim_dirty}" == "1" ]]; then
-				rm -f $sim_v2_target
-				rm -f $sim_v2_generated_c
-            fi
-		popd > /dev/null
-
-		pushd "/erisyon/plaster/plaster/run/survey_v2/fast" > /dev/null
-			src_files=( * )
-			src_files+=("${common_src[@]}")
-			for i in "${src_files[@]}"; do
-				[[ $i -nt $survey_v2_target ]] && { survey_dirty="1"; }
-			done
-			if [[ "${survey_dirty}" == "1" ]]; then
-				rm -f $survey_v2_target
-				rm -f $survey_v2_generated_c
-            fi
-		popd > /dev/null
-
-		pushd "/erisyon/plaster" > /dev/null
-			if [[ "${sim_dirty}" == "1" ]] || [[ "${survey_dirty}" == "1" ]]; then
-				python setup.py build_ext --inplace || error "Compile failed"
-			fi
-		popd > /dev/null
-	fi
-}
-
 prof $LINENO
 
 _CONTAINER_ID=$(head -1 /proc/self/cgroup|cut -d/ -f3)
@@ -183,9 +134,6 @@ if [[ "${DEV}" == "1" ]]; then
             ssh-add -k 2> /dev/null
         fi
     fi
-
-	# Build C code if needed
-	# make_cython
 else
     _MODE_STR="\[${Yellow}\]NOT dev${_JUP}\[${NoColor}\]"
 fi
@@ -206,8 +154,6 @@ if [[ -n "${LOG_FILE}" ]]; then
     mkdir -p "${LOG_FILE%/*}"
 fi
 
-prof $LINENO
-make_cython
 prof $LINENO
 
 _CMD="$1"

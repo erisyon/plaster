@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from plaster.run.sim_v2.sim_v2_result import RadType
-from plaster.run.survey_v2.fast import survey_v2_fast
+from plaster.run.survey_v2.c import survey_v2 as survey_v2_fast
 from plaster.run.survey_v2.survey_v2_result import SurveyV2Result
 from plaster.tools.aaseq.aaseq import aa_str_to_list
 from plaster.tools.log.log import debug
@@ -96,7 +96,7 @@ def survey_v2(
     Notes:
         - We are including decoys if present.
     """
-
+    survey_v2_fast.init()
     pep_i_to_mic_pep_i, pep_i_to_isolation_metric = survey_v2_fast.survey(
         prep_result.n_peps,
         sim_v2_result.train_dyemat,

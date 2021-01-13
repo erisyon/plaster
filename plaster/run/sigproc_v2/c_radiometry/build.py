@@ -32,8 +32,6 @@ def build(dst_folder, c_common_folder):
 
     include_files = (
         f"{c_common_folder}/c_common.h",
-        f"{c_common_folder}/c_common_old.h",
-        f"{c_common_folder}/c_common_new.h",
         f"./csa_spline/csa.h",
     )
     radiometry_o = build_c("radiometry.c", include_files)

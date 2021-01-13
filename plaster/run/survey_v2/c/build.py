@@ -1,16 +1,16 @@
-#!/usr/bin/env python
-
 from plaster.tools.utils.utils import any_out_of_date
 from plumbum import FG, local
 
 
-def build(dst_folder, c_common_folder):
+def build(dst_folder, c_common_folder, flann_include_folder, flann_lib_folder):
     c_opts = [
         "-c",
         "-fpic",
         "-O3",
         "-I",
         c_common_folder,
+        "-I",
+        flann_include_folder,
         "-DDEBUG",
     ]
     gcc = local["gcc"]
@@ -25,20 +25,27 @@ def build(dst_folder, c_common_folder):
     common_include_files = [
         f"{c_common_folder}/c_common.h",
     ]
-    sub_pixel_align_o = build_c(f"{dst_folder}/sub_pixel_align.c", common_include_files)
+    survey_v2_o = build_c("survey_v2.c", common_include_files)
     c_common_o = build_c(f"{c_common_folder}/c_common.c", common_include_files)
 
-    sub_pixel_align_so = f"{dst_folder}/_sub_pixel_align.so"
-    if any_out_of_date(
-        parents=[sub_pixel_align_o, c_common_o], children=[sub_pixel_align_so]
-    ):
+    survey_v2_so = f"{dst_folder}/_survey_v2.so"
+    if any_out_of_date(parents=[survey_v2_o, c_common_o], children=[survey_v2_so]):
         gcc[
-            "-shared", "-o", sub_pixel_align_so, sub_pixel_align_o, c_common_o, "-lm",
+            "-shared",
+            survey_v2_o,
+            c_common_o,
+            "-L",
+            flann_lib_folder,
+            "-lflann",
+            "-o",
+            survey_v2_so,
         ] & FG
 
 
 if __name__ == "__main__":
     build(
-        dst_folder="/erisyon/plaster/plaster/run/sigproc_v2/c_sub_pixel_align",
+        dst_folder="/erisyon/plaster/plaster/run/survey_v2/c",
         c_common_folder="/erisyon/plaster/plaster/tools/c_common",
+        flann_include_folder="/flann/src/cpp/flann",
+        flann_lib_folder="/flann/lib",
     )

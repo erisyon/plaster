@@ -292,6 +292,9 @@ class SimV2Params(Params):
     def pcbs(self, pep_seq_df):
         """
         pcbs stands for (p)ep_i, (c)hannel_i, (b)right_probability
+
+        bright_probability is the inverse of all the ways a dye can fail to be visible
+        ie the probability that a dye is active
         """
         labelled_pep_df = pep_seq_df.join(
             self.df.set_index("amino_acid"), on="aa", how="left"

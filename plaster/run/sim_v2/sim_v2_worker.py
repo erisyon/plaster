@@ -37,7 +37,7 @@ Nomenclature
         The probability of an event
 """
 import numpy as np
-from plaster.run.sim_v2.fast import sim_v2_fast
+from plaster.run.sim_v2.c import sim_v2 as sim_v2_fast
 from plaster.run.sim_v2.sim_v2_params import RadType
 from plaster.run.sim_v2.sim_v2_result import SimV2Result
 from plaster.tools.log.log import debug, prof
@@ -95,6 +95,8 @@ def _dyemat_sim(sim_v2_params, pcbs, n_samples, progress=None):
         dyepep: ndarray(dye_i, pep_i, count)
         pep_recalls: ndarray(n_peps)
     """
+    sim_v2_fast.init()
+
     # TODO: bleach per channel
     dyemat, dyepeps, pep_recalls = sim_v2_fast.sim(
         pcbs,

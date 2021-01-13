@@ -1,14 +1,15 @@
-#include "stdint.h"
 #include "alloca.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "stdarg.h"
+#include "flann.h"
+#include "math.h"
 #include "memory.h"
 #include "pthread.h"
+#include "stdarg.h"
+#include "stdint.h"
+#include "stdio.h"
+#include "stdlib.h"
 #include "unistd.h"
-#include "math.h"
-#include "c_survey_v2_fast.h"
 
+#include "_survey_v2.h"
 
 /*
 
@@ -20,9 +21,9 @@ label/protease scheme will perform.
 
 */
 
-void dump_dyepeps(SurveyV2FastContext *ctx) {
+void dump_dyepeps(SurveyV2Context *ctx) {
     Index last_pep_i = 0xFFFFFFFFFFFFFFFF;
-    for(Index i=0; i<ctx->dyepeps.n_rows; i++) {
+    for(Index i = 0; i < ctx->dyepeps.n_rows; i++) {
         tab_var(DyePepRec, dyepep, &ctx->dyepeps, i);
         tab_var(Index, mlpep_i, &ctx->dyt_i_to_mlpep_i, dyepep->dyt_i);
 
@@ -31,37 +32,33 @@ void dump_dyepeps(SurveyV2FastContext *ctx) {
             last_pep_i = dyepep->pep_i;
         }
 
-        //if(*mlpep_i != dyepep->pep_i) {
-            trace("  dyt_i:%-4lu n_reads:%-8lu  mlpep_i:%-4lu   ", dyepep->dyt_i, dyepep->n_reads, *mlpep_i);
+        // if(*mlpep_i != dyepep->pep_i) {
+        trace("  dyt_i:%-4lu n_reads:%-8lu  mlpep_i:%-4lu   ", dyepep->dyt_i, dyepep->n_reads, *mlpep_i);
 
-            tab_var(DyeType, dyt, &ctx->dyemat, dyepep->dyt_i);
-            for (Index k=0; k<ctx->dyemat.n_bytes_per_row; k++) {
-                trace("%d ", dyt[k]);
-            }
-            trace("\n");
+        tab_var(DyeType, dyt, &ctx->dyemat, dyepep->dyt_i);
+        for(Index k = 0; k < ctx->dyemat.n_bytes_per_row; k++) {
+            trace("%d ", dyt[k]);
+        }
+        trace("\n");
         //}
     }
 }
 
 void dump_row_of_dyemat(Tab *dyemat, int row, char *prefix) {
     tab_var(DyeType, dyt, dyemat, row);
-    for (Index k=0; k<dyemat->n_bytes_per_row; k++) {
+    for(Index k = 0; k < dyemat->n_bytes_per_row; k++) {
         printf("%s%d ", prefix, dyt[k]);
     }
     printf("\n");
 }
 
-HashKey pep_i_to_hash_key(Index pep_i) {
-    return (pep_i + 1);
-}
+HashKey pep_i_to_hash_key(Index pep_i) { return (pep_i + 1); }
 
-Index hash_key_pep_i(HashKey pep_i) {
-    return (pep_i - 1);
-}
+Index hash_key_pep_i(HashKey pep_i) { return (pep_i - 1); }
 
 int show_debug = 0;
 
-void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
+void context_pep_measure_isolation(SurveyV2Context *ctx, Index pep_i) {
     /*
 
     Terminology:
@@ -127,8 +124,8 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     */
 
     if(show_debug) {
-	    trace("pep_i=%ld\n", pep_i);
-	}
+        trace("pep_i=%ld\n", pep_i);
+    }
 
     Size n_global_dyts = ctx->n_dyts;
     int n_neighbors = ctx->n_neighbors;
@@ -141,7 +138,12 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     tab_var(Index, dyepeps_offset_start_of_this_pep, &ctx->pep_i_to_dyepep_row_i, pep_i);
     tab_var(Index, dyepeps_offset_start_of_next_pep, &ctx->pep_i_to_dyepep_row_i, pep_i + 1);
     int _n_local_dyts = *dyepeps_offset_start_of_next_pep - *dyepeps_offset_start_of_this_pep;
-    ensure(_n_local_dyts > 0, "no dyts pep_i=%ld (this=%ld next=%ld)", pep_i, *dyepeps_offset_start_of_this_pep, *dyepeps_offset_start_of_next_pep);
+    ensure(
+        _n_local_dyts > 0,
+        "no dyts pep_i=%ld (this=%ld next=%ld)",
+        pep_i,
+        *dyepeps_offset_start_of_this_pep,
+        *dyepeps_offset_start_of_next_pep);
     Index n_local_dyts = (Index)_n_local_dyts;
 
     // Using the pep_i_to_dyepep_row_i we now have the range of the dyepeps and we
@@ -157,7 +159,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
 
     // LOAD the local dyemat table by copying rows from the global dyemat
     // using the dyt_iz referenced in the dyepeps table.
-    for(Index i=0; i<n_local_dyts; i++) {
+    for(Index i = 0; i < n_local_dyts; i++) {
         tab_var(DyePepRec, dyepep_row, &dyepeps, i);
         tab_var(DyeType, src, &ctx->dyemat, dyepep_row->dyt_i);
         tab_var(DyeType, dst, &local_dyemat, i);
@@ -187,8 +189,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
         nn_dyt_iz_buf,
         nn_dists_buf,
         n_neighbors,
-        &ctx->flann_params
-    );
+        ctx->flann_params);
     ensure(ret == 0, "flann returned error code");
 
     // At this point FLANN has found neighbors (and their distances) for each local dyetrack
@@ -199,52 +200,52 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     Size n_neighbors_u = (Size)n_neighbors;
     Size n_reads_total = 0;
 
-	#define N_PEP_HASH_RECS (128)
-	Hash contention_by_pep_i = hash_init(alloca(sizeof(HashRec) * N_PEP_HASH_RECS), N_PEP_HASH_RECS);
-	Index mlpep_i = 0;
+#define N_PEP_HASH_RECS (128)
+    Hash contention_by_pep_i = hash_init(alloca(sizeof(HashRec) * N_PEP_HASH_RECS), N_PEP_HASH_RECS);
+    Index mlpep_i = 0;
 
     IsolationType isolation_sum = (IsolationType)0.0;
-    for (Index dyt_i=0; dyt_i<n_local_dyts; dyt_i++) {
-		// Reminder: dyepeps is the LOCAL dyepeps for pep_i only
+    for(Index dyt_i = 0; dyt_i < n_local_dyts; dyt_i++) {
+        // Reminder: dyepeps is the LOCAL dyepeps for pep_i only
         tab_var(DyePepRec, dyepep_row, &dyepeps, dyt_i);
 
         Index mlpep_i_for_this_dyt_i = tab_get(Index, &ctx->dyt_i_to_mlpep_i, dyepep_row->dyt_i);
 
-		// Get pointers to the nearest neighbor (nn) records (closest neighbot dy_y and
-		// distance) that FLANN returned to us for this dyt_i
+        // Get pointers to the nearest neighbor (nn) records (closest neighbot dy_y and
+        // distance) that FLANN returned to us for this dyt_i
         tab_var(int, nn_dyt_row_i, &nn_dyt_iz, dyt_i);
         tab_var(float, nn_dists_row_i, &nn_dists, dyt_i);
 
         int is_local = mlpep_i_for_this_dyt_i == pep_i;
 
         if(show_debug) {
-            trace("  dyt_i:%-4lu  n_reads:%-8lu  mlpep_i:%-4lu  is_local:%1d  ",
+            trace(
+                "  dyt_i:%-4lu  n_reads:%-8lu  mlpep_i:%-4lu  is_local:%1d  ",
                 dyepep_row->dyt_i,
                 dyepep_row->n_reads,
                 mlpep_i_for_this_dyt_i,
-                is_local
-            );
+                is_local);
 
             // DRAW the dyetracl
             tab_var(DyeType, dyt, &ctx->dyemat, dyepep_row->dyt_i);
-            for (Index k=0; k<ctx->dyemat.n_bytes_per_row; k++) {
+            for(Index k = 0; k < ctx->dyemat.n_bytes_per_row; k++) {
                 trace("%d ", dyt[k]);
             }
             trace("\n");
         }
-
 
         Index nn_i = 0;
         Index global_dyt_i_of_nn_i = 0;
 
         Float32 p_product = 1.0f;
 
-        for (nn_i=0; nn_i<n_neighbors_u; nn_i++) {
+        for(nn_i = 0; nn_i < n_neighbors_u; nn_i++) {
             global_dyt_i_of_nn_i = nn_dyt_row_i[nn_i];
             ensure_only_in_debug(
-            	0 <= (int)global_dyt_i_of_nn_i && (int)global_dyt_i_of_nn_i < (int)n_global_dyts,
-            	"Illegal dyt in nn lookup: %ld %ld", global_dyt_i_of_nn_i, n_global_dyts
-			);
+                0 <= (int)global_dyt_i_of_nn_i && (int)global_dyt_i_of_nn_i < (int)n_global_dyts,
+                "Illegal dyt in nn lookup: %ld %ld",
+                global_dyt_i_of_nn_i,
+                n_global_dyts);
 
             if(dyepep_row->dyt_i == global_dyt_i_of_nn_i) {
                 // Do not compare a dyetrack to itself, it will always be zero
@@ -254,7 +255,8 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
             // LOOKUP the ml-pep for this dyt_i.
             // Remember, we must use the global_dyt_i_of_nn_i not the local_dyt_i
             mlpep_i = tab_get(Index, &ctx->dyt_i_to_mlpep_i, global_dyt_i_of_nn_i);
-            ensure_only_in_debug(0 <= mlpep_i && mlpep_i < ctx->n_peps, "mlpep_i out of bounds %ld %ld", mlpep_i, ctx->n_peps);
+            ensure_only_in_debug(
+                0 <= mlpep_i && mlpep_i < ctx->n_peps, "mlpep_i out of bounds %ld %ld", mlpep_i, ctx->n_peps);
 
             IsolationType distance = (IsolationType)nn_dists_row_i[nn_i];
             // Note, FLANN's distances are Manhattan distances (ie sum of the differences
@@ -286,17 +288,17 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
 
             // Debugging
             if(show_debug && mode != 0) {
-                trace("    nn dyt_i:%-4lu  mlpep_i:%-4lu  dist_to_nn:%7.1f  p_func:%7.5f  mode:%1d  dyt_of_nn:",
+                trace(
+                    "    nn dyt_i:%-4lu  mlpep_i:%-4lu  dist_to_nn:%7.1f  p_func:%7.5f  mode:%1d  dyt_of_nn:",
                     global_dyt_i_of_nn_i,
                     mlpep_i,
                     distance,
                     p_func,
-                    mode
-                );
+                    mode);
 
                 // Dyetrack
                 tab_var(DyeType, dyt, &ctx->dyemat, global_dyt_i_of_nn_i);
-                for (Index k=0; k<ctx->dyemat.n_bytes_per_row; k++) {
+                for(Index k = 0; k < ctx->dyemat.n_bytes_per_row; k++) {
                     trace("%d ", dyt[k]);
                 }
                 trace("\n");
@@ -310,8 +312,7 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
             //   p(no theft) = p(nn_0_did_not_steal) * p(nn_1_did_not_steal) ...
             //   p(no theft) = p_product
             p_correct = p_product;
-        }
-        else {
+        } else {
             // A foreign dyt has some fraction of reads that are "rescued" by neighbors
             // What the p(any neighbor rescues)?
             //   p(at least one rescue) = 1 - p(no rescue)
@@ -336,20 +337,18 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
             // This is not exactly right as some of those neighbors
             // might have assigned to OTHER peptides.
 
-    		IsolationType contention = dyepep_row->n_reads * p_product;
+            IsolationType contention = dyepep_row->n_reads * p_product;
 
             HashKey pep_hash_key = pep_i_to_hash_key(mlpep_i_for_this_dyt_i);
             HashRec *by_pep_i_rec = hash_get(contention_by_pep_i, pep_hash_key);
-            if(by_pep_i_rec == (HashRec*)0) {
+            if(by_pep_i_rec == (HashRec *)0) {
                 // hash full!
                 ensure(0, "contention_by_pep_i hash table full");
-            }
-            else if(by_pep_i_rec->key == 0) {
+            } else if(by_pep_i_rec->key == 0) {
                 // New record
                 by_pep_i_rec->key = pep_hash_key;
                 by_pep_i_rec->contention_val = contention;
-            }
-            else {
+            } else {
                 // Existing record
                 by_pep_i_rec->contention_val += contention;
             }
@@ -361,17 +360,16 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     Float32 p_correct;
     if(n_reads_total > 0) {
         p_correct = isolation_sum / n_reads_total;
-    }
-    else {
+    } else {
         p_correct = 0;
     }
 
     // FIND the most in-contention peptide -- the one with the highest contention
     IsolationType most_contentious = (IsolationType)0.0;
     Index most_contentious_pep_i = 0;
-    for (Index i=0; i<contention_by_pep_i.n_max_recs; i++) {
-    	Index pep_i_from_hash = hash_key_pep_i(contention_by_pep_i.recs[i].key);
-    	IsolationType contention_from_hash = contention_by_pep_i.recs[i].contention_val;
+    for(Index i = 0; i < contention_by_pep_i.n_max_recs; i++) {
+        Index pep_i_from_hash = hash_key_pep_i(contention_by_pep_i.recs[i].key);
+        IsolationType contention_from_hash = contention_by_pep_i.recs[i].contention_val;
         if(contention_from_hash > most_contentious) {
             most_contentious = contention_from_hash;
             most_contentious_pep_i = pep_i_from_hash;
@@ -379,9 +377,12 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     }
 
     if(show_debug) {
-        trace("\n  iso_sum=%7.5f  reads=%-7lu  p_correct=%7.5f most_contentious_pep_i=%ld\n\n",
-            isolation_sum, n_reads_total, p_correct, most_contentious_pep_i
-        );
+        trace(
+            "\n  iso_sum=%7.5f  reads=%-7lu  p_correct=%7.5f most_contentious_pep_i=%ld\n\n",
+            isolation_sum,
+            n_reads_total,
+            p_correct,
+            most_contentious_pep_i);
     }
 
     // RECORD the results into the output tables
@@ -389,20 +390,19 @@ void context_pep_measure_isolation(SurveyV2FastContext *ctx, Index pep_i) {
     tab_set(&ctx->output_pep_i_to_mic_pep_i, pep_i, &most_contentious_pep_i);
 }
 
-
-Index context_work_orders_pop(SurveyV2FastContext *ctx) {
+Index context_work_orders_pop(SurveyV2Context *ctx) {
     // TODO: This could be dried with similar sim_v2 code
     // (but remember they refer to differnte SurveyV2FastContext structs)
     // NOTE: This return +1! So that 0 can be reserved.
     if(ctx->n_threads > 1) {
-        pthread_mutex_lock(&ctx->work_order_lock);
+        pthread_mutex_lock(ctx->work_order_lock);
     }
 
     Index i = ctx->next_pep_i;
     ctx->next_pep_i++;
 
     if(ctx->n_threads > 1) {
-        pthread_mutex_unlock(&ctx->work_order_lock);
+        pthread_mutex_unlock(ctx->work_order_lock);
     }
 
     if(i < ctx->n_peps) {
@@ -411,11 +411,10 @@ Index context_work_orders_pop(SurveyV2FastContext *ctx) {
     return 0;
 }
 
-
 void *context_work_orders_worker(void *_ctx) {
     // The worker thread. Pops off which pep to work on next
     // continues until there are no more work orders.
-    SurveyV2FastContext *ctx = (SurveyV2FastContext *)_ctx;
+    SurveyV2Context *ctx = (SurveyV2Context *)_ctx;
     while(1) {
         Index pep_i_plus_1 = context_work_orders_pop(ctx);
         if(pep_i_plus_1 == 0) {
@@ -433,9 +432,8 @@ void *context_work_orders_worker(void *_ctx) {
     return (void *)0;
 }
 
-
-void context_start(SurveyV2FastContext *ctx) {
-//    dump_dyepeps(ctx);
+void context_start(SurveyV2Context *ctx) {
+    //    dump_dyepeps(ctx);
 
     // Initialize mutex and start the worker thread(s).
     ctx->next_pep_i = 0;
@@ -444,35 +442,31 @@ void context_start(SurveyV2FastContext *ctx) {
 
     ensure(
         ctx->n_neighbors <= ctx->dyemat.n_rows,
-        "FLANN does not support requesting more neihbors than there are data points"
-    );
+        "FLANN does not support requesting more neihbors than there are data points");
 
     // CLEAR internally controlled elements
-    ctx->flann_params = DEFAULT_FLANN_PARAMETERS;
+    ctx->flann_params = &DEFAULT_FLANN_PARAMETERS;
     ctx->flann_index_id = 0;
-    ctx->flann_params.cores = ctx->n_flann_cores;
+    ctx->flann_params->cores = ctx->n_flann_cores;
 
     // CREATE the ANN index
     // TODO: DRY with NN
     float speedup = 0.0f;
     ctx->flann_index_id = flann_build_index_byte(
-        tab_ptr(DyeType, &ctx->dyemat, 0),
-        ctx->dyemat.n_rows,
-        ctx->n_dyt_cols,
-        &speedup,
-        &ctx->flann_params
-    );
+        tab_ptr(DyeType, &ctx->dyemat, 0), ctx->dyemat.n_rows, ctx->n_dyt_cols, &speedup, ctx->flann_params);
 
-    // 10/5/2020 DHW changed this to parallelize at the flann level rather than the survey level (n_threads for survey was already set to 1)
+    // 10/5/2020 DHW changed this to parallelize at the flann level rather than the survey level (n_threads for survey
+    // was already set to 1)
     context_work_orders_worker(ctx);
 
     /*
     // START threads
+    // TODO: If threading is enabled, the ctx->work_order_lock will need to be malloc'd and free'd
     pthread_t ids[256];
     ensure(0 < ctx->n_threads && ctx->n_threads < 256, "Invalid n_threads");
 
     if(ctx->n_threads > 1) {
-        int ret = pthread_mutex_init(&ctx->work_order_lock, NULL);
+        int ret = pthread_mutex_init(ctx->work_order_lock, NULL);
         ensure(ret == 0, "pthread lock create failed");
     }
 
@@ -488,7 +482,7 @@ void context_start(SurveyV2FastContext *ctx) {
 
     if(show_debug) {
         trace("\nSUMMARY\n");
-        for(Index pep_i=0; pep_i<ctx->n_peps; pep_i++) {
+        for(Index pep_i = 0; pep_i < ctx->n_peps; pep_i++) {
             IsolationType isolation = tab_get(IsolationType, &ctx->output_pep_i_to_isolation_metric, pep_i);
             Index mic_pep_i = tab_get(Index, &ctx->output_pep_i_to_mic_pep_i, pep_i);
             trace("  pep:%-4lu  p_correct:%7.4f  mic_pep:%-4lu\n", pep_i, isolation, mic_pep_i);
