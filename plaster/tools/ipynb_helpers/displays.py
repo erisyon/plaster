@@ -353,4 +353,8 @@ def movie(
         duration=_duration,
         loop=0,
     )
-    display(HTML(f'<img src="./__image_{code}.gif?{code}" width="{_size}">'))
+    # Orginally I had added a cache bust to this like:
+    # f'<img src="./__image_{code}.gif" width="{_size}">'
+    # But that caused jupyterhub to freak out so I removed it
+    # but I don't remember why I added it in the first place.
+    display(HTML(f'<img src="./__image_{code}.gif" width="{_size}">'))
