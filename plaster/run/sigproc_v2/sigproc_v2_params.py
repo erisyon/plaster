@@ -94,4 +94,7 @@ class SigprocV2Params(Params):
                     self.calibration_file, self.instrument_identity
                 )
 
+            if self.no_calib:
+                assert self.no_calib_psf_sigma is not None, "In no_calib mode you must specify an estimated no_calib_psf_sigma"
+
         return True
