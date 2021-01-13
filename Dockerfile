@@ -107,24 +107,24 @@ COPY ./scripts/docker_entrypoint.sh ./plaster/scripts/docker_entrypoint.sh
 # TODO: need a plaster autocomp
 # COPY ./internal/.autocomp ./internal/.autocomp
 
-# COPY only the C source files and have Cython to build
-# this is to prevent having to run the compile after every change of ANY plaster file.
-COPY ./plaster/run/nn_v2/c ./plaster/plaster/run/nn_v2/c
-COPY ./plaster/run/sim_v2/fast ./plaster/plaster/run/sim_v2/fast
-COPY ./plaster/run/survey_v2/fast ./plaster/plaster/run/survey_v2/fast
-COPY ./plaster/tools/c_common ./plaster/plaster/tools/c_common
-COPY ./README.md ./plaster/README.md
-COPY ./plaster/version.py ./plaster/plaster/version.py
-COPY ./setup.py ./plaster/setup.py
-RUN cd /erisyon/plaster && /erisyon/plaster/scripts/docker_entrypoint.sh
-# At this point the .so files are built and are in:
-#    ./plaster/plaster/run/sim_v2/fast/sim_v2_fast.cpython-38-x86_64-linux-gnu.so
-#    ./plaster/plaster/run/survey_v2/fast/survey_v2_fast.cpython-38-x86_64-linux-gnu.so
-# But they are about to be overwritten by the following COPY line so
-# we stash them into an alternative folder and then copy them back
-RUN cp \
-    ./plaster/plaster/run/sim_v2/fast/sim_v2_fast.cpython-38-x86_64-linux-gnu.so /tmp \
-    && cp ./plaster/plaster/run/survey_v2/fast/survey_v2_fast.cpython-38-x86_64-linux-gnu.so /tmp
+## COPY only the C source files and have Cython to build
+## this is to prevent having to run the compile after every change of ANY plaster file.
+## COPY ./plaster/run/nn_v2/c ./plaster/plaster/run/nn_v2/c
+#COPY ./plaster/run/sim_v2/fast ./plaster/plaster/run/sim_v2/fast
+#COPY ./plaster/run/survey_v2/fast ./plaster/plaster/run/survey_v2/fast
+#COPY ./plaster/tools/c_common ./plaster/plaster/tools/c_common
+#COPY ./README.md ./plaster/README.md
+#COPY ./plaster/version.py ./plaster/plaster/version.py
+#COPY ./setup.py ./plaster/setup.py
+#RUN cd /erisyon/plaster && /erisyon/plaster/scripts/docker_entrypoint.sh
+## At this point the .so files are built and are in:
+##    ./plaster/plaster/run/sim_v2/fast/sim_v2_fast.cpython-38-x86_64-linux-gnu.so
+##    ./plaster/plaster/run/survey_v2/fast/survey_v2_fast.cpython-38-x86_64-linux-gnu.so
+## But they are about to be overwritten by the following COPY line so
+## we stash them into an alternative folder and then copy them back
+#RUN cp \
+#    ./plaster/plaster/run/sim_v2/fast/sim_v2_fast.cpython-38-x86_64-linux-gnu.so /tmp \
+#    && cp ./plaster/plaster/run/survey_v2/fast/survey_v2_fast.cpython-38-x86_64-linux-gnu.so /tmp
 
 # COPY the LATEST local copy of plaster thus over-riding the
 # version of plaster that was actually published to PyPi
