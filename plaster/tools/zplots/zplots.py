@@ -788,6 +788,31 @@ class ZPlots:
         self._end()
 
     @trap()
+    def distr(self, samples, **kws):
+        """
+        A distribution plot shows percentiles 0, 25, 50, 75, 100 as whiskers
+        """
+        p0, p25, p50, p75, p100 = np.percentile(samples, (0, 25, 50, 75, 100), axis=1)
+        debug(p0, p25, p50, p75, p100)
+
+        kws["xs"] = [
+            [p0, p100],  # Horizontal line
+            [p25, p25],
+            [p50, p50],
+            [p75, p75],
+        ]
+        kws["ys"] = [
+            [0.0, 0.0],  # Horizontal line
+            [-1.0, 1.0],
+            [-1.0, 1.0],
+            [-1.0, 1.0],
+        ]
+        fig = self._begin(kws, dict(xs=None, ys=None), xs="xs", ys="ys",)
+        pstack = self._p_stack()
+        fig.multi_line(**pstack)
+        self._end()
+
+    @trap()
     def multi_line(self, **kws):
 
         if isinstance(kws.get("xs"), np.ndarray):
