@@ -684,6 +684,7 @@ def _do_sigproc_analyze_and_save_field(
     n_channels, n_cycles, roi_h, roi_w = chcy_ims.shape
 
     assert n_channels == 1
+
     reg_psf = calib.reg_psf()
     reg_psf.select_ch(0)  # TODO: Multichannel
 
