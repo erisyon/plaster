@@ -700,8 +700,11 @@ def _do_sigproc_analyze_and_save_field(
     ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, reg_psf)
 
     mea = np.array([chcy_ims.shape[-1:]])
-    if np.any(aln_offsets ** 2 > (mea * 0.2) ** 2):
-        important(f"field {field_i} has bad alignment {aln_offsets}")
+    bad_align_mask = aln_offsets ** 2 > (mea * 0.2) ** 2
+    if np.any(bad_align_mask):
+        important(
+            f"field {field_i} has bad alignment @ {np.argwhere(bad_align_mask)} {aln_offsets[bad_align_mask]}"
+        )
 
     # Assign 0 to "peak_i" in the following DF because that is the GLOBAL peak_i
     # which is not computable until all fields are processed. It will be fixed up later
@@ -788,7 +791,9 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
 
     if sigproc_v2_params.no_calib:
         assert sigproc_v2_params.instrument_identity is None
-        assert sigproc_v2_params.no_calib_psf_sigma is not None, "In no_calib mode you must specify an estimated no_calib_psf_sigma"
+        assert (
+            sigproc_v2_params.no_calib_psf_sigma is not None
+        ), "In no_calib mode you must specify an estimated no_calib_psf_sigma"
         calib_identity = CalibIdentity("_identity")
 
         calib = Calib()

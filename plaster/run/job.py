@@ -34,6 +34,24 @@ class JobResult:
             if run_folder.is_dir() and "run_manifest.yaml" in run_folder
         }
 
+    @classmethod
+    def from_context(cls, dev_override=None):
+        """
+        Loads a job based on the directory context.
+        1. if in dev mode, use dev_override if available
+        2. search up directory tree looking for a job_manifest.yaml file
+           and use that directory as the entrypoint
+        """
+        if local.env.get("DEV") == "1" and dev_override is not None:
+            return JobResult(dev_override)
+
+        search_path = local.cwd
+        while search_path != "/":
+            job_yaml = search_path / "job_manifest.yaml"
+            if job_yaml.exists():
+                return JobResult(search_path)
+            search_path = search_path / ".."
+
     @property
     def n_runs(self):
         return len(self._run_results)
