@@ -115,7 +115,7 @@ class SimV2Params(Params):
         # No duplicate labels
         self._validate(
             len(list(set(utils.listi(self.labels, "amino_acid")))) == len(self.labels),
-            "There is a duplicate label",
+            "There is a duplicate label in the label_set",
         )
 
         # All labels have a legit dye name
