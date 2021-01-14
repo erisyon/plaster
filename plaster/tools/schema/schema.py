@@ -23,6 +23,9 @@ class SchemaValidationFailed(Exception):
         self.context = context
         self.errors = errors
 
+    def __str__(self):
+        return f"SchemaValidationFailed {self.help} {self.context if self.context is not None else ''} {self.errors if self.errors is not None else ''}"
+
 
 def schema_check(expr, help=None):
     if not expr:
