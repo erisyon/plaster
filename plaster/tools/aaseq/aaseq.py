@@ -8,10 +8,6 @@ from io import StringIO
 
 _legal_chars_pat = re.compile(r"^[A-Z0-9\.\[\]]$")
 
-
-
-
-
 _split_pat = re.compile(
     r"""
     ([A-Z0-9\.])         # Start with a legal char
