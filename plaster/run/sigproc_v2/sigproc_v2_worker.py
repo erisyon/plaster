@@ -692,8 +692,6 @@ def _do_sigproc_analyze_and_save_field(
 
 
 
-
-    
     reg_psf = calib.reg_psf()
     reg_psf.select_ch(0)  # TODO: Multichannel
 
