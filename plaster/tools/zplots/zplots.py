@@ -667,7 +667,7 @@ class ZPlots:
 
     @trap()
     def hist(
-        self, data=None, **kws,
+        self, data=None, _vertical=None, **kws,
     ):
         """
         Histogram. Converts nan in data to zeros.
@@ -705,12 +705,11 @@ class ZPlots:
 
         if _bins is None:
             if data.shape[0] > 0:
-                min_ = np.min(data)
-                max_ = np.max(data)
+                min_, max_ = np.percentile(data, (0, 99))
             else:
                 min_ = 0
                 max_ = 0
-            _bins = np.linspace(min_, max_, 50)
+            _bins = np.linspace(min_, max_, 100)
         elif isinstance(_bins, (tuple, list)):
             _bins = np.linspace(_bins[0], _bins[1], _bins[2] if len(_bins) == 3 else 50)
 
@@ -742,6 +741,10 @@ class ZPlots:
                 line_color=None,
                 **self._p_stack(),
             )
+
+        if _vertical is not None:
+            fig.line(x=(_vertical, _vertical), y=(0, np.max(_hist)), color="red")
+
         self._end()
 
     @trap()
@@ -798,25 +801,44 @@ class ZPlots:
         spacing = 3
         kws["xs"] = []
         kws["ys"] = []
+        kws["line_color"] = []
+        kws["line_width"] = []
         for row_i, row in enumerate(samples):
             p0, p25, p50, p75, p100 = np.nanpercentile(row, _percentiles)
 
             kws["xs"] += [
                 [p0, p100],  # Horizontal line
-                [p25, p25],
+                [p25, p75],  # IQR horzontal
                 [p50, p50],
-                [p75, p75],
             ]
 
             y = row_i * spacing
             kws["ys"] += [
                 [y, y],  # Horizontal line
-                [y - 1.0, y + 1.0],
-                [y - 1.0, y + 1.0],
-                [y - 1.0, y + 1.0],
+                [y, y],
+                [y - 1.5, y + 1.5],
             ]
 
-        fig = self._begin(kws, dict(xs=None, ys=None), xs="xs", ys="ys",)
+            kws["line_color"] += [
+                "gray",
+                "black",
+                "white",
+            ]
+
+            kws["line_width"] += [
+                1,
+                2,
+                2,
+            ]
+
+        fig = self._begin(
+            kws,
+            dict(xs=None, ys=None, line_color=None, line_width=None),
+            xs="xs",
+            ys="ys",
+            line_color="line_color",
+            line_width="line_width",
+        )
         pstack = self._p_stack()
         fig.multi_line(**pstack)
         if _vertical is not None:
