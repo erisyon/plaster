@@ -49,6 +49,7 @@ from plaster.tools.image.coord import HW, ROI, WH, XY, YX
 from plaster.tools.log.log import debug
 from plaster.tools.utils import utils
 from plaster.tools.utils.data import arg_subsample, cluster, subsample
+from plaster.tools.schema import check
 
 
 def trap():
@@ -788,28 +789,40 @@ class ZPlots:
         self._end()
 
     @trap()
-    def distr(self, samples, **kws):
+    def distr(self, samples, _percentiles=(0, 25, 50, 75, 100), _vertical=None, **kws):
         """
         A distribution plot shows percentiles 0, 25, 50, 75, 100 as whiskers
         """
-        p0, p25, p50, p75, p100 = np.percentile(samples, (0, 25, 50, 75, 100), axis=1)
-        debug(p0, p25, p50, p75, p100)
+        check.array_t(samples, ndim=2)
 
-        kws["xs"] = [
-            [p0, p100],  # Horizontal line
-            [p25, p25],
-            [p50, p50],
-            [p75, p75],
-        ]
-        kws["ys"] = [
-            [0.0, 0.0],  # Horizontal line
-            [-1.0, 1.0],
-            [-1.0, 1.0],
-            [-1.0, 1.0],
-        ]
+        spacing = 3
+        kws["xs"] = []
+        kws["ys"] = []
+        for row_i, row in enumerate(samples):
+            p0, p25, p50, p75, p100 = np.nanpercentile(row, _percentiles)
+
+            kws["xs"] += [
+                [p0, p100],  # Horizontal line
+                [p25, p25],
+                [p50, p50],
+                [p75, p75],
+            ]
+
+            y = row_i * spacing
+            kws["ys"] += [
+                [y, y],  # Horizontal line
+                [y - 1.0, y + 1.0],
+                [y - 1.0, y + 1.0],
+                [y - 1.0, y + 1.0],
+            ]
+
         fig = self._begin(kws, dict(xs=None, ys=None), xs="xs", ys="ys",)
         pstack = self._p_stack()
         fig.multi_line(**pstack)
+        if _vertical is not None:
+            fig.line(
+                x=(_vertical, _vertical), y=(0, spacing * len(samples)), color="red"
+            )
         self._end()
 
     @trap()

@@ -52,7 +52,7 @@ def bandpass_filter(im, low_inflection, low_sharpness, high_inflection, high_sha
     return filtered_im, bg_std
 
 
-def background_extract(im, kernel):
+def background_extract(im, kernel, dilate=1):
     """
     Using an approximate peak kernel, separate FG and BG regionally
     and return the bg mean and std.
@@ -91,9 +91,10 @@ def background_extract(im, kernel):
             thresh, nan=1e10
         )  # For nan thresh just make them very large
     cim = np.nan_to_num(cim)
-    fg_mask = np.where(cim > thresh, 1, 0)
+    fg_mask = np.where(cim > thresh, 1, 0).astype(bool)
 
-    fg_mask = cv2.dilate(fg_mask.astype(np.uint8), circle, iterations=1)
+    if dilate > 0:
+        fg_mask = cv2.dilate(fg_mask.astype(np.uint8), circle, iterations=dilate)
     bg_im = np.where(fg_mask | nan_mask, np.nan, im)
     return bg_im, fg_mask
 
