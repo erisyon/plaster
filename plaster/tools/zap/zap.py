@@ -64,7 +64,10 @@ if os.environ.get("ZAP_DEBUG_MODE") == "True":
 
 
 @contextmanager
-def Context(cpu_limit=None, debug_mode=None, progress=None):
+def Context(cpu_limit=None, debug_mode=None, progress=None, prevent_inner_parallelism=True):
+    """
+    When prevent_inner_parallelism is True, a Context that is created inside of
+    """
     global global_cpu_limit, global_debug_mode, global_progress
     orig_cpu_limit = global_cpu_limit
     orig_debug_mode = global_debug_mode
