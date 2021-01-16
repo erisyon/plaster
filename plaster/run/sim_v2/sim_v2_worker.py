@@ -200,8 +200,8 @@ def _radmat_sim(
     Allocate an output array that is n_samples_per_pep for each peptide
     so that evey peptide gets an equal number of samples.
 
-    The inner loop is implemented in Cython, so each pep_i group
-    is passed along to Cython where it will fill in the samples.
+    The inner loop is implemented in C, so each pep_i group
+    is passed along to C where it will fill in the samples.
 
     """
 

@@ -16,7 +16,6 @@
 
 /*
 This is the "sim" phase of plaster implemented in C.
-It is meant to be called by Cython sim_v2_fast.pyx
 
 Inputs (see typedef SimV2Context in sim.h):
     * A list of "flus" which are Uint8 arrays (n_channels, n_cycles)
