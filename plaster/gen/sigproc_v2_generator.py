@@ -43,7 +43,9 @@ class SigprocV2Generator(BaseGenerator):
         calibration_file = None
         if self.calibration_file is not None:
             calib_src_path = local.path(self.calibration_file)
-            calib_dst_path = local.path(self.local_sources_tmp_folder) / calib_src_path.name
+            calib_dst_path = (
+                local.path(self.local_sources_tmp_folder) / calib_src_path.name
+            )
             calib_src_path.copy(calib_dst_path)
             calibration_file = f"../../../_gen_sources/{calib_src_path.name}"
 

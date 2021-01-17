@@ -588,7 +588,10 @@ class CallBag:
 
         with zap.Context(mode="thread", trap_exceptions=False, progress=progress):
             results = zap.work_orders(
-                [Munch(fn=_do_pep_pr_curve, pep_i=pep_i, bag=self,) for pep_i in pep_iz],
+                [
+                    Munch(fn=_do_pep_pr_curve, pep_i=pep_i, bag=self,)
+                    for pep_i in pep_iz
+                ],
             )
 
         df_per_pep = [

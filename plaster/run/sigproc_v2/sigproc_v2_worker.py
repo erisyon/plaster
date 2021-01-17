@@ -788,7 +788,9 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
 
     if sigproc_v2_params.no_calib:
         assert sigproc_v2_params.instrument_identity is None
-        assert sigproc_v2_params.no_calib_psf_sigma is not None, "In no_calib mode you must specify an estimated no_calib_psf_sigma"
+        assert (
+            sigproc_v2_params.no_calib_psf_sigma is not None
+        ), "In no_calib mode you must specify an estimated no_calib_psf_sigma"
         calib_identity = CalibIdentity("_identity")
 
         calib = Calib()

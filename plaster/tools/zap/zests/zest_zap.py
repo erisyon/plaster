@@ -23,27 +23,24 @@ def _do_inner_worker(expected_mode):
 
 
 def _do_outer_worker(expected_mode):
-    zap.work_orders([
-        dict(fn=_do_inner_worker, expected_mode=expected_mode)
-        for task in range(10)
-    ])
+    zap.work_orders(
+        [dict(fn=_do_inner_worker, expected_mode=expected_mode) for task in range(10)]
+    )
 
 
 def zest_context():
     def it_prevents_inner_parallelism_by_default():
         assert zap._mode == "process"
-        zap.work_orders([
-            dict(fn=_do_outer_worker, expected_mode="debug")
-            for _ in range(20)
-        ])
+        zap.work_orders(
+            [dict(fn=_do_outer_worker, expected_mode="debug") for _ in range(20)]
+        )
 
     def it_allows_inner_parallelism():
         assert zap._mode == "process"
         with zap.Context(allow_inner_parallelism=True):
-            zap.work_orders([
-                dict(fn=_do_outer_worker, expected_mode="thread")
-                for _ in range(20)
-            ])
+            zap.work_orders(
+                [dict(fn=_do_outer_worker, expected_mode="thread") for _ in range(20)]
+            )
 
     zest()
 
@@ -335,9 +332,7 @@ def zest_zap_df_rows():
         with zest.raises(TypeError):
             df = pd.DataFrame(dict(a=[1, 2], b=[3, 4]))
             with zap.Context(mode="debug"):
-                zap.df_rows(
-                    test7, df, c=3, _batch_size=2
-                )
+                zap.df_rows(test7, df, c=3, _batch_size=2)
 
     def it_splits_a_df_and_returns_a_df():
         df = pd.DataFrame(dict(a=[1, 2], b=[3, 4]))

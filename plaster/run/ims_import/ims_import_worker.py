@@ -680,7 +680,9 @@ def ims_import(
             field_iz, n_cycles_found = zap.arrays(
                 _do_movie_import,
                 dict(
-                    nd2_path=scan_result.nd2_paths[start_field : start_field + n_fields],
+                    nd2_path=scan_result.nd2_paths[
+                        start_field : start_field + n_fields
+                    ],
                     output_field_i=list(range(n_fields)),
                 ),
                 _stack=True,
@@ -722,9 +724,7 @@ def ims_import(
                 for k, path in scan_result.tif_paths_by_field_channel_cycle.items()
             ]
             with zap.Context(trap_exceptions=False):
-                results = zap.work_orders(
-                    _do_tif_scatter, work_orders
-                )
+                results = zap.work_orders(_do_tif_scatter, work_orders)
 
             # CHECK that every file exists
             for f in range(n_fields):

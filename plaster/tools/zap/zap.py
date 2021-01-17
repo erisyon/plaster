@@ -142,7 +142,7 @@ def Context(
     progress=None,
     allow_inner_parallelism=False,
     trap_exceptions=True,
-    thread_name_prefix=None
+    thread_name_prefix=None,
 ):
     global _cpu_limit, _mode, _progress, _allow_inner_parallelism, _context_depth, _trap_exceptions, _thread_name_prefix
     _context_depth += 1
@@ -495,12 +495,7 @@ def _run_arrays(inner_fn, slice, arrays_dict, **kwargs):
 
 
 def arrays(
-    fn,
-    arrays_dict,
-    _batch_size=None,
-    _stack=False,
-    _limit_slice=None,
-    **kwargs,
+    fn, arrays_dict, _batch_size=None, _stack=False, _limit_slice=None, **kwargs,
 ):
     """
     Split an array by its first dimension and send each row to fn.
@@ -647,11 +642,7 @@ def _run_df_rows(inner_fn, slice, df, **kwargs):
 
 
 def df_rows(
-    fn,
-    df,
-    _batch_size=None,
-    _limit_slice=None,
-    **kwargs,
+    fn, df, _batch_size=None, _limit_slice=None, **kwargs,
 ):
     """
     Split a dataframe along its rows. I do not want to actually

@@ -383,9 +383,7 @@ def _step_5_create_ptm_peptides(peps_df, pep_seqs_df, pros_df, n_ptms_limit):
     # )
     with zap.Context(trap_exceptions=False, mode="thread"):
         new_pep_infos = zap.df_groups(
-            _do_ptm_permutations,
-            df.groupby("pep_i"),
-            n_ptms_limit=n_ptms_limit,
+            _do_ptm_permutations, df.groupby("pep_i"), n_ptms_limit=n_ptms_limit,
         )
 
     # 3. create new peps, pep_seqs, from list of dfs returned in (2)
