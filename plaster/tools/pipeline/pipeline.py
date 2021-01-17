@@ -6,8 +6,7 @@ from os.path import realpath
 import numpy as np
 from munch import Munch
 
-import plaster.tools.log.log
-from plaster.tools.log.log import colorful_exception, debug, info
+from plaster.tools.log.log import colorful_exception, debug, info, terminal_size
 from plaster.tools.utils import utils
 from plumbum import colors, local
 
@@ -533,7 +532,7 @@ class Pipeline:
                     )
 
                     if not hasattr(e, "ignore_traceback"):
-                        line = "- " * (plaster.tools.log.log.terminal_size()[0] // 2)
+                        line = "- " * (terminal_size()[0] // 2)
                         self._p(f"{colors.red | line}\n")
                         try:
                             if hasattr(e, "stderr"):
