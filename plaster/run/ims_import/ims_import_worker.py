@@ -676,21 +676,20 @@ def ims_import(
         scan_result.n_cycles = scan_result.n_fields
         start_cycle, n_cycles = clamp_cycles(scan_result.n_cycles)
 
-        field_iz, n_cycles_found = zap.arrays(
-            _do_movie_import,
-            dict(
-                nd2_path=scan_result.nd2_paths[start_field : start_field + n_fields],
-                output_field_i=list(range(n_fields)),
-            ),
-            _process_mode=True,
-            _progress=progress,
-            _stack=True,
-            start_cycle=start_cycle,
-            n_cycles=n_cycles,
-            target_mea=target_mea,
-            nd2_import_result=ims_import_result,
-            dst_ch_i_to_src_ch_i=dst_ch_i_to_src_ch_i,
-        )
+        with zap.Context(progress=progress):
+            field_iz, n_cycles_found = zap.arrays(
+                _do_movie_import,
+                dict(
+                    nd2_path=scan_result.nd2_paths[start_field : start_field + n_fields],
+                    output_field_i=list(range(n_fields)),
+                ),
+                _stack=True,
+                start_cycle=start_cycle,
+                n_cycles=n_cycles,
+                target_mea=target_mea,
+                nd2_import_result=ims_import_result,
+                dst_ch_i_to_src_ch_i=dst_ch_i_to_src_ch_i,
+            )
 
     else:
         start_field, n_fields = clamp_fields(scan_result.n_fields)
@@ -702,20 +701,19 @@ def ims_import(
             scan_result.n_cycles = len(scan_result.nd2_paths)
 
             # SCATTER
-            zap.arrays(
-                _do_nd2_scatter,
-                dict(
-                    cycle_i=list(range(len(scan_result.nd2_paths))),
-                    src_path=scan_result.nd2_paths,
-                ),
-                _process_mode=False,
-                _progress=progress,
-                _stack=True,
-                start_field=start_field,
-                n_fields=n_fields,
-                n_channels=scan_result.n_channels,
-                target_mea=target_mea,
-            )
+            with zap.Context(mode="thread", progress=progress):
+                zap.arrays(
+                    _do_nd2_scatter,
+                    dict(
+                        cycle_i=list(range(len(scan_result.nd2_paths))),
+                        src_path=scan_result.nd2_paths,
+                    ),
+                    _stack=True,
+                    start_field=start_field,
+                    n_fields=n_fields,
+                    n_channels=scan_result.n_channels,
+                    target_mea=target_mea,
+                )
 
         elif scan_result.mode == ScanFileMode.tif:
             # SCATTER
@@ -723,9 +721,10 @@ def ims_import(
                 Munch(field_i=k[0], channel_i=k[1], cycle_i=k[2], path=path)
                 for k, path in scan_result.tif_paths_by_field_channel_cycle.items()
             ]
-            results = zap.work_orders(
-                _do_tif_scatter, work_orders, _trap_exceptions=False
-            )
+            with zap.Context(trap_exceptions=False):
+                results = zap.work_orders(
+                    _do_tif_scatter, work_orders
+                )
 
             # CHECK that every file exists
             for f in range(n_fields):
@@ -750,23 +749,22 @@ def ims_import(
         # GATHER
         start_cycle, n_cycles = clamp_cycles(scan_result.n_cycles)
 
-        field_iz = zap.arrays(
-            _do_gather,
-            dict(
-                input_field_i=list(range(start_field, start_field + n_fields)),
-                output_field_i=list(range(0, n_fields)),
-            ),
-            _process_mode=True,
-            _progress=progress,
-            _stack=True,
-            start_cycle=start_cycle,
-            n_cycles=n_cycles,
-            dim=target_mea,
-            nd2_import_result=ims_import_result,
-            mode=scan_result.mode,
-            npy_paths_by_field_channel_cycle=scan_result.npy_paths_by_field_channel_cycle,
-            dst_ch_i_to_src_ch_i=dst_ch_i_to_src_ch_i,
-        )
+        with zap.Context(progress=progress):
+            field_iz = zap.arrays(
+                _do_gather,
+                dict(
+                    input_field_i=list(range(start_field, start_field + n_fields)),
+                    output_field_i=list(range(0, n_fields)),
+                ),
+                _stack=True,
+                start_cycle=start_cycle,
+                n_cycles=n_cycles,
+                dim=target_mea,
+                nd2_import_result=ims_import_result,
+                mode=scan_result.mode,
+                npy_paths_by_field_channel_cycle=scan_result.npy_paths_by_field_channel_cycle,
+                dst_ch_i_to_src_ch_i=dst_ch_i_to_src_ch_i,
+            )
 
     ims_import_result.n_fields = len(field_iz)
     ims_import_result.n_channels = n_out_channels

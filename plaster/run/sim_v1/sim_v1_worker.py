@@ -601,18 +601,16 @@ def _run_sim(sim_params, pep_seqs_df, name, n_peps, n_samples, progress):
         f"{name}_recall", shape=(n_peps,), dtype=RecallType, mode="w+",
     )
 
-    flus__remainders = zap.df_groups(
-        _do_pep_sim,
-        pep_seqs_df.groupby("pep_i"),
-        sim_params=sim_params,
-        n_samples=n_samples,
-        output_dyemat=dyemat,
-        output_radmat=radmat,
-        output_recall=recall,
-        _progress=progress,
-        _trap_exceptions=False,
-        _process_mode=True,
-    )
+    with zap.Context(trap_exceptions=False, progress=progress):
+        flus__remainders = zap.df_groups(
+            _do_pep_sim,
+            pep_seqs_df.groupby("pep_i"),
+            sim_params=sim_params,
+            n_samples=n_samples,
+            output_dyemat=dyemat,
+            output_radmat=radmat,
+            output_recall=recall,
+        )
 
     flus = np.array(utils.listi(flus__remainders, 0))
     flu_remainders = np.array(utils.listi(flus__remainders, 1))

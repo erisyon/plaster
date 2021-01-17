@@ -1,12 +1,80 @@
 """
-This is a wrapper for executing various parallel map
-routines in a consistent way.
+This is a wrapper for executing various parallel map routines in a consistent way.
 
-The three primary routines are:
-    work_orders()
-    arrays()
-    df_rows()
-    df_groups()
+The primary routines are:
+    work_orders(): Calls a function with args or kwargs.
+        def _do_work(i, foo=None):
+            print(i, foo)
+
+        results = zap.work_orders([
+            dict(fn=_do_work, args=(i,), foo=i*10)
+            for i in range(10)
+        ])
+
+    arrays():
+        def _do_work_on_an_arrays(a, b, foo=None):
+            # a and b are np.ndarrays
+            print(a, b, foo)
+
+        array0 = np.zeros((10, 100))
+        array1 = np.zeros((10, 1000))
+        results = zap.arrays(_do_work_on_an_arrays, dict(a=array0, b=array1), foo=1)
+
+    df_rows(): Split along Dataframe rows
+        def _do_work_on_df_row(row, foo=None):
+            # row is a row of a dataframe
+            print(row, foo)
+
+        df = pd.DataFrame(dict(a=[1,2], b=[3,4]))
+        results = zap.df_rows(_do_work_on_df_row, df, foo=1)
+
+    df_groups(): Split along Dataframe groups
+        def _do_work_on_df_group(group, foo=None):
+            # group is a pandas groupby object
+            print(group, foo)
+
+        df = pd.DataFrame(dict(a=[1,1,2,2], b=[3,4,4,5]))
+        results = zap.df_groups(_do_work_on_df_group, df.groupby("a"), foo=1)
+
+
+Contexts
+    A zap context establishes how parallelism will be allowed:
+
+        # Exmaple, run _do_work in, at most, 5 sub-processes
+        with zap.Context(cpu_limit=5, mode="process", progress=progress):
+            results = zap.work_orders([
+                dict(fn=_do_work, args=(i,), foo=i*10)
+                for i in range(10)
+            ])
+
+    Context options:
+        * cpu_limit: Integer. Maximum number of CPUs to use
+            None: all
+            positive numbers: that many cpus
+            negative numbers: all cpus except this many. eg: -2 = all cpus less two
+        * mode:
+            "process": Run in sub-processes
+            "thread": Run as threads
+            "debug" : Run the work orders serially and blocking (ie no threads or processes)
+                This is useful both for debugging and to prevent inner contexts from
+                parallelizing. See allow_inner_parallelism.
+        * allow_inner_parallelism: bool (default False)
+            If True, allow inner contexts to parallelize normally.
+            Usually this is a bad idea as it can lead to serious contention
+            wherein a group or parallel work order each tries to allocate
+            all cpus for themselves and causes CPU and/or Memory contention.
+        * progress: function pointer
+            If non None will callback with args (work_order_i, n_total_work_orders, retry)
+        * trap_exceptions: bool (True)
+            If true, exceptions are trapped and returned as a result.
+            When false, any worker execption bubbles up immediately to
+            the caller and other workers will die when they die.
+            The default is True because there's nothing more annoying than
+            running a long-running parallel job only to find that
+            after hours of execution there was one rare exception stopped
+            the whole run!
+        * thread_name_prefix: str ("zap_")
+            Set the thread names for easier debugging
 
 
 Debugging run-away processes.
@@ -20,18 +88,19 @@ Debugging run-away processes.
     running inside the VM and the pids running insider the
     container (inside the VM).
 
-    You can drop into the hyperkit VM with this command form OSX:
+    You can drop into the hyperkit VM with the following command
+    from the an OSX shell using Erisyon's "p" helper.
         $ OSX_VM=1 ./p
 
-    Once in there you can "top" and see what processes are
+    Once in there you can "top" or "htop" and see what processes are
     running. Let's say that you see that pid 5517 taking 100% cpu.
     You can then find the pid INSIDE the container with this:
         $ cat /proc/5517/status | grep NSpid
         > NSpid:	5517	832
 
     The second number of which is the pid INSIDE the container (832).
-
 """
+
 import os
 import random
 import signal
@@ -51,31 +120,63 @@ from multiprocessing import cpu_count
 import numpy as np
 import pandas as pd
 from munch import Munch
-from plaster.tools.log.log import debug, error, exception, info, prof
+from plaster.tools.log.log import debug, error, exception, info, prof, h_line
 from plaster.tools.utils import utils
 
-global_cpu_limit = None
-global_debug_mode = None
-global_progress = None
-
+_context_depth = 0
+_cpu_limit = None
+_mode = "process"
+_progress = None
+_allow_inner_parallelism = False
+_trap_exceptions = True
+_thread_name_prefix = "zap_"
 
 if os.environ.get("ZAP_DEBUG_MODE") == "True":
-    global_debug_mode = True
+    _mode = True
 
 
 @contextmanager
-def Context(cpu_limit=None, debug_mode=None, progress=None):
-    global global_cpu_limit, global_debug_mode, global_progress
-    orig_cpu_limit = global_cpu_limit
-    orig_debug_mode = global_debug_mode
-    orig_progress = global_progress
-    global_cpu_limit = cpu_limit
-    global_debug_mode = debug_mode
-    global_progress = progress
-    yield
-    global_cpu_limit = orig_cpu_limit
-    global_debug_mode = orig_debug_mode
-    global_progress = orig_progress
+def Context(
+    cpu_limit=None,
+    mode="process",
+    progress=None,
+    allow_inner_parallelism=False,
+    trap_exceptions=True,
+    thread_name_prefix=None
+):
+    global _cpu_limit, _mode, _progress, _allow_inner_parallelism, _context_depth, _trap_exceptions, _thread_name_prefix
+    _context_depth += 1
+
+    orig_cpu_limit = _cpu_limit
+    orig_mode = _mode
+    orig_progress = _progress
+    orig_allow_inner_parallelism = _allow_inner_parallelism
+    orig_trap_exceptions = _trap_exceptions
+    orig_thread_name_prefix = _thread_name_prefix
+
+    if _context_depth > 1 and not _allow_inner_parallelism:
+        # In a nested context if inner_parallelism is not allowed then
+        # the zaps are kicked into mode = "debug" meaning that
+        # work_orders will execute serially in the current thread & process.
+        mode = "debug"
+
+    _cpu_limit = cpu_limit
+    _mode = mode
+    _progress = progress
+    _allow_inner_parallelism = allow_inner_parallelism
+    _trap_exceptions = trap_exceptions
+    _thread_name_prefix = thread_name_prefix
+
+    try:
+        yield
+    finally:
+        _cpu_limit = orig_cpu_limit
+        _mode = orig_mode
+        _progress = orig_progress
+        _allow_inner_parallelism = orig_allow_inner_parallelism
+        _trap_exceptions = orig_trap_exceptions
+        _thread_name_prefix = orig_thread_name_prefix
+        _context_depth -= 1
 
 
 def _cpu_count():
@@ -85,9 +186,9 @@ def _cpu_count():
 
 def _show_work_order_exception(e):
     """Mock-point"""
-    error("\nAn exception was thrown by a work_order ------")
+    error("\n" + h_line(label="An exception was thrown by a work_order"))
     info("".join(e.exception_lines))
-    error("----------------------------------------------")
+    error(h_line())
 
 
 def _mock_BrokenProcessPool_exception():
@@ -95,19 +196,12 @@ def _mock_BrokenProcessPool_exception():
     pass
 
 
-def wtf():
-    print(f"pid=", os.getpid())
-    for k, v in globals().items():
-        if k.startswith("__zap"):
-            print(k, v)
-
-
 def _set_zap(**kwargs):
     """
     Creates a global variable with the zap information to bypass
     the serialization that multiprocessing would otherwise do.
     """
-    zap_id = int(time.time() * 10000)
+    zap_id = int(time.time() * 1000000)
     zap = Munch(id=zap_id, **kwargs)
     globals()[f"__zap_{zap_id}"] = zap
     return zap
@@ -205,13 +299,13 @@ def _do_zap_with_executor(executor, zap):
         # and we don't know how many of those processes we can support
         # so the only safe thing to do is to run them one at a time.
         # If this becomes a constant issue then we could try some
-        # sort of exponential backoff on number of concurrent processes.
-        # Sometimes this can create a queue.Full exception in the babysitter
+        # sort of exponential back-off on number of concurrent processes.
+        # Sometimes this can create a 'queue.Full' exception in the babysitter
         # threads that are not handled gracefully by Python.
         # See:
-        # https://bugs.python.org/issue8426
-        # https://docs.python.org/3/library/multiprocessing.html#multiprocessing.Queue
-        # https://github.com/python/cpython/pull/3895
+        #   https://bugs.python.org/issue8426
+        #   https://docs.python.org/3/library/multiprocessing.html#multiprocessing.Queue
+        #   https://github.com/python/cpython/pull/3895
         try:
             _call_progress(zap, i, retry=True)
             result, duration = _run_work_order_fn(zap.id, i)
@@ -282,28 +376,16 @@ def _do_work_orders_debug_mode(zap):
 
 def get_cpu_limit(_cpu_limit=None):
     if _cpu_limit is None:
-        _cpu_limit = global_cpu_limit
-
-    if _cpu_limit is None:
         _cpu_limit = _cpu_count()
 
     if _cpu_limit < 0:
-        _cpu_limit = _cpu_count() + _cpu_limit + 1  # eg: 4 cpu + (-1) + 1 is 4
+        _cpu_limit = _cpu_count() + _cpu_limit  # eg: 4 cpu + (-1) is 3
 
     assert _cpu_limit > 0
     return _cpu_limit
 
 
-def work_orders(
-    _work_orders,
-    _process_mode=True,
-    _trap_exceptions=True,
-    _thread_name_prefix="",
-    _cpu_limit=None,
-    _debug_mode=None,
-    _progress=None,
-    _return_timings=False,
-):
+def work_orders(_work_orders, _return_timings=False):
     """
     Runs work_orders in parallel.
 
@@ -311,49 +393,10 @@ def work_orders(
         Each work_order should have a "fn" element that points to the fn to run
         If the work_order has an "args" element those will be passed as *args
         all other elements of the work_order will be passed as **kwargs
-    _process_mode:
-        If True, parallelize via sub-processes bypassing the GIL.
-    _trap_exceptions:
-        If True: a work_order that exceptions will be trapped
-        and the exception will be returned as that work_order's result.
-        If False: any exception in a work_order will immediately
-        bubble and cancel all other work_orders.
-    _thread_name_prefix:
-        Add a prefix is thread mode
-    _cpu_limit:
-        If -1, use all cpus, -2 all but one, etc.
-    _debug_mode:
-        If True, bypass all multi-processing and run each work_order serially.
-        This is useful if you need to use pudb or similar.
-    _progress:
-        If not None, expected to be callable like:
-            process(i, j, retry)
-        Where:
-            i is how many work_orders have completed,
-            j is the total number of work_orders
-            retry is False normally and will be True if a particular
-            work_order (passed as i) had to be retried due to
-            memory failure.
     _return_timings:
         If True, then returns a tuple of results, timings
         otherwise just returns results
-
-    Note that many of these arguments can be created with a Context like:
-
-    with zap.Context(cpu_limit=2):
-        zap.work_orders(work_orders)
     """
-    if _debug_mode is None:
-        _debug_mode = global_debug_mode
-
-    if _debug_mode is None:
-        _debug_mode = False
-
-    if _progress is None:
-        _progress = global_progress
-
-    _cpu_limit = get_cpu_limit(_cpu_limit)
-
     zap = _set_zap(
         work_orders=_work_orders,
         n_work_orders=len(_work_orders),
@@ -363,13 +406,17 @@ def work_orders(
         max_workers=_cpu_limit,
     )
 
+    if _mode not in ("debug", "process", "thread"):
+        raise ValueError(f"Unknown zap mode '{_mode}'")
+
+    results, timings = None, None
     try:
-        if _debug_mode:
+        if _mode == "debug":
             # debug_mode takes precedence; ie over-rides any multi-processing
             results, timings = _do_work_orders_debug_mode(zap)
-        elif _process_mode:
+        elif _mode == "process":
             results, timings = _do_work_orders_process_mode(zap)
-        else:
+        elif _mode == "thread":
             results, timings = _do_work_orders_thread_mode(zap)
     except Exception as e:
         if hasattr(e, "exception_lines"):
@@ -380,6 +427,7 @@ def work_orders(
 
     if _return_timings:
         return results, timings
+
     return results
 
 
@@ -452,11 +500,6 @@ def arrays(
     _batch_size=None,
     _stack=False,
     _limit_slice=None,
-    _process_mode=True,
-    _thread_name_prefix="",
-    _debug_mode=None,
-    _progress=None,
-    _trap_exceptions=False,
     **kwargs,
 ):
     """
@@ -546,12 +589,7 @@ def arrays(
                 **kwargs,
             )
             for batch_slice in batch_slices
-        ],
-        _trap_exceptions=_trap_exceptions,
-        _process_mode=_process_mode,
-        _progress=_progress,
-        _thread_name_prefix=_thread_name_prefix,
-        _debug_mode=_debug_mode,
+        ]
     )
 
     if len(result_batches) == 0:
@@ -613,10 +651,6 @@ def df_rows(
     df,
     _batch_size=None,
     _limit_slice=None,
-    _process_mode=True,
-    _thread_name_prefix="",
-    _debug_mode=None,
-    _progress=None,
     **kwargs,
 ):
     """
@@ -631,12 +665,7 @@ def df_rows(
         _work_orders=[
             Munch(fn=_run_df_rows, inner_fn=fn, slice=batch_slice, df=df, **kwargs,)
             for batch_slice in batch_slices
-        ],
-        _trap_exceptions=False,
-        _process_mode=_process_mode,
-        _progress=_progress,
-        _thread_name_prefix=_thread_name_prefix,
-        _debug_mode=_debug_mode,
+        ]
     )
 
     unbatched = []
@@ -659,10 +688,6 @@ def df_groups(fn, df_group, **kwargs):
     work orders and then use apply again to return the results and
     let the apply whatever magic it wants to to reformat the result
     """
-    # kwargs.pop("_progress")
-    # kwargs.pop("_trap_exceptions")
-    # kwargs.pop("_process_mode")
-    # return pd_group.apply(fn, **kwargs)
 
     def _do_get_calls(group, **kwargs):
         # CONVERT the index to a tuple so that it can be hashed

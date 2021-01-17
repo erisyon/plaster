@@ -90,21 +90,16 @@ def nn_v2(
             batches = zap.make_batch_slices(
                 n_rows=radmat.shape[0], _batch_size=_batch_size
             )
-            work_orders = [
-                dict(
-                    fn=c_nn_v2.do_classify_radrows,
-                    radrow_start_i=batch[0],
-                    n_radrows=batch[1] - batch[0],
-                    nn_v2_context=nn_v2_context,
-                )
-                for batch in batches
-            ]
-            zap.work_orders(
-                work_orders,
-                _process_mode=False,
-                _trap_exceptions=False,
-                _progress=progress,
-            )
+            with zap.Context(mode="thread", trap_exceptions=False, progress=progress):
+                zap.work_orders([
+                    dict(
+                        fn=c_nn_v2.do_classify_radrows,
+                        radrow_start_i=batch[0],
+                        n_radrows=batch[1] - batch[0],
+                        nn_v2_context=nn_v2_context,
+                    )
+                    for batch in batches
+                ])
             return nn_v2_context
 
     phase_i = 0

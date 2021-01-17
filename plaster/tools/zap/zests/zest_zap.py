@@ -1,12 +1,12 @@
 from concurrent.futures.process import BrokenProcessPool
-
+import time
 import numpy as np
 import pandas as pd
 from munch import Munch
-from plaster.tools.log.log import debug
 from plaster.tools.utils.utils import listi
 from plaster.tools.zap import zap
 from zest import MockFunction, zest
+from plaster.tools.log.log import debug
 
 
 def test1(a, b, c):
@@ -17,7 +17,72 @@ def test2(a, b, c):
     raise ValueError
 
 
+def _do_inner_worker(expected_mode):
+    assert zap._mode == expected_mode
+    time.sleep(0.1)
+
+
+def _do_outer_worker(expected_mode):
+    zap.work_orders([
+        dict(fn=_do_inner_worker, expected_mode=expected_mode)
+        for task in range(10)
+    ])
+
+
+def zest_context():
+    def it_prevents_inner_parallelism_by_default():
+        assert zap._mode == "process"
+        zap.work_orders([
+            dict(fn=_do_outer_worker, expected_mode="debug")
+            for _ in range(20)
+        ])
+
+    def it_allows_inner_parallelism():
+        assert zap._mode == "process"
+        with zap.Context(allow_inner_parallelism=True):
+            zap.work_orders([
+                dict(fn=_do_outer_worker, expected_mode="thread")
+                for _ in range(20)
+            ])
+
+    zest()
+
+
 def zest_zap_work_orders():
+    # Each of the following is run in the three modes: thread, process, debug
+    def _it_runs_serially(mode, work_orders):
+        with zap.Context(mode=mode):
+            results = zap.work_orders(work_orders)
+            assert results[0] == 1 + 2 + 3
+            assert results[1] == 3 + 4 + 5
+
+    def _it_traps_exceptions_by_default(mode, work_orders):
+        with zap.Context(mode=mode):
+            work_orders[0].fn = test2
+            results = zap.work_orders(work_orders)
+            assert isinstance(results[0], ValueError)
+            assert results[1] == 3 + 4 + 5
+
+    def _it_bubbles_exceptions(mode, work_orders):
+        with zest.mock(zap._show_work_order_exception) as m_ex:
+            with zest.raises(ValueError):
+                with zap.Context(mode=mode, trap_exceptions=False):
+                    work_orders[0].fn = test2
+                    zap.work_orders(work_orders)
+        assert m_ex.called_once()
+
+    def _it_calls_progress(mode, work_orders):
+        progress = MockFunction()
+
+        work_orders[0].fn = test2
+        with zap.Context(mode=mode, progress=progress):
+            zap.work_orders(work_orders)
+
+        assert progress.calls == [
+            ((1, 2, False), {}),
+            ((2, 2, False), {}),
+        ]
+
     def it_runs_in_debug_mode():
         work_orders = None
 
@@ -29,39 +94,16 @@ def zest_zap_work_orders():
             ]
 
         def it_runs_serially():
-            results = zap.work_orders(work_orders, _debug_mode=True)
-            assert results[0] == 1 + 2 + 3
-            assert results[1] == 3 + 4 + 5
+            _it_runs_serially("debug", work_orders)
 
-        def it_traps_exceptions():
-            work_orders[0].fn = test2
-            results = zap.work_orders(
-                work_orders, _debug_mode=True, _trap_exceptions=True,
-            )
-            assert isinstance(results[0], ValueError)
-            assert results[1] == 3 + 4 + 5
+        def it_traps_exceptions_by_default():
+            _it_traps_exceptions_by_default("debug", work_orders)
 
         def it_bubbles_exceptions():
-            with zest.mock(zap._show_work_order_exception) as m_ex:
-                with zest.raises(ValueError):
-                    work_orders[0].fn = test2
-                    zap.work_orders(
-                        work_orders, _debug_mode=True, _trap_exceptions=False,
-                    )
-            assert m_ex.called_once()
+            _it_bubbles_exceptions("debug", work_orders)
 
         def it_calls_progress():
-            progress = MockFunction()
-
-            work_orders[0].fn = test2
-            zap.work_orders(
-                work_orders, _debug_mode=True, _progress=progress,
-            )
-
-            assert progress.calls == [
-                ((1, 2, False), {}),
-                ((2, 2, False), {}),
-            ]
+            _it_calls_progress("debug", work_orders)
 
         zest()
 
@@ -76,55 +118,31 @@ def zest_zap_work_orders():
             ]
 
         def it_runs_serially():
-            results = zap.work_orders(work_orders, _process_mode=True)
-            assert results[0] == 1 + 2 + 3
-            assert results[1] == 3 + 4 + 5
+            _it_runs_serially("process", work_orders)
 
-        def it_traps_exceptions():
-            work_orders[0].fn = test2
-            results = zap.work_orders(
-                work_orders, _process_mode=True, _trap_exceptions=True,
-            )
-            assert isinstance(results[0], ValueError)
-            assert results[1] == 3 + 4 + 5
+        def it_traps_exceptions_by_default():
+            _it_traps_exceptions_by_default("process", work_orders)
 
         def it_bubbles_exceptions():
-            with zest.mock(zap._show_work_order_exception) as m_ex:
-                with zest.raises(ValueError):
-                    work_orders[0].fn = test2
-                    zap.work_orders(
-                        work_orders, _process_mode=True, _trap_exceptions=False,
-                    )
-            assert m_ex.called_once()
+            _it_bubbles_exceptions("process", work_orders)
 
         def it_calls_progress():
-            progress = MockFunction()
-
-            work_orders[0].fn = test2
-            zap.work_orders(
-                work_orders, _process_mode=True, _progress=progress,
-            )
-
-            assert progress.calls == [
-                ((1, 2, False), {}),
-                ((2, 2, False), {}),
-            ]
+            _it_calls_progress("process", work_orders)
 
         def it_retries():
             progress = MockFunction()
             with zest.mock(zap._mock_BrokenProcessPool_exception) as m:
                 m.exceptions(BrokenProcessPool)
 
-                results = zap.work_orders(
-                    work_orders, _process_mode=True, _progress=progress
-                )
+                with zap.Context(mode="process", progress=progress):
+                    results = zap.work_orders(work_orders)
 
-                # fmt: off
-                assert (
-                    progress.calls == [((1, 2, True), {}), ((2, 2, True), {})]
-                    or progress.calls == [((2, 2, True), {}), ((1, 2, True), {})]
-                )
-                # fmt: on
+                    # fmt: off
+                    assert (
+                        progress.calls == [((1, 2, True), {}), ((2, 2, True), {})]
+                        or progress.calls == [((2, 2, True), {}), ((1, 2, True), {})]
+                    )
+                    # fmt: on
 
         zest()
 
@@ -139,39 +157,16 @@ def zest_zap_work_orders():
             ]
 
         def it_runs_serially():
-            results = zap.work_orders(work_orders, _process_mode=False)
-            assert results[0] == 1 + 2 + 3
-            assert results[1] == 3 + 4 + 5
+            _it_runs_serially("thread", work_orders)
 
-        def it_traps_exceptions():
-            work_orders[0].fn = test2
-            results = zap.work_orders(
-                work_orders, _process_mode=False, _trap_exceptions=True,
-            )
-            assert isinstance(results[0], ValueError)
-            assert results[1] == 3 + 4 + 5
+        def it_traps_exceptions_by_default():
+            _it_traps_exceptions_by_default("thread", work_orders)
 
         def it_bubbles_exceptions():
-            with zest.mock(zap._show_work_order_exception) as m_ex:
-                with zest.raises(ValueError):
-                    work_orders[0].fn = test2
-                    zap.work_orders(
-                        work_orders, _process_mode=False, _trap_exceptions=False,
-                    )
-            assert m_ex.called_once()
+            _it_bubbles_exceptions("thread", work_orders)
 
         def it_calls_progress():
-            progress = MockFunction()
-
-            work_orders[0].fn = test2
-            zap.work_orders(
-                work_orders, _process_mode=False, _progress=progress,
-            )
-
-            assert progress.calls == [
-                ((1, 2, False), {}),
-                ((2, 2, False), {}),
-            ]
+            _it_calls_progress("thread", work_orders)
 
         zest()
 
@@ -339,13 +334,15 @@ def zest_zap_df_rows():
     def it_raises_if_not_a_df_return():
         with zest.raises(TypeError):
             df = pd.DataFrame(dict(a=[1, 2], b=[3, 4]))
-            zap.df_rows(
-                test7, df, c=3, _batch_size=2, _debug_mode=True,
-            )
+            with zap.Context(mode="debug"):
+                zap.df_rows(
+                    test7, df, c=3, _batch_size=2
+                )
 
     def it_splits_a_df_and_returns_a_df():
         df = pd.DataFrame(dict(a=[1, 2], b=[3, 4]))
-        res = zap.df_rows(test8, df, c=3, _batch_size=2, _debug_mode=True,)
+        with zap.Context(mode="debug"):
+            res = zap.df_rows(test8, df, c=3, _batch_size=2)
 
         assert res.equals(
             pd.DataFrame(

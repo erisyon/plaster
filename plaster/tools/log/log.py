@@ -26,12 +26,14 @@ Tasks:
       processing a certain message in a worker you would like to know which message caused a problem
     * Multi-line messages get sub-labels with clear boundaries
 """
-
+import fcntl
 import inspect
 import json
 import os
 import re
+import struct
 import sys
+import termios
 import threading
 import time
 import traceback
@@ -432,3 +434,20 @@ if __name__ == "__main__":
     convert all of its stdout standard formatting.
     """
     pass
+
+
+def terminal_size():
+    try:
+        h, w, hp, wp = struct.unpack(
+            "HHHH", fcntl.ioctl(0, termios.TIOCGWINSZ, struct.pack("HHHH", 0, 0, 0, 0))
+        )
+        return w, h
+    except OSError:
+        # This can happen in a containerized context where no console exists
+        # 80, 80 chosen as reasonable default w, h for imaginary terminal
+        return 80, 80
+
+
+def h_line(marker="-", label=""):
+    count = (terminal_size()[0] - 1) // len(marker) - len(label)
+    return label + marker * count

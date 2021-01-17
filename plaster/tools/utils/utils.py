@@ -1,4 +1,3 @@
-import fcntl
 import hashlib
 import inspect
 import json
@@ -22,32 +21,13 @@ import dataclasses
 from contextlib import contextmanager
 from functools import wraps
 
-import munch
 import numpy as np
-import plumbum
 import yaml
 from munch import Munch
-from plaster.tools.log.log import debug, info
+from plaster.tools.log.log import info, terminal_size
 from plaster.tools.schema import check
 from plaster.tools.utils import tmp
 from plumbum import local
-
-
-def terminal_size():
-    try:
-        h, w, hp, wp = struct.unpack(
-            "HHHH", fcntl.ioctl(0, termios.TIOCGWINSZ, struct.pack("HHHH", 0, 0, 0, 0))
-        )
-        return w, h
-    except OSError:
-        # This can happen in a containerized context where no console exists
-        # 80, 80 chosen as reasonable default w, h for imaginary terminal
-        return 80, 80
-
-
-def h_line(marker="-", label=""):
-    count = (terminal_size()[0] - 1) // len(marker) - len(label)
-    return label + marker * count
 
 
 def get_cursor_pos():

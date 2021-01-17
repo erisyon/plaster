@@ -99,9 +99,6 @@ def _step_2_create_pros_and_pro_seqs_dfs(pro_spec_df):
     # the most interesting peptides start at pep_i==1.
     _pro_spec_df = pro_spec_df.sort_values(by=["report", "name"], ascending=False)
 
-    # pro_lists = parallel_array_split_map(
-    #     aa_str_to_list, dict(seqstr=_pro_spec_df.sequence.values)
-    # )
     pro_lists = zap.arrays(aa_str_to_list, dict(seqstr=_pro_spec_df.sequence.values))
 
     # Make a full-df with columns "aa", "pro_i", "pro_name", and "ptm_locs", "pro_report"
@@ -384,13 +381,12 @@ def _step_5_create_ptm_peptides(peps_df, pep_seqs_df, pros_df, n_ptms_limit):
     #     _trap_exceptions=False,
     #     _process_mode=True,
     # )
-    new_pep_infos = zap.df_groups(
-        _do_ptm_permutations,
-        df.groupby("pep_i"),
-        n_ptms_limit=n_ptms_limit,
-        _trap_exceptions=False,
-        _process_mode=True,
-    )
+    with zap.Context(trap_exceptions=False, mode="thread"):
+        new_pep_infos = zap.df_groups(
+            _do_ptm_permutations,
+            df.groupby("pep_i"),
+            n_ptms_limit=n_ptms_limit,
+        )
 
     # 3. create new peps, pep_seqs, from list of dfs returned in (2)
     #
