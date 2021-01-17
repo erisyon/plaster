@@ -373,14 +373,6 @@ def _step_5_create_ptm_peptides(peps_df, pep_seqs_df, pros_df, n_ptms_limit):
     # 2. for each peptide apply _do_ptm_permutations which will result in
     # a list of new dataframes of the form joined above; new_pep_infos is a
     # list of these lists.
-    #
-    # new_pep_infos = parallel_groupby_apply(
-    #     df.groupby("pep_i"),
-    #     _do_ptm_permutations,
-    #     n_ptms_limit=n_ptms_limit,
-    #     _trap_exceptions=False,
-    #     _process_mode=True,
-    # )
     with zap.Context(trap_exceptions=False, mode="thread"):
         new_pep_infos = zap.df_groups(
             _do_ptm_permutations, df.groupby("pep_i"), n_ptms_limit=n_ptms_limit,
@@ -393,7 +385,6 @@ def _step_5_create_ptm_peptides(peps_df, pep_seqs_df, pros_df, n_ptms_limit):
     #
     new_peps = []
     new_pep_seqs = []
-    pep_iz = peps_df.pep_i.unique()
     next_pep_i = peps_df.pep_i.max() + 1
     for new_peps_info in new_pep_infos:
         for pep_info in new_peps_info:

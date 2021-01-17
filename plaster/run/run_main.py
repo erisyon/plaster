@@ -113,7 +113,7 @@ class RunApp(cli.Application):
             )
 
             try:
-                with zap.Context(cpu_limit=self.cpu_limit, debug_mode=self.debug_mode):
+                with zap.Context(cpu_limit=self.cpu_limit, mode="debug" if self.debug_mode else None):
                     run = RunExecutor(run_dir).load()
                     if "_erisyon" in run.config:
                         metrics(_type="erisyon_block", **run.config._erisyon)

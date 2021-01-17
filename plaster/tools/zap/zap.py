@@ -138,7 +138,7 @@ if os.environ.get("ZAP_DEBUG_MODE") == "True":
 @contextmanager
 def Context(
     cpu_limit=None,
-    mode="process",
+    mode=None,
     progress=None,
     allow_inner_parallelism=False,
     trap_exceptions=True,
@@ -161,7 +161,10 @@ def Context(
         mode = "debug"
 
     _cpu_limit = cpu_limit
-    _mode = mode
+    if mode is not None and _mode != "debug":
+        # debug mode will not allow any inner contexts to be anything other than debug
+        _mode = mode
+
     _progress = progress
     _allow_inner_parallelism = allow_inner_parallelism
     _trap_exceptions = trap_exceptions
@@ -403,7 +406,7 @@ def work_orders(_work_orders, _return_timings=False):
         progress=_progress,
         thread_name_prefix=_thread_name_prefix,
         trap_exceptions=_trap_exceptions,
-        max_workers=_cpu_limit,
+        max_workers=get_cpu_limit(_cpu_limit),
     )
 
     if _mode not in ("debug", "process", "thread"):

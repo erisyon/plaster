@@ -77,14 +77,13 @@ class SciKitLearnRandomForestClassifier:
         else:
             n_work_orders = n_rows // 100
 
-            results = zap.work_orders(
-                [
-                    Munch(classifier=self.classifier, X=X, fn=_do_predict)
-                    for X in np.array_split(test_X, n_work_orders, axis=0)
-                ],
-                _trap_exceptions=False,
-                _progress=progress,
-            )
+            with zap.Context(progress=progress, trap_exceptions=False):
+                results = zap.work_orders(
+                    [
+                        Munch(classifier=self.classifier, X=X, fn=_do_predict)
+                        for X in np.array_split(test_X, n_work_orders, axis=0)
+                    ]
+                )
             pred_y = utils.listi(results, 0)
             scores = utils.listi(results, 1)
             all_class_scores = utils.listi(results, 2)
