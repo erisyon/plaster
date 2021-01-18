@@ -1148,13 +1148,11 @@ class ZPlots:
         self.im_color(red=negative, green=positive, **kws)
 
     @trap()
-    def im_clus(self, data, **kws):
-        _n_samples = self._pre_get(kws, "_n_samples", 500)
-        debug(_n_samples)
+    def im_clus(self, data, _n_samples=None, **kws):
+        _n_samples = self._pre_get(dict(_n_samples=_n_samples), "_n_samples", 500)
         _hover_rows = self._pre_get(kws, "_hover_rows")
 
         sample_row_iz = arg_subsample(data, _n_samples)
-        debug(sample_row_iz)
         im, order = cluster(data[sample_row_iz], return_order=True)
 
         if _hover_rows is not None:

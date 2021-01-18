@@ -61,7 +61,6 @@ def cluster(data, n_subsample=None, **kwargs):
     return_order = kwargs.pop("return_order", False)
     optimal_ordering = kwargs.pop("optimal_ordering", True)
     method = kwargs.pop("method", "weighted")
-    debug(n_subsample)
     if n_subsample is not None:
         args = arg_subsample(data, n_subsample)
     else:
