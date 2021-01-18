@@ -382,6 +382,10 @@ class SigprocV2Result(BaseResult):
             )
         )
 
+    def has_neighbor_stats(self):
+        nei_stat = self._load_field_prop(0, "neighborhood_stats")
+        return nei_stat is not None
+
     # DataFrame returns
     # ----------------------------------------------------------------
 

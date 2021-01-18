@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from plaster.tools.log.log import debug
 
 
 def features(run, ch_i=0):
@@ -24,8 +25,10 @@ def features(run, ch_i=0):
     asr = run.sigproc_v2.aspect_ratio()[:, ch_i, :]
     assert asr.shape[0] == len(df)
 
-    nei = run.sigproc_v2.neighborhood_stats()
-    assert nei.shape[0] == len(df)
+    has_neighbor_stats = run.sigproc_v2.has_neighbor_stats()
+    if has_neighbor_stats:
+        nei = run.sigproc_v2.neighborhood_stats()
+        assert nei.shape[0] == len(df)
 
     # Convenience aliases
     n_cycles = run.sigproc_v2.n_cycles
@@ -39,10 +42,17 @@ def features(run, ch_i=0):
     row_iz, col_iz = np.indices(sig.shape)
     sig_run = np.where(col_iz < run_len[:, None], sig, np.nan)
     asr_run = np.where(col_iz < run_len[:, None], asr, np.nan)
-    nei_mean_run = np.where(col_iz < run_len[:, None], nei[:, :, 0], np.nan)
-    nei_std_run = np.where(col_iz < run_len[:, None], nei[:, :, 1], np.nan)
-    nei_median_run = np.where(col_iz < run_len[:, None], nei[:, :, 2], np.nan)
-    nei_iqr_run = np.where(col_iz < run_len[:, None], nei[:, :, 3], np.nan)
+
+    if has_neighbor_stats:
+        nei_mean_run = np.where(col_iz < run_len[:, None], nei[:, :, 0], np.nan)
+        nei_std_run = np.where(col_iz < run_len[:, None], nei[:, :, 1], np.nan)
+        nei_median_run = np.where(col_iz < run_len[:, None], nei[:, :, 2], np.nan)
+        nei_iqr_run = np.where(col_iz < run_len[:, None], nei[:, :, 3], np.nan)
+    else:
+        nei_mean_run = np.zeros((n_peaks,))
+        nei_std_run = np.zeros((n_peaks,))
+        nei_median_run = np.zeros((n_peaks,))
+        nei_iqr_run = np.zeros((n_peaks,))
 
     df["radius"] = np.sqrt(
         (df.aln_x - im_mea // 2) ** 2 + (df.aln_y - im_mea // 2) ** 2
