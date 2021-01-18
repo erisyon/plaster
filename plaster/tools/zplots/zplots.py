@@ -226,6 +226,18 @@ class ZPlots:
                     m[transform(prop)] = val
         return m
 
+    def _pre_get(self, kws, key, default_val=None):
+        """
+        Sometimes we need to a value from key before we can call _begin.
+        Typically the _begin call configures the stack but in these
+        special cases we want to check a value and not change the stack.
+        """
+        if key in kws:
+            return kws[key]
+        return self._merge_stack(
+            filter=lambda prop: prop == key, transform=lambda prop: prop,
+        ).get(key, default_val)
+
     def _u_stack(self, exclude_last=False):
         """
         All that start with underscore
@@ -416,6 +428,7 @@ class ZPlots:
         n_source_fields = len(source_defaults)
         if source is None and n_source_fields > 0:
             kws = self._build_column_data_source(kws, source_defaults)
+            source = kws["source"]
 
         # ADD requested defaults to kws if not already present in kws
         for key, val in defaults.items():
@@ -437,6 +450,16 @@ class ZPlots:
         ustack = self._u_stack()
         label_col_name = ustack.get("_label")
         allow_labels = ustack.get("_no_labels") is not True
+
+        # WIP: This is a start at generic extra tooltips
+        # debug(source.to_df())
+        # extra_hover_cols = []
+        # _hover = ustack.get("_hover")
+        # if _hover is not None:
+        #     check.t(_hover, dict)
+        #     for key, val in _hover.items():
+        #         extra_hover_cols += [(key, "$" + key + "{0,0.0}")]
+        #         source.add(val, key)
 
         if allow_labels:
             label_col = (
@@ -947,11 +970,25 @@ class ZPlots:
             _n_samples = ustack.get("_n_samples", 1000)
             im_data = subsample(im_data, _n_samples)
 
+        is_nan_im = np.zeros_like(im_data, dtype=bool)
         if nan_color is not None:
             is_nan_im = np.isnan(im_data)
             im_data = np.where(is_nan_im, 0, im_data)
 
         dim, cmap, im_data, y = self._im_setup(im_data)
+
+        extra_hover_cols = {}
+        extra_hover_tooltips = []
+
+        _hover_rows = ustack.get("_hover_rows")
+        if _hover_rows is not None:
+            check.t(_hover_rows, dict)
+            for key, val in _hover_rows.items():
+                val = np.array(val)
+                val_im = np.full(im_data.shape, "", dtype=object)
+                val_im[:] = val[:, None]
+                extra_hover_cols[key] = [val_im]
+                extra_hover_tooltips += [(key, "@" + key)]
 
         # See: "Image Hover" here https://docs.bokeh.org/en/latest/docs/user_guide/tools.html
         fig = self._begin(
@@ -962,6 +999,7 @@ class ZPlots:
                 y=kws.get("_y", [y]),
                 dw=kws.get("_dim_w", [dim.w]),
                 dh=kws.get("_dim_h", [dim.h]),
+                **extra_hover_cols,
             ),
             image="image",
             x="x",
@@ -971,6 +1009,20 @@ class ZPlots:
         )
 
         self._im_post_setup(fig, dim)
+
+        if _hover_rows is not None:
+            from bokeh.models import HoverTool
+
+            fig.add_tools(
+                HoverTool(
+                    tooltips=[
+                        ("x", "$x{0,0}"),
+                        ("y", "$y{0,0}"),
+                        ("value", "@image{0,0.0}"),
+                    ]
+                    + extra_hover_tooltips,
+                )
+            )
 
         fig.image(
             color_mapper=cmap, **self._p_stack(),
@@ -1097,19 +1149,47 @@ class ZPlots:
 
     @trap()
     def im_clus(self, data, **kws):
-        ustack = self._u_stack()
-        _n_samples = ustack.get("_n_samples", 500)
-        im = cluster(data, n_subsample=_n_samples)
-        f_title = kws.pop("f_title", "")
-        f_title += f" n_rows={data.shape[0]}"
-        self.im(im, f_title=f_title, **kws)
+        _n_samples = self._pre_get(kws, "_n_samples", 500)
+        debug(_n_samples)
+        _hover_rows = self._pre_get(kws, "_hover_rows")
+
+        sample_row_iz = arg_subsample(data, _n_samples)
+        debug(sample_row_iz)
+        im, order = cluster(data[sample_row_iz], return_order=True)
+
+        if _hover_rows is not None:
+            check.t(_hover_rows, dict)
+            _dupe_hover_rows = {}
+            for key, val in _hover_rows.items():
+                val = np.array(val)
+                assert val.shape[0] == data.shape[0]
+                _dupe_hover_rows[key] = val[sample_row_iz][order]
+            kws["_hover_rows"] = _dupe_hover_rows
+
+        # f_title = kws.pop("f_title", "")
+        # f_title += f" n_rows={data.shape[0]}"
+        # self.im(im, f_title=f_title, **kws)
+        self.im(im, **kws)
 
     @trap()
     def im_sort(self, data, **kws):
-        ustack = self._u_stack()
-        _n_samples = ustack.get("_n_samples", 1000)
+        _n_samples = self._pre_get(kws, "_n_samples", 1000)
+        _hover_rows = self._pre_get(kws, "_hover_rows")
         row_iz = arg_subsample(data, _n_samples)
         row_iz = row_iz[np.argsort(np.nansum(data[row_iz], axis=1))]
+
+        if _hover_rows is not None:
+            check.t(_hover_rows, dict)
+            _dupe_hover_rows = {}
+            for key, val in _hover_rows.items():
+                val = np.array(val)
+                assert val.shape[0] == data.shape[0]
+                _dupe_hover_rows[key] = val[row_iz]
+            kws["_hover_rows"] = _dupe_hover_rows
+
+        # f_title = kws.pop("f_title", "")
+        # f_title += f" n_rows={data.shape[0]}"
+        # self.im(data[row_iz], f_title=f_title, **kws)
         self.im(data[row_iz], **kws)
 
     @trap()
