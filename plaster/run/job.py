@@ -100,9 +100,8 @@ class JobResult:
                 if not retry:
                     progress.update()
 
-            df_list = zap.work_orders(
-                work_orders, _progress=progress_callback, _trap_exceptions=False
-            )
+            with zap.Context(trap_exceptions=False, progress=progress_callback):
+                df_list = zap.work_orders(work_orders)
 
             progress.close()
         else:

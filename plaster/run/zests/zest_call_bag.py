@@ -568,26 +568,19 @@ def zest_call_bag_conf_mat_scales_by_float_abundance():
     conf_mat_scaled = conf_mat.scale_by_abundance(abundance)
 
     # based on true_pep_iz and pred_pep_iz above...
-    cm_expected = np.array(
-        [[0, 0, 0, 0],
-         [0, 1, 0, 1],
-         [0, 3, 2, 0],
-         [0, 0, 2, 3]]
-    )
+    cm_expected = np.array([[0, 0, 0, 0], [0, 1, 0, 1], [0, 3, 2, 0], [0, 0, 2, 3]])
     # and then scaled by float abundances, which scales columns,
     # but then converts results to int (int affects last column)
     cm_scaled_expected = np.array(
-        [[0, 0, 0, 0],
-         [0, 1, 0, 2],
-         [0, 3, 3, 0],
-         [0, 0, 3, 7]]
+        [[0, 0, 0, 0], [0, 1, 0, 2], [0, 3, 3, 0], [0, 0, 3, 7]]
     )
 
-    assert (np.array_equal(conf_mat, cm_expected))
-    assert (np.array_equal(conf_mat_scaled, cm_scaled_expected))
-    assert (conf_mat_scaled.dtype == np.int64)
+    assert np.array_equal(conf_mat, cm_expected)
+    assert np.array_equal(conf_mat_scaled, cm_scaled_expected)
+    assert conf_mat_scaled.dtype == np.int64
 
     zest()
+
 
 def zest_call_bag_fdr():
     stub_sim_result = Munch(train_pep_recalls=np.array([-1.0, 0.1, 0.2, 0.3]))

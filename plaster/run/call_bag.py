@@ -586,14 +586,13 @@ class CallBag:
             pep_iz = pep_iz.tolist()
         check.list_t(pep_iz, int)
 
-        # prof()
-        results = zap.work_orders(
-            [Munch(fn=_do_pep_pr_curve, pep_i=pep_i, bag=self,) for pep_i in pep_iz],
-            _process_mode=False,
-            _trap_exceptions=False,
-            # _progress=progress,
-        )
-        # prof("prs")
+        with zap.Context(mode="thread", trap_exceptions=False, progress=progress):
+            results = zap.work_orders(
+                [
+                    Munch(fn=_do_pep_pr_curve, pep_i=pep_i, bag=self,)
+                    for pep_i in pep_iz
+                ],
+            )
 
         df_per_pep = [
             pd.DataFrame(
@@ -896,13 +895,13 @@ class CallBag:
         return df.sort_values("pep_i").reset_index(drop=True)
 
     def peps_above_thresholds(self, precision=0.0, recall=0.0):
-        df = zap.df_groups(
-            _do_peps_above_thresholds,
-            self.pr_curve_by_pep().groupby("pep_i"),
-            precision=precision,
-            recall=recall,
-            _process_mode=False,
-        )
+        with zap.Context(mode="thread"):
+            df = zap.df_groups(
+                _do_peps_above_thresholds,
+                self.pr_curve_by_pep().groupby("pep_i"),
+                precision=precision,
+                recall=recall,
+            )
         df = df.reset_index().sort_index().rename(columns={0: "passes"})
         return np.argwhere(df.passes.values).flatten()
 

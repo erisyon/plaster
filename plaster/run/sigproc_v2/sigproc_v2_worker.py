@@ -830,27 +830,20 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         focus_per_field_per_channel=None,
     )
 
-    zap.work_orders(
-        [
-            Munch(
-                fn=_do_sigproc_analyze_and_save_field,
-                field_i=field_i,
-                ims_import_result=ims_import_result,
-                sigproc_v2_params=sigproc_v2_params,
-                sigproc_v2_result=sigproc_v2_result,
-                calib=calib,
-            )
-            for field_i in range(n_fields)
-        ],
-        _trap_exceptions=False,
-        _progress=progress,
-        # Setting _debug_mode to True forces each work order
-        # to happen in series which is needed at moment because
-        # the indivudal work orders themselves at various stages
-        # run in parallel and without this we were going into
-        # cpu contention. Need a better solution.
-        _debug_mode=True,
-    )
+    with zap.Context(trap_exceptions=False, progress=progress):
+        zap.work_orders(
+            [
+                Munch(
+                    fn=_do_sigproc_analyze_and_save_field,
+                    field_i=field_i,
+                    ims_import_result=ims_import_result,
+                    sigproc_v2_params=sigproc_v2_params,
+                    sigproc_v2_result=sigproc_v2_result,
+                    calib=calib,
+                )
+                for field_i in range(n_fields)
+            ]
+        )
 
     sigproc_v2_result.save()
 
