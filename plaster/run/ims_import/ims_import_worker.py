@@ -202,6 +202,35 @@ class ScanFilesResult:
     dim: Tuple[int, int]
 
 
+def _sort_nd2_files(files):
+    """
+    The script used on the Nikon scopes is not handling > 100 file names
+    correctly and is generating a pattern like:
+        ESN_2021_01_08_00_jsp116_00_P_009.nd2
+        ESN_2021_01_08_00_jsp116_00_P_010.nd2
+        ESN_2021_01_08_00_jsp116_00_P_0100.nd2
+        ESN_2021_01_08_00_jsp116_00_P_011.nd2
+    So this function parses the last number and treats it as an int for sorting
+    """
+
+    pat = re.compile(r"(.*_)(\d+)(\.nd2)$")
+    file_splits = []
+    for file in files:
+        g = pat.match(file)
+        assert g
+        file_splits += [(g.group(1), g.group(2), g.group(3))]
+    numerically_sorted = sorted(file_splits, key=lambda x: int(x[1]))
+    return ["".join(i) for i in numerically_sorted]
+
+
+def _sort_tif_files(files):
+    return sorted(files)
+
+
+def _sort_npy_files(files):
+    return sorted(files)
+
+
 def _scan_files(src_dir: Path) -> ScanFilesResult:
     """
     Search for .nd2 (non-recursive) or .tif files (recursively) or .npy (non-recursive)
@@ -212,9 +241,9 @@ def _scan_files(src_dir: Path) -> ScanFilesResult:
         area_000_cell_000_555nm_001.npy
         area_000_cell_000_647nm_001.npy
     """
-    nd2_paths = sorted(_scan_nd2_files(src_dir))
-    tif_paths = sorted(_scan_tif_files(src_dir))
-    npy_paths = sorted(_scan_npy_files(src_dir))
+    nd2_paths = _sort_nd2_files(_scan_nd2_files(src_dir))
+    tif_paths = _sort_tif_files(_scan_tif_files(src_dir))
+    npy_paths = _sort_npy_files(_scan_npy_files(src_dir))
 
     tif_paths_by_field_channel_cycle = {}
     npy_paths_by_field_channel_cycle = {}

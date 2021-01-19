@@ -25,6 +25,25 @@ def MockND2(**kwargs):
     yield _MockND2(**kwargs)
 
 
+def zest_sort_nd2_files():
+    def it_sorts_numerically():
+        files_sorted = worker._sort_nd2_files([
+            "ESN_2021_01_08_00_jsp116_00_P_009.nd2",
+            "ESN_2021_01_08_00_jsp116_00_P_010.nd2",
+            "ESN_2021_01_08_00_jsp116_00_P_0100.nd2",  # Lexically in order but numerically out
+            "ESN_2021_01_08_00_jsp116_00_P_011.nd2",
+        ])
+
+        assert files_sorted == [
+            "ESN_2021_01_08_00_jsp116_00_P_009.nd2",
+            "ESN_2021_01_08_00_jsp116_00_P_010.nd2",
+            "ESN_2021_01_08_00_jsp116_00_P_011.nd2",
+            "ESN_2021_01_08_00_jsp116_00_P_0100.nd2",
+        ]
+
+    zest()
+
+
 def zest_ims_import():
     tmp_src = tempfile.NamedTemporaryFile()
     tmp_dst = tempfile.TemporaryDirectory()
