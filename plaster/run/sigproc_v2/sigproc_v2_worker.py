@@ -845,6 +845,8 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
             ]
         )
 
-    sigproc_v2_result.save()
+    sigproc_v2_result.save(
+        save_full_signal_radmat_npy=sigproc_v2_params.save_full_signal_radmat_npy
+    )
 
     return sigproc_v2_result

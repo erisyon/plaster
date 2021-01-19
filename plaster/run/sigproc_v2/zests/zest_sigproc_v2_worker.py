@@ -150,7 +150,7 @@ def zest_sigproc_v2_worker_analyze():
                 sig = sigproc_v2_result.sig()[:, 0, :]
 
                 # There is a small shift up to 4985
-                assert np.all(np.abs(sig - 4985) < 3)
+                assert np.all(np.abs(sig - 4985) < 8)
 
     def it_interpolates_regional_PSF_changes():
         """

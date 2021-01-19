@@ -40,6 +40,7 @@ class SigprocV2Params(Params):
         no_calib_psf_sigma=1.8,
         instrument_identity=None,
         locs=None,
+        save_full_signal_radmat_npy=False,
     )
 
     schema = s(
@@ -66,6 +67,7 @@ class SigprocV2Params(Params):
             no_calib=s.is_bool(noneable=True),
             no_calib_psf_sigma=s.is_float(noneable=True),
             locs=s.is_list(elems=s.is_float(), noneable=True),
+            save_full_signal_radmat_npy=s.is_bool(),
         )
     )
 
