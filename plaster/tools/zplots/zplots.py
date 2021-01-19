@@ -39,16 +39,17 @@ TO DO:
     * I'd rather have scat be able to take the args as well as kwargs, need a better pattern.
 """
 
-import copy
+import math
 import warnings
 from itertools import cycle
-
+import pandas as pd
 import numpy as np
 from munch import Munch
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug
 from plaster.tools.utils import utils
 from plaster.tools.utils.data import arg_subsample, cluster, subsample
+from plaster.tools.schema import check
+from plaster.tools.log.log import debug
 
 
 def trap():
@@ -225,6 +226,18 @@ class ZPlots:
                     m[transform(prop)] = val
         return m
 
+    def _pre_get(self, kws, key, default_val=None):
+        """
+        Sometimes we need to a value from key before we can call _begin.
+        Typically the _begin call configures the stack but in these
+        special cases we want to check a value and not change the stack.
+        """
+        if key in kws:
+            return kws[key]
+        return self._merge_stack(
+            filter=lambda prop: prop == key, transform=lambda prop: prop,
+        ).get(key, default_val)
+
     def _u_stack(self, exclude_last=False):
         """
         All that start with underscore
@@ -257,9 +270,15 @@ class ZPlots:
 
     def _apply_fig_props(self, fig):
         ustack = self._u_stack()
-        if ustack.get("_size"):
-            ustack["_size_x"] = ustack.get("_size")
-            ustack["_size_y"] = ustack.get("_size")
+
+        _size = ustack.get("_size")
+        if _size is not None:
+            if isinstance(_size, tuple):
+                ustack["_size_x"] = _size[0]
+                ustack["_size_y"] = _size[1]
+            else:
+                ustack["_size_x"] = _size
+                ustack["_size_y"] = _size
 
         if ustack.get("_size_x"):
             fig.plot_width = ustack.get("_size_x")
@@ -415,6 +434,7 @@ class ZPlots:
         n_source_fields = len(source_defaults)
         if source is None and n_source_fields > 0:
             kws = self._build_column_data_source(kws, source_defaults)
+            source = kws["source"]
 
         # ADD requested defaults to kws if not already present in kws
         for key, val in defaults.items():
@@ -434,8 +454,18 @@ class ZPlots:
         # In the case that a source is given then the _label refers to the column name
         # which can be pulled out of the stack (this has to happen after the above stack append)
         ustack = self._u_stack()
-        label_col_name = ustack.get("_label")
+        label_col_name = ustack.get("_label_col_name", ustack.get("_label"))
         allow_labels = ustack.get("_no_labels") is not True
+
+        # WIP: This is a start at generic extra tooltips
+        # debug(source.to_df())
+        # extra_hover_cols = []
+        # _hover = ustack.get("_hover")
+        # if _hover is not None:
+        #     check.t(_hover, dict)
+        #     for key, val in _hover.items():
+        #         extra_hover_cols += [(key, "$" + key + "{0,0.0}")]
+        #         source.add(val, key)
 
         if allow_labels:
             label_col = (
@@ -666,7 +696,7 @@ class ZPlots:
 
     @trap()
     def hist(
-        self, data=None, **kws,
+        self, data=None, _vertical=None, **kws,
     ):
         """
         Histogram. Converts nan in data to zeros.
@@ -704,12 +734,11 @@ class ZPlots:
 
         if _bins is None:
             if data.shape[0] > 0:
-                min_ = np.min(data)
-                max_ = np.max(data)
+                min_, max_ = np.percentile(data, (0, 99))
             else:
                 min_ = 0
                 max_ = 0
-            _bins = np.linspace(min_, max_, 50)
+            _bins = np.linspace(min_, max_, 100)
         elif isinstance(_bins, (tuple, list)):
             _bins = np.linspace(_bins[0], _bins[1], _bins[2] if len(_bins) == 3 else 50)
 
@@ -741,6 +770,10 @@ class ZPlots:
                 line_color=None,
                 **self._p_stack(),
             )
+
+        if _vertical is not None:
+            fig.line(x=(_vertical, _vertical), y=(0, np.max(_hist)), color="red")
+
         self._end()
 
     @trap()
@@ -785,6 +818,61 @@ class ZPlots:
 
             fig.scatter(**pstack)
 
+        self._end()
+
+    @trap()
+    def distr(self, samples, _percentiles=(0, 25, 50, 75, 100), _vertical=None, **kws):
+        """
+        A distribution plot shows percentiles 0, 25, 50, 75, 100 as whiskers
+        """
+        check.array_t(samples, ndim=2)
+
+        kws["xs"] = []
+        kws["ys"] = []
+        kws["line_color"] = []
+        kws["line_width"] = []
+        for row_i, row in enumerate(samples):
+            p0, p25, p50, p75, p100 = np.nanpercentile(row, _percentiles)
+
+            kws["xs"] += [
+                [p0, p100],  # Horizontal line
+                [p25, p75],  # IQR horzontal
+                [p50, p50],
+            ]
+
+            y = row_i
+            kws["ys"] += [
+                [y, y],  # Horizontal line
+                [y, y],
+                [y - 1.5, y + 1.5],
+            ]
+
+            kws["line_color"] += [
+                "gray",
+                "black",
+                "white",
+            ]
+
+            kws["line_width"] += [
+                1,
+                2,
+                2,
+            ]
+
+        fig = self._begin(
+            kws,
+            dict(xs=None, ys=None, line_color=None, line_width=None),
+            xs="xs",
+            ys="ys",
+            line_color="line_color",
+            line_width="line_width",
+        )
+        pstack = self._p_stack()
+        fig.multi_line(**pstack)
+        if _vertical is not None:
+            fig.line(
+                x=(_vertical, _vertical), y=(0, len(samples)), color="red"
+            )
         self._end()
 
     @trap()
@@ -887,11 +975,25 @@ class ZPlots:
             _n_samples = ustack.get("_n_samples", 1000)
             im_data = subsample(im_data, _n_samples)
 
+        is_nan_im = np.zeros_like(im_data, dtype=bool)
         if nan_color is not None:
             is_nan_im = np.isnan(im_data)
             im_data = np.where(is_nan_im, 0, im_data)
 
         dim, cmap, im_data, y = self._im_setup(im_data)
+
+        extra_hover_cols = {}
+        extra_hover_tooltips = []
+
+        _hover_rows = ustack.get("_hover_rows")
+        if _hover_rows is not None:
+            check.t(_hover_rows, dict)
+            for key, val in _hover_rows.items():
+                val = np.array(val)
+                val_im = np.full(im_data.shape, "", dtype=object)
+                val_im[:] = val[:, None]
+                extra_hover_cols[key] = [val_im]
+                extra_hover_tooltips += [(key, "@" + key)]
 
         # See: "Image Hover" here https://docs.bokeh.org/en/latest/docs/user_guide/tools.html
         fig = self._begin(
@@ -902,6 +1004,7 @@ class ZPlots:
                 y=kws.get("_y", [y]),
                 dw=kws.get("_dim_w", [dim.w]),
                 dh=kws.get("_dim_h", [dim.h]),
+                **extra_hover_cols,
             ),
             image="image",
             x="x",
@@ -911,6 +1014,20 @@ class ZPlots:
         )
 
         self._im_post_setup(fig, dim)
+
+        if _hover_rows is not None:
+            from bokeh.models import HoverTool
+
+            fig.add_tools(
+                HoverTool(
+                    tooltips=[
+                        ("x", "$x{0,0}"),
+                        ("y", "$y{0,0}"),
+                        ("value", "@image{0,0.0}"),
+                    ]
+                    + extra_hover_tooltips,
+                )
+            )
 
         fig.image(
             color_mapper=cmap, **self._p_stack(),
@@ -1036,20 +1153,46 @@ class ZPlots:
         self.im_color(red=negative, green=positive, **kws)
 
     @trap()
-    def im_clus(self, data, **kws):
-        ustack = self._u_stack()
-        _n_samples = ustack.get("_n_samples", 500)
-        im = cluster(data, n_subsample=_n_samples)
-        f_title = kws.pop("f_title", "")
-        f_title += f" n_rows={data.shape[0]}"
-        self.im(im, f_title=f_title, **kws)
+    def im_clus(self, data, _n_samples=None, **kws):
+        _n_samples = self._pre_get(dict(_n_samples=_n_samples), "_n_samples", 500)
+        _hover_rows = self._pre_get(kws, "_hover_rows")
+
+        sample_row_iz = arg_subsample(data, _n_samples)
+        im, order = cluster(data[sample_row_iz], return_order=True)
+
+        if _hover_rows is not None:
+            check.t(_hover_rows, dict)
+            _dupe_hover_rows = {}
+            for key, val in _hover_rows.items():
+                val = np.array(val)
+                assert val.shape[0] == data.shape[0]
+                _dupe_hover_rows[key] = val[sample_row_iz][order]
+            kws["_hover_rows"] = _dupe_hover_rows
+
+        # f_title = kws.pop("f_title", "")
+        # f_title += f" n_rows={data.shape[0]}"
+        # self.im(im, f_title=f_title, **kws)
+        self.im(im, **kws)
 
     @trap()
     def im_sort(self, data, **kws):
-        ustack = self._u_stack()
-        _n_samples = ustack.get("_n_samples", 1000)
+        _n_samples = self._pre_get(kws, "_n_samples", 1000)
+        _hover_rows = self._pre_get(kws, "_hover_rows")
         row_iz = arg_subsample(data, _n_samples)
         row_iz = row_iz[np.argsort(np.nansum(data[row_iz], axis=1))]
+
+        if _hover_rows is not None:
+            check.t(_hover_rows, dict)
+            _dupe_hover_rows = {}
+            for key, val in _hover_rows.items():
+                val = np.array(val)
+                assert val.shape[0] == data.shape[0]
+                _dupe_hover_rows[key] = val[row_iz]
+            kws["_hover_rows"] = _dupe_hover_rows
+
+        # f_title = kws.pop("f_title", "")
+        # f_title += f" n_rows={data.shape[0]}"
+        # self.im(data[row_iz], f_title=f_title, **kws)
         self.im(data[row_iz], **kws)
 
     @trap()
@@ -1149,6 +1292,93 @@ class ZPlots:
         fig.image_rgba(**self._p_stack())
 
         self._end()
+
+    @trap()
+    def pie(self, data, labels, **kws):
+        """
+        A pie chart
+        """
+        raise NotImplementedError
+        # The labels need work
+
+        data = np.array(data)
+        check.array_t(data, ndim=1)
+        start_angle = data / data.sum() * 2 * math.pi
+        end_angle = np.roll(data, -1) / data.sum() * 2 * math.pi
+        n_pts = data.shape[0]
+
+        from bokeh.palettes import Category20c
+        fig = self._begin(
+            kws,
+            dict(
+                x=np.zeros((n_pts,)),
+                y=np.ones((n_pts,)),
+                radius=np.full((n_pts,), 0.4),
+                start_angle=start_angle,
+                end_angle=end_angle,
+                fill_color=Category20c[len(data)],
+                labels=labels,
+            ),
+            x="x",
+            y="y",
+            radius="radius",
+            start_angle="start_angle",
+            end_angle="end_angle",
+            fill_color="fill_color",
+            _label_col_name="labels",
+            _legend=True,
+        )
+
+        fig.wedge(**self._p_stack())
+        fig.axis.axis_label = None
+        fig.axis.visible = False
+        fig.grid.grid_line_color = None
+
+        self._end()
+
+    @trap()
+    def count_stack(self, bars, labels, **kws):
+        """
+        A stack of bars with counts and labels
+        """
+        from bokeh.palettes import Category20c
+        from bokeh.models import HoverTool
+        from bokeh.plotting import ColumnDataSource
+
+        kws["_no_labels"] = True
+        kws["_notools"] = True
+        kws["_noaxes_y"] = True
+
+        fig = self._begin(
+            kws,
+            dict(a=[1]),
+        )
+
+        cyc = cycle(Category20c[20])
+        for i, (_bars, _labels) in enumerate(zip(bars, labels)):
+            _bars = np.array(_bars)
+            _labels = _labels
+            y = i
+            height = 1.0
+            left = 0.0
+            bars_sum = np.sum(_bars)
+            for j, (bar, label) in enumerate(zip(_bars, _labels)):
+                df = pd.DataFrame(dict(col=[f"{label}: {bar} ({100 * bar / bars_sum:.1f})%"]))
+                source = ColumnDataSource(df)
+                fig.hbar(y=y, height=height, left=left, right=left + bar, fill_color=next(cyc), name="col",
+                         source=source)
+                left += bar
+
+        fig.add_tools(
+            HoverTool(
+                tooltips=[
+                    ("", "@$name"),
+                ],
+            )
+        )
+
+        self._end()
+
 
 
 def notebook_full_width():

@@ -13,7 +13,7 @@ def zest_sample_pep_dyemat():
     def it_samples():
         dyepep_group = np.array([[1, 1, 5], [2, 1, 5], [3, 1, 0],], dtype=int)
 
-        n_samples_per_pep = 10
+        n_samples_per_pep = 20
         sampled_dt_iz = sim_v2_worker._sample_pep_dyemat(
             dyepep_group, n_samples_per_pep
         )

@@ -650,7 +650,7 @@ def _sigproc_analyze_field(
                         off=XY(x, y),
                         dim=WH(32, 32),
                         center=True,
-                    )
+                    ).copy()
                     sub_im[bot:top, lft:rgt] = np.nan
                     neighborhood_stats[loc_i, cy_i, 0] = np.nanmean(sub_im)
                     neighborhood_stats[loc_i, cy_i, 1] = np.nanstd(sub_im)
@@ -700,8 +700,11 @@ def _do_sigproc_analyze_and_save_field(
     ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, reg_psf)
 
     mea = np.array([chcy_ims.shape[-1:]])
-    if np.any(aln_offsets ** 2 > (mea * 0.2) ** 2):
-        important(f"field {field_i} has bad alignment {aln_offsets}")
+    bad_align_mask = aln_offsets ** 2 > (mea * 0.2) ** 2
+    if np.any(bad_align_mask):
+        important(
+            f"field {field_i} has bad alignment @ {np.argwhere(bad_align_mask)} {aln_offsets[bad_align_mask]}"
+        )
 
     # Assign 0 to "peak_i" in the following DF because that is the GLOBAL peak_i
     # which is not computable until all fields are processed. It will be fixed up later
@@ -842,6 +845,8 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
             ]
         )
 
-    sigproc_v2_result.save()
+    sigproc_v2_result.save(
+        save_full_signal_radmat_npy=sigproc_v2_params.save_full_signal_radmat_npy
+    )
 
     return sigproc_v2_result

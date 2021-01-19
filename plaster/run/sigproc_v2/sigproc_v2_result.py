@@ -16,6 +16,7 @@ from plaster.tools.utils.fancy_indexer import FancyIndexer
 from plaster.run.base_result import BaseResult, disk_memoize
 from plaster.run.sigproc_v2.sigproc_v2_params import SigprocV2Params
 from plaster.run.calib.calib import Calib
+from plaster.tools.utils import data
 from plaster.tools.log.log import debug, prof
 
 
@@ -224,51 +225,58 @@ class SigprocV2Result(BaseResult):
         name = local.path(self.field_files[field_i]).name
         return utils.indexed_pickler_load(self._folder / name, prop_list=prop)
 
-    def _load_df_prop_from_all_fields(self, prop):
+    def _load_df_prop_from_fields(self, prop, field_iz=None):
         """
         Stack the DF that is in prop along all fields
         """
-        val = self._cache(prop)
+        if field_iz is None:
+            field_iz = tuple(range(self.n_fields))
+
+        cache_key = f"{prop}_field_iz_{field_iz}"
+
+        val = self._cache(cache_key)
         if val is None:
-            dfs = [
-                self._load_field_prop(field_i, prop) for field_i in range(self.n_fields)
-            ]
+            dfs = [self._load_field_prop(field_i, prop) for field_i in field_iz]
 
             # If you concat an empty df with others, it will wreak havoc
             # on your column dtypes (e.g. int64->float64)
             non_empty_dfs = [df for df in dfs if len(df) > 0]
 
             val = pd.concat(non_empty_dfs, sort=False)
-            self._cache(prop, val)
+            self._cache(cache_key, val)
         return val
 
-    def _fields_to_start_stop(self, fields):
+    def _fields_to_field_iz(self, fields):
+        """
+        fields is a union type:
+            None: All fields
+            int: a specific field
+            slice: a slice of fields
+            tuple: a list of specific fields
+        """
         if fields is None:
-            start = 0
-            stop = self.n_fields
+            return tuple(list(range(self.n_fields)))
+        elif isinstance(fields, int):
+            return tuple([fields])
         elif isinstance(fields, slice):
             start = fields.start or 0
             stop = fields.stop or self.n_fields
-            assert fields.step in (None, 1)
-        elif isinstance(fields, int):
-            start = fields
-            stop = fields + 1
-        else:
-            raise TypeError(
-                f"fields of unknown type in _load_ndarray_prop_from_fields. {type(fields)}"
-            )
-        return start, stop
+            return tuple(list(range(start, stop, fields.step)))
+        elif isinstance(fields, (tuple, list)):
+            return tuple(fields)
+
+        raise TypeError(
+            f"fields of unknown type in _load_ndarray_prop_from_fields. {type(fields)}"
+        )
 
     def _load_ndarray_prop_from_fields(self, fields, prop, vstack=True):
         """
         Stack the ndarray that is in prop along all fields
         """
 
-        field_start, field_stop = self._fields_to_start_stop(fields)
-
         list_ = [
             self._load_field_prop(field_i, prop)
-            for field_i in range(field_start, field_stop)
+            for field_i in self._fields_to_field_iz(fields)
         ]
 
         if vstack:
@@ -284,9 +292,8 @@ class SigprocV2Result(BaseResult):
     def locs(self, fields=None):
         """Return peak locations in array form"""
         df = self.peaks()
-        field_start, field_stop = self._fields_to_start_stop(fields)
-        field_stop -= 1  # Because the following is inclusive
-        df = df[df.field_i.between(field_start, field_stop, inclusive=True)]
+        field_iz = self._fields_to_field_iz(fields)
+        df = df[df.field_i.isin(field_iz)]
         return df[["aln_y", "aln_x"]].values
 
     def flat_if_requested(self, mat, flat_chcy=False):
@@ -375,22 +382,28 @@ class SigprocV2Result(BaseResult):
             )
         )
 
+    def has_neighbor_stats(self):
+        nei_stat = self._load_field_prop(0, "neighborhood_stats")
+        return nei_stat is not None
+
     # DataFrame returns
     # ----------------------------------------------------------------
 
     @disk_memoize()
-    def fields(self):
-        df = self._load_df_prop_from_all_fields("field_df")
+    def fields(self, fields=None):
+        df = self._load_df_prop_from_fields(
+            "field_df", field_iz=self._fields_to_field_iz(fields)
+        )
         check.df_t(df, self.field_df_schema, allow_extra_columns=True)
         return df
 
     @disk_memoize()
     def peaks(self, n_peaks_subsample=None):
-        df = self._load_df_prop_from_all_fields("peak_df")
+        df = self._load_df_prop_from_fields("peak_df")
         check.df_t(df, self.peak_df_schema)
 
         if self._has_prop("peak_fit_df"):
-            fit_df = self._load_df_prop_from_all_fields("peak_fit_df")
+            fit_df = self._load_df_prop_from_fields("peak_fit_df")
             check.df_t(df, self.peak_fit_df_schema)
             df = df.set_index(["field_i", "field_peak_i"]).join(
                 fit_df.set_index(["field_i", "field_peak_i"])
@@ -408,7 +421,7 @@ class SigprocV2Result(BaseResult):
 
     @disk_memoize()
     def peak_fits(self):
-        df = self._load_df_prop_from_all_fields("peak_fit_df")
+        df = self._load_df_prop_from_fields("peak_fit_df")
         check.df_t(df, self.peak_fit_df_schema)
 
         # The peaks have a local frame_peak_i but they
@@ -455,7 +468,7 @@ class SigprocV2Result(BaseResult):
 
     @disk_memoize()
     def mask_rects(self):
-        df = self._load_df_prop_from_all_fields("mask_rects_df")
+        df = self._load_df_prop_from_fields("mask_rects_df")
         check.df_t(df, self.mask_rects_df_schema)
         return df
 
@@ -481,23 +494,28 @@ class SigprocV2Result(BaseResult):
         return df
 
     @disk_memoize()
-    def fields__n_peaks__peaks(self, n_peaks_subsample=None):
+    def fields__n_peaks__peaks(self, fields=None, n_peaks_subsample=None):
         """
         Add a "raw_x" "raw_y" position for each peak. This is the
         coordinate of the peak relative to the original raw image
         so that circles can be used to
         """
         df = (
-            self.fields()
+            self.fields(fields=fields)
             .set_index("field_i")
-            .join(self.n_peaks().set_index("field_i"), how="outer")
+            .join(self.n_peaks().set_index("field_i"), how="left")
+            # This was previously using how="outer". I change it
+            # to left when I added the field_iz argument and I'm not
+            # sure this isn't going to break something
             .rename(columns=dict(aln_y="field_aln_y", aln_x="field_aln_x"))
             .reset_index()
         )
 
         pdf = self.peaks(n_peaks_subsample=n_peaks_subsample)
 
-        df = pdf.set_index("field_i").join(df.set_index("field_i")).reset_index()
+        df = df.set_index("field_i").join(pdf.set_index("field_i")).reset_index()
+        # This join was previously inverted (pdf join fields)
+        # but I reversed it when I added the field_iz argument
 
         df["raw_x"] = df.aln_x - (df.field_aln_x)
         df["raw_y"] = df.aln_y - (df.field_aln_y)
@@ -505,25 +523,46 @@ class SigprocV2Result(BaseResult):
         return df
 
     @disk_memoize()
-    def fields__n_peaks__peaks__radmat(self, n_peaks_subsample=None):
+    def fields__n_peaks__peaks__radmat(self, fields=None, n_peaks_subsample=None):
         """
         Build a giant joined dataframe useful for debugging.
         The masked_rects are excluded from this as they clutter it up.
+        field_iz if specified must be a tuple (for memoize)
         """
         pcc_index = ["peak_i", "channel_i", "cycle_i"]
 
         df = (
-            self.fields__n_peaks__peaks(n_peaks_subsample=n_peaks_subsample)
+            self.fields__n_peaks__peaks(
+                fields=fields, n_peaks_subsample=n_peaks_subsample
+            )
             .set_index(pcc_index)
             .join(
                 self.radmats__peaks().set_index(pcc_index)[
                     ["signal", "noise", "snr", "aspect_ratio"]
-                ]
+                ],
             )
             .reset_index()
         )
 
         return df
+
+    def dark_estimate(self, ch_i, fields=None, n_sigmas=4.0):
+        """
+        Use last cycle of (least likely to be polluted with signal)
+        and estimate the width of the darkness distribution
+        by using a one-sided std.
+        """
+        sig_last_cy = self.sig(fields=fields)[:, ch_i, -1]
+        zero_sigma = data.one_sided_nanstd(sig_last_cy)
+        dark = n_sigmas * zero_sigma
+        return dark
+
+    def asr_threshold(self):
+        # This is a guess based on various simulations
+        # and I'm making this a function in case at some
+        # point I choose to convert this is a distribution-based
+        # technique.
+        return 1.3
 
 
 # The following operate on dataframes returned by fields__n_peaks__peaks__radmat

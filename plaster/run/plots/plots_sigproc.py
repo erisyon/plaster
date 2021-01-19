@@ -246,6 +246,7 @@ def sigproc_v2_movie_from_df(
     cy_iz=None,
     bg_only=False,
     fg_only=False,
+    draw_circles=True,
     use_unfilt=False,
     outer_radius=5,
     yx=None,
@@ -304,13 +305,14 @@ def sigproc_v2_movie_from_df(
     #     ims = ims * one_fg
     else:
         overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
-        overlay = 255 * circle_locs(
-            overlay,
-            locs,
-            fill_mode="one",
-            inner_radius=outer_radius - 1,
-            outer_radius=outer_radius,
-        ).astype(np.uint8)
+        if draw_circles:
+            overlay = 255 * circle_locs(
+                overlay,
+                locs,
+                fill_mode="one",
+                inner_radius=outer_radius - 1,
+                outer_radius=outer_radius,
+            ).astype(np.uint8)
 
     kwargs["_duration"] = kwargs.get("_duration", 1)
 

@@ -215,12 +215,21 @@ def _sort_nd2_files(files):
 
     pat = re.compile(r"(.*_)(\d+)(\.nd2)$")
     file_splits = []
+    did_split = None
     for file in files:
         g = pat.match(file)
-        assert g
-        file_splits += [(g.group(1), g.group(2), g.group(3))]
-    numerically_sorted = sorted(file_splits, key=lambda x: int(x[1]))
-    return ["".join(i) for i in numerically_sorted]
+        if g is not None:
+            file_splits += [(g.group(1), g.group(2), g.group(3))]
+            assert did_split is True or did_split is None
+            did_split = True
+        else:
+            assert did_split is False or did_split is None
+            did_split = False
+    if did_split:
+        numerically_sorted = sorted(file_splits, key=lambda x: int(x[1]))
+        return ["".join(i) for i in numerically_sorted]
+    else:
+        return sorted(files)
 
 
 def _sort_tif_files(files):
