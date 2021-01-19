@@ -650,7 +650,7 @@ def _sigproc_analyze_field(
                         off=XY(x, y),
                         dim=WH(32, 32),
                         center=True,
-                    )
+                    ).copy()
                     sub_im[bot:top, lft:rgt] = np.nan
                     neighborhood_stats[loc_i, cy_i, 0] = np.nanmean(sub_im)
                     neighborhood_stats[loc_i, cy_i, 1] = np.nanstd(sub_im)
