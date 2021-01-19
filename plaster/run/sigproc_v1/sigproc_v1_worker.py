@@ -859,21 +859,19 @@ def sigproc(sigproc_params, ims_import_result, progress=None):
         n_fields = n_fields_limit
 
     # TASK: I think this would be nicer with the parallel array map
-    results = zap.work_orders(
-        [
-            Munch(
-                fn=_do_field,
-                field_i=field_i,
-                sigproc_params=sigproc_params,
-                ims_import_result=ims_import_result,
-                sigproc_result=sigproc_result,
-            )
-            for field_i in range(n_fields)
-        ],
-        _process_mode=True,
-        _trap_exceptions=False,
-        _progress=progress,
-    )
+    with zap.Context(trap_exceptions=False, progress=progress):
+        results = zap.work_orders(
+            [
+                Munch(
+                    fn=_do_field,
+                    field_i=field_i,
+                    sigproc_params=sigproc_params,
+                    ims_import_result=ims_import_result,
+                    sigproc_result=sigproc_result,
+                )
+                for field_i in range(n_fields)
+            ]
+        )
 
     # SET the result n_channels (possibly different from input n_channels)
     n_inchannels = np.array(results)

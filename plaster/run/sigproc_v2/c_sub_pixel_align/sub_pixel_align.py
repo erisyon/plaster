@@ -219,13 +219,12 @@ def sub_pixel_align_cy_ims(cy_ims, slice_h):
             return np.zeros((1,))
 
         with context(cy_ims, slice_h) as ctx:
-            zap.arrays(
-                _do_sub_pixel_align_cycle,
-                dict(cy_i=list(range(1, n_cycles))),
-                _process_mode=False,
-                _trap_exceptions=False,
-                ctx=ctx,
-            )
+            with zap.Context(mode="thread", trap_exceptions=False):
+                zap.arrays(
+                    _do_sub_pixel_align_cycle,
+                    dict(cy_i=list(range(1, n_cycles))),
+                    ctx=ctx,
+                )
 
         return ctx._out_offsets
 

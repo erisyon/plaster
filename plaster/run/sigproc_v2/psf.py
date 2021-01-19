@@ -262,20 +262,20 @@ def psf_all_fields_one_channel(flcy_ims, sigproc_v2_params, progress=None) -> Re
     check.array_t(flcy_ims, ndim=4)
     assert flcy_ims.shape[-1] == flcy_ims.shape[-2]
 
-    region_to_psf_per_field = zap.arrays(
-        _do_psf_one_field_one_channel,
-        dict(cy_ims=flcy_ims),
-        _stack=True,
-        _progress=progress,
-        peak_mea=sigproc_v2_params.peak_mea,
-        divs=sigproc_v2_params.divs,
-        bandpass_kwargs=dict(
-            low_inflection=sigproc_v2_params.low_inflection,
-            low_sharpness=sigproc_v2_params.low_sharpness,
-            high_inflection=sigproc_v2_params.high_inflection,
-            high_sharpness=sigproc_v2_params.high_sharpness,
-        ),
-    )
+    with zap.Context(progress=progress):
+        region_to_psf_per_field = zap.arrays(
+            _do_psf_one_field_one_channel,
+            dict(cy_ims=flcy_ims),
+            _stack=True,
+            peak_mea=sigproc_v2_params.peak_mea,
+            divs=sigproc_v2_params.divs,
+            bandpass_kwargs=dict(
+                low_inflection=sigproc_v2_params.low_inflection,
+                low_sharpness=sigproc_v2_params.low_sharpness,
+                high_inflection=sigproc_v2_params.high_inflection,
+                high_sharpness=sigproc_v2_params.high_sharpness,
+            ),
+        )
 
     # SUM over fields
     psf_ims = np.sum(region_to_psf_per_field, axis=0)
