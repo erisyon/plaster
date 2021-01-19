@@ -47,36 +47,6 @@ Contexts
                 for i in range(10)
             ])
 
-    Context options:
-        * cpu_limit: Integer. Maximum number of CPUs to use
-            None: all
-            positive numbers: that many cpus
-            negative numbers: all cpus except this many. eg: -2 = all cpus less two
-        * mode:
-            "process": Run in sub-processes
-            "thread": Run as threads
-            "debug" : Run the work orders serially and blocking (ie no threads or processes)
-                This is useful both for debugging and to prevent inner contexts from
-                parallelizing. See allow_inner_parallelism.
-        * allow_inner_parallelism: bool (default False)
-            If True, allow inner contexts to parallelize normally.
-            Usually this is a bad idea as it can lead to serious contention
-            wherein a group or parallel work order each tries to allocate
-            all cpus for themselves and causes CPU and/or Memory contention.
-        * progress: function pointer
-            If non None will callback with args (work_order_i, n_total_work_orders, retry)
-        * trap_exceptions: bool (True)
-            If true, exceptions are trapped and returned as a result.
-            When false, any worker execption bubbles up immediately to
-            the caller and other workers will die when they die.
-            The default is True because there's nothing more annoying than
-            running a long-running parallel job only to find that
-            after hours of execution there was one rare exception stopped
-            the whole run!
-        * thread_name_prefix: str ("zap_")
-            Set the thread names for easier debugging
-
-
 Debugging run-away processes.
 
     Sometimes you can get into a situation where processes seem
@@ -144,6 +114,38 @@ def Context(
     trap_exceptions=True,
     thread_name_prefix=None,
 ):
+    """
+    Arguments:
+        cpu_limit: int (default None==all). Maximum number of CPUs to use
+            None: all
+            positive numbers: that many cpus
+            negative numbers: all cpus except this many. eg: -2 = all cpus less two
+            default: all
+        mode: str. (Default "process")
+            "process": Run in sub-processes
+            "thread": Run as threads
+            "debug" : Run the work orders serially and blocking (ie no threads or processes)
+                This is useful both for debugging and to prevent inner contexts from
+                parallelizing. See allow_inner_parallelism.
+        allow_inner_parallelism: bool (default False)
+            If True, allow inner contexts to parallelize normally.
+            Usually this is a bad idea as it can lead to serious contention
+            wherein a group or parallel work order each tries to allocate
+            all cpus for themselves and causes CPU and/or Memory contention.
+        progress: function pointer
+            If non None will callback with args (work_order_i, n_total_work_orders, retry)
+        trap_exceptions: bool (default True)
+            If true, exceptions are trapped and returned as a result.
+            When false, any worker execption bubbles up immediately to
+            the caller and other workers will die when they die.
+            The default is True because there's nothing more annoying than
+            running a long-running parallel job only to find that
+            after hours of execution there was one rare exception stopped
+            the whole run!
+        thread_name_prefix: str (default "zap_")
+            Set the thread names for easier debugging
+    """
+
     global _cpu_limit, _mode, _progress, _allow_inner_parallelism, _context_depth, _trap_exceptions, _thread_name_prefix
     _context_depth += 1
 
