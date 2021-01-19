@@ -821,7 +821,6 @@ class ZPlots:
         """
         check.array_t(samples, ndim=2)
 
-        spacing = 3
         kws["xs"] = []
         kws["ys"] = []
         kws["line_color"] = []
@@ -835,7 +834,7 @@ class ZPlots:
                 [p50, p50],
             ]
 
-            y = row_i * spacing
+            y = row_i
             kws["ys"] += [
                 [y, y],  # Horizontal line
                 [y, y],
@@ -866,7 +865,7 @@ class ZPlots:
         fig.multi_line(**pstack)
         if _vertical is not None:
             fig.line(
-                x=(_vertical, _vertical), y=(0, spacing * len(samples)), color="red"
+                x=(_vertical, _vertical), y=(0, len(samples)), color="red"
             )
         self._end()
 
