@@ -39,17 +39,17 @@ TO DO:
     * I'd rather have scat be able to take the args as well as kwargs, need a better pattern.
 """
 
-import copy
+import math
 import warnings
 from itertools import cycle
-
+import pandas as pd
 import numpy as np
 from munch import Munch
 from plaster.tools.image.coord import HW, ROI, WH, XY, YX
-from plaster.tools.log.log import debug
 from plaster.tools.utils import utils
 from plaster.tools.utils.data import arg_subsample, cluster, subsample
 from plaster.tools.schema import check
+from plaster.tools.log.log import debug
 
 
 def trap():
@@ -270,9 +270,15 @@ class ZPlots:
 
     def _apply_fig_props(self, fig):
         ustack = self._u_stack()
-        if ustack.get("_size"):
-            ustack["_size_x"] = ustack.get("_size")
-            ustack["_size_y"] = ustack.get("_size")
+
+        _size = ustack.get("_size")
+        if _size is not None:
+            if isinstance(_size, tuple):
+                ustack["_size_x"] = _size[0]
+                ustack["_size_y"] = _size[1]
+            else:
+                ustack["_size_x"] = _size
+                ustack["_size_y"] = _size
 
         if ustack.get("_size_x"):
             fig.plot_width = ustack.get("_size_x")
@@ -448,7 +454,7 @@ class ZPlots:
         # In the case that a source is given then the _label refers to the column name
         # which can be pulled out of the stack (this has to happen after the above stack append)
         ustack = self._u_stack()
-        label_col_name = ustack.get("_label")
+        label_col_name = ustack.get("_label_col_name", ustack.get("_label"))
         allow_labels = ustack.get("_no_labels") is not True
 
         # WIP: This is a start at generic extra tooltips
@@ -1286,6 +1292,93 @@ class ZPlots:
         fig.image_rgba(**self._p_stack())
 
         self._end()
+
+    @trap()
+    def pie(self, data, labels, **kws):
+        """
+        A pie chart
+        """
+        raise NotImplementedError
+        # The labels need work
+
+        data = np.array(data)
+        check.array_t(data, ndim=1)
+        start_angle = data / data.sum() * 2 * math.pi
+        end_angle = np.roll(data, -1) / data.sum() * 2 * math.pi
+        n_pts = data.shape[0]
+
+        from bokeh.palettes import Category20c
+        fig = self._begin(
+            kws,
+            dict(
+                x=np.zeros((n_pts,)),
+                y=np.ones((n_pts,)),
+                radius=np.full((n_pts,), 0.4),
+                start_angle=start_angle,
+                end_angle=end_angle,
+                fill_color=Category20c[len(data)],
+                labels=labels,
+            ),
+            x="x",
+            y="y",
+            radius="radius",
+            start_angle="start_angle",
+            end_angle="end_angle",
+            fill_color="fill_color",
+            _label_col_name="labels",
+            _legend=True,
+        )
+
+        fig.wedge(**self._p_stack())
+        fig.axis.axis_label = None
+        fig.axis.visible = False
+        fig.grid.grid_line_color = None
+
+        self._end()
+
+    @trap()
+    def count_stack(self, bars, labels, **kws):
+        """
+        A stack of bars with counts and labels
+        """
+        from bokeh.palettes import Category20c
+        from bokeh.models import HoverTool
+        from bokeh.plotting import ColumnDataSource
+
+        kws["_no_labels"] = True
+        kws["_notools"] = True
+        kws["_noaxes_y"] = True
+
+        fig = self._begin(
+            kws,
+            dict(a=[1]),
+        )
+
+        cyc = cycle(Category20c[20])
+        for i, (_bars, _labels) in enumerate(zip(bars, labels)):
+            _bars = np.array(_bars)
+            _labels = _labels
+            y = i
+            height = 1.0
+            left = 0.0
+            bars_sum = np.sum(_bars)
+            for j, (bar, label) in enumerate(zip(_bars, _labels)):
+                df = pd.DataFrame(dict(col=[f"{label}: {bar} ({100 * bar / bars_sum:.1f})%"]))
+                source = ColumnDataSource(df)
+                fig.hbar(y=y, height=height, left=left, right=left + bar, fill_color=next(cyc), name="col",
+                         source=source)
+                left += bar
+
+        fig.add_tools(
+            HoverTool(
+                tooltips=[
+                    ("", "@$name"),
+                ],
+            )
+        )
+
+        self._end()
+
 
 
 def notebook_full_width():
