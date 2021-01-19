@@ -203,6 +203,16 @@ class ScanFilesResult:
 
 
 def _sort_nd2_files(files):
+    """
+    The script used on the Nikon scopes is not handling > 100 file names
+    correctly and is generating a pattern like:
+        ESN_2021_01_08_00_jsp116_00_P_009.nd2
+        ESN_2021_01_08_00_jsp116_00_P_010.nd2
+        ESN_2021_01_08_00_jsp116_00_P_0100.nd2
+        ESN_2021_01_08_00_jsp116_00_P_011.nd2
+    So this function parses the last number and treats it as an int for sorting
+    """
+
     pat = re.compile(r"(.*_)(\d+)(\.nd2)$")
     file_splits = []
     for file in files:
