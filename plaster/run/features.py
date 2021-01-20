@@ -49,10 +49,10 @@ def features(run, ch_i=0):
         nei_median_run = np.where(col_iz < run_len[:, None], nei[:, :, 2], np.nan)
         nei_iqr_run = np.where(col_iz < run_len[:, None], nei[:, :, 3], np.nan)
     else:
-        nei_mean_run = np.zeros((n_peaks,))
-        nei_std_run = np.zeros((n_peaks,))
-        nei_median_run = np.zeros((n_peaks,))
-        nei_iqr_run = np.zeros((n_peaks,))
+        nei_mean_run = np.zeros((n_peaks, n_cycles))
+        nei_std_run = np.zeros((n_peaks, n_cycles))
+        nei_median_run = np.zeros((n_peaks, n_cycles))
+        nei_iqr_run = np.zeros((n_peaks, n_cycles))
 
     df["radius"] = np.sqrt(
         (df.aln_x - im_mea // 2) ** 2 + (df.aln_y - im_mea // 2) ** 2
