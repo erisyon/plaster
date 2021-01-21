@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from zest import zest
 from plaster.run.sigproc_v2.sigproc_v2_result import SigprocV2Result
-from plaster.run.base_result import disable_disk_memoize
+from plaster.run.base_result import enable_disk_memoize
 from plaster.tools.log.log import debug
 from plaster.tools.utils.utils import npf, np_array_same
 from plaster.tools.schema import check
@@ -124,11 +124,11 @@ def zest_v2_all_df():
     # All of the following are testing the DataFrames
 
     def it_fields():
-        with disable_disk_memoize():
+        with enable_disk_memoize():
             assert res.fields().equals(props.field_df)
 
     def it_radmats():
-        with disable_disk_memoize():
+        with enable_disk_memoize():
             rad_df = res.radmats()
             check.df_t(rad_df, SigprocV2Result.radmat_df_schema)
             assert len(rad_df) == 4 * 2 * 3

@@ -6,7 +6,7 @@ from plaster.run.sigproc_v1.sigproc_v1_result import SigprocV1Result
 from plaster.tools.log.log import debug
 from plaster.tools.utils.utils import npf, np_array_same
 from plaster.tools.schema import check
-from plaster.run.base_result import disable_disk_memoize
+from plaster.run.base_result import enable_disk_memoize
 
 
 def zest_all_df():
@@ -120,7 +120,7 @@ def zest_all_df():
         assert res.fields().equals(props.field_df)
 
     def it_radmats():
-        with disable_disk_memoize():
+        with enable_disk_memoize():
             rad_df = res.radmats()
             check.df_t(rad_df, SigprocV1Result.radmat_df_schema)
             assert len(rad_df) == 4 * 2 * 3
