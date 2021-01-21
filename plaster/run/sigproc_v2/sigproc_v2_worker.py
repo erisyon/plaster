@@ -324,7 +324,7 @@ def _analyze_step_3_align(cy_ims, peak_mea):
     approx_psf = plaster.run.calib.calib.approximate_psf()
 
     fiducial_ims = []
-    for im in cy_ims:
+    for cy_i, im in enumerate(cy_ims):
         im = im.astype(np.float64)
         if not np.all(np.isnan(im)):
             med = float(np.nanmedian(im))
@@ -354,7 +354,10 @@ def _analyze_step_3_align(cy_ims, peak_mea):
     cy_ims = np.where(fiducial_ims > 0, cy_ims, 0)
 
     # SUB-PIXEL-ALIGN
+    # Timings:  (Almost all time is here...)
+    prof()
     aln_offsets = sub_pixel_align_cy_ims(cy_ims, slice_h=peak_mea)
+    prof()
 
     return aln_offsets
 
@@ -551,6 +554,7 @@ def _sigproc_analyze_field(
     # Timings:
     #   Val8_2t: 53 seconds per field, single core for about 20 seconds and then
     #            several bursts of all cores. Presumably that early delay is load time
+    #   Val10_1t debug_mode on remote_dev: 
     if sigproc_v2_params.run_aligner:
         aln_offsets = _analyze_step_3_align(
             np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea

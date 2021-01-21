@@ -50,7 +50,7 @@ from plaster.tools.image import imops, coord
 from plaster.tools.utils import utils
 from plaster.tools.c_common import c_common_tools
 from plaster.tools.c_common.c_common_tools import F64Arr
-from plaster.tools.log.log import debug
+from plaster.tools.log.log import debug, prof
 
 
 class SubPixelAlignContext(c_common_tools.FixupStructure):
