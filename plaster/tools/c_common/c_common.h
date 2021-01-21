@@ -76,6 +76,8 @@ typedef int (*KeyboardInterruptFn)();
 #define CYCLE_TYPE_EDMAN ((CycleKindType)(2))
 #define N_MAX_NEIGHBORS (8)
 
+Uint64 now();
+
 // Hash
 //----------------------------------------------------------------------------------------
 
