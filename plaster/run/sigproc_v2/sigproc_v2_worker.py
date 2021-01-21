@@ -355,9 +355,7 @@ def _analyze_step_3_align(cy_ims, peak_mea):
 
     # SUB-PIXEL-ALIGN
     # Timings:  (Almost all time is here...)
-    prof()
     aln_offsets = sub_pixel_align_cy_ims(cy_ims, slice_h=peak_mea)
-    prof()
 
     return aln_offsets
 
