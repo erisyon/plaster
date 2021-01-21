@@ -694,18 +694,11 @@ class ZPlots:
         fig.vbar(**self._p_stack())
         self._end()
 
-    @trap()
-    def hist(
+    def _hist_range(
         self, data=None, _vertical=None, **kws,
     ):
         """
-        Histogram. Converts nan in data to zeros.
-
-        _bins: If a 3-tuple it is converted to a linspace. Default=(min, max, 50)
-        _density: Passed as "density" to np.histogram()
-        _normalizer: Value to divide through by safely. Default=1.0)
-        _step: If True draws steps lines instead of filled bars
-        _subsample: If non None it will subsample this number of items from the set
+        Helper for hist() and hist_range()
         """
 
         if isinstance(data, str):
@@ -720,7 +713,6 @@ class ZPlots:
         _bins = ustack.get("_bins")
         _density = ustack.get("_density", False)
         _normalizer = ustack.get("_normalizer", 1.0)
-        _step = ustack.get("_step", False)
         _subsample = ustack.get("_subsample")
         _remove_nan = ustack.get("_remove_nan")
 
@@ -745,6 +737,37 @@ class ZPlots:
         _hist, _edges = np.histogram(data, bins=_bins, density=_density)
         _hist = _hist.astype(float)
         _hist = utils.np_safe_divide(_hist, np.array(_normalizer), default=0.0)
+
+        return _hist, _edges
+
+    def hist_range(self, data=None, **kws):
+        """
+        Return the _range that will be needed for this hist
+        This is useful when you need a with z(_range) for make
+        a group of histograms all to have the same range.
+        """
+        _hist, _edges = self._hist_range(data=data, **kws)
+        return np.min(_edges), np.max(_edges), 0.0, np.max(_hist)
+
+    @trap()
+    def hist(
+        self, data=None, _vertical=None, **kws,
+    ):
+        """
+        Histogram. Converts nan in data to zeros.
+
+        _bins: If a 3-tuple it is converted to a linspace. Default=(min, max, 50)
+        _density: Passed as "density" to np.histogram()
+        _normalizer: Value to divide through by safely. Default=1.0)
+        _step: If True draws steps lines instead of filled bars
+        _subsample: If non None it will subsample this number of items from the set
+        """
+
+        _hist, _edges = self._hist_range(data, _vertical, **kws)
+
+        ustack = self._u_stack()
+        ustack.update(kws)
+        _step = ustack.get("_step", False)
 
         fig = self._begin(
             kws,
