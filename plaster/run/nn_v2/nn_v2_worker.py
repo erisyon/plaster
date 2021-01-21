@@ -9,43 +9,47 @@ from plaster.tools.zap import zap
 from plaster.tools.schema import check
 
 
-def triangle_dyemat(n_cycles, n_dyes):
+def triangle_dyemat(n_cycles, n_dyes, include_multi_drop=False, include_nul_row=False):
     """
     Generate a "triangle" dyemat.
     Example: n_cycles = 3, n_dyes = 2
-        0 0 0
+        0 0 0  # Nul row
         1 0 0
         1 1 0
         1 1 1
-        2 0 0
+        2 0 0  # Multidrop
         2 1 0
         2 1 1
-        2 2 0
+        2 2 0  # Multidrop
         2 2 1
         2 2 2
     """
+    assert 1 <= n_dyes <= 3
     dyemat = []
-    for cy0 in range(n_cycles + 1):
-        row = np.zeros((n_cycles,), dtype=DyeType)
-        row[0:cy0] = 1
 
-        dyemat += [row.copy()]
+    def _inner(row, cnt, cy_i):
+        if cnt < 1:
+            return
+        nonlocal dyemat
+        for cy_j in range(cy_i + 1, n_cycles + 1):
+            _row = row.copy()
+            _row[cy_i:cy_j] = cnt
+            dyemat += [_row]
+            for cnt_i in range(cnt - 1, 0, -1):
+                _inner(_row, cnt_i, cy_j)
 
-        if n_dyes == 1:
-            continue
-
-        for cy1 in range(cy0):
-            row[0 : cy1 + 1] = 2
-            dyemat += [row.copy()]
-
-            if n_dyes == 2:
-                continue
-
-            for cy2 in range(cy1):
-                row[0 : cy2 + 1] = 3
-                dyemat += [row.copy()]
+    row = np.zeros((n_cycles,), dtype=DyeType)
+    if include_nul_row:
+        dyemat += [row]
+    for cnt_i in range(n_dyes, 0, -1):
+        _inner(row, cnt_i, 0)
 
     dyemat = np.array(dyemat, dtype=DyeType)
+
+    if not include_multi_drop:
+        multidrop = np.any(np.diff(dyemat, prepend=0, axis=1) < -1, axis=1)
+        dyemat = dyemat[~multidrop]
+
     rev_cols = [dyemat[:, cy] for cy in range(dyemat.shape[1] - 1, -1, -1)]
     dyemat = dyemat[np.lexsort(rev_cols)]
 
