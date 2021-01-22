@@ -5,6 +5,7 @@ import binascii
 import os
 from plaster.tools.log.log import debug
 from plaster.tools.schema import check
+from plaster.tools.utils import utils
 
 
 def dropdown(df, description, value):
@@ -302,6 +303,32 @@ def css_for_markdown():
         )
     )
 
+
+def explanation(text_or_h):
+    from IPython.core.display import display, HTML  # Defer slow imports
+
+    display(
+        HTML("""
+            <style>
+                .zfold {
+                    display: revert;
+                }
+                .zfold summary {
+                    display: revert;
+                }
+                .zfold div {
+                    margin-left: 1em;
+                }
+            </style>
+        """)
+    )
+
+    display(HTML(
+        h("details.zfold",
+            h("summary", "Explanation"),
+            h("div", h("pre", utils.smart_wrap(text_or_h))),
+        )
+    ))
 
 def movie(
     ims, overlay=None, _cspan=None, _cper=None, _size=None, _labels=None, _duration=250
