@@ -144,6 +144,7 @@ char *sub_pixel_align_one_cycle(SubPixelAlignContext *ctx, Index cy_i) {
     ensure(large_slice_buffer != NULL, "malloc failed");
 
     F64Arr cy_im = f64arr_subset(&ctx->cy_ims, cy_i);
+    
     for(Index slice_i = 0; slice_i < n_slices; slice_i++) {
         Index row_i = slice_i * slice_h;
         _slice(&cy_im, row_i, slice_h, slice_buffer, width);

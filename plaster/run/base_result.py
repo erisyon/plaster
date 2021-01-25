@@ -7,22 +7,22 @@ from contextlib import contextmanager
 from plaster.tools.log.log import debug
 
 
-_disable_disk_memoize = False
+_enable_disk_memoize = False
 
 
 @contextmanager
-def disable_disk_memoize():
-    global _disable_disk_memoize
+def enable_disk_memoize():
+    global _enable_disk_memoize
     try:
-        _disable_disk_memoize = True
+        _enable_disk_memoize = True
         yield
     finally:
-        _disable_disk_memoize = False
+        _enable_disk_memoize = False
 
 
-def disable_disk_memoize_from_notebook():
-    global _disable_disk_memoize
-    _disable_disk_memoize = True
+def enable_disk_memoize_from_notebook():
+    global _enable_disk_memoize
+    _enable_disk_memoize = True
 
 
 def disk_memoize():
@@ -37,7 +37,7 @@ def disk_memoize():
         @wraps(func)
         def wrapper(*args, **kwargs):
             assert isinstance(args[0], BaseResult)
-            if not _disable_disk_memoize:
+            if _enable_disk_memoize:
                 keep_args = tuple([a for a in args if not isinstance(a, BaseResult)])
                 h = hash(keep_args + tuple(sorted(kwargs.items()))) ** 2
                 path = args[0]._folder / f"_cache_{func.__name__}_{h:X}.pkl"
