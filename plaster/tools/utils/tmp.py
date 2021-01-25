@@ -32,24 +32,27 @@ Example:
         save(foo, my_file)
 
 """
+import hashlib
 import os
 import pickle
-import hashlib
 import tempfile
-from plumbum import local
 from contextlib import contextmanager
 
+from plumbum import local
 
 _current_tmp_folder = None
 
 
 def erisyon_tmp():
-    if local.env.get("ON_AWS"):
-        _erisyon_tmp = "/erisyon/jobs_folder/zack/_tmp"
-    else:
-        _erisyon_tmp = local.env.get("ERISYON_TMP")
-        if _erisyon_tmp is None:
-            raise FileNotFoundError("The ERISYON_TMP variable is not set")
+    # 1/25/2021: DHW - ZBS added this at some point ostensibly to improve some dev cycle. It never expires so it's causing issues for people using controlpanel.
+    # 1/25/2021: DHW commented this out
+    # if local.env.get("ON_AWS"):
+    #     _erisyon_tmp = "/erisyon/jobs_folder/zack/_tmp"
+    # else:
+
+    _erisyon_tmp = local.env.get("ERISYON_TMP")
+    if _erisyon_tmp is None:
+        raise FileNotFoundError("The ERISYON_TMP variable is not set")
     p = local.path(_erisyon_tmp)
     p.mkdir()
     return p
