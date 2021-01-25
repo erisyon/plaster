@@ -47,15 +47,19 @@ class NNV2Result(BaseResult):
     def test_test_peps_pr_abund(self):
         return self._test_peps_pr_abund
 
+    @property
     def includes_test_results(self):
         return self._test_calls is not None
 
+    @property
     def includes_train_results(self):
         return self._train_calls is not None
 
+    @property
     def includes_sigproc_results(self):
         return self._sigproc_calls is not None
 
+    @property
     def includes_all_results(self):
         return self._test_all is not None
 
