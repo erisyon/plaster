@@ -552,7 +552,7 @@ def _sigproc_analyze_field(
     # Timings:
     #   Val8_2t: 53 seconds per field, single core for about 20 seconds and then
     #            several bursts of all cores. Presumably that early delay is load time
-    #   Val10_1t debug_mode on remote_dev: 
+    #   Val10_1t debug_mode on remote_dev:
     if sigproc_v2_params.run_aligner:
         aln_offsets = _analyze_step_3_align(
             np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea

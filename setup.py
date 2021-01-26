@@ -108,5 +108,5 @@ setup(
         "zbs.zest",
     ],
     python_requires=">=3.6",
-    ext_modules=[CMakeExtension('./plaster/vendor/flann')],
+    ext_modules=[CMakeExtension("./plaster/vendor/flann")],
 )

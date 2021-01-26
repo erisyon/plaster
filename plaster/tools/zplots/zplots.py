@@ -893,9 +893,7 @@ class ZPlots:
         pstack = self._p_stack()
         fig.multi_line(**pstack)
         if _vertical is not None:
-            fig.line(
-                x=(_vertical, _vertical), y=(0, len(samples)), color="red"
-            )
+            fig.line(x=(_vertical, _vertical), y=(0, len(samples)), color="red")
         self._end()
 
     @trap()
@@ -1331,6 +1329,7 @@ class ZPlots:
         n_pts = data.shape[0]
 
         from bokeh.palettes import Category20c
+
         fig = self._begin(
             kws,
             dict(
@@ -1372,10 +1371,7 @@ class ZPlots:
         kws["_notools"] = True
         kws["_noaxes_y"] = True
 
-        fig = self._begin(
-            kws,
-            dict(a=[1]),
-        )
+        fig = self._begin(kws, dict(a=[1]),)
 
         cyc = cycle(Category20c[20])
         for i, (_bars, _labels) in enumerate(zip(bars, labels)):
@@ -1386,22 +1382,24 @@ class ZPlots:
             left = 0.0
             bars_sum = np.sum(_bars)
             for j, (bar, label) in enumerate(zip(_bars, _labels)):
-                df = pd.DataFrame(dict(col=[f"{label}: {bar} ({100 * bar / bars_sum:.1f})%"]))
+                df = pd.DataFrame(
+                    dict(col=[f"{label}: {bar} ({100 * bar / bars_sum:.1f})%"])
+                )
                 source = ColumnDataSource(df)
-                fig.hbar(y=y, height=height, left=left, right=left + bar, fill_color=next(cyc), name="col",
-                         source=source)
+                fig.hbar(
+                    y=y,
+                    height=height,
+                    left=left,
+                    right=left + bar,
+                    fill_color=next(cyc),
+                    name="col",
+                    source=source,
+                )
                 left += bar
 
-        fig.add_tools(
-            HoverTool(
-                tooltips=[
-                    ("", "@$name"),
-                ],
-            )
-        )
+        fig.add_tools(HoverTool(tooltips=[("", "@$name"),],))
 
         self._end()
-
 
 
 def notebook_full_width():

@@ -126,17 +126,13 @@ def zest_all_df():
         # Sanity check a few
         assert (
             rad_df[
-                (rad_df.peak_i == 1)
-                & (rad_df.channel_i == 1)
-                & (rad_df.cycle_i == 1)
+                (rad_df.peak_i == 1) & (rad_df.channel_i == 1) & (rad_df.cycle_i == 1)
             ].signal.values[0]
             == 1.0
         )
         assert (
             rad_df[
-                (rad_df.peak_i == 2)
-                & (rad_df.channel_i == 0)
-                & (rad_df.cycle_i == 0)
+                (rad_df.peak_i == 2) & (rad_df.channel_i == 0) & (rad_df.cycle_i == 0)
             ].signal.values[0]
             == 5.0
         )
