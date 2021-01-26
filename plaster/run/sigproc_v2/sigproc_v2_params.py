@@ -93,12 +93,27 @@ class SigprocV2Params(Params):
 
         else:
             # Analyzing
-            if not self.no_calib and self.calibration_file != "":
+            if self.self_calib:
+                assert (
+                    self.calibration_file is None
+                ), "In self-calibration mode you may not specify a calibration file"
+                assert (
+                    self.instrument_identity is None
+                ), "In self-calibration mode you may not specify an instrument identity"
+                assert (
+                    self.no_calib is not True
+                ), "In self-calibration mode you may not specify the no_calib option"
+
+            elif (
+                not self.no_calib
+                and self.calibration_file != ""
+                and self.calibration_file is not None
+            ):
                 self.calibration = Calib.load_file(
                     self.calibration_file, self.instrument_identity
                 )
 
-            if self.no_calib:
+            elif self.no_calib:
                 assert (
                     self.no_calib_psf_sigma is not None
                 ), "In no_calib mode you must specify an estimated no_calib_psf_sigma"
