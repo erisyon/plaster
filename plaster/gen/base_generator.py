@@ -126,6 +126,7 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
             instrument_identity=s.is_str(noneable=True),
             no_calib=s.is_bool(noneable=True),
             no_calib_psf_sigma=s.is_float(noneable=True),
+            self_calib=s.is_bool(noneable=True),
         )
     )
 

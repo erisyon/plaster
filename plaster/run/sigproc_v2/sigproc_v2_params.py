@@ -36,6 +36,7 @@ class SigprocV2Params(Params):
         low_sharpness=50.0,
         high_inflection=0.50,
         high_sharpness=50.0,
+        self_calib=False,
         no_calib=False,
         no_calib_psf_sigma=1.8,
         instrument_identity=None,
@@ -64,6 +65,7 @@ class SigprocV2Params(Params):
             low_sharpness=s.is_float(),
             high_inflection=s.is_float(),
             high_sharpness=s.is_float(),
+            self_calib=s.is_bool(noneable=True),
             no_calib=s.is_bool(noneable=True),
             no_calib_psf_sigma=s.is_float(noneable=True),
             locs=s.is_list(elems=s.is_float(), noneable=True),
@@ -91,12 +93,27 @@ class SigprocV2Params(Params):
 
         else:
             # Analyzing
-            if not self.no_calib and self.calibration_file != "":
+            if self.self_calib:
+                assert (
+                    self.calibration_file is None
+                ), "In self-calibration mode you may not specify a calibration file"
+                assert (
+                    self.instrument_identity is None
+                ), "In self-calibration mode you may not specify an instrument identity"
+                assert (
+                    self.no_calib is not True
+                ), "In self-calibration mode you may not specify the no_calib option"
+
+            elif (
+                not self.no_calib
+                and self.calibration_file != ""
+                and self.calibration_file is not None
+            ):
                 self.calibration = Calib.load_file(
                     self.calibration_file, self.instrument_identity
                 )
 
-            if self.no_calib:
+            elif self.no_calib:
                 assert (
                     self.no_calib_psf_sigma is not None
                 ), "In no_calib mode you must specify an estimated no_calib_psf_sigma"

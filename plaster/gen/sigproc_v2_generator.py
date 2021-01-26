@@ -54,6 +54,7 @@ class SigprocV2Generator(BaseGenerator):
             instrument_identity=self.instrument_identity,
             no_calib=self.no_calib,
             no_calib_psf_sigma=self.no_calib_psf_sigma,
+            self_calib=self.self_calib,
         )
 
         nn_n2_task = {}
