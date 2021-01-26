@@ -247,10 +247,13 @@ def sigproc_v2_movie_from_df(
     bg_only=False,
     fg_only=False,
     draw_circles=True,
-    use_unfilt=False,
+    draw_filt=True,
+    draw_unfilt=False,
     outer_radius=5,
     yx=None,
     hw=None,
+    scale_filt=1.0,
+    label_title="",
     **kwargs,
 ):
     """
@@ -274,45 +277,67 @@ def sigproc_v2_movie_from_df(
     if cy_iz is None:
         cy_iz = slice(None, None, None)
 
-    if use_unfilt:
-        ims = run.sigproc_v2.aln_unfilt_ims[fl_i, ch_i, cy_iz]
-    else:
-        ims = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_iz]
+    def draw(ims):
 
-    overlay = None
-    if bg_only:
-        zero_fg = np.ones((ims.shape[-2:]))
-        zero_fg = circle_locs(
-            zero_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=outer_radius
-        )
-        zero_fg[np.isnan(zero_fg)] = 0
-        ims = ims * zero_fg
-    elif fg_only:
-        one_fg = np.zeros((ims.shape[-2:]))
-        one_fg = circle_locs(
-            one_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=outer_radius
-        )
-        one_fg[np.isnan(one_fg)] = 1
-        ims = ims * one_fg
-
-    # TODO: I'd like a version where I apply an approx PSF so I can mask out what isn't important
-    # elif psf_only:
-    #     one_fg = np.zeros((ims.shape[-2:]))
-    #     one_fg = circle_locs(
-    #         one_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=outer_radius
-    #     )
-    #     one_fg[np.isnan(one_fg)] = 1
-    #     ims = ims * one_fg
-    else:
-        overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
-        if draw_circles:
-            overlay = 255 * circle_locs(
-                overlay,
+        overlay = None
+        if bg_only:
+            zero_fg = np.ones((ims.shape[-2:]))
+            zero_fg = circle_locs(
+                zero_fg,
                 locs,
-                fill_mode="one",
-                inner_radius=outer_radius - 1,
+                fill_mode="nan",
+                inner_radius=0,
                 outer_radius=outer_radius,
-            ).astype(np.uint8)
+            )
+            zero_fg[np.isnan(zero_fg)] = 0
+            ims = ims * zero_fg
+        elif fg_only:
+            one_fg = np.zeros((ims.shape[-2:]))
+            one_fg = circle_locs(
+                one_fg, locs, fill_mode="nan", inner_radius=0, outer_radius=outer_radius
+            )
+            one_fg[np.isnan(one_fg)] = 1
+            ims = ims * one_fg
+
+        else:
+            overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
+            if draw_circles:
+                overlay = 255 * circle_locs(
+                    overlay,
+                    locs,
+                    fill_mode="one",
+                    inner_radius=outer_radius - 1,
+                    outer_radius=outer_radius,
+                ).astype(np.uint8)
+
+        return ims, overlay
+
+    unfilt_ims, unfilt_overlay = None, None
+    filt_ims, filt_overlay = None, None
+    if draw_unfilt:
+        ims = run.sigproc_v2.aln_unfilt_ims[fl_i, ch_i, cy_iz]
+        unfilt_ims, unfilt_overlay = draw(ims)
+
+    if draw_filt:
+        ims = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_iz]
+        filt_ims, filt_overlay = draw(ims)
+
+    ims, overlay = None, None
+    if draw_unfilt and draw_filt:
+        # In the case we want them both set them side by side
+        assert filt_ims.shape[0] == unfilt_ims.shape[0]
+        assert filt_overlay.shape[0] == unfilt_overlay.shape[0]
+        ims = np.concatenate((unfilt_ims, filt_ims * scale_filt), axis=2)
+        overlay = np.concatenate((unfilt_overlay, filt_overlay), axis=1)
+    elif draw_unfilt:
+        ims, overlay = unfilt_ims, unfilt_overlay
+    elif draw_filt:
+        ims, overlay = filt_ims * scale_filt, filt_overlay
+    else:
+        raise ValueError(
+            "sigproc_v2_movie_from_df needs to have at least "
+            "one of draw_filt or draw_unfilt set"
+        )
 
     kwargs["_duration"] = kwargs.get("_duration", 1)
 
@@ -330,7 +355,7 @@ def sigproc_v2_movie_from_df(
         overlay,
         **kwargs,
         _labels=[
-            f"aligned & balanced fl_i:{fl_i} ch_i:{ch_i} cy_i: {cy_i}"
+            f"{label_title} fl_i:{fl_i} ch_i:{ch_i} cy_i: {cy_i}"
             for cy_i in range(ims.shape[0])
         ],
     )
