@@ -254,6 +254,7 @@ def sigproc_v2_movie_from_df(
     hw=None,
     scale_filt=1.0,
     label_title="",
+    negative=False,
     **kwargs,
 ):
     """
@@ -316,10 +317,14 @@ def sigproc_v2_movie_from_df(
     filt_ims, filt_overlay = None, None
     if draw_unfilt:
         ims = run.sigproc_v2.aln_unfilt_ims[fl_i, ch_i, cy_iz]
+        if negative:
+            ims = ims * -1
         unfilt_ims, unfilt_overlay = draw(ims)
 
     if draw_filt:
         ims = run.sigproc_v2.aln_ims[fl_i, ch_i, cy_iz]
+        if negative:
+            ims = ims * -1
         filt_ims, filt_overlay = draw(ims)
 
     ims, overlay = None, None
