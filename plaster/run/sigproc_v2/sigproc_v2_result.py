@@ -269,22 +269,59 @@ class SigprocV2Result(BaseResult):
             f"fields of unknown type in _load_ndarray_prop_from_fields. {type(fields)}"
         )
 
-    def _load_ndarray_prop_from_fields(self, fields, prop, vstack=True):
-        """
-        Stack the ndarray that is in prop along all fields
-        """
-
-        list_ = [
+    def _load_list_prop_from_fields(self, fields, prop):
+        return [
             self._load_field_prop(field_i, prop)
             for field_i in self._fields_to_field_iz(fields)
         ]
 
+    def _load_ndarray_prop_from_fields(self, fields, prop, vstack=True):
+        """
+        Stack the ndarray that is in prop along all fields
+        """
+        list_ = self._load_list_prop_from_fields(fields, prop)
         if vstack:
             val = np.vstack(list_)
         else:
             val = np.stack(list_)
 
         return val
+
+    # list returns
+    # ----------------------------------------------------------------
+
+    def cy_locs_per_field(self, fields=None):
+        """
+        Return per-cycle peak locations in list form.
+
+        Note that this function does not attempt to reconcile these lists
+        and they are only used to try to track if there are a lot
+        of anomalous stray peaks coming and going.
+
+        Example:
+
+        [  # Field 0
+            [  # Cycle 0
+                [101, 231],  # Found peak 0
+                [210, 123],  # Found peak 1
+            ],
+            [  # Cycle 1
+                [101, 231],  # Found peak 0
+                [213, 123],  # Found peak 1
+            ],
+        ],
+        [  # Field 1
+            [  # Cycle 0
+                [101, 231],  # Found peak 0
+                [210, 123],  # Found peak 1
+            ],
+            [  # Cycle 1
+                [101, 231],  # Found peak 0
+                [213, 123],  # Found peak 1
+            ],
+        ],
+        """
+        return self._load_list_prop_from_fields(fields, "cy_locs")
 
     # ndarray returns
     # ----------------------------------------------------------------
@@ -545,6 +582,49 @@ class SigprocV2Result(BaseResult):
         )
 
         return df
+
+    @disk_memoize()
+    def new_locs(self, fields=None):
+        """
+        Returns a dataframe of peak locations that we found in that
+        cycle that did not reconcile with cycle 0 locs.
+
+        DataFrame(field_i, cycle_i, aln_y, aln_x)
+        """
+        from scipy.spatial.distance import cdist
+
+        new_locs_df = pd.DataFrame()
+        for fl_i in self._fields_to_field_iz(fields):
+            # Index [0] in following because the fields always returns a list even if the index is scalar
+            cy_locs = self.cy_locs_per_field(fields=fl_i)[0]
+
+            cy0_locs = self.locs(fields=fl_i)
+
+            for cy_i, cy_locs in enumerate(cy_locs):
+                if cy_i == 0:
+                    continue
+
+                # Find closest old loc (axis=1) to each new loc (axis=0)
+                dists = cdist(cy_locs, cy0_locs, "euclidean")
+                closest_i = np.argmin(dists, axis=1)
+                closest_d = dists[np.arange(cy_locs.shape[0]), closest_i]
+
+                # Any new loc (axis=0) that is > 1.5 pixels from an old is a new loc
+                new_locs_mask = closest_d > 1.5
+                new_cy_locs = cy_locs[new_locs_mask]
+                n_new_cy_locs = len(new_cy_locs)
+
+                cy_df = pd.DataFrame(
+                    dict(
+                        field_i=[fl_i] * n_new_cy_locs,
+                        cycle_i=[cy_i] * n_new_cy_locs,
+                        aln_y=new_cy_locs[:, 0],
+                        aln_x=new_cy_locs[:, 1],
+                    )
+                )
+                new_locs_df = new_locs_df.append(cy_df)
+
+        return new_locs_df
 
     def dark_estimate(self, ch_i, fields=None, n_sigmas=4.0):
         """
