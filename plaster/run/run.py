@@ -374,26 +374,31 @@ class RunResult:
     # Our pattern is to keep lower-level objects (in this case test_rf)
     # from having to know things about the other modules (prep_result in this case).
 
-    def get_available_classifiers(self):
+    def get_available_classifiers(self, test=True):
         # Add to these if there are others available, or change the order to
         # determine which is used by default if more than one is available in
         # a RunResult.
-        supported_classifiers_by_preference = ["test_rf", "nn_v1", "nn_v2"]
+        if test is True:
+            supported_classifiers_by_preference = ["test_rf", "nn_v1", "nn_v2"]
+        else:
+            supported_classifiers_by_preference = ["classify_rf", "classify_nn_v2"]
         available_classifiers_by_preference = []
         for c in supported_classifiers_by_preference:
             if self.has_result(c):
                 available_classifiers_by_preference += [c]
         return available_classifiers_by_preference
 
-    def test_call_bag(self, classifier=None, use_train_data=False):
+    def call_bag(self, classifier=None, test=True, use_train_data=False):
         """
         Get a CallBag for a specific classifier, or a preferred available
         classifier if classifier is None.
 
         classifier: None, or some name from supported_classifiers_by_preference
+        test: return a CallBag for test data, else for sigproc data.
+        use_train_data: if test is True, return CallBag for training data if available.
         """
         if classifier is None:
-            classifier = self.get_available_classifiers()[0]
+            classifier = self.get_available_classifiers(test=test)[0]
         return self[f"{classifier}_call_bag"](use_train_data=use_train_data)
 
     def test_rf_call_bag(self, use_train_data=False):
