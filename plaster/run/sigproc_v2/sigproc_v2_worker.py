@@ -203,7 +203,6 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
 
     Returns:
         dst_filtered_chcy_ims: Balanced and band-pass filtered
-        dst_chcy_bg_std: Std on the
         dst_unfiltered_chcy_ims: Balanced but not band-pass filtered
 
     Notes:
@@ -216,7 +215,6 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
     dim = chcy_ims.shape[-2:]
     dst_filt_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
     dst_unfilt_chcy_ims = np.zeros((n_channels, n_cycles, *dim))
-    dst_chcy_bg_std = np.zeros((n_channels, n_cycles))
     approx_psf = plaster.run.calib.calib.approximate_psf()
 
     # Per-frame background estimation and removal
@@ -246,9 +244,8 @@ def _analyze_step_1_import_balanced_images(chcy_ims, sigproc_params, calib):
 
             dst_unfilt_chcy_ims[ch_i, cy_i, :, :] = im
             dst_filt_chcy_ims[ch_i, cy_i, :, :] = filtered_im
-            dst_chcy_bg_std[ch_i, cy_i] = bg_std
 
-    return dst_filt_chcy_ims, dst_unfilt_chcy_ims, dst_chcy_bg_std
+    return dst_filt_chcy_ims, dst_unfilt_chcy_ims
 
 
 '''
@@ -405,7 +402,7 @@ def _analyze_step_4_align_stack_of_chcy_ims(chcy_ims, aln_offsets):
     return aligned_chcy_ims
 
 
-def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
+def _analyze_step_5_find_peaks(chcy_ims, kernel, cycle_i):
     """
     Step 5: Peak find on combined channels
 
@@ -420,12 +417,9 @@ def _analyze_step_5_find_peaks(chcy_ims, kernel, chcy_bg_stds):
     # Use more than one cycle to improve the quality of the sub-pixel estimate
     # But then discard peaks that are off after cycle 1??
 
-    # TODO: Remove bg_std and derive it now that I have cleaner bg subtraction with band pass
-
-    ch_mean_of_cy0_im = np.mean(chcy_ims[:, 0, :, :], axis=0)
-    # bg_std = np.mean(chcy_bg_stds[:, 0], axis=0)
+    ch_mean_of_cy_im = np.mean(chcy_ims[:, cycle_i, :, :], axis=0)
     try:
-        locs = fg.sub_pixel_peak_find(ch_mean_of_cy0_im, kernel)
+        locs = fg.sub_pixel_peak_find(ch_mean_of_cy_im, kernel)
     except Exception as e:
         exception(e, "Failure during peak find, no peaks recorded for this frame.")
         locs = np.zeros((0, 2))
@@ -529,11 +523,7 @@ def _sigproc_analyze_field(
     # Step 1: Load the images in output channel order, balance, equalize
     # Timings:
     #   Val8_2t: 20 seconds per field, using a single core, probably IO bound
-    (
-        filt_chcy_ims,
-        unfilt_chcy_ims,
-        chcy_bg_stds,
-    ) = _analyze_step_1_import_balanced_images(
+    (filt_chcy_ims, unfilt_chcy_ims,) = _analyze_step_1_import_balanced_images(
         filt_chcy_ims.astype(np.float64), sigproc_v2_params, calib
     )
 
@@ -552,7 +542,7 @@ def _sigproc_analyze_field(
     # Timings:
     #   Val8_2t: 53 seconds per field, single core for about 20 seconds and then
     #            several bursts of all cores. Presumably that early delay is load time
-    #   Val10_1t debug_mode on remote_dev: 
+    #   Val10_1t debug_mode on remote_dev:
     if sigproc_v2_params.run_aligner:
         aln_offsets = _analyze_step_3_align(
             np.mean(filt_chcy_ims, axis=0), sigproc_v2_params.peak_mea
@@ -581,15 +571,23 @@ def _sigproc_analyze_field(
     # all pixels are now on an equal footing so we can now use
     # a single values for fg_thresh and bg_thresh.
 
+    approx_psf = plaster.run.calib.calib.approximate_psf()
     if sigproc_v2_params.locs is not None:
         locs = np.array(sigproc_v2_params.locs)
         assert locs.ndim == 1
         locs = np.reshape(locs, (locs.shape[0] // 2, 2))
     else:
-        approx_psf = plaster.run.calib.calib.approximate_psf()
-        locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, chcy_bg_stds)
+        locs = _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, cycle_i=0)
 
     n_locs = len(locs)
+
+    cy_locs = None
+    if sigproc_v2_params.run_per_cycle_peakfinder:
+        cy_locs = []
+        for cy_i in range(n_cycles):
+            cy_locs += [
+                _analyze_step_5_find_peaks(aln_filt_chcy_ims, approx_psf, cycle_i=cy_i)
+            ]
 
     # Step 6: Radiometry over each channel, cycle
 
@@ -672,6 +670,7 @@ def _sigproc_analyze_field(
         fitmat,
         focus_adjustments,
         neighborhood_stats,
+        cy_locs,
     )
 
 
@@ -699,6 +698,7 @@ def _do_sigproc_analyze_and_save_field(
         fitmat,
         focus_adjustments,
         neighborhood_stats,
+        cy_locs,
     ) = _sigproc_analyze_field(chcy_ims, sigproc_v2_params, calib, reg_psf)
 
     mea = np.array([chcy_ims.shape[-1:]])
@@ -741,6 +741,7 @@ def _do_sigproc_analyze_and_save_field(
         radmat=radmat,
         fitmat=fitmat,
         neighborhood_stats=neighborhood_stats,
+        cy_locs=cy_locs,
         _aln_filt_chcy_ims=aln_filt_chcy_ims,
         _aln_unfilt_chcy_ims=aln_unfilt_chcy_ims,
     )
@@ -777,7 +778,9 @@ def sigproc_instrument_calib(sigproc_v2_params, ims_import_result, progress=None
     )
 
 
-def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
+def sigproc_analyze(
+    sigproc_v2_params, ims_import_result, progress, calib=None, pipeline=None
+):
     """
     Entrypoint for analysis of (ie generate radiometry).
     Requires a calibration_file previously generated by sigproc_instrument_calib()
@@ -791,7 +794,17 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
     gauss2_fitter.init()
     sub_pixel_align.init()
 
-    if sigproc_v2_params.no_calib:
+    phase = 0
+    n_phases = 1
+
+    if sigproc_v2_params.self_calib:
+        n_phases = 2
+        if pipeline:
+            pipeline.set_phase(phase, n_phases)
+            phase += 1
+        calib, fg_means = _calibrate(ims_import_result, sigproc_v2_params, progress)
+
+    elif sigproc_v2_params.no_calib:
         assert sigproc_v2_params.instrument_identity is None
         assert (
             sigproc_v2_params.no_calib_psf_sigma is not None
@@ -831,6 +844,10 @@ def sigproc_analyze(sigproc_v2_params, ims_import_result, progress, calib=None):
         calib=calib,
         focus_per_field_per_channel=None,
     )
+
+    if pipeline:
+        pipeline.set_phase(phase, n_phases)
+        phase += 1
 
     with zap.Context(trap_exceptions=False, progress=progress):
         zap.work_orders(
