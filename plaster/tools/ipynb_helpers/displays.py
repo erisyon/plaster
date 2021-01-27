@@ -308,7 +308,8 @@ def explanation(text_or_h):
     from IPython.core.display import display, HTML  # Defer slow imports
 
     display(
-        HTML("""
+        HTML(
+            """
             <style>
                 .zfold {
                     display: revert;
@@ -320,15 +321,20 @@ def explanation(text_or_h):
                     margin-left: 1em;
                 }
             </style>
-        """)
+        """
+        )
     )
 
-    display(HTML(
-        h("details.zfold",
-            h("summary", "Explanation"),
-            h("div", h("pre", utils.smart_wrap(text_or_h))),
+    display(
+        HTML(
+            h(
+                "details.zfold",
+                h("summary", "Explanation"),
+                h("div", h("pre", utils.smart_wrap(text_or_h))),
+            )
         )
-    ))
+    )
+
 
 def movie(
     ims, overlay=None, _cspan=None, _cper=None, _size=None, _labels=None, _duration=250
@@ -380,8 +386,6 @@ def movie(
         duration=_duration,
         loop=0,
     )
-    # Orginally I had added a cache bust to this like:
-    # f'<img src="./__image_{code}.gif" width="{_size}">'
-    # But that caused jupyterhub to freak out so I removed it
-    # but I don't remember why I added it in the first place.
+
+    # Add a code to cache bust
     display(HTML(f'<img src="./__image_{code}.gif" width="{_size}">'))
