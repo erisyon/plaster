@@ -397,9 +397,10 @@ class RunResult:
         test: return a CallBag for test data, else for sigproc data.
         use_train_data: if test is True, return CallBag for training data if available.
         """
+        kwargs = Munch(use_train_data=use_train_data) if test else {}
         if classifier is None:
             classifier = self.get_available_classifiers(test=test)[0]
-        return self[f"{classifier}_call_bag"](use_train_data=use_train_data)
+        return self[f"{classifier}_call_bag"](**kwargs)
 
     def test_rf_call_bag(self, use_train_data=False):
         """
