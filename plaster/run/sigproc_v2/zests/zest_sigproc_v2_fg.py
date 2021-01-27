@@ -74,7 +74,7 @@ def zest_peak_find():
         locs = fg.peak_find(chcy_ims[0, 0], kernel)
         n_peaks, n_dims = locs.shape
         assert n_dims == 2
-        assert n_peaks > 0.85 * true_n_peaks
+        assert n_peaks > 0.80 * true_n_peaks
 
     def it_finds_sub_pixel_exactly_under_ideal_conditions():
         """
