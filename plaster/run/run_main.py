@@ -113,7 +113,11 @@ class RunApp(cli.Application):
             )
 
             try:
-                with zap.Context(cpu_limit=self.cpu_limit, mode="debug" if self.debug_mode else None, allow_inner_parallelism=True):
+                with zap.Context(
+                    cpu_limit=self.cpu_limit,
+                    mode="debug" if self.debug_mode else None,
+                    allow_inner_parallelism=True,
+                ):
                     # allow_inner_parallelism=True needs to be true so that each task such as sigproc_v2
                     # can allocate parallel jobs to each field.
 

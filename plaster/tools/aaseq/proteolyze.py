@@ -32,7 +32,7 @@ proteases = dict(
     idosobenzoic=[(True, "W;")],
     ntcb=[(True, ";C")],
     endopro=[(True, "AP;")],
-    lysarg=[(True,";K"),(True,";R")],
+    lysarg=[(True, ";K"), (True, ";R")],
 )
 
 
