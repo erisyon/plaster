@@ -103,7 +103,7 @@ WORKDIR /erisyon
 
 COPY ./plaster_root /erisyon/plaster/plaster_root
 COPY ./plas /erisyon/plaster/plas
-COPY ./scripts/docker_entrypoint.sh ./plaster/scripts/docker_entrypoint.sh
+COPY ./scripts/docker_entrypoint.py ./plaster/scripts/docker_entrypoint.py
 # TODO: need a plaster autocomp
 # COPY ./internal/.autocomp ./internal/.autocomp
 
@@ -142,4 +142,4 @@ COPY ./scripts ./plaster/scripts
 RUN chmod -R 2777 /root && chmod -R 2777 /home
 
 WORKDIR /erisyon/plaster
-# ENTRYPOINT [ "/erisyon/plaster/scripts/docker_entrypoint.sh" ]
+
