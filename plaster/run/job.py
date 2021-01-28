@@ -42,15 +42,17 @@ class JobResult:
         2. search up directory tree looking for a job_manifest.yaml file
            and use that directory as the entrypoint
         """
-        if local.env.get("DEV") == "1" and dev_override is not None:
-            return JobResult(dev_override)
-
         search_path = local.cwd
         while search_path != "/":
             job_yaml = search_path / "job_manifest.yaml"
             if job_yaml.exists():
                 return JobResult(search_path)
             search_path = search_path / ".."
+
+        if local.env.get("DEV") == "1" and dev_override is not None:
+            return JobResult(dev_override)
+
+        raise FileNotFoundError("Could not resolve job result and not in dev mode")
 
     @property
     def n_runs(self):
