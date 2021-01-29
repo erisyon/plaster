@@ -143,7 +143,7 @@ class ImsImportResult(BaseResult):
         return self._metadata_df
 
     def has_metadata(self):
-        return hasattr(self, "_metadata_df")
+        return hasattr(self, "_metadata_df") and len(self._metadata_df) > 0
 
     def qualities(self):
         return self._qualities_df
