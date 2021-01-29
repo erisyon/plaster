@@ -808,6 +808,13 @@ class GenApp(cli.Application, GenFuncs):
                 if report is not None:
                     utils.json_save(job_folder / f"{report_name}.ipynb", report)
 
+            for report_name in generator.static_reports:
+                if report_name is not None:
+                    report_name = f"{report_name}.ipynb"
+                    src = local.path(__file__) / "../reports" / report_name
+                    dst = job_folder / "_reports" / report_name
+                    src.copy(dst)
+
         utils.yaml_write(
             job_folder / "job_manifest.yaml",
             uuid=self.job_uuid,

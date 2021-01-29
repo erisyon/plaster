@@ -32,7 +32,7 @@ class SigprocV2Params(Params):
         # different from the calibration results because the calibration bakes in the PSF
         # as a function of these parameters.
         run_neighbor_stats=False,
-        run_per_cycle_peakfinder=False,
+        run_per_cycle_peakfinder=True,
         low_inflection=0.03,
         low_sharpness=50.0,
         high_inflection=0.50,
