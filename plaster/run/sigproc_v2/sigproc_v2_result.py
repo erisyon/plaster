@@ -583,6 +583,9 @@ class SigprocV2Result(BaseResult):
 
         return df
 
+    def has_new_locs(self):
+        return self._has_prop("cy_locs") and self.cy_locs_per_field(fields=0)[0] is not None
+
     @disk_memoize()
     def new_locs(self, fields=None):
         """
@@ -597,32 +600,33 @@ class SigprocV2Result(BaseResult):
         for fl_i in self._fields_to_field_iz(fields):
             # Index [0] in following because the fields always returns a list even if the index is scalar
             cy_locs = self.cy_locs_per_field(fields=fl_i)[0]
+            if cy_locs is not None:
 
-            cy0_locs = self.locs(fields=fl_i)
+                cy0_locs = self.locs(fields=fl_i)
 
-            for cy_i, cy_locs in enumerate(cy_locs):
-                if cy_i == 0:
-                    continue
+                for cy_i, cy_locs in enumerate(cy_locs):
+                    if cy_i == 0:
+                        continue
 
-                # Find closest old loc (axis=1) to each new loc (axis=0)
-                dists = cdist(cy_locs, cy0_locs, "euclidean")
-                closest_i = np.argmin(dists, axis=1)
-                closest_d = dists[np.arange(cy_locs.shape[0]), closest_i]
+                    # Find closest old loc (axis=1) to each new loc (axis=0)
+                    dists = cdist(cy_locs, cy0_locs, "euclidean")
+                    closest_i = np.argmin(dists, axis=1)
+                    closest_d = dists[np.arange(cy_locs.shape[0]), closest_i]
 
-                # Any new loc (axis=0) that is > 1.5 pixels from an old is a new loc
-                new_locs_mask = closest_d > 1.5
-                new_cy_locs = cy_locs[new_locs_mask]
-                n_new_cy_locs = len(new_cy_locs)
+                    # Any new loc (axis=0) that is > 1.5 pixels from an old is a new loc
+                    new_locs_mask = closest_d > 1.5
+                    new_cy_locs = cy_locs[new_locs_mask]
+                    n_new_cy_locs = len(new_cy_locs)
 
-                cy_df = pd.DataFrame(
-                    dict(
-                        field_i=[fl_i] * n_new_cy_locs,
-                        cycle_i=[cy_i] * n_new_cy_locs,
-                        aln_y=new_cy_locs[:, 0],
-                        aln_x=new_cy_locs[:, 1],
+                    cy_df = pd.DataFrame(
+                        dict(
+                            field_i=[fl_i] * n_new_cy_locs,
+                            cycle_i=[cy_i] * n_new_cy_locs,
+                            aln_y=new_cy_locs[:, 0],
+                            aln_x=new_cy_locs[:, 1],
+                        )
                     )
-                )
-                new_locs_df = new_locs_df.append(cy_df)
+                    new_locs_df = new_locs_df.append(cy_df)
 
         return new_locs_df
 
