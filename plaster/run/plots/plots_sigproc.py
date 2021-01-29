@@ -414,6 +414,10 @@ def wizard_xy_df(
     from bokeh.transform import linear_cmap  # Defer slow imports
     from ipywidgets import interact  # Defer slow imports
 
+    if not run.ims_import.has_metadata():
+        print("No metadata available")
+        return
+
     stage_df = (
         run.ims_import.metadata()
         .groupby("field_i")[["stage_x", "stage_y"]]
