@@ -142,11 +142,14 @@ def _calibrate(ims_import_result, sigproc_v2_params, progress):
     if sigproc_v2_params.n_fields_limit is None:
         # Use quality metrics
         q = ims_import_result.qualities()
-        q_by_field = q.groupby("field_i").quality.mean()
-        med_field_q = np.median(q_by_field.values)
-        good_field_iz = q_by_field[q_by_field > med_field_q].index.values
-        flchcy_ims = ims_import_result.ims[:, :, :].astype(np.float64)
-        flchcy_ims = flchcy_ims[good_field_iz]
+        if len(q) > 0:
+            q_by_field = q.groupby("field_i").quality.mean()
+            med_field_q = np.median(q_by_field.values)
+            good_field_iz = q_by_field[q_by_field > med_field_q].index.values
+            flchcy_ims = ims_import_result.ims[:, :, :].astype(np.float64)
+            flchcy_ims = flchcy_ims[good_field_iz]
+        else:
+            flchcy_ims = ims_import_result.ims[:, :, :].astype(np.float64)
     else:
         field_slice = slice(0, sigproc_v2_params.n_fields_limit, 1)
         flchcy_ims = ims_import_result.ims[field_slice, :, :].astype(np.float64)

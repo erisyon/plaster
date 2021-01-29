@@ -255,6 +255,7 @@ def sigproc_v2_movie_from_df(
     scale_filt=1.0,
     label_title="",
     negative=False,
+    circle_alpha=0.2,
     **kwargs,
 ):
     """
@@ -301,16 +302,27 @@ def sigproc_v2_movie_from_df(
             ims = ims * one_fg
 
         else:
-            overlay = np.zeros((ims.shape[-2:]), dtype=np.uint8)
+            overlay = np.zeros((*ims.shape, 4), dtype=np.uint8)
             if draw_circles:
-                overlay = 255 * circle_locs(
-                    overlay,
+                # Write into the red channel
+                overlay[:, :, :, 2] = 255 * circle_locs(
+                    np.zeros(ims.shape[-2:], dtype=np.uint8),
                     locs,
                     fill_mode="one",
-                    inner_radius=outer_radius - 1,
+                    inner_radius=0,
                     outer_radius=outer_radius,
                 ).astype(np.uint8)
-
+                overlay[:, :, :, 3] = (
+                    255
+                    * circle_alpha
+                    * circle_locs(
+                        np.zeros(ims.shape[-2:], dtype=np.uint8),
+                        locs,
+                        fill_mode="one",
+                        inner_radius=0,
+                        outer_radius=outer_radius,
+                    ).astype(np.uint8)
+                )
         return ims, overlay
 
     unfilt_ims, unfilt_overlay = None, None
@@ -333,7 +345,7 @@ def sigproc_v2_movie_from_df(
         assert filt_ims.shape[0] == unfilt_ims.shape[0]
         assert filt_overlay.shape[0] == unfilt_overlay.shape[0]
         ims = np.concatenate((unfilt_ims, filt_ims * scale_filt), axis=2)
-        overlay = np.concatenate((unfilt_overlay, filt_overlay), axis=1)
+        overlay = np.concatenate((unfilt_overlay, filt_overlay), axis=2)
     elif draw_unfilt:
         ims, overlay = unfilt_ims, unfilt_overlay
     elif draw_filt:
@@ -353,11 +365,11 @@ def sigproc_v2_movie_from_df(
 
     ims = ims[:, yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1]]
     if overlay is not None:
-        overlay = overlay[yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1]]
+        overlay = overlay[:, yx[0] : yx[0] + hw[0], yx[1] : yx[1] + hw[1], :]
 
     displays.movie(
         ims,
-        overlay,
+        overlay=overlay,
         **kwargs,
         _labels=[
             f"{label_title} fl_i:{fl_i} ch_i:{ch_i} cy_i: {cy_i}"
@@ -413,6 +425,10 @@ def wizard_xy_df(
     from bokeh.plotting import ColumnDataSource, figure, show  # Defer slow imports
     from bokeh.transform import linear_cmap  # Defer slow imports
     from ipywidgets import interact  # Defer slow imports
+
+    if not run.ims_import.has_metadata():
+        print("No metadata available")
+        return
 
     stage_df = (
         run.ims_import.metadata()

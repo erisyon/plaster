@@ -1,3 +1,4 @@
+import random
 import numpy as np
 import re
 from contextlib import contextmanager
@@ -336,14 +337,28 @@ def explanation(text_or_h):
     )
 
 
-def movie(
-    ims, overlay=None, _cspan=None, _cper=None, _size=None, _labels=None, _duration=250
+def movie_pil(
+    file_path,
+    ims,
+    overlay=None,
+    _cspan=None,
+    _cper=None,
+    _size=None,
+    _labels=None,
+    _duration=250,
+    _quality=50,
 ):
+    """
+    Render a movie to webp format and save it.
+
+    Optional overlay is RGBA of same size
+
+    Webp is significantly better compression than gif.
+    Below quality of 50 there's artifacts.
+    """
     check.array_t(ims, ndim=3)
 
-    from IPython.core.display import display, HTML  # Defer slow imports
-    from PIL import Image, ImageFont, ImageDraw
-    import random
+    from PIL import Image, ImageFont, ImageDraw, features
 
     if _cspan is not None:
         bot, top = _cspan
@@ -360,32 +375,45 @@ def movie(
     # in our tree to be able to use it on a remote machine
     font = ImageFont.load_default()
 
-    if overlay is not None:
-        over_im = Image.fromarray(overlay[::-1, :])
-
     pil_ims = []
     for i, im in enumerate(ims):
         _im = np.clip(255 * (im - bot) / (top - bot), a_min=0, a_max=255)
-        _im = Image.fromarray(_im[::-1, :].astype(np.uint8))
+        _im = _im[::-1, :].astype(np.uint8)
+        _im = np.repeat(_im[:, :, None], 3, axis=2)
+        _im = Image.fromarray(_im, mode="RGB")
         draw = ImageDraw.Draw(_im)
         if _labels is not None:
             draw.text((6, 11), _labels[i], fill="black", font=font)
             draw.text((5, 10), _labels[i], fill="white", font=font)
 
         if overlay is not None:
+            over_im = Image.fromarray(overlay[i][::-1])
             _im.paste(over_im, (0, 0), over_im)
 
         pil_ims += [_im]
 
-    code = random.randint(0, 2e9)
     pil_ims[0].save(
-        fp=f"./__image_{code}.gif",
-        format="GIF",
+        fp=file_path,
+        format="WEBP",
+        quality=_quality,
         append_images=pil_ims,
         save_all=True,
         duration=_duration,
         loop=0,
     )
 
+    return _size
+
+
+def movie(ims, **kwargs):
+    """
+    Render movie and display in notebook
+    See movie_pil for options
+    """
+    from IPython.core.display import display, HTML  # Defer slow imports
+
     # Add a code to cache bust
-    display(HTML(f'<img src="./__image_{code}.gif" width="{_size}">'))
+    code = random.randint(0, 2e9)
+    file_path = f"./__image_{code}.webp"
+    size = movie_pil(file_path=file_path, ims=ims, **kwargs)
+    display(HTML(f'<img src="{file_path}" width="{size}">'))
