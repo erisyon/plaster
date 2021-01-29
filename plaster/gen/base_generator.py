@@ -186,6 +186,11 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
         self.reports = Munch()
         self.add_report("report", self)
 
+        # static reports are ipynb files that are placed in the _reports
+        # folder under a job and are executed by the indexer.
+        # self.static_reports is a list of file names (without paths)
+        self.static_reports = []
+
         self._validate_protein_of_interest()
 
     def add_report(self, report_name, builder):
@@ -286,6 +291,7 @@ class BaseGenerator(report_builder.ReportBuilder, Munch):
             ims_import = self.ims_imports(self.sigproc_source)
             sigproc = task_templates.sigproc_v2_analyze(**kwargs)
             tasks = Munch(**ims_import, **sigproc)
+
         return tasks
 
     def lnfits(self, sigproc_version):

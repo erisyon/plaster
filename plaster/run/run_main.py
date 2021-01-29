@@ -83,6 +83,8 @@ class RunApp(cli.Application):
         )
 
         job_folder = assets.validate_job_folder(job_folder)
+        # At this point job_folder is a plumbub path
+
         if not job_folder.exists():
             error(f"Unable to find the path {job_folder}")
             return 1
@@ -143,15 +145,21 @@ class RunApp(cli.Application):
             and not self.clean
             and not self.skip_reports
         ):
-            # RUN reports
-            report_src_path = job_folder / "report.ipynb"
-            report_dst_path = job_folder / "report.html"
-            if (
-                self.force
-                or report_src_path.exists()
-                and utils.out_of_date(report_src_path, report_dst_path)
-            ):
-                self.run_ipynb(report_src_path)
+            report_paths = [job_folder / "report.ipynb"] + (
+                job_folder / "_reports" // "*.ipynb"
+            )
+
+            for report_src_path in report_paths:
+
+                # RUN reports
+                report_dst_path = report_src_path.with_suffix(".html")
+                if (
+                    self.force
+                    or report_src_path.exists()
+                    and utils.out_of_date(report_src_path, report_dst_path)
+                ):
+                    important(f"Running {report_src_path}")
+                    self.run_ipynb(report_src_path)
             return 0
 
         return failure_count

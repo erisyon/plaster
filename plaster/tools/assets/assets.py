@@ -14,7 +14,8 @@ def get_user():
 
 def validate_job_folder(job_folder, search_if_not_present=False):
     """
-    job_folder can be Python symbols
+    job_folder can be Python symbols.
+    returns plumbum local path
     """
     basename = local.path(job_folder).name
     if not utils.is_symbol(basename):

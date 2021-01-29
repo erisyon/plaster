@@ -128,4 +128,6 @@ class SigprocV2Generator(BaseGenerator):
             rb.report_section_from_template(template)
             self.add_report("sigproc_v2_timelapse", rb)
 
+        self.static_reports += ["_sigproc"]
+
         return runs
