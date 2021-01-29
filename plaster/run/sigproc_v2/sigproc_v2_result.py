@@ -435,12 +435,16 @@ class SigprocV2Result(BaseResult):
         return df
 
     @disk_memoize()
-    def peaks(self, n_peaks_subsample=None):
-        df = self._load_df_prop_from_fields("peak_df")
+    def peaks(self, fields=None, n_peaks_subsample=None):
+        df = self._load_df_prop_from_fields(
+            "peak_df", field_iz=self._fields_to_field_iz(fields)
+        )
         check.df_t(df, self.peak_df_schema)
 
         if self._has_prop("peak_fit_df"):
-            fit_df = self._load_df_prop_from_fields("peak_fit_df")
+            fit_df = self._load_df_prop_from_fields(
+                "peak_fit_df", field_iz=self._fields_to_field_iz(fields)
+            )
             check.df_t(df, self.peak_fit_df_schema)
             df = df.set_index(["field_i", "field_peak_i"]).join(
                 fit_df.set_index(["field_i", "field_peak_i"])
@@ -584,7 +588,10 @@ class SigprocV2Result(BaseResult):
         return df
 
     def has_new_locs(self):
-        return self._has_prop("cy_locs") and self.cy_locs_per_field(fields=0)[0] is not None
+        return (
+            self._has_prop("cy_locs")
+            and self.cy_locs_per_field(fields=0)[0] is not None
+        )
 
     @disk_memoize()
     def new_locs(self, fields=None):
