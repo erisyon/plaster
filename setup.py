@@ -2,21 +2,8 @@
 
 import os
 import pathlib
-<<<<<<< Updated upstream
-from setuptools import Extension
-from setuptools import setup
+from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext as build_ext_orig
-=======
-from setuptools import Extension, dist, find_packages, setup
-from setuptools.command.build_ext import build_ext as build_ext_orig
-
-dist.Distribution().fetch_build_eggs(["Cython>=0.15.1", "numpy>=1.10"])
-
-# these two imports must be below the line above; which ensures they're available
-# for use during installation
-from Cython.Build import cythonize  # isort:skip
-import numpy  # isort:skip
->>>>>>> Stashed changes
 
 # The directory containing this file
 HERE = pathlib.Path(__file__).parent
@@ -157,9 +144,5 @@ setup(
         "zbs.zest",
     ],
     python_requires=">=3.6",
-<<<<<<< Updated upstream
     ext_modules=[CMakeExtension("./plaster/vendor/flann")],
-=======
-    ext_modules=[CMakeExtension('./plaster/vendor/flann')] + cythonize(extensions, language_level="3"),
->>>>>>> Stashed changes
 )
